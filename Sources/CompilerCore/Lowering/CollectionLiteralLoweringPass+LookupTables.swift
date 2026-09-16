@@ -325,7 +325,6 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
-    var kkULongRangeMapName: InternedString { rangeLookup.kkULongRangeMapName }
 
     // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
 

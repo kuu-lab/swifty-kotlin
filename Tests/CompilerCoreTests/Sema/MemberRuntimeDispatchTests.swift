@@ -106,6 +106,8 @@ struct MemberRuntimeDispatchTests {
 
     @Test func testULongRangeHOFDispatchDefersToBundledSource() {
         let sourceBackedMembers: [(String, Int)] = [
+            ("map", 1), ("mapIndexed", 1), ("mapNotNull", 1),
+            ("filter", 1), ("filterIndexed", 1), ("filterNot", 1),
             ("forEach", 1),
             ("reduce", 1), ("reduceIndexed", 1), ("fold", 2), ("foldIndexed", 2),
             ("find", 1), ("findLast", 1),
@@ -125,6 +127,8 @@ struct MemberRuntimeDispatchTests {
         let progressionMembers: [(String, Int)] = [
             ("iterator", 0), ("step", 1),
             ("take", 1), ("drop", 1), ("chunked", 1), ("windowed", 1),
+            ("map", 1), ("mapIndexed", 1), ("mapNotNull", 1),
+            ("filter", 1), ("filterIndexed", 1), ("filterNot", 1),
         ]
         for member in progressionMembers {
             let key = MemberDispatchKey(receiverKind: .ulongProgression, memberName: member.0, arity: member.1)
