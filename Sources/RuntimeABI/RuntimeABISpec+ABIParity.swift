@@ -18,22 +18,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_int_to_int", parameters: [
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_native_atomic_ref_create", parameters: [
-            p("valueRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_load", parameters: [
-            p("refRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_compareAndSwap", parameters: [
-            p("refRaw", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_compareAndSet", parameters: [
-            p("refRaw", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
         // Runtime @_cdecl entries awaiting a dedicated RuntimeABISpec category.
         abiParitySpec("component1", parameters: [
             p("pairRaw", .intptr),
