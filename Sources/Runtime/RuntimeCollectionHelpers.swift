@@ -1168,6 +1168,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
     }
+    if let override = runtimeAnyToStringOverrideText(elem) {
+        return override
+    }
     if let throwableString = runtimeThrowableToString(elem) {
         return throwableString
     }
