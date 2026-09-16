@@ -596,6 +596,14 @@ extension CallTypeChecker {
                                 )
                             )
                             let resultType = signature.returnType
+                            if ast.arena.isExplicitCall(id),
+                               let nestedOwner = sema.symbols.parentSymbol(for: zeroArgNested),
+                               let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                               nestedOwnerSymbol.kind == .class,
+                               !nestedOwnerSymbol.flags.contains(.innerClass)
+                            {
+                                sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                            }
                             sema.bindings.bindExprType(id, type: resultType)
                             return resultType
                         }
@@ -628,6 +636,14 @@ extension CallTypeChecker {
                             )
                         )
                         let resultType = signature.returnType
+                        if ast.arena.isExplicitCall(id),
+                           let nestedOwner = sema.symbols.parentSymbol(for: chosen),
+                           let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                           nestedOwnerSymbol.kind == .class,
+                           !nestedOwnerSymbol.flags.contains(.innerClass)
+                        {
+                            sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                        }
                         sema.bindings.bindExprType(id, type: resultType)
                         return resultType
                     }
