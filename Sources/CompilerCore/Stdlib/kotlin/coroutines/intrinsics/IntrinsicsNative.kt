@@ -2,8 +2,8 @@
  * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Licensed under the Apache License, Version 2.0.
  *
- * Derived from kotlin-stdlib libraries/stdlib/src/kotlin/coroutines/intrinsics/Intrinsics.kt
- * and kotlin-native/runtime/src/main/kotlin/kotlin/coroutines/intrinsics/IntrinsicsNative.kt.
+ * Derived from kotlin-native <kotlin-native/runtime/src/main/kotlin/kotlin/coroutines/intrinsics/IntrinsicsNative.kt>
+ * and kotlin-stdlib <libraries/stdlib/src/kotlin/coroutines/intrinsics/Intrinsics.kt>.
  */
 
 package kotlin.coroutines.intrinsics

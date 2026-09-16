@@ -106,7 +106,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // KSP-496: KClass-handle-based simpleName/qualifiedName bridges (used by
-        // Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt).
+        // Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt).
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_simple_name",
             parameters: [
