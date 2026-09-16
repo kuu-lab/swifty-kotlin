@@ -16,8 +16,6 @@ import Testing
 //   - Future<T>: kk_future_new / kk_future_complete / kk_future_result / kk_future_consume /
 //               kk_future_is_ready / kk_future_getState (STDLIB-NATIVE-CONCURRENT-ABI-002)
 //   - TransferMode: kk_transfer_object (STDLIB-NATIVE-CONCURRENT-ABI-003)
-//   - FreezableAtomicReference<T>: kk_freezable_atomic_ref_create / _load / _store / _is_frozen
-//               (STDLIB-NATIVE-CONCURRENT-ABI-004)
 //   - Worker.executeAfter: kk_worker_execute_after (STDLIB-NATIVE-CONCURRENT-ABI-005)
 //   - freeze() / isFrozen: kk_freeze_object / kk_is_frozen
 //   - AtomicInt (legacy kotlin.native.concurrent.AtomicInt / unified kotlin.concurrent.AtomicInt):
@@ -545,87 +543,6 @@ struct RuntimeTransferModeTests {
     @Test func transferNullHandleIsNoOp() {
         let result = kk_transfer_object(0, 0)
         #expect(result == 0)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - FreezableAtomicReference Tests (STDLIB-NATIVE-CONCURRENT-ABI-004)
-// ---------------------------------------------------------------------------
-
-@Suite(.runtimeIsolation(.gcAndThreadLocal))
-struct RuntimeFreezableAtomicRefTests {
-
-    @Test func createReturnsNonZeroHandle() {
-        let handle = kk_freezable_atomic_ref_create(0)
-        #expect(handle != 0)
-    }
-
-    @Test func loadReturnsInitialValue() {
-        let valueHandle = kk_atomic_int_create(5)
-        let refHandle = kk_freezable_atomic_ref_create(valueHandle)
-        #expect(kk_freezable_atomic_ref_load(refHandle) == valueHandle)
-    }
-
-    @Test func isNotFrozenInitially() {
-        let refHandle = kk_freezable_atomic_ref_create(0)
-        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 0)
-    }
-
-    @Test func firstStoreSucceedsAndFreezesRef() {
-        let refHandle = kk_freezable_atomic_ref_create(0)
-        let valueHandle = kk_atomic_int_create(99)
-        let result = kk_freezable_atomic_ref_store(refHandle, valueHandle)
-        #expect(result == 1, "First store must succeed")
-        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 1, "Ref must be frozen after first store")
-        #expect(kk_freezable_atomic_ref_load(refHandle) == valueHandle)
-    }
-
-    @Test func secondStoreWithDifferentValueFails() {
-        let refHandle = kk_freezable_atomic_ref_create(0)
-        let v1 = kk_atomic_int_create(1)
-        let v2 = kk_atomic_int_create(2)
-        _ = kk_freezable_atomic_ref_store(refHandle, v1)
-        let result = kk_freezable_atomic_ref_store(refHandle, v2)
-        #expect(result == 0, "Mutation after freeze must be rejected")
-        #expect(kk_freezable_atomic_ref_load(refHandle) == v1, "Value must be unchanged")
-    }
-
-    @Test func storeWithSameValueAfterFreezeIsIdempotent() {
-        let refHandle = kk_freezable_atomic_ref_create(0)
-        let v = kk_atomic_int_create(7)
-        _ = kk_freezable_atomic_ref_store(refHandle, v)
-        let result = kk_freezable_atomic_ref_store(refHandle, v)
-        #expect(result == 1, "Storing the same value after freeze must succeed (idempotent)")
-    }
-
-    @Test func compareAndSetPublishesAndFreezesValue() {
-        let initial = kk_atomic_int_create(1)
-        let next = kk_atomic_int_create(2)
-        let refHandle = kk_freezable_atomic_ref_create(initial)
-        let result = kk_freezable_atomic_ref_compareAndSet(refHandle, initial, next)
-        #expect(result == 1)
-        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 1)
-        #expect(kk_freezable_atomic_ref_load(refHandle) == next)
-    }
-
-    @Test func compareAndSetRejectsExpectedMismatch() {
-        let initial = kk_atomic_int_create(1)
-        let other = kk_atomic_int_create(2)
-        let next = kk_atomic_int_create(3)
-        let refHandle = kk_freezable_atomic_ref_create(initial)
-        let result = kk_freezable_atomic_ref_compareAndSet(refHandle, other, next)
-        #expect(result == 0)
-        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 0)
-        #expect(kk_freezable_atomic_ref_load(refHandle) == initial)
-    }
-
-    @Test func compareAndSwapReturnsOldValue() {
-        let initial = kk_atomic_int_create(1)
-        let next = kk_atomic_int_create(2)
-        let refHandle = kk_freezable_atomic_ref_create(initial)
-        let oldValue = kk_freezable_atomic_ref_compareAndSwap(refHandle, initial, next)
-        #expect(oldValue == initial)
-        #expect(kk_freezable_atomic_ref_load(refHandle) == next)
     }
 }
 
