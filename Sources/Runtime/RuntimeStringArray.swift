@@ -651,8 +651,8 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     return opaque
 }
 
-@_cdecl("kk_string_concat_flat")
-public func kk_string_concat_flat(
+@_cdecl("__kk_string_concat_flat")
+public func __kk_string_concat_flat(
     _ lhsData: UnsafePointer<UInt8>?,
     _ lhsLength: Int,
     _ lhsByteCount: Int,
@@ -715,8 +715,8 @@ public func kk_string_compareTo_flat(
 // Receiver is passed as Int (intptr) so null receivers produce "null".
 // Primitives passed as `other` are already boxed by the ABI lowering pass
 // when widened to Any?, so runtimeElementToString handles them correctly.
-@_cdecl("kk_string_plus")
-public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_string_plus")
+public func __kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeElementToString(receiverRaw)
     let rhs = runtimeElementToString(otherRaw)
     return runtimeMakeStringRaw(lhs + rhs)

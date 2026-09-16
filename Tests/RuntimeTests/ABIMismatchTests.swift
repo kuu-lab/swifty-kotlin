@@ -316,7 +316,7 @@ struct ABIMismatchTests {
     func kkStringConcatPointerABIRemoved() {
         #expect(
             !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_concat" }),
-            "String concat should use kk_string_concat_flat instead of the legacy pointer ABI"
+            "String concat should use __kk_string_concat_flat instead of the legacy pointer ABI"
         )
     }
 
@@ -390,7 +390,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringConcatFlatSignature() throws {
-        let spec = try requireSpec("kk_string_concat_flat")
+        let spec = try requireSpec("__kk_string_concat_flat")
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 11)
         #expect(spec.parameters.map(\.type) == [

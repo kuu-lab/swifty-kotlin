@@ -39,10 +39,9 @@ func runtimePrimitiveCompareKind(from raw: Int32) -> RuntimePrimitiveCompareKind
 private final class RuntimeCaseInsensitiveStringComparatorBox {}
 
 // BUG-036/BUG-154: `String.CASE_INSENSITIVE_ORDER` is a companion `val` in real
-// Kotlin, so every read must observe the same instance. The synthetic companion
-// property is backed by a module-init global that calls this once (see
-// `registerSyntheticCompanionExternalProperty`); cache the singleton handle here
-// as well so any direct call also observes the same instance -- cleared by
+// Kotlin, so every read must observe the same instance. The bundled source
+// companion property calls this bridge on each read; cache the singleton handle
+// here so those reads observe the same instance -- cleared by
 // `kk_runtime_reset_gc` since a runtime reset drops GC tracking for the handle
 // it points at.
 private let caseInsensitiveOrderCacheLock = NSLock()
@@ -75,8 +74,8 @@ public func kk_string_case_insensitive_order_trampoline(
     }
 }
 
-@_cdecl("kk_string_case_insensitive_order")
-public func kk_string_case_insensitive_order() -> Int {
+@_cdecl("__kk_string_case_insensitive_order")
+public func __kk_string_case_insensitive_order() -> Int {
     caseInsensitiveOrderCacheLock.lock()
     defer { caseInsensitiveOrderCacheLock.unlock() }
     if cachedCaseInsensitiveOrderHandle != 0 {

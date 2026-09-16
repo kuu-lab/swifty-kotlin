@@ -125,8 +125,8 @@ public func kk_string_uppercase_flat(
 // bridge was removed.
 // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt); its runtime
 // bridge was removed.
-@_cdecl("kk_string_first_flat")
-public func kk_string_first_flat(
+@_cdecl("__kk_string_first_flat")
+public func __kk_string_first_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -142,8 +142,8 @@ public func kk_string_first_flat(
     return Int(first)
 }
 
-@_cdecl("kk_string_last_flat")
-public func kk_string_last_flat(
+@_cdecl("__kk_string_last_flat")
+public func __kk_string_last_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -159,8 +159,8 @@ public func kk_string_last_flat(
     return Int(last)
 }
 
-@_cdecl("kk_string_single_flat")
-public func kk_string_single_flat(
+@_cdecl("__kk_string_single_flat")
+public func __kk_string_single_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -229,8 +229,8 @@ public func kk_string_isNotBlank_flat(
     return source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1
 }
 
-@_cdecl("kk_string_firstOrNull_flat")
-public func kk_string_firstOrNull_flat(
+@_cdecl("__kk_string_firstOrNull_flat")
+public func __kk_string_firstOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -241,8 +241,8 @@ public func kk_string_firstOrNull_flat(
     return Int(first)
 }
 
-@_cdecl("kk_string_lastOrNull_flat")
-public func kk_string_lastOrNull_flat(
+@_cdecl("__kk_string_lastOrNull_flat")
+public func __kk_string_lastOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -253,8 +253,8 @@ public func kk_string_lastOrNull_flat(
     return Int(last)
 }
 
-@_cdecl("kk_string_singleOrNull_flat")
-public func kk_string_singleOrNull_flat(
+@_cdecl("__kk_string_singleOrNull_flat")
+public func __kk_string_singleOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,

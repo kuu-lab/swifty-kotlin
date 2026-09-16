@@ -369,11 +369,11 @@ enum MemberRuntimeDispatch {
         case ("toRegex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toRegex_flat")
         case ("firstOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_lastOrNull_flat")
         case ("get", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_get_flat")
         case ("compareTo", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareTo_flat")
         case ("matches", 1):

@@ -85,8 +85,8 @@ func runtimeStringTrimWithPredicate(
 
 // MARK: - STDLIB-TEXT-FN-026: intern
 
-@_cdecl("kk_string_intern")
-public func kk_string_intern(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_intern")
+public func __kk_string_intern(_ strRaw: Int) -> Int {
     return strRaw
 }
 

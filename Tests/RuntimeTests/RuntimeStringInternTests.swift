@@ -2,7 +2,7 @@
 @testable import Runtime
 import Testing
 
-/// STDLIB-TEXT-FN-026: Tests for the kk_string_intern runtime ABI.
+/// STDLIB-TEXT-FN-026: Tests for the __kk_string_intern runtime ABI.
 @Suite
 struct RuntimeStringInternTests {
 
@@ -23,22 +23,22 @@ struct RuntimeStringInternTests {
     @Test
     func testInternReturnsEquivalentString() {
         let raw = makeRaw("hello")
-        let interned = kk_string_intern(raw)
+        let interned = __kk_string_intern(raw)
         #expect(stringFromRaw(interned) == "hello")
     }
 
     @Test
     func testInternOfEmptyString() {
         let raw = makeRaw("")
-        let interned = kk_string_intern(raw)
+        let interned = __kk_string_intern(raw)
         #expect(stringFromRaw(interned) == "")
     }
 
     @Test
     func testInternIsIdempotent() {
         let raw = makeRaw("idempotent")
-        let interned1 = kk_string_intern(raw)
-        let interned2 = kk_string_intern(interned1)
+        let interned1 = __kk_string_intern(raw)
+        let interned2 = __kk_string_intern(interned1)
         #expect(interned1 == interned2)
     }
 }

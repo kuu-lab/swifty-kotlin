@@ -780,8 +780,8 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: false
                 ),
-                "kk_string_concat_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_concat_flat",
+                "__kk_string_concat_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_concat_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0,
                     canThrow: false
@@ -1106,8 +1106,8 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_equals_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_equals_flat",
+                "__kk_string_equals_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_equals_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
@@ -1141,46 +1141,46 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_first_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_first_flat",
+                "__kk_string_first_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_first_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_last_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_last_flat",
+                "__kk_string_last_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_last_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_single_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_single_flat",
+                "__kk_string_single_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_single_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_firstOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstOrNull_flat",
+                "__kk_string_firstOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_firstOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_lastOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastOrNull_flat",
+                "__kk_string_lastOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_lastOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_singleOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_singleOrNull_flat",
+                "__kk_string_singleOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_singleOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_getOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_getOrNull_flat",
+                "__kk_string_getOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_getOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_get_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_get_flat",
+                "__kk_string_get_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_get_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true

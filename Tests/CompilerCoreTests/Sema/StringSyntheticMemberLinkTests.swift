@@ -156,10 +156,15 @@ struct StringSyntheticMemberLinkTests {
                 )
             }
             // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+            // are bundled Kotlin wrappers; only their private bridge retains the
+            // runtime link.
             #expect(
-                externalLinks(for: "plus", sema: sema, interner: interner)
-                    .contains("kk_string_plus"),
-                "String?.plus(other: Any?) should link to kk_string_plus"
+                externalLinks(for: "plus", sema: sema, interner: interner).isEmpty,
+                "String?.plus(other: Any?) should be source-backed"
+            )
+            #expect(
+                externalLink(for: "__kkStringPlus", sema: sema, interner: interner) == "__kk_string_plus",
+                "String?.plus bridge should link to __kk_string_plus"
             )
             // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
             let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
@@ -1051,16 +1056,36 @@ struct StringSyntheticMemberLinkTests {
                 // The property lives on String's companion object, not top-level kotlin.text.
                 let companionPropertyFQName = ["kotlin", "String", "Companion", "CASE_INSENSITIVE_ORDER"]
                     .map { interner.intern($0) }
-                let propertySymbol = try #require(sema.symbols.lookup(fqName: companionPropertyFQName))
+                let stringFQName = ["kotlin", "String"].map { interner.intern($0) }
+                let stringSymbol = try #require(sema.symbols.lookup(fqName: stringFQName))
+                let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: stringSymbol))
+                let companionType = sema.types.make(.classType(ClassType(
+                    classSymbol: companionSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let propertySymbol = try #require(sema.symbols.lookupAll(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("text"),
+                    interner.intern("CASE_INSENSITIVE_ORDER"),
+                ]).first { candidate in
+                    sema.symbols.symbol(candidate)?.kind == .property
+                        && sema.symbols.extensionPropertyReceiverType(for: candidate) == companionType
+                })
                 #expect(
-                    sema.symbols.externalLinkName(for: propertySymbol) == "kk_string_case_insensitive_order"
+                    sema.symbols.externalLinkName(for: propertySymbol) == nil
                 )
-                let parentSymbol = try #require(sema.symbols.parentSymbol(for: propertySymbol))
-                #expect(sema.symbols.symbol(parentSymbol)?.kind == .object)
+                #expect(sema.symbols.symbol(propertySymbol)?.declSite != nil)
+                #expect(!sema.symbols.symbol(propertySymbol)!.flags.contains(.synthetic))
+                let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+                #expect(sema.symbols.externalLinkName(for: getter) == nil)
+                #expect(
+                    externalLink(for: "__kkStringCaseInsensitiveOrder", sema: sema, interner: interner)
+                        == "__kk_string_case_insensitive_order"
+                )
 
                 // The buggy top-level kotlin.text.CASE_INSENSITIVE_ORDER must not exist.
-                let topLevelFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { interner.intern($0) }
-                #expect(sema.symbols.lookup(fqName: topLevelFQName) == nil)
+                #expect(sema.symbols.lookup(fqName: companionPropertyFQName) == nil)
 
                 let comparatorFQName = ["kotlin", "Comparator"].map { interner.intern($0) }
                 let comparatorSymbol = try #require(sema.symbols.lookup(fqName: comparatorFQName))

@@ -126,7 +126,7 @@ extension ExprLowerer {
                 let concatResult = arena.appendTemporary(type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [accumulated, partIDs[i]],
                     result: concatResult,
                     canThrow: false,
@@ -1957,7 +1957,7 @@ extension ExprLowerer {
                 let resultID = arena.appendTemporary(type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: resultID,
                     canThrow: false,
@@ -1976,6 +1976,24 @@ extension ExprLowerer {
                       signature.receiverType != nil
                 else {
                     return nil
+                }
+
+                // `String?.plus(Any?)` is a bundled source wrapper around a
+                // runtime bridge. Compound assignment must use the builtin
+                // string conversion path so statically-known class/value-class
+                // receivers retain their own `toString()` implementation.
+                if driver.callLowerer.isBundledStringPlusCall(
+                    callBinding,
+                    op: op,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return appendBuiltinCompoundResult(
+                        lhs: lhs,
+                        lhsType: arena.exprType(lhs) ?? sema.types.anyType,
+                        rhs: rhs,
+                        rhsType: arena.exprType(rhs)
+                    )
                 }
 
                 let normalizedResult = driver.callSupportLowerer.normalizedCallArguments(
