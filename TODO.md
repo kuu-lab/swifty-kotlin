@@ -3367,9 +3367,10 @@
   - 対象: `kotlin.text` / receiver `CharSequence` / family `matches`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringSearchReplace.kt`(#6707 で追加済み)
 
-- [ ] KSP-1387: kotlin.text.CharSequence.max-family の未実装 stdlib API を実装する（14 件）
+- [~] KSP-1387: kotlin.text.CharSequence.max-family の未実装 stdlib API を実装する（14 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `max`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
+  - **2026-09-16 実装済み（ゲート保留）**: Kotlin 2.3.10 の source contract に合わせて 14 API を追加。`maxWith` 系の `Comparator<in Char>` を解決するため、use-site variance を持つ型引数だけを分解する Sema 制約修正を追加し、既存 `KCallable<*>` golden への副作用がないことを確認。対象 Sema golden 94 ケース、対象 diff ケース、Runtime ABI 4/4、TODO ID、`git diff --check` は pass。全 Golden / 全 diff_cases は未実行のため `[~]` を維持する。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_max.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_max.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_max.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

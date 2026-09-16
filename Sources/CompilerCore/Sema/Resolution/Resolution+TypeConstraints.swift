@@ -473,10 +473,21 @@ extension OverloadResolver {
             )
         }
 
-        // Case 2: supertype is a class type with type args containing type variables.
+        // Case 2: supertype is a generic class type with inferable variables or
+        // use-site projections. Projections such as `Comparator<in Char>` are
+        // otherwise left to the nominal subtype check, which cannot distinguish
+        // a valid projected argument from an invariant one.
         if case let .classType(superClass) = supertypeKind,
            !superClass.args.isEmpty,
-           containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+           (containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+               || superClass.args.contains(where: { arg in
+                   switch arg {
+                   case .in, .out:
+                       true
+                   case .invariant, .star:
+                       false
+                   }
+               }))
         {
             let subtypeKind = typeSystem.kind(of: subtype)
             // Kotlin function types are represented as `Function<R>` in source
