@@ -11,7 +11,7 @@ import Testing
 /// `flatMap` / `flatMapIndexed` / `flatten`, the `*To` destination variants,
 /// and the `filter` family to `Stdlib/kotlin/collections/ListHOF.kt` /
 /// `ListFilterHOF.kt`, and deleted every `kotlin.collections.List` entry from
-/// `StdlibSurfaceSpec`. `SourceBackedCallPreservationPolicy.sharedAggregateNames`
+/// `StdlibSurfaceSpec`. The source-backed call policy
 /// (RF-LOWER-CALL-007) kept protecting all seventeen names through a name
 /// allowlist, while the rewrite branches eight of them guarded could no
 /// longer fire on a List receiver — `collectionHOFRuntimeName(ownerKind:
@@ -287,7 +287,7 @@ struct ListTransformFilterPreservationTests {
     // MARK: - the retained allowlist names are load-bearing
 
     /// `map` / `filter` / `flatMap` stayed in
-    /// `SourceBackedCallPreservationPolicy.sharedAggregateNames` because the
+    /// old source-backed allowlist because the
     /// same interned name also selects the Map receiver rewrite in
     /// `+CallRewriteHandlers.swift` (`kk_map_map`, `kk_map_filter`,
     /// `kk_map_flatMap`). Dropping them for the List family would hand the

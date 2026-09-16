@@ -9,14 +9,14 @@ import Testing
 /// RF-LOWER-CALL-004 / -005 / -006 have since deleted every arm: none of the six
 /// `__kk_build_{list,set,map}[_with_capacity]` names exists any more as a rewrite
 /// target, a `RuntimeABISpec` entry, or a Runtime `@_cdecl`, and the rewrite block
-/// itself is gone.  All six stay in `legacyBuilderRuntimeCallees` below so the
-/// negative assertions guard against their reintroduction.  Retiring the shared
-/// `isStdlibBuilderDSLCall` / `BuilderDSLLookupNames` entry point is CALL-015.
+/// itself is gone. All six stay in `legacyBuilderRuntimeCallees` below so the
+/// negative assertions guard against their reintroduction. CALL-015 also retires
+/// the shared Builder DSL lookup entry point.
 ///
 /// `CollectionLiteralLoweringTests` covers the same three names, but every one
 /// of those cases hand-builds `.call(symbol: nil, ...)` KIR against a
 /// `KIRContext` without a `SemaModule`, which short-circuits
-/// `isStdlibBuilderDSLCall` at its `guard let symbol else { return true }`.
+/// the old symbol guard.
 /// They therefore prove only that the rewrite still exists — never that any
 /// real Kotlin input reaches it.  The tests below drive the same pass from
 /// source, so the deletion premises rest on the production path rather than on
@@ -102,9 +102,9 @@ struct BuilderDSLLoweringRoutingTests {
     }
 
     /// The reason the rewrite is skipped: the resolved callee misses every
-    /// `true`-returning branch of `isStdlibBuilderDSLCall` — the symbol is
-    /// present (not `nil`), not `.synthetic`, carries no `externalLinkName`,
-    /// and is source-backed by `CollectionBuilders.kt`.
+    /// old rewrite guard — the symbol is present (not `nil`), not `.synthetic`,
+    /// carries no `externalLinkName`, and is source-backed by
+    /// `CollectionBuilders.kt`.
     @Test
     func sourceBackedBuilderCalleesMissEveryRewriteBranch() throws {
         try withTemporaryFile(contents: Self.builderDSLSource) { path in

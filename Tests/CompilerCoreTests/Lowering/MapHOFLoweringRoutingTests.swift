@@ -25,8 +25,8 @@ import Testing
 /// `mapHOFReturnsList` / `mapHOFReturnsMap`) and
 /// `+VirtualCallRewrite.swift` (`rewriteMapHOF`) to be unreachable: every one
 /// of these names, once resolved to the bundled `MapHOF.kt` declaration, is
-/// short-circuited by `shouldPreserveSourceBackedAggregateCall` /
-/// `shouldPreserveSourceBackedVirtualCall` before the dispatcher that owned
+/// short-circuited by the source-backed preservation gates before the
+/// dispatcher that owned
 /// those branches ever ran, and removing all three branches left post-lowering
 /// KIR byte-identical (checked with `--emit kir` on both the
 /// `--stdlib-from-source` and default-artifact stdlib paths, plus an

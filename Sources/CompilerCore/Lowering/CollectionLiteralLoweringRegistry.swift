@@ -13,9 +13,8 @@ struct CollectionLiteralLookupRegistry {
 final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionLiteralConstructionLowering"
 
-    /// RF-LOWER-CALL-007: shared with `CollectionVirtualCallRewriteLoweringPass`
-    /// so direct and virtual dispatch decide source-backed preservation from
-    /// one set of API names built once per pass run.
+    /// Shared with `CollectionVirtualCallRewriteLoweringPass` so direct and
+    /// virtual dispatch apply the same source-backed preservation rule.
     let sourceBackedPreservation: SourceBackedCallPreservationPolicy
 
     init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
@@ -78,10 +77,7 @@ struct CollectionLiteralLoweringRegistry {
 
     init(interner: StringInterner) {
         lookupRegistry = CollectionLiteralLookupRegistry(interner: interner)
-        let sourceBackedPreservation = SourceBackedCallPreservationPolicy(
-            lookup: lookupRegistry.tables,
-            interner: interner
-        )
+        let sourceBackedPreservation = SourceBackedCallPreservationPolicy()
         constructionPass = CollectionLiteralConstructionLoweringPass(
             sourceBackedPreservation: sourceBackedPreservation
         )

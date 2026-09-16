@@ -17,7 +17,7 @@ import Testing
 /// silently bind to an unrelated symbol.  Nothing pinned that.
 ///
 /// RF-LOWER-CALL-011 then found the 25-name KSP-426 enumeration in
-/// `shouldPreserveSourceBackedAggregateCall` (and its
+/// old direct source-backed preservation gate (and its
 /// `+VirtualCallRewrite.swift` mirror) to be unreachable — every rewrite that
 /// could claim these names sits behind an outer member-name gate that never
 /// listed them — and removed it.  These tests are what keeps that from
@@ -41,8 +41,8 @@ struct ListSortExtremaLoweringRoutingTests {
     ]
 
     /// Every callee name the removed KSP-426 block used to enumerate in the two
-    /// policies (`shouldPreserveSourceBackedAggregateCall` in
-    /// `+CallRewrite.swift` and `shouldPreserveSourceBackedVirtualCall` in
+    /// policies (the direct gate in
+    /// `+CallRewrite.swift` and the virtual gate in
     /// `+VirtualCallRewrite.swift`), exercised on a `List` receiver.
     static let expectedSourceCallees: Set<String> = [
         "sorted", "sortedDescending", "sortedBy", "sortedByDescending", "sortedWith",
@@ -248,8 +248,7 @@ struct ListSortExtremaLoweringRoutingTests {
 
     /// `maxByOrNull` / `minByOrNull` were the two extrema names shared with the
     /// Map group; RF-LOWER-CALL-012 removed them from both policies
-    /// (`shouldPreserveSourceBackedAggregateCall` /
-    /// `shouldPreserveSourceBackedVirtualCall`) since the branch they used to
+    /// (the direct / virtual source-backed preservation gates) since the branch they used to
     /// short-circuit — the Map block in `+CallRewriteHOFCore.swift` that
     /// mapped them to `kk_map_maxByOrNull` / `kk_map_minByOrNull` — was itself
     /// deleted as unreachable (`isCollectionHOFMemberName` never listed them,

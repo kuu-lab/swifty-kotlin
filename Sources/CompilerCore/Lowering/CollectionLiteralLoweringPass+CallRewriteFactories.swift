@@ -310,7 +310,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // arity: 1)` is true, which it is here — so there is no non-source-backed
         // symbol this call could ever resolve to. This branch runs inside
         // `rewriteFactoryAndBuilderCall`, which `lowerCallInstruction` calls
-        // *before* `shouldPreserveSourceBackedAggregateCall`, so unlike the
+        // *before* the source-backed preservation gate, so unlike the
         // Map HOF branches CALL-012 removed, this one could not rely on that
         // later short-circuit and instead carried its own inline
         // `isSourceBackedBundledFunction` check — which was therefore always
@@ -550,9 +550,8 @@ extension CollectionLiteralConstructionLoweringPass {
         // The builder DSL rewrite to `__kk_build_*` runtime helpers (STDLIB-002)
         // is gone: RF-LOWER-CALL-004 (list), -005 (set) and -006 (map) removed
         // every arm, so `buildList` / `buildSet` / `buildMap` all lower through
-        // `CollectionBuilders.kt`.  `isStdlibBuilderDSLCall` itself still has a
-        // caller in `scanBuilderLambdaEntries`; retiring the shared predicate
-        // and `BuilderDSLLookupNames` is RF-LOWER-CALL-015.
+        // `CollectionBuilders.kt`; no legacy Builder DSL predicate or lookup
+        // is needed at this entry point anymore.
 
         return false
     }

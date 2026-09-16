@@ -1,69 +1,24 @@
 extension CollectionLiteralConstructionLoweringPass {
-    /// Resolve the representation evidence used by the direct-call policy.
-    ///
-    /// The rewrite state is the source of runtime provenance.  When it has no
-    /// runtime fact, a resolved receiver signature can still prove that the
-    /// call is a non-Sequence extension (or a top-level function); it cannot
-    /// prove which representation backs a `Sequence` receiver, so that case
-    /// remains `.unknown`.
-    private func sequenceRuntimeRepresentationForCall(
+    /// Keep resolved source declarations on the original call path unless the
+    /// receiver is a confirmed runtime Sequence box. Runtime-specific
+    /// collection intrinsics are emitted under their `kk_*` callee before this
+    /// gate and therefore do not need an API-name exception here.
+    private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
         arguments: [KIRExprID],
-        state: CollectionRewriteState,
-        ctx: KIRContext
-    ) -> CollectionLiteralLoweringSupport.SequenceRuntimeRepresentation {
-        guard let receiverID = arguments.first else {
-            return .notSequence
-        }
-
-        let representation = state.sequenceRuntimeRepresentation(of: receiverID)
-        guard representation == .unknown,
-              let symbol,
-              let sema = ctx.sema,
-              sema.symbols.symbol(symbol) != nil,
-              let signature = sema.symbols.functionSignature(for: symbol)
-        else {
-            return representation
-        }
-
-        guard let receiverType = signature.receiverType else {
-            return .notSequence
-        }
-        guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return representation
-        }
-        let sequenceFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("sequences"),
-            ctx.interner.intern("Sequence"),
-        ]
-        return receiverSymbol.fqName == sequenceFQName ? .unknown : .notSequence
-    }
-
-    /// Adapts this pass's rewrite state to `SourceBackedCallPreservationPolicy`
-    /// inputs. RF-LOWER-CALL-007 moved the decision itself — the preserved API
-    /// name sets and array-conversion branch — into the policy; what stays here
-    /// is the receiver bookkeeping the policy must not know about. Every input
-    /// is an `@autoclosure` so the symbol-table and signature lookups still run
-    /// only after a name matches, as they did when this was one predicate.
-    private func shouldPreserveSourceBackedAggregateCall(
-        symbol: SymbolID?,
-        callee: InternedString,
-        arguments: [KIRExprID],
+        module: KIRModule,
         state: CollectionRewriteState,
         ctx: KIRContext
     ) -> Bool {
-        sourceBackedPreservation.preservesDirectCall(
-            callee: callee,
+        sourceBackedPreservation.preserves(
             resolution: SourceBackedCalleeResolution(symbol: symbol, sema: ctx.sema),
-            receiverIsTrackedArrayLiteral: arguments.first.map {
-                state.arrayExprIDs.contains($0.rawValue)
-            } ?? false,
             sequenceRuntimeRepresentation: sequenceRuntimeRepresentationForCall(
                 symbol: symbol,
-                arguments: arguments,
+                receiver: arguments.first,
                 state: state,
-                ctx: ctx
+                module: module,
+                sema: ctx.sema,
+                interner: ctx.interner
             )
         )
     }
@@ -149,10 +104,10 @@ extension CollectionLiteralConstructionLoweringPass {
             return
         }
 
-        if shouldPreserveSourceBackedAggregateCall(
+        if shouldPreserveSourceBackedCall(
             symbol: symbol,
-            callee: callee,
             arguments: arguments,
+            module: module,
             state: state,
             ctx: ctx
         ) {

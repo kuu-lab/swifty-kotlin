@@ -129,9 +129,14 @@
     - `SourceBackedCallPreservationPolicy` の `map` / `filter` 例外を表現判定へ置換。Sequence pipeline / terminal の source-backed gate と map bridge は確認済み `RuntimeSequenceBox` のみ通過し、source object / 非 Sequence / unknown は元の source iterator 経路へフォールバック。public `sequenceOf` / `emptySequence` / `generateSequence` は overload に source object を含むため名前だけで runtime 分類しない。
     - テストで source / runtime producer、Sequence 引数、runtime/source copy、競合 provenance、静的型由来 unknown を固定。`swift build`、Lowering 3スイート（53件）、`CollectionLiteralLoweringTests`（67件）、Sequence map/mapIndexed（4件）、toMap/toSet/toList（5件）、Sequence EdgeCases（60件）がPASS。`git diff --check` もPASS。
     - 未実行: 全 Swift テスト、Golden 4系統、`diff_kotlinc.sh` 全ケース（CI に委ねる）。
-- [ ] RF-LOWER-CALL-015: 移行済みAPIの保護用名前列挙を撤去してpolicyを閉じる（前提: CALL-006・014）
+- [x] RF-LOWER-CALL-015: 移行済みAPIの保護用名前列挙を撤去してpolicyを閉じる（前提: CALL-006・014）
   - 対象: policyとdirect / virtual callの入口、使われなくなったlookupのみ。List / Map / Array / Sequence各群で保持済みの宣言を共通原則へ統合し、残るintrinsicは識別根拠・runtime表現・対応テストを明確にする。
   - 完了条件: `shouldPreserveSourceBackedAggregateCall` 相当の巨大なAPI名allowlistがなく、解決済みの通常Kotlin宣言を保持し、必要なbridgeだけを書き換える。別の巨大表への移設・source-backed全件の無条件skipで達成したことにしない。残作業があれば具体的なAPI単位へ再分割し、本項を先に完了しない。
+  - 完了根拠:
+    - `SourceBackedCallPreservationPolicy` を名前集合・lookup・interner非依存のデータフリー判定へ縮小し、direct / virtual call入口を `SourceBackedCalleeResolution` と `SequenceRuntimeRepresentation` の共通判定へ統合。解決済みの通常Kotlin宣言は保持し、未解決・synthetic bridgeは既存rewriteへ流す。
+    - runtime collection intrinsic は CallLowerer が先に選択した `kk_*` / `__kk_*` calleeをそのまま利用するため名前allowlistで保護せず、Sequence virtual `toMap` だけは確認済み `RuntimeSequenceBox` と `outThrown` ABIを根拠にbridgeを残した。トップレベル関数の通常のSequence引数をextension receiverと誤認しない判定も追加した。
+    - Builder DSLの旧predicate / lookupと、policyからのみ参照されていたCommon lookup 12項目を撤去。liveなSet member bridge用のadd/remove lookupは`SetLookupNames`へ統合した。
+    - 検証（最新変更後）: `swift build`、`SourceBackedCallPreservationPolicyTests` 9、`CollectionLiteralLoweringTests` 67、`ListAccumulationSourcePreservationTests` 3、`ListSearchPredicateLoweringRoutingTests` 4、`ListTransformFilterPreservationTests` 5（18 parameter cases）、`ListSortExtremaLoweringRoutingTests` 6、`MapHOFLoweringRoutingTests` 4、`MapCountLoweringRoutingTests` 2、`BuilderDSLLoweringRoutingTests` 5 がPASS。`git diff --check`もPASS。全Swiftテスト・Golden 4系統・`diff_kotlinc.sh`全件は未実行（CIに委ねる）。
 
 ### 2. 式分類・コピー伝播の一元化（RF-LOWER-STATE）
 
