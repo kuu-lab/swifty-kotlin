@@ -158,7 +158,11 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "Path") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Coercion") { phase, symbols, types, interner, _ in
+        // KSP-1544: the coercion/range (b) surface is fully source-backed
+        // (RangeCoercion.kt + Numbers.kt Float/Double.toByte/toShort). What
+        // remains are language-core primitive casts (Int/Long/Double.toFloat)
+        // lowered directly to kk_* runtime symbols — residual (c).
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coercion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExtendedStdlibBuckets") { phase, symbols, types, interner, _ in
