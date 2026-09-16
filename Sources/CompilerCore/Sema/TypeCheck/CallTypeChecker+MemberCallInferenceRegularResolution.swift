@@ -1444,6 +1444,33 @@ extension CallTypeChecker {
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        let memberName = interner.resolve(calleeName)
+        if !isClassNameReceiver,
+           !safeCall,
+           args.isEmpty,
+           explicitTypeArgs.isEmpty,
+           invisible.isEmpty,
+           sema.types.nullability(of: receiverType) == .nullable,
+           memberName == "toString" || memberName == "hashCode",
+           !visible.contains(where: { candidate in
+               guard let signature = sema.symbols.functionSignature(for: candidate),
+                     signature.parameterTypes.isEmpty,
+                     let declaredReceiver = signature.receiverType,
+                     sema.types.nullability(of: declaredReceiver) == .nullable
+               else {
+                   return false
+               }
+               return sema.types.isSubtype(receiverType, declaredReceiver)
+           })
+        {
+            // Kotlin exposes toString() and hashCode() through nullable Any
+            // extensions. Flat-representation and class receivers can expose
+            // only non-null synthetic members, which the normal resolver must
+            // reject for a nullable receiver before KIR can use the Any ABI.
+            let resultType = memberName == "toString" ? sema.types.stringType : sema.types.intType
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
         var candidates = preferMostSpecificMemberReceiverCandidates(
             visible,
             receiverType: lookupReceiverType,
