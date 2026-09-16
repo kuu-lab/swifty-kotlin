@@ -221,6 +221,52 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        // KSP-704: the Set/MutableSet nominal headers are only predeclared
+        // before residual registration; their type parameters become available
+        // when the complete bundled headers are collected. Register the
+        // remaining MutableSet addAll bridges now that their owner signatures
+        // can be constructed against the source-backed symbols. The helpers
+        // are idempotent, so MutableList registrations made during the early
+        // synthetic pass remain unchanged.
+        let kotlinCollectionsPackage = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
+        if let iterableSymbol = symbols.lookup(fqName: kotlinCollectionsPackage + [ctx.interner.intern("Iterable")]) {
+            registerMutableCollectionIterableAddAllMembers(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner,
+                kotlinCollectionsPkg: kotlinCollectionsPackage,
+                iterableInterfaceSymbol: iterableSymbol
+            )
+        }
+        if let mutableCollectionSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPackage + [ctx.interner.intern("MutableCollection")]
+        ),
+        let mutableListSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPackage + [ctx.interner.intern("MutableList")]
+        ),
+        let mutableSetSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPackage + [ctx.interner.intern("MutableSet")]
+        ),
+        let sequenceSymbol = symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("sequences"), ctx.interner.intern("Sequence")]) {
+            registerMutableCollectionSequenceAddAllMembers(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner,
+                mutableCollectionSymbol: mutableCollectionSymbol,
+                mutableListSymbol: mutableListSymbol,
+                mutableSetSymbol: mutableSetSymbol,
+                sequenceSymbol: sequenceSymbol
+            )
+        }
+        registerMutableCollectionArrayAddAllMembers(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            kotlinCollectionsPkg: kotlinCollectionsPackage
+        )
         // KSP-1332: the source declaration spells this as List<KTypeProjection>,
         // while the compiler's residual List model represents covariant uses
         // with an explicit out projection. Reapply that existing KType contract
