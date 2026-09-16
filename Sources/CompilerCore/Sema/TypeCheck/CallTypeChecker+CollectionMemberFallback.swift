@@ -34,7 +34,57 @@ extension CallTypeChecker {
             _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
         }
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        let sourceLevelRangeReceiverType = sourceLevelRangeMemberLookupType(
+            receiverExpr: receiverID,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        )
         let receiverClassification = receiverClassifier.classify(receiverID: receiverID)
+        // KUU-569: Int range expressions use their scalar runtime representation
+        // during Sema, while IntRange/IntProgression are nominal Iterable
+        // implementations. Recover that source-level conformance only in the
+        // no-candidate collection fallback; exact range extensions have already
+        // had priority in tryRangeMemberFallback/regular resolution.
+        let rangeReceiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: receiverID,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        )
+        let isIntRangeOrProgression = rangeReceiverKind == .intRange
+            || rangeReceiverKind == .intProgression
+        let isCharRangeJoinReceiver = rangeReceiverKind == .charRange
+            && memberName == "joinToString"
+        let isRangeIterableReceiver = isIntRangeOrProgression && (sourceLevelRangeReceiverType.map {
+            receiverClassifier.isNominalIterableType($0)
+        } ?? false)
+        let rangeIterableSourceCandidates = isRangeIterableReceiver
+            ? rangeIterableSourceExtensionCandidates(
+                named: calleeName,
+                sema: sema,
+                interner: interner
+            )
+            : []
+        let scopedCharRangeJoinCandidates = isCharRangeJoinReceiver
+            ? sourceLevelRangeReceiverType.map {
+                collectScopedRangeUserExtensionCandidates(
+                    named: calleeName,
+                    receiverType: $0,
+                    ctx: ctx,
+                    sema: sema,
+                    interner: interner
+                )
+            } ?? []
+            : []
+        let charRangeJoinSourceCandidates = isCharRangeJoinReceiver
+            ? charRangeJoinSourceExtensionCandidates(
+                named: calleeName,
+                sema: sema,
+                interner: interner
+            )
+            : []
         let isArrayReceiver = receiverClassification.isArrayReceiver
         let isIterableWindowedTransformCall: Bool = {
             guard memberName == "windowed",
@@ -97,7 +147,10 @@ extension CallTypeChecker {
         // no-candidates case so members already resolved as real Iterable-owned
         // symbols (e.g. Iterable.reduceRightIndexed) keep going through the normal
         // overload resolver instead of this fallback's approximate typing.
-        let admitIterableReceiver = admitNominalIterableReceiver && receiverClassification.isIterableReceiver
+        let admitIterableReceiver = admitNominalIterableReceiver
+            && (receiverClassification.isIterableReceiver
+                || isRangeIterableReceiver
+                || isCharRangeJoinReceiver)
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
@@ -120,6 +173,8 @@ extension CallTypeChecker {
         }
 
         let isIterableReceiver = receiverClassification.isIterableReceiver
+            || isRangeIterableReceiver
+            || isCharRangeJoinReceiver
         let isMapReceiver = receiverClassification.isMapReceiver
         let isSetReceiver = receiverClassification.isSetReceiver
         let isMutableCollectionReceiverFlag = receiverClassification.isMutableCollectionReceiver
@@ -128,9 +183,8 @@ extension CallTypeChecker {
         let isMutableMapReceiver = receiverClassification.isMutableMapReceiver
         let isListReceiver = receiverClassification.isListReceiver
         if memberName == "average", isIterableReceiver, !isSequenceReceiver, !isArrayReceiver {
-            let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-            let receiverElementType = getCollectionElementType(
-                receiverType,
+            let receiverElementType = collectionFallbackElementType(
+                receiverID: receiverID,
                 sema: sema,
                 interner: interner
             )
@@ -197,7 +251,7 @@ extension CallTypeChecker {
             return sourceType
         }
 
-        guard isSupportedCollectionFallbackMember(
+        let isSupportedLegacyCollectionFallback = isSupportedCollectionFallbackMember(
             calleeName,
             isIterableReceiver: isIterableReceiver,
             isListReceiver: isListReceiver,
@@ -212,8 +266,7 @@ extension CallTypeChecker {
             isAddAllSequenceArgument: isAddAllSequenceArgument,
             isAddAllIterableArgument: isAddAllIterableArgument,
             interner: interner
-        ),
-        isValidCollectionFallbackArity(
+        ) && isValidCollectionFallbackArity(
             calleeName,
             argCount: args.count,
             isMapReceiver: isMapReceiver,
@@ -229,6 +282,10 @@ extension CallTypeChecker {
             isAddAllIterableArgument: isAddAllIterableArgument,
             interner: interner
         )
+        guard !rangeIterableSourceCandidates.isEmpty
+            || !scopedCharRangeJoinCandidates.isEmpty
+            || !charRangeJoinSourceCandidates.isEmpty
+            || isSupportedLegacyCollectionFallback
         else {
             return nil
         }
@@ -246,6 +303,25 @@ extension CallTypeChecker {
             return nil
         }
 
+        if isRangeIterableReceiver,
+           let expectation = rangeIterableSourceLambdaExpectation(
+               memberName: memberName,
+               argCount: args.count,
+               receiverElementType: receiverElementType,
+               sema: sema
+           )
+        {
+            let lambdaArgExpr = args[expectation.argumentIndex].expr
+            if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), lambdaExpr.isLambdaOrCallableRef {
+                sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
+            }
+            _ = driver.inferExpr(
+                lambdaArgExpr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectation.expectedType
+            )
+        }
         if let expectation = collectionFallbackLambdaExpectation(
             memberName: calleeName,
             argCount: args.count,
@@ -284,6 +360,53 @@ extension CallTypeChecker {
         }
         if memberName == "putAll", args.count == 1 {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        }
+
+        if !rangeIterableSourceCandidates.isEmpty {
+            return tryBindRangeIterableSourceExtension(
+                id,
+                calleeName: calleeName,
+                receiverID: receiverID,
+                candidates: rangeIterableSourceCandidates,
+                receiverElementType: receiverElementType,
+                args: args,
+                safeCall: safeCall,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: &locals
+            )
+        }
+        if let sourceLevelRangeReceiverType {
+            if !scopedCharRangeJoinCandidates.isEmpty,
+               let scopedType = tryBindCharRangeJoinSourceExtension(
+                   id,
+                   calleeName: calleeName,
+                   receiverID: receiverID,
+                   candidates: scopedCharRangeJoinCandidates,
+                   receiverType: sourceLevelRangeReceiverType,
+                   args: args,
+                   safeCall: safeCall,
+                   expectedType: expectedType,
+                   ctx: ctx,
+                   locals: &locals
+               )
+            {
+                return scopedType
+            }
+            if !charRangeJoinSourceCandidates.isEmpty {
+                return tryBindCharRangeJoinSourceExtension(
+                    id,
+                    calleeName: calleeName,
+                    receiverID: receiverID,
+                    candidates: charRangeJoinSourceCandidates,
+                    receiverType: sourceLevelRangeReceiverType,
+                    args: args,
+                    safeCall: safeCall,
+                    expectedType: expectedType,
+                    ctx: ctx,
+                    locals: &locals
+                )
+            }
         }
 
         if isCollectionReturningMember(
@@ -480,6 +603,282 @@ extension CallTypeChecker {
                 interner: interner,
                 elementType: receiverElementType
             )
+        }
+        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+        sema.bindings.bindExprType(id, type: finalType)
+        return finalType
+    }
+
+    private func rangeIterableSourceExtensionCandidates(
+        named calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
+        let kotlinSequences = [interner.intern("kotlin"), interner.intern("sequences")]
+        let iterableFQName = kotlinCollections + [interner.intern("Iterable")]
+        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+            return []
+        }
+        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  let declaredReceiverSymbol = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(declaredReceiver),
+                      types: sema.types
+                  )
+            else {
+                return false
+            }
+            let package = Array(symbol.fqName.dropLast())
+            return declaredReceiverSymbol == iterableSymbol
+                && (package == kotlinCollections || package == kotlinSequences)
+        }
+    }
+
+    private func charRangeJoinSourceExtensionCandidates(
+        named calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let package = [interner.intern("kotlin"), interner.intern("ranges")]
+        let charRangeFQName = package + [interner.intern("CharRange")]
+        guard let charRangeSymbol = sema.symbols.lookup(fqName: charRangeFQName) else {
+            return []
+        }
+        return sema.symbols.lookupAll(fqName: package + [calleeName]).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  let declaredReceiverSymbol = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(declaredReceiver),
+                      types: sema.types
+                  )
+            else {
+                return false
+            }
+            return declaredReceiverSymbol == charRangeSymbol
+        }
+    }
+
+    private func tryBindCharRangeJoinSourceExtension(
+        _ id: ExprID,
+        calleeName: InternedString,
+        receiverID: ExprID,
+        candidates: [SymbolID],
+        receiverType: TypeID,
+        args: [CallArgument],
+        safeCall: Bool,
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let argumentTypes = args.map { argument in
+            sema.bindings.exprType(for: argument.expr)
+                ?? driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+        }
+        guard let callRange = ctx.ast.arena.exprRange(id) ?? ctx.ast.arena.exprRange(receiverID) else {
+            return nil
+        }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: candidates,
+            call: CallExpr(
+                range: callRange,
+                calleeName: calleeName,
+                args: zip(args, argumentTypes).map { argument, type in
+                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                }
+            ),
+            expectedType: expectedType,
+            implicitReceiverType: receiverType,
+            ctx: sema
+        )
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee
+        else {
+            return nil
+        }
+        let resultType = bindCallAndResolveReturnType(
+            id,
+            chosen: chosen,
+            resolved: resolved,
+            sema: sema
+        )
+        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+        sema.bindings.bindExprType(id, type: finalType)
+        return finalType
+    }
+
+    private func rangeIterableSourceLambdaExpectation(
+        memberName: String,
+        argCount: Int,
+        receiverElementType: TypeID,
+        sema: SemaModule
+    ) -> (argumentIndex: Int, expectedType: TypeID)? {
+        guard argCount == 1 else {
+            return nil
+        }
+        let returnType: TypeID
+        switch memberName {
+        case "takeWhile", "dropWhile":
+            returnType = sema.types.booleanType
+        case "sumOf", "associateWith", "groupBy", "flatMap":
+            // Infer the body first, then re-infer with its concrete return type
+            // before overload resolution so generic result types stay precise.
+            returnType = sema.types.anyType
+        default:
+            return nil
+        }
+        return (
+            argumentIndex: 0,
+            expectedType: sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: returnType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+        )
+    }
+
+    private func tryBindRangeIterableSourceExtension(
+        _ id: ExprID,
+        calleeName: InternedString,
+        receiverID: ExprID,
+        candidates: [SymbolID],
+        receiverElementType: TypeID,
+        args: [CallArgument],
+        safeCall: Bool,
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
+        let iterableFQName = kotlinCollections + [interner.intern("Iterable")]
+
+        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+            return nil
+        }
+
+        let iterableReceiverType = sema.types.make(.classType(ClassType(
+            classSymbol: iterableSymbol,
+            args: [.out(receiverElementType)],
+            nullability: .nonNull
+        )))
+        let memberName = interner.resolve(calleeName)
+        let lambdaBodyReturnType: TypeID? = if ["sumOf", "associateWith", "groupBy", "flatMap"]
+            .contains(memberName),
+            args.count == 1,
+            let argument = ctx.ast.arena.expr(args[0].expr),
+            argument.isLambdaOrCallableRef
+        {
+            inferredLambdaReturnType(argExpr: args[0].expr, ast: ctx.ast, sema: sema)
+        } else {
+            nil
+        }
+        if let lambdaBodyReturnType {
+            let lambdaType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: lambdaBodyReturnType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: lambdaType
+            )
+        }
+        let argumentTypes = args.map { argument in
+            sema.bindings.exprType(for: argument.expr)
+                ?? driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+        }
+        let resolutionCandidates: [SymbolID] = {
+            guard memberName == "flatMap",
+                  let lambdaBodyReturnType,
+                  let sequenceSymbol = sema.symbols.lookup(fqName: [
+                      interner.intern("kotlin"),
+                      interner.intern("sequences"),
+                      interner.intern("Sequence"),
+                  ])
+            else {
+                return candidates
+            }
+            let expectedReturnSymbol = ReceiverClassifier(sema: sema, interner: interner)
+                .isSequenceLikeType(lambdaBodyReturnType)
+                ? sequenceSymbol
+                : iterableSymbol
+            return candidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = signature.parameterTypes.first,
+                      case let .functionType(functionType) = sema.types.kind(of: parameterType),
+                      let returnSymbol = driver.helpers.nominalSymbol(
+                          of: sema.types.makeNonNullable(functionType.returnType),
+                          types: sema.types
+                      )
+                else {
+                    return false
+                }
+                return returnSymbol == expectedReturnSymbol
+            }
+        }()
+        guard let callRange = ctx.ast.arena.exprRange(id) ?? ctx.ast.arena.exprRange(receiverID) else {
+            return nil
+        }
+        let call = CallExpr(
+            range: callRange,
+            calleeName: calleeName,
+            args: zip(args, argumentTypes).map { argument, type in
+                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            }
+        )
+        let resolved = ctx.resolver.resolveCall(
+            candidates: resolutionCandidates,
+            call: call,
+            expectedType: expectedType,
+            implicitReceiverType: iterableReceiverType,
+            ctx: sema
+        )
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return nil
+        }
+
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: resolved.substitutedTypeArguments
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map(\.value),
+                parameterMapping: resolved.parameterMapping
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let resultType = sema.types.substituteTypeParameters(
+            in: signature.returnType,
+            substitution: resolved.substitutedTypeArguments,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        if isCollectionReturningMember(
+            calleeName,
+            isMapReceiver: false,
+            isListReceiver: false,
+            isSetReceiver: false,
+            interner: interner
+        ) {
+            sema.bindings.markCollectionExpr(id)
         }
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
@@ -3298,6 +3697,29 @@ extension CallTypeChecker {
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        let rangeReceiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: receiverID,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        )
+        if (rangeReceiverKind == .intRange || rangeReceiverKind == .intProgression),
+           let sourceLevelRangeReceiverType = sourceLevelRangeMemberLookupType(
+            receiverExpr: receiverID,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ),
+           let rangeElementType = driver.helpers.iterableElementType(
+               for: sourceLevelRangeReceiverType,
+               isRangeExpr: true,
+               isCharRangeExpr: sema.bindings.isCharRangeExpr(receiverID),
+               sema: sema,
+               interner: interner
+           )
+        {
+            return rangeElementType
+        }
         guard let (classType, symbol) = collectionFallbackClassTypes(receiverType, sema: sema).first else {
             return sema.types.anyType
         }

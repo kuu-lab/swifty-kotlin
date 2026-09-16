@@ -948,6 +948,36 @@ public fun CharRange.toList(): List<Char> {
     return result
 }
 
+// CharRange uses an integer-shaped runtime representation. Append each value
+// as Char here instead of erasing it through the generic Iterable join path.
+public fun CharRange.joinToString(
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): String {
+    val buffer = StringBuilder()
+    buffer.append(prefix)
+    var count = 0
+    var hasMore = false
+    for (element in this) {
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
+        buffer.append(element)
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
+    }
+    buffer.append(postfix)
+    return buffer.toString()
+}
+
 public fun CharRange.take(n: Int): List<Char> {
     if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
     val result = mutableListOf<Char>()
