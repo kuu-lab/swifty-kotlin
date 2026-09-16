@@ -348,8 +348,7 @@ struct SourceBackedCallPreservationPolicyTests {
                 callee: lookup.groupByName,
                 resolution: resolution,
                 receiverIsTrackedArrayLiteral: false,
-                receiverIsTrackedRuntimeSequence: false,
-                calleeHasSequenceReceiverType: false
+                sequenceRuntimeRepresentation: .notSequence
             )
             #expect(preserved == expected, "\(resolution) should preserve == \(expected)")
         }
@@ -367,8 +366,7 @@ struct SourceBackedCallPreservationPolicyTests {
                     callee: interner.intern(name),
                     resolution: .sourceBacked,
                     receiverIsTrackedArrayLiteral: false,
-                    receiverIsTrackedRuntimeSequence: false,
-                    calleeHasSequenceReceiverType: false
+                    sequenceRuntimeRepresentation: .notSequence
                 ),
                 "\(name) is virtual-only"
             )
@@ -394,8 +392,7 @@ struct SourceBackedCallPreservationPolicyTests {
                 callee: lookup.sizeName,
                 resolution: .sourceBacked,
                 receiverIsTrackedArrayLiteral: true,
-                receiverIsTrackedRuntimeSequence: false,
-                calleeHasSequenceReceiverType: false
+                sequenceRuntimeRepresentation: .notSequence
             )
         )
         #expect(
@@ -403,8 +400,7 @@ struct SourceBackedCallPreservationPolicyTests {
                 callee: lookup.sizeName,
                 resolution: .sourceBacked,
                 receiverIsTrackedArrayLiteral: false,
-                receiverIsTrackedRuntimeSequence: false,
-                calleeHasSequenceReceiverType: false
+                sequenceRuntimeRepresentation: .notSequence
             ),
             "size is not in the shared set, so an untracked receiver must fall through"
         )
@@ -413,19 +409,19 @@ struct SourceBackedCallPreservationPolicyTests {
                 callee: lookup.sizeName,
                 resolution: .externalBridge,
                 receiverIsTrackedArrayLiteral: true,
-                receiverIsTrackedRuntimeSequence: false,
-                calleeHasSequenceReceiverType: false
+                sequenceRuntimeRepresentation: .notSequence
             ),
             "a tracked array receiver does not preserve a synthetic callee"
         )
     }
 
-    /// STDLIB-pipeline §5 / KSP-441: `map`/`filter` on a runtime Sequence must
-    /// keep going through `kk_sequence_*`, whether the receiver is a tracked
-    /// `RuntimeSequenceBox` or merely `Sequence`-typed. RF-LOWER-CALL-014 owns
-    /// replacing these two exceptions; until then they must not drift.
+    /// STDLIB-pipeline §5 / KSP-441 / RF-LOWER-CALL-014: `map`/`filter` use
+    /// explicit runtime representation evidence. A runtime box is rewritable,
+    /// a source object and a known non-Sequence receiver keep their source
+    /// declaration, and unknown provenance is conservative rather than being
+    /// guessed to be source-backed.
     @Test
-    func directCallKeepsBothSequenceRuntimeRepresentationExceptions() {
+    func directCallUsesSequenceRuntimeRepresentation() {
         let (policy, lookup, _) = Self.makePolicy()
         for callee in [lookup.mapName, lookup.filterName] {
             #expect(
@@ -433,20 +429,36 @@ struct SourceBackedCallPreservationPolicyTests {
                     callee: callee,
                     resolution: .sourceBacked,
                     receiverIsTrackedArrayLiteral: false,
-                    receiverIsTrackedRuntimeSequence: true,
-                    calleeHasSequenceReceiverType: false
+                    sequenceRuntimeRepresentation: .runtimeBox
                 ),
                 "tracked runtime sequence receiver must not be preserved"
+            )
+            #expect(
+                policy.preservesDirectCall(
+                    callee: callee,
+                    resolution: .sourceBacked,
+                    receiverIsTrackedArrayLiteral: false,
+                    sequenceRuntimeRepresentation: .sourceObject
+                ),
+                "a confirmed source Sequence object must keep its source implementation"
             )
             #expect(
                 !policy.preservesDirectCall(
                     callee: callee,
                     resolution: .sourceBacked,
                     receiverIsTrackedArrayLiteral: false,
-                    receiverIsTrackedRuntimeSequence: false,
-                    calleeHasSequenceReceiverType: true
+                    sequenceRuntimeRepresentation: .unknown
                 ),
-                "a Sequence-typed receiver may still be a RuntimeSequenceBox"
+                "unknown Sequence provenance must not be guessed to be source-backed"
+            )
+            #expect(
+                policy.preservesDirectCall(
+                    callee: callee,
+                    resolution: .sourceBacked,
+                    receiverIsTrackedArrayLiteral: false,
+                    sequenceRuntimeRepresentation: .notSequence
+                ),
+                "a known non-Sequence receiver must keep its source implementation"
             )
         }
     }
@@ -463,8 +475,7 @@ struct SourceBackedCallPreservationPolicyTests {
                     callee: callee,
                     resolution: .sourceBacked,
                     receiverIsTrackedArrayLiteral: false,
-                    receiverIsTrackedRuntimeSequence: true,
-                    calleeHasSequenceReceiverType: true
+                    sequenceRuntimeRepresentation: .runtimeBox
                 )
             )
         }

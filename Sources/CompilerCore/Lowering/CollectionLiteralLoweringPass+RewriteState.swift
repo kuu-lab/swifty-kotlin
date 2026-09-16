@@ -95,6 +95,27 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
+    /// Runtime representation evidence for a value that may be a Sequence.
+    ///
+    /// The static `Sequence` type is intentionally not represented by either
+    /// `runtimeBox` or `sourceObject`: both representations satisfy that
+    /// interface, and the type alone cannot select the bridge safely.  The
+    /// `notSequence` case lets callers distinguish a known non-Sequence
+    /// receiver (for example, a List `map`) from a Sequence value whose origin
+    /// is simply unavailable.  Unknown values must stay on the original
+    /// iterator path rather than being guessed to be source-backed.
+    enum SequenceRuntimeRepresentation: Equatable, Sendable {
+        /// A confirmed `RuntimeSequenceBox` handle.
+        case runtimeBox
+        /// A confirmed source-backed `object : Sequence<T>` value.
+        case sourceObject
+        /// The receiver is known not to be a Sequence value.
+        case notSequence
+        /// Sequence-typed or otherwise insufficiently classified; no runtime
+        /// representation may be selected from the available facts.
+        case unknown
+    }
+
     /// Every classification known about a single expression.
     ///
     /// A value routinely carries more than one: a `ULongRange` is both ``range``
@@ -394,6 +415,49 @@ extension CollectionLiteralLoweringSupport {
             guard contains(.sequence, expr), contains(.sequenceSourceObject, expr) else { return }
             remove(.sequence, expr)
             remove(.sequenceSourceObject, expr)
+        }
+
+        /// Resolve the runtime representation that is safe to use for a
+        /// Sequence bridge decision.
+        ///
+        /// Provenance facts are authoritative when they are exclusive. A
+        /// contradictory runtime union is conservative: it becomes unknown
+        /// instead of selecting either side. A static `Sequence` fact carries
+        /// no provenance and therefore also remains unknown. Other static or
+        /// runtime classifications prove that the value is not a Sequence.
+        func sequenceRuntimeRepresentation(
+            of expr: KIRExprID
+        ) -> SequenceRuntimeRepresentation {
+            let facts = self[expr]
+            let runtimeFacts = facts.facts(on: .runtimeRepresentation)
+            let hasRuntimeBox = runtimeFacts.contains(.sequence)
+            let hasSourceObject = runtimeFacts.contains(.sequenceSourceObject)
+            let hasOtherRuntimeFact = runtimeFacts.classifications.contains {
+                $0 != .sequence && $0 != .sequenceSourceObject
+            }
+
+            if hasRuntimeBox && hasSourceObject {
+                return .unknown
+            }
+            if hasOtherRuntimeFact && (hasRuntimeBox || hasSourceObject) {
+                return .unknown
+            }
+            if hasRuntimeBox {
+                return .runtimeBox
+            }
+            if hasSourceObject {
+                return .sourceObject
+            }
+
+            let staticFacts = facts.facts(on: .staticType)
+            let hasStaticSequence = staticFacts.contains(.sequenceType)
+            if hasStaticSequence {
+                return .unknown
+            }
+            if !staticFacts.isEmpty || !runtimeFacts.isEmpty {
+                return .notSequence
+            }
+            return .unknown
         }
     }
 }

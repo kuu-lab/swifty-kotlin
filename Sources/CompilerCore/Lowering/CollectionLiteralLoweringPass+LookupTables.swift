@@ -13,8 +13,12 @@ struct CollectionLiteralLookupTables {
     let fileIOLookup: FileIOLookupNames
     let commonLookup: CommonLookupNames
 
-    // Sequence factories that return a runtime RuntimeSequenceBox handle
-    // (source body is only a thin bridge to a __kk_* / kk_* runtime entry).
+    // Sequence factories whose call site is known to return a
+    // RuntimeSequenceBox handle. The public `sequenceOf` / `emptySequence` /
+    // `generateSequence` declarations are intentionally not listed: their
+    // source bodies include overloads that construct source objects, and a
+    // name-only match would erase that distinction. Their private bridge
+    // results remain unknown until a later, explicit runtime fact is available.
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 

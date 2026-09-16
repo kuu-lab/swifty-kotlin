@@ -324,6 +324,19 @@ public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapTo(
     return destination
 }
 
+// KSP-1378: CharSequence indexed default accessors are source-backed. Keep
+// the bounds check and indexed interface dispatch in the inline body so
+// custom CharSequence implementations observe the Kotlin contract.
+@kotlin.internal.InlineOnly
+@OptIn(ExperimentalContracts::class)
+public inline fun CharSequence.getOrElse(index: Int, defaultValue: (Int) -> Char): Char {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    return if (index >= 0 && index < length) get(index) else defaultValue(index)
+}
+
+public fun CharSequence.getOrNull(index: Int): Char? =
+    if (index >= 0 && index < length) get(index) else null
+
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.elementAt(index: Int): Char = get(index)
 

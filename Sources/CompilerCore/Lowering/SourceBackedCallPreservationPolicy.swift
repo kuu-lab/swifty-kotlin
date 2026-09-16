@@ -264,18 +264,20 @@ struct SourceBackedCallPreservationPolicy {
 
     /// Direct-call decision, in the order the inlined predicate used: array
     /// conversion on a tracked array literal first, then the shared API set,
-    /// then the two Sequence runtime-representation exceptions.
+    /// then the Sequence runtime-representation decision.
     ///
     /// `receiverIsTrackedArrayLiteral` folds in the original
-    /// `!arguments.isEmpty && state.arrayExprIDs.contains(arguments[0])`, and
-    /// `receiverIsTrackedRuntimeSequence` the `sequenceExprIDs` /
-    /// `arrayExprIDs` pair, so both stay behind the name test.
+    /// `!arguments.isEmpty && state.arrayExprIDs.contains(arguments[0])`.
+    /// `sequenceRuntimeRepresentation` is evaluated only for `map` and
+    /// `filter`, after the source-backed name and resolution gates. A confirmed
+    /// runtime box is rewritable, a confirmed source object or known
+    /// non-Sequence receiver is preserved, and unknown provenance is never
+    /// guessed to be source-backed.
     func preservesDirectCall(
         callee: InternedString,
         resolution: @autoclosure () -> SourceBackedCalleeResolution,
         receiverIsTrackedArrayLiteral: @autoclosure () -> Bool,
-        receiverIsTrackedRuntimeSequence: @autoclosure () -> Bool,
-        calleeHasSequenceReceiverType: @autoclosure () -> Bool
+        sequenceRuntimeRepresentation: @autoclosure () -> CollectionLiteralLoweringSupport.SequenceRuntimeRepresentation
     ) -> Bool {
         if directArrayConversionNames.contains(callee),
            receiverIsTrackedArrayLiteral(),
@@ -290,25 +292,15 @@ struct SourceBackedCallPreservationPolicy {
             return false
         }
 
-        // STDLIB-pipeline §5 / KSP-441: source Sequence.map/filter walk a source
-        // Sequence object via iterator(), but RuntimeSequenceBox (from
-        // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
-        // must go through kk_sequence_map/filter.
-        if receiverIsTrackedRuntimeSequence(),
-           callee == mapName || callee == filterName
-        {
-            return false
-        }
-
-        // A Sequence-typed receiver may still be a RuntimeSequenceBox at run
-        // time (e.g. a parameter fed by asSequence()), which the source
-        // iterator cannot walk. flatMap/flatMapIndexed are excluded: their
-        // bundled source implementations traverse the receiver through the
-        // shared iterator bridge and are the KSP-441 source pipeline.
-        if callee == mapName || callee == filterName,
-           calleeHasSequenceReceiverType()
-        {
-            return false
+        if callee == mapName || callee == filterName {
+            switch sequenceRuntimeRepresentation() {
+            case .runtimeBox, .unknown:
+                // An opaque runtime box cannot use the source implementation,
+                // and an unknown origin must not be treated as source-backed.
+                return false
+            case .sourceObject, .notSequence:
+                return true
+            }
         }
         return true
     }
