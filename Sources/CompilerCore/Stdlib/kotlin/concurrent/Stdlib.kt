@@ -12,6 +12,7 @@
 package kotlin.concurrent
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlin.native.internal.NativePtr
 import kotlin.internal.KsSymbolName
 
 @SinceKotlin("1.9")
@@ -30,7 +31,10 @@ public class AtomicLong private constructor()
 
 @SinceKotlin("1.9")
 @ExperimentalForeignApi
-public class AtomicNativePtr private constructor()
+public class AtomicNativePtr internal constructor(pointer: NativePtr) {
+    @PublishedApi
+    internal val value: NativePtr = pointer
+}
 
 @SinceKotlin("1.9")
 public class AtomicReference<T> private constructor()

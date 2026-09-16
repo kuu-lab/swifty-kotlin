@@ -2079,7 +2079,7 @@
     - `kotlin.native.concurrent.DetachedObjectGraph.<init>` — constructor (CPointer)  -- `constructor <init>(kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?)`
     - `kotlin.native.concurrent.DetachedObjectGraph.<init>` — constructor (TransferMode, Function0)  -- `constructor <init>(kotlin.native.concurrent/TransferMode = ..., kotlin/Function0<#A>)`
 
-- [ ] KSP-1235: kotlin.native.concurrent.DetachedObjectGraph.DetachedObjectGraph の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1235: kotlin.native.concurrent.DetachedObjectGraph.DetachedObjectGraph の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / receiver `DetachedObjectGraph`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2089,6 +2089,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.DetachedObjectGraph.asCPointer` — fun DetachedObjectGraph.asCPointer(): CPointer  -- `final fun asCPointer(): kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?`
     - `kotlin.native.concurrent.DetachedObjectGraph.stable` — val DetachedObjectGraph.stable: AtomicNativePtr  -- `final val stable`
+  - 完了根拠: `ObjectTransfer.kt` に Kotlin/Native 2.3.10 準拠の internal `NativePtr` constructor、`stable` backing property、`asCPointer()` receiver を追加。DetachedObjectGraph の synthetic nominal anchor を撤去し、対象シンボルに対応する Runtime ABI 関数・`RuntimeABISpec`・CallTypeChecker/CallLowerer の name-string 特例が無いことを確認した。`kotlin.concurrent.AtomicNativePtr` にはこの backing storage 用の internal constructor/value のみを追加し、公開 constructor/value の残りは KSP-1095/KSP-1096 の責務として維持した。Sema source-backed 回帰テスト、対象 Golden、対象 diff ケース、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check` を実行済み。全 Swift テスト・全 Golden・全 diff ケースは未実行（CI に委譲）。
 
 - [ ] KSP-1237: kotlin.native.concurrent.FreezableAtomicReference.FreezableAtomicReference の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.concurrent.FreezableAtomicReference` / receiver `FreezableAtomicReference`

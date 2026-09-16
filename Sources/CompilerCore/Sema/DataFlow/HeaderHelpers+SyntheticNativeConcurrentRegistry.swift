@@ -192,28 +192,9 @@ extension DataFlowSemaPhase {
         // Atomics.kt). AtomicReference is intentionally excluded: it is
         // already source-backed by KSP-1226 (same file).
 
-        registerNativeConcurrentNominalAnchor(
-            named: "DetachedObjectGraph",
-            packageFQName: packageFQName,
-            pkgSymbol: pkgSymbol,
-            typeParameter: (name: "T", variance: .invariant, upperBound: types.nullableAnyType),
-            annotations: [
-                MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi"),
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Support for the legacy memory manager has been completely removed. Use the pointed value directly. To pass the value through the C interop, use the StableRef class.\"",
-                    ]
-                ),
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                    arguments: ["errorSince = \"2.1\""]
-                ),
-            ],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // DetachedObjectGraph is source-backed by ObjectTransfer.kt. Its
+        // internal storage and receiver members are owned by KSP-1235; the
+        // public constructors remain the separate KSP-1234 surface.
 
         // MutableData is intentionally excluded: it is already source-backed
         // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData.kt).
