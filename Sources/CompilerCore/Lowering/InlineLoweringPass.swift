@@ -854,7 +854,18 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
+                            InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
+                        }
+                        let (reroutedInstructions, trailingThrowLabel) = rerouteUnprotectedThrows(
+                            in: lambdaExpansion.instructions,
+                            callerThrownResult: loweredThrownResult,
+                            labels: &labels
+                        )
+                        lowered.append(contentsOf: reroutedInstructions)
+                        if let trailingThrowLabel {
+                            lowered.append(.label(trailingThrowLabel))
+                        }
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
@@ -912,7 +923,18 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
+                            InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
+                        }
+                        let (reroutedInstructions, trailingThrowLabel) = rerouteUnprotectedThrows(
+                            in: lambdaExpansion.instructions,
+                            callerThrownResult: loweredThrownResult,
+                            labels: &labels
+                        )
+                        lowered.append(contentsOf: reroutedInstructions)
+                        if let trailingThrowLabel {
+                            lowered.append(.label(trailingThrowLabel))
+                        }
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
