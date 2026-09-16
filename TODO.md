@@ -3915,7 +3915,10 @@
     - `kotlin.text.StringBuilder.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.text.StringBuilder.<init>` — constructor (String)  -- `constructor <init>(kotlin/String)`
 
-- [ ] KSP-1442: kotlin.text.Typography.Typography.amp-family の未実装 stdlib API を実装する（1 件）
+> KUU-475 完了根拠（2026-09-16、HEAD `b4cd1664ce23e81c92c2a211199e51e51f0d3fcb`）: KSP-711 の merged commit `9a39776adff70eb419b7effc3ea21fa0a1baa632` が Typography 全定数を bundled Kotlin source として実装済み。KSP-1442〜1471 の対象 23 タスクは、現行 `Sources/CompilerCore/Stdlib/kotlin/text/Typography.kt:12-52` の `public const val` 宣言が所有する。`StringSyntheticMemberLinkTests.testTypographyObjectSurfaceResolves`（`Tests/CompilerCoreTests/Sema/StringSyntheticMemberLinkTests.swift:936-1010`）は全 41 定数を非 synthetic の source-backed object/property、非 nullable `Char`、const の char literal として検証する。Typography 専用の synthetic/runtime/RuntimeABI 経路はなく、個別 `.kt` / Golden / diff ケースを追加すると既存実装と重複する。
+> 検証: `swift build` PASS、`SWIFT_TEST_PARALLEL=0 SWIFT_TEST_WORKERS=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.StringSyntheticMemberLinkTests` PASS（4 tests / 1 suite）、`git diff --check` PASS。全 Golden / 全 diff_kotlinc / Runtime ABI link の aggregate gate は未実行。
+
+- [x] KSP-1442: kotlin.text.Typography.Typography.amp-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `amp`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/amp.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3925,7 +3928,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.amp` — val Typography.amp: Char  -- `final const val amp`
 
-- [ ] KSP-1443: kotlin.text.Typography.Typography.bullet-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1443: kotlin.text.Typography.Typography.bullet-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `bullet`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/bullet.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3935,7 +3938,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.bullet` — val Typography.bullet: Char  -- `final const val bullet`
 
-- [ ] KSP-1444: kotlin.text.Typography.Typography.cent-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1444: kotlin.text.Typography.Typography.cent-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `cent`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/cent.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3945,7 +3948,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.cent` — val Typography.cent: Char  -- `final const val cent`
 
-- [ ] KSP-1445: kotlin.text.Typography.Typography.copyright-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1445: kotlin.text.Typography.Typography.copyright-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `copyright`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/copyright.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3955,7 +3958,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.copyright` — val Typography.copyright: Char  -- `final const val copyright`
 
-- [ ] KSP-1446: kotlin.text.Typography.Typography.dagger-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1446: kotlin.text.Typography.Typography.dagger-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `dagger`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/dagger.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3965,7 +3968,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.dagger` — val Typography.dagger: Char  -- `final const val dagger`
 
-- [ ] KSP-1447: kotlin.text.Typography.Typography.degree-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1447: kotlin.text.Typography.Typography.degree-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `degree`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/degree.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3975,7 +3978,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.degree` — val Typography.degree: Char  -- `final const val degree`
 
-- [ ] KSP-1449: kotlin.text.Typography.Typography.double-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1449: kotlin.text.Typography.Typography.double-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `double`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/double.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3986,7 +3989,7 @@
     - `kotlin.text.Typography.doubleDagger` — val Typography.doubleDagger: Char  -- `final const val doubleDagger`
     - `kotlin.text.Typography.doublePrime` — val Typography.doublePrime: Char  -- `final const val doublePrime`
 
-- [ ] KSP-1452: kotlin.text.Typography.Typography.greater-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1452: kotlin.text.Typography.Typography.greater-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `greater`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/greater.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3997,7 +4000,7 @@
     - `kotlin.text.Typography.greater` — val Typography.greater: Char  -- `final const val greater`
     - `kotlin.text.Typography.greaterOrEqual` — val Typography.greaterOrEqual: Char  -- `final const val greaterOrEqual`
 
-- [ ] KSP-1457: kotlin.text.Typography.Typography.mdash-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1457: kotlin.text.Typography.Typography.mdash-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `mdash`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/mdash.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4007,7 +4010,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.mdash` — val Typography.mdash: Char  -- `final const val mdash`
 
-- [ ] KSP-1458: kotlin.text.Typography.Typography.middle-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1458: kotlin.text.Typography.Typography.middle-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `middle`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/middle.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4017,7 +4020,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.middleDot` — val Typography.middleDot: Char  -- `final const val middleDot`
 
-- [ ] KSP-1459: kotlin.text.Typography.Typography.nbsp-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1459: kotlin.text.Typography.Typography.nbsp-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `nbsp`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/nbsp.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4027,7 +4030,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.nbsp` — val Typography.nbsp: Char  -- `final const val nbsp`
 
-- [ ] KSP-1460: kotlin.text.Typography.Typography.ndash-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1460: kotlin.text.Typography.Typography.ndash-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `ndash`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/ndash.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4037,7 +4040,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.ndash` — val Typography.ndash: Char  -- `final const val ndash`
 
-- [ ] KSP-1461: kotlin.text.Typography.Typography.not-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1461: kotlin.text.Typography.Typography.not-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `not`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/not.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4047,7 +4050,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.notEqual` — val Typography.notEqual: Char  -- `final const val notEqual`
 
-- [ ] KSP-1462: kotlin.text.Typography.Typography.paragraph-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1462: kotlin.text.Typography.Typography.paragraph-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `paragraph`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/paragraph.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4057,7 +4060,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.paragraph` — val Typography.paragraph: Char  -- `final const val paragraph`
 
-- [ ] KSP-1463: kotlin.text.Typography.Typography.plus-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1463: kotlin.text.Typography.Typography.plus-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `plus`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/plus.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4067,7 +4070,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.plusMinus` — val Typography.plusMinus: Char  -- `final const val plusMinus`
 
-- [ ] KSP-1464: kotlin.text.Typography.Typography.pound-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1464: kotlin.text.Typography.Typography.pound-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `pound`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/pound.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4077,7 +4080,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.pound` — val Typography.pound: Char  -- `final const val pound`
 
-- [ ] KSP-1465: kotlin.text.Typography.Typography.prime-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1465: kotlin.text.Typography.Typography.prime-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `prime`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/prime.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4087,7 +4090,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.prime` — val Typography.prime: Char  -- `final const val prime`
 
-- [ ] KSP-1466: kotlin.text.Typography.Typography.quote-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1466: kotlin.text.Typography.Typography.quote-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `quote`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/quote.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4097,7 +4100,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.quote` — val Typography.quote: Char  -- `final const val quote`
 
-- [ ] KSP-1467: kotlin.text.Typography.Typography.registered-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1467: kotlin.text.Typography.Typography.registered-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `registered`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/registered.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4107,7 +4110,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.registered` — val Typography.registered: Char  -- `final const val registered`
 
-- [ ] KSP-1468: kotlin.text.Typography.Typography.right-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1468: kotlin.text.Typography.Typography.right-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `right`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/right.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4120,7 +4123,7 @@
     - `kotlin.text.Typography.rightGuillemete` — val Typography.rightGuillemete: Char  -- `final const val rightGuillemete`
     - `kotlin.text.Typography.rightSingleQuote` — val Typography.rightSingleQuote: Char  -- `final const val rightSingleQuote`
 
-- [ ] KSP-1469: kotlin.text.Typography.Typography.section-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1469: kotlin.text.Typography.Typography.section-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `section`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/section.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4130,7 +4133,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.section` — val Typography.section: Char  -- `final const val section`
 
-- [ ] KSP-1470: kotlin.text.Typography.Typography.times-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1470: kotlin.text.Typography.Typography.times-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `times`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/times.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4140,7 +4143,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.times` — val Typography.times: Char  -- `final const val times`
 
-- [ ] KSP-1471: kotlin.text.Typography.Typography.tm-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1471: kotlin.text.Typography.Typography.tm-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `tm`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/tm.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
