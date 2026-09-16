@@ -728,13 +728,13 @@
 > 目標: 同一ファイル / 同一スイート内で同じ入力を使う箇所を 1 回の pipeline 呼び出しにまとめ、上記カウントを再び半減させる。
 > 進行中 PR: #5765 (Batch 83)。未 PR の作業ブランチ: `devin/consolidate-sema-api-tests-batch84` (Batch 84)。
 
-- [~] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約（必須ゲート未完了のため完了保留）
+- [x] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約（2026-09-16 完了）
   - 独立した fixture 群を package／関数名で分離し、Regex、NativePlatform bridge（`Platform.memoryModel` は synthetic object-property state のため単独 context）、BuildKIR、BlockExpression、BuildAST body parsing、FileRewrite、Property Delegation を raw／lowered の共有 `CompilationContext` に集約した。既存のテスト名と対象 fixture の assertion は維持している。
   - `KotlinIOCommonEdgeCaseTests.swift` と `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` は既に共有化済みのため変更しない。
   - `.kklib`、`searchPaths`、manifest 診断、import 解決など外部ライブラリ状態がケースごとに異なる `LibMetadataImportIntegrationTests.swift`、`LibraryMetadataManifestValidationTests.swift` および関連 import テストは、誤った診断混入を避けるため個別コンテキストのまま維持した。
   - `BuildKIRRegressionTests+NativePlatform.swift` の `Platform.memoryModel` は、他の Native bridge fixture と同一 context にまとめると runtime call が KIR から消えるため、元の単独 context を維持し、残りの NativePlatform fixture 群のみ共有した。この未修正コンパイラ不具合は BUG-212 として記録した。
   - 手動 `runSema`／`BuildKIRPhase` 検証、ABI／synthetic KIR の直接検証、benchmark 用 fixture、および before/after の LoweringPhase 順序を意図的に検証する単独ケースは対象外として棚卸し済み。
-  - focused テストは確認済みだが、`bash Scripts/swift_test.sh`、`--filter Golden`、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` の必須ゲートは未完了／未確認のため、全ゲート green 後に完了へ更新する。
+  - focused テストに加え、PR #5913 の CI Verification run `32167293858` で CompilerCore／Smoke（3 shard）、Backend／Runtime／CLI／LSP、Repository Checks、kotlinc Diff（2 shard）の全ジョブが pass したため完了とする。
 - [~] REFACT-TEST-005: 集約後に不要になった per-test pipeline ヘルパー・重複 `source` 文字列・個別 `withTemporaryFile` ブロックを削除し、migration スクリプト群を整理
   - List の shared Sema context を使わない `fun noop() {}` wrapper 31 箇所、単一用途の `makeSema` helper 8 箇所、および Regex の不要な case 引数を削除した。テスト名、fixture、診断、実行順独立性は維持している。
   - migration script の共通化は master の #6430 で完了済みのため、既存の所有範囲を重複変更していない。
