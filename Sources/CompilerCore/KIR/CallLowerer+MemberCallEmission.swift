@@ -314,6 +314,27 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        if loweredCallee == interner.intern("__kk_double_range_contains"),
+           sourceArgExprs.count == 1,
+           finalArguments.count >= 2,
+           sema.types.makeNonNullable(
+               sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+           ) == sema.types.floatType
+        {
+            // OpenEndRange<Double>.contains(Float) widens the argument before
+            // reaching the Double range ABI; the raw Float bits are not a valid
+            // Double bit pattern and must not be passed through unchanged.
+            let converted = arena.appendTemporary(type: sema.types.doubleType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_float_to_double_bits"),
+                arguments: [finalArguments[1]],
+                result: converted,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArguments[1] = converted
+        }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
         // reference is finalArguments[1]; inject the lambda's captures after it so the

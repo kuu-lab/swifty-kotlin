@@ -1218,6 +1218,14 @@ func runtimeElementToString(_ elem: Int) -> String {
             return "\(first)..\(last) step \(rangeBox.step)"
         }
     }
+    if let rangeBox = tryCast(ptr, to: RuntimeDoubleRangeBox.self) {
+        let separator = rangeBox.endExclusive ? "..<" : ".."
+        return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
+    }
+    if let rangeBox = tryCast(ptr, to: RuntimeFloatRangeBox.self) {
+        let separator = rangeBox.endExclusive ? "..<" : ".."
+        return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
+    }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         let parts = arrayBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"

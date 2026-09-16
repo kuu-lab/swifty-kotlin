@@ -2561,7 +2561,30 @@ extension ExprLowerer {
             // false. UInt now falls through to the same `appendContainsCall` path as
             // every other range, which resolves to the shared `__kk_range_contains`
             // bridge (safe: UInt always fits the Int64 fields it operates on).
-            if let rhsType = rhsType,
+            if let floatingPointCallee = floatingPointRangeContainsCallee(
+                for: rhsExpr,
+                value: lhsExpr,
+                sema: sema,
+                interner: interner
+            ) {
+                let floatingPointValueID = floatingPointRangeContainsValueID(
+                    lhsID,
+                    valueExpr: lhsExpr,
+                    callee: floatingPointCallee,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: floatingPointCallee,
+                    arguments: [rhsID, floatingPointValueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else if let rhsType = rhsType,
                sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
                 instructions.append(.call(
                     symbol: nil,
@@ -2598,18 +2621,41 @@ extension ExprLowerer {
             // KSP-1523: see the `inExpr` case above — the analogous UInt branch here
             // was gated on the same always-false `rhsType == uintType` check and has
             // been folded away; UInt falls through to `appendContainsCall` below.
-            if let notInRhsType = notInRhsType,
+            let floatingPointContainsCallee = floatingPointRangeContainsCallee(
+                for: rhsExpr,
+                value: lhsExpr,
+                sema: sema,
+                interner: interner
+            )
+            if let floatingPointContainsCallee {
+                notInContainsCallee = interner.resolve(floatingPointContainsCallee)
+            } else if let notInRhsType = notInRhsType,
                sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
                 notInContainsCallee = "kk_ulong_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_ulong_range_contains" {
+            if notInContainsCallee == "kk_ulong_range_contains"
+                || notInContainsCallee.hasPrefix("__kk_")
+            {
+                let floatingPointValueID: KIRExprID = if let floatingPointContainsCallee {
+                    floatingPointRangeContainsValueID(
+                        lhsID,
+                        valueExpr: lhsExpr,
+                        callee: floatingPointContainsCallee,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                } else {
+                    lhsID
+                }
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(notInContainsCallee),
-                    arguments: [rhsID, lhsID],
+                    arguments: [rhsID, floatingPointValueID],
                     result: containsResult,
                     canThrow: false,
                     thrownResult: nil
@@ -2764,6 +2810,58 @@ extension ExprLowerer {
                 thrownResult: nil
             ))
         }
+    }
+
+    private func floatingPointRangeContainsCallee(
+        for rangeExpr: ExprID,
+        value valueExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let elementType = sema.bindings.floatingPointRangeElementType(forExpr: rangeExpr)
+            ?? sema.bindings.identifierSymbol(for: rangeExpr).flatMap {
+                sema.bindings.floatingPointRangeElementType(forSymbol: $0)
+        }
+        guard let elementType else { return nil }
+        let valueType = sema.types.makeNonNullable(
+            sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType
+        )
+        if elementType == sema.types.floatType {
+            guard valueType == sema.types.floatType else { return nil }
+            return interner.intern("__kk_float_range_contains")
+        }
+        if elementType == sema.types.doubleType {
+            guard valueType == sema.types.doubleType || valueType == sema.types.floatType else { return nil }
+            return interner.intern("__kk_double_range_contains")
+        }
+        return nil
+    }
+
+    private func floatingPointRangeContainsValueID(
+        _ valueID: KIRExprID,
+        valueExpr: ExprID,
+        callee: InternedString,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard callee == interner.intern("__kk_double_range_contains"),
+              sema.types.makeNonNullable(sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType)
+                  == sema.types.floatType
+        else {
+            return valueID
+        }
+        let converted = arena.appendTemporary(type: sema.types.doubleType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_float_to_double_bits"),
+            arguments: [valueID],
+            result: converted,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return converted
     }
 
     /// Resolves the *effective* delegate for a local custom-delegate declaration
