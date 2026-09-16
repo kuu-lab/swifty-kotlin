@@ -3,11 +3,15 @@ final class RuntimeRangeBox {
     let first: Int
     let last: Int
     let step: Int
+    // Range handles share one representation, so preserve Char identity for
+    // erased Iterable/Iterator calls that must return a boxed element.
+    let yieldsChars: Bool
 
-    init(first: Int, last: Int, step: Int) {
+    init(first: Int, last: Int, step: Int, yieldsChars: Bool = false) {
         self.first = first
         self.last = last
         self.step = step
+        self.yieldsChars = yieldsChars
     }
 }
 
@@ -15,11 +19,13 @@ final class RuntimeRangeIteratorBox {
     var current: Int
     let last: Int
     var step: Int
+    let yieldsChars: Bool
 
-    init(current: Int, last: Int, step: Int) {
+    init(current: Int, last: Int, step: Int, yieldsChars: Bool = false) {
         self.current = current
         self.last = last
         self.step = step
+        self.yieldsChars = yieldsChars
     }
 }
 
@@ -615,20 +621,35 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
     let alignedLast: Int
     if nextStep > 0 {
         guard range.first <= range.last else {
-            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: nextStep,
+                yieldsChars: range.yieldsChars
+            ))
         }
         let diff = range.last &- range.first
         let remainder = diff % nextStep
         alignedLast = range.last &- remainder
     } else {
         guard range.first >= range.last else {
-            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: nextStep,
+                yieldsChars: range.yieldsChars
+            ))
         }
         let diff = range.first &- range.last
         let remainder = diff % (0 &- nextStep)
         alignedLast = range.last &+ remainder
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: alignedLast, step: nextStep))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: range.first,
+        last: alignedLast,
+        step: nextStep,
+        yieldsChars: range.yieldsChars
+    ))
 }
 
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
@@ -696,7 +717,12 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(
+            current: range.first,
+            last: range.last,
+            step: range.step,
+            yieldsChars: range.yieldsChars
+        )
     )
 }
 
@@ -742,7 +768,12 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(
+            current: range.first,
+            last: range.last,
+            step: range.step,
+            yieldsChars: range.yieldsChars
+        )
     )
 }
 
@@ -857,8 +888,11 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_next(iterRaw)
     }
-    if runtimeRangeIteratorBox(from: iterRaw) != nil {
-        return kk_range_next(iterRaw)
+    if let rangeIterator = runtimeRangeIteratorBox(from: iterRaw) {
+        let value = kk_range_next(iterRaw)
+        // `Iterator<T>.next()` is an erased boundary. Direct range iteration
+        // still uses `kk_range_next` and keeps the primitive representation.
+        return rangeIterator.yieldsChars ? kk_box_char(value) : value
     }
     if runtimeListIteratorBox(from: iterRaw) != nil {
         return kk_list_iterator_next(iterRaw)
@@ -1194,7 +1228,12 @@ public func __kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown:
     let last = kk_unbox_char(range.last)
     let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
     let alignedLast = runtimeSignedProgressionLast(start: first, end: last, step: nextStep)
-    return registerRuntimeObject(RuntimeRangeBox(first: first, last: alignedLast, step: nextStep))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: first,
+        last: alignedLast,
+        step: nextStep,
+        yieldsChars: true
+    ))
 }
 
 @_cdecl("kk_char_range_toList")
@@ -1487,7 +1526,12 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
     let startChar = kk_unbox_char(rangeStart)
     let endChar = kk_unbox_char(rangeEnd)
     let alignedLast = runtimeSignedProgressionLast(start: startChar, end: endChar, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: alignedLast, step: step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: startChar,
+        last: alignedLast,
+        step: step,
+        yieldsChars: true
+    ))
 }
 
 // MARK: - ULongRange properties (STDLIB-RANGE-037)

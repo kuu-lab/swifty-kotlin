@@ -35,6 +35,11 @@ struct CodegenBackendCollectionJoinToStringTests {
             val iter: Iterable<String> = listOf("a", "bb", "ccc")
             println(iter.joinToString("-") { "<" + it + ">" })
 
+            val descendingChars = 'f' downTo 'a' step 2
+            println(('e' downTo 'a').joinToString(""))
+            println(descendingChars.joinToString(prefix = "[", postfix = "]"))
+            println(descendingChars.joinToString("|") { it.toString() })
+
             // Named-argument calls without a transform must keep resolving to
             // the plain (separator, prefix, postfix) overload.
             println(list.joinToString(prefix = "<", postfix = ">"))
@@ -74,6 +79,9 @@ struct CodegenBackendCollectionJoinToStringTests {
                 [1,2,3]
 
                 <a>-<bb>-<ccc>
+                edcba
+                [f, d, b]
+                f|d|b
                 <a, bb, ccc>
                 one,two
                 <one, two>

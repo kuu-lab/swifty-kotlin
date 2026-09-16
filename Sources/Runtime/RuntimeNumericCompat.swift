@@ -1617,5 +1617,10 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: endChar, step: 1))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: startChar,
+        last: endChar,
+        step: 1,
+        yieldsChars: true
+    ))
 }
