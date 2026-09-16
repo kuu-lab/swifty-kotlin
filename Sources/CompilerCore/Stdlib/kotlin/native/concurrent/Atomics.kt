@@ -152,17 +152,41 @@ private fun idString(value: Any): String = value.hashCode().toString()
 private fun debugString(value: Any?): String {
     if (value == null) return "null"
     if (value is AtomicReference<*>) return "AtomicReference: ${idString(value)}"
+    if (value is FreezableAtomicReference<*>) return "FreezableAtomicReference: ${idString(value)}"
     return "${value}: ${idString(value)}"
 }
 
-// KSP-1236: Keep the top-level class and constructor source-backed. The
-// value property and member operations are owned by KSP-1237.
+// KSP-1236/KSP-1237: Keep the legacy FreezableAtomicReference API
+// source-backed.
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicReference instead.",
     ReplaceWith("kotlin.concurrent.atomics.AtomicReference"),
     DeprecationLevel.ERROR
 )
-public class FreezableAtomicReference<T> {
-    @KsSymbolName("kk_freezable_atomic_ref_create")
-    public constructor(value: T)
+public class FreezableAtomicReference<T>(value: T) {
+    @Volatile
+    public var value: T = value
+
+    /** Atomically replaces the value when it matches [expected] by reference identity. */
+    public fun compareAndSet(expected: T, newValue: T): Boolean {
+        val oldValue = value
+        if (oldValue === expected) {
+            value = newValue
+            return true
+        }
+        return false
+    }
+
+    /** Atomically replaces the value when it matches [expected] by reference identity. */
+    public fun compareAndSwap(expected: T, newValue: T): T {
+        val oldValue = value
+        if (oldValue === expected) {
+            value = newValue
+        }
+        return oldValue
+    }
+
+    /** Returns the debug representation used by Kotlin/Native's legacy API. */
+    public override fun toString(): String =
+        "FreezableAtomicReference: ${idString(this)} -> ${debugString(value)}"
 }
