@@ -1518,6 +1518,27 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatUsesKotlinIntegerWidthsForHexAndOctal() {
+        let args = makeRuntimeArray([
+            kk_box_int(-1),
+            kk_box_long(-1),
+            kk_box_int(-1),
+            kk_box_int(-8),
+            kk_box_long(-8),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%x %x %X %o %o",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(
+            formatted ==
+                "ffffffff ffffffffffffffff FFFFFFFF 37777777770 1777777777777777777770"
+        )
+    }
+
+    @Test
     func testStringFormatSupportsBoxedScalarStringSpecifiers() {
         let args = makeRuntimeArray([
             kk_box_long(Int(Int64.max)),
