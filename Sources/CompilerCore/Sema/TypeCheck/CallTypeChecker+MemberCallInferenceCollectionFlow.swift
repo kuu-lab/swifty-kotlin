@@ -3079,8 +3079,7 @@ extension CallTypeChecker {
                     case "forEach":
                         resultType = sema.types.unitType
                         if bindBundledIterableSourceFunction(
-                            typeArguments: [collectionElementType],
-                            allowNominalIterableReceiver: true
+                            typeArguments: [collectionElementType]
                         ),
                            let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                         {
