@@ -1,7 +1,7 @@
 # Kotlin Compiler Remaining Tasks
 
 ### Diff skip 追跡（残り 4 件）
-- [~] DEBT-DIFF-007: `run_case` の compile-exit-code-match 誤判定修正（2026-07-08、`Scripts/diff_kotlinc.sh`）で新規に顕在化した ref/candidate 不一致を、診断/ネガティブテスト・enum/data class/interface 未実装・common stdlib gap・coroutine Flow・reflection・JVM interop・finally routing の7グループへ分解して triage 済み（2026-07-29、`docs/diff-skip-inventory.md` の DEBT-DIFF-007 節）。2026-08-13 更新：今回さらに19件のテスト入力ミス/common stdlib gap ケースを修正し `SKIP-DIFF` を解除。2026-08-18 更新：`list_binary_search_compare.kt`・`mock_objects.kt` をテスト入力ミス修正で追加解除（36→16→14）。2026-09-04 更新：現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新（`flow_builders.kt` は KSP-1543 で解除）。新たに見つかった未修正の実バグ多数（`Unit`を明示的な値として使えない一般的ギャップ、`if (x !is T) return` 後に smart-cast が後続コードへ伝播しない一般的ギャップ、トップレベルの2件目以降の複数行文字列プロパティが `null` になる疑いのある一般的初期化順序バグ、等）も同節に記録済み。
+- [~] DEBT-DIFF-007: `run_case` の compile-exit-code-match 誤判定修正（2026-07-08、`Scripts/diff_kotlinc.sh`）で新規に顕在化した ref/candidate 不一致を、診断/ネガティブテスト・enum/data class/interface 未実装・common stdlib gap・coroutine Flow・reflection・JVM interop・finally routing の7グループへ分解して triage 済み（2026-07-29、`docs/diff-skip-inventory.md` の DEBT-DIFF-007 節）。2026-08-13 更新：今回さらに19件のテスト入力ミス/common stdlib gap ケースを修正し `SKIP-DIFF` を解除。2026-08-18 更新：`list_binary_search_compare.kt`・`mock_objects.kt` をテスト入力ミス修正で追加解除（36→16→14）。2026-09-04 更新：現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新（`flow_builders.kt` は KSP-1543 で解除）。2026-09-16 更新：`enum_basic.kt` の enum collection-HOF boxing を修正し、現行タグを10件へ更新。新たに見つかった未修正の実バグ多数（`Unit`を明示的な値として使えない一般的ギャップ、`if (x !is T) return` 後に smart-cast が後続コードへ伝播しない一般的ギャップ、トップレベルの2件目以降の複数行文字列プロパティが `null` になる疑いのある一般的初期化順序バグ、等）も同節に記録済み。
 
 ## Dead Code 削除タスク（DEADCODE: 2026-07-11〜12 再監査）
 
