@@ -308,7 +308,13 @@ func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
 }
 
 /// Text of a value whose static type is `CharSequence`: either a String box or
-/// a StringBuilder box. Returns nil for null sentinels and unrelated handles.
+/// a StringBuilder box, or a source-defined CharSequence implementation with
+/// a registered itable. Returns nil for null sentinels and unrelated handles.
+private let runtimeCharSequenceInterfaceTypeID =
+    runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RuntimeCharSequenceLength = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
 func runtimeCharSequenceText(from raw: Int) -> String? {
     guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
         return nil
@@ -326,7 +332,52 @@ func runtimeCharSequenceText(from raw: Int) -> String? {
     if let builderBox = object as? RuntimeStringBuilderBox {
         return builderBox.value
     }
-    return nil
+
+    // Source-defined CharSequence implementations expose their get/length
+    // methods through the dynamic itable slot assigned at object construction.
+    // Reading those slots here keeps CharSequence-taking APIs (for example
+    // StringBuilder(CharSequence)) faithful for custom implementations instead
+    // of falling back to an opaque object rendering.
+    let lengthPointer = kk_itable_lookup_dynamic(
+        raw,
+        Int(runtimeCharSequenceInterfaceTypeID),
+        2
+    )
+    let getPointer = kk_itable_lookup_dynamic(
+        raw,
+        Int(runtimeCharSequenceInterfaceTypeID),
+        0
+    )
+    guard lengthPointer != 0, getPointer != 0 else {
+        return nil
+    }
+    let lengthGetter = unsafeBitCast(lengthPointer, to: RuntimeCharSequenceLength.self)
+    var lengthThrown = 0
+    let length = lengthGetter(raw, &lengthThrown)
+    guard lengthThrown == 0, length >= 0, length <= 1 << 26 else {
+        return nil
+    }
+    let get = unsafeBitCast(getPointer, to: RuntimeCharSequenceGet.self)
+    var units: [UInt16] = []
+    units.reserveCapacity(length)
+    for index in 0 ..< length {
+        var thrown = 0
+        let characterRaw = get(raw, index, &thrown)
+        guard thrown == 0 else {
+            return nil
+        }
+        let value: UInt32
+        if let characterPointer = UnsafeMutableRawPointer(bitPattern: characterRaw),
+           runtimeIsObjectPointer(characterPointer),
+           let characterBox = tryCast(characterPointer, to: RuntimeCharBox.self)
+        {
+            value = UInt32(truncatingIfNeeded: characterBox.value)
+        } else {
+            value = UInt32(truncatingIfNeeded: characterRaw)
+        }
+        units.append(UInt16(truncatingIfNeeded: value))
+    }
+    return String(decoding: units, as: UTF16.self)
 }
 
 let runtimeNullSentinelInt64 = Int64.min

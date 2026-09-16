@@ -1814,11 +1814,20 @@ extension CallLowerer {
             }
             if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let calleeStr = interner.resolve(calleeName)
+                let usesStringFlatABI: Bool = {
+                    guard let argumentType = sema.bindings.exprTypes[args[0].expr] else {
+                        return false
+                    }
+                    return sema.types.isSubtype(
+                        sema.types.makeNonNullable(argumentType),
+                        sema.types.stringType
+                    )
+                }()
                 let runtimeCallee: String? = switch calleeStr {
                 case "find":
-                    "__kk_regex_find_flat"
+                    usesStringFlatABI ? "__kk_regex_find_flat" : nil
                 case "findAll":
-                    "__kk_regex_findAll_flat"
+                    usesStringFlatABI ? "__kk_regex_findAll_flat" : nil
                 default:
                     nil
                 }

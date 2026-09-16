@@ -63,6 +63,12 @@ public func __kk_string_builder_new_from_string_flat(
     )
 }
 
+@_cdecl("__kk_string_builder_new_from_char_sequence")
+public func __kk_string_builder_new_from_char_sequence(_ valueRaw: Int) -> Int {
+    let initial = runtimeCharSequenceText(from: valueRaw) ?? runtimeElementToString(valueRaw)
+    return runtimeStringBuilderNew(initial: initial)
+}
+
 // BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body (see
 // StringBuilder.kt) — construction is entirely native. The capacity is only
 // ever used as a preallocation hint (this runtime doesn't preallocate string

@@ -126,6 +126,21 @@ final class CallLowerer {
             canThrow = false
         } else if let firstArg = finalArgIDs.first,
                   let firstArgType,
+                  let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+                  sema.types.isSubtype(
+                      sema.types.makeNonNullable(firstArgType),
+                      sema.types.make(.classType(ClassType(
+                          classSymbol: charSequenceSymbol,
+                          args: [],
+                          nullability: .nonNull
+                      )))
+                  )
+        {
+            runtimeCallee = interner.intern("__kk_string_builder_new_from_char_sequence")
+            runtimeArgs = [firstArg]
+            canThrow = false
+        } else if let firstArg = finalArgIDs.first,
+                  let firstArgType,
                   sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.intType)
         {
             // BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body
