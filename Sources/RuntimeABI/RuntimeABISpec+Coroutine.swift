@@ -1074,6 +1074,7 @@ public extension RuntimeABISpec {
             name: "kk_mutex_unlock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1129,6 +1130,7 @@ public extension RuntimeABISpec {
             name: "kk_semaphore_release",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"

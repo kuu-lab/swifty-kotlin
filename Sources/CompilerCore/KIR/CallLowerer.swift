@@ -1433,6 +1433,8 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
+            "kk_mutex_unlock",
+            "kk_semaphore_release",
         ].contains(name)
     }
 
@@ -1450,6 +1452,8 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "kk_mutex_unlock",
+            "kk_semaphore_release",
         ].contains(interner.resolve(calleeName))
     }
 

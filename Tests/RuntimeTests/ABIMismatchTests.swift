@@ -1213,9 +1213,13 @@ struct ABIMismatchTests {
     func kkMutexUnlockSignature() throws {
         let spec = try requireSpec("kk_mutex_unlock")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "handle")
         #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "outThrown")
+        #expect(spec.parameters[1].type == .nullableIntptrPointer)
+        #expect(spec.isThrowing)
+        #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name))
     }
 
     @Test
@@ -1234,6 +1238,19 @@ struct ABIMismatchTests {
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].name == "handle")
         #expect(spec.parameters[0].type == .intptr)
+    }
+
+    @Test
+    func kkSemaphoreReleaseSignature() throws {
+        let spec = try requireSpec("kk_semaphore_release")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "outThrown")
+        #expect(spec.parameters[1].type == .nullableIntptrPointer)
+        #expect(spec.isThrowing)
+        #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name))
     }
 
     // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.
