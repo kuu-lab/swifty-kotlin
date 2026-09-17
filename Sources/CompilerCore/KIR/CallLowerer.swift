@@ -811,6 +811,7 @@ final class CallLowerer {
         }
         var finalArgIDs = callNormalized.arguments
         var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
+        var implicitReceiverRuntimeCallee: InternedString?
         // Compiler-generated lambdas/local functions use the compiler ABI
         // (including the hidden thrown channel), so route them through their
         // lowered symbol directly instead of Swift closure helpers.
@@ -1047,6 +1048,20 @@ final class CallLowerer {
             }
             if let implicitReceiver {
                 finalArgIDs.insert(implicitReceiver, at: 0)
+                // Runtime-backed MutableSet values (including collection
+                // builder receivers) do not carry a Kotlin itable for the
+                // source-backed default mutation members. Resolve those
+                // implicit calls to their demoted ABI bridges before the
+                // generic virtual-dispatch path is selected.
+                implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(
+                    memberName: interner.resolve(sourceCalleeName),
+                    receiverType: arena.exprType(implicitReceiver)
+                        ?? signature.receiverType
+                        ?? sema.types.anyType,
+                    chosenCallee: chosen,
+                    sema: sema,
+                    interner: interner
+                )
             }
             // An unqualified `compute()` inside a member body is `this.compute()`
             // and must dispatch through the receiver's vtable/itable exactly like
@@ -1055,6 +1070,7 @@ final class CallLowerer {
             // SequenceScope calls use runtime-owned builder receivers, so their
             // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
+               implicitReceiverRuntimeCallee == nil,
                sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
@@ -1219,6 +1235,8 @@ final class CallLowerer {
                       )
             {
                 sequenceBuilderCallee
+            } else if let implicitReceiverRuntimeCallee {
+                implicitReceiverRuntimeCallee
             } else if let chosen,
                                                        let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                                                        !externalLinkName.isEmpty
@@ -1414,6 +1432,7 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
+            "__kk_mutable_set_add",
         ].contains(interner.resolve(calleeName))
     }
 

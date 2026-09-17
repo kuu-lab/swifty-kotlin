@@ -328,6 +328,74 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-704: make the source-backed set nominals available before collection
+    /// residuals register their Sequence/Iterable/Array overloads. The normal
+    /// header pass later fills these symbols with the complete Kotlin source
+    /// declarations.
+    func predeclareBundledSetHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let kotlinCollectionsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let bundledSetFileNominals = [
+            "Set.kt": "Set",
+            "MutableSet.kt": "MutableSet",
+            "HashSet.kt": "HashSet",
+            "LinkedHashSet.kt": "LinkedHashSet",
+        ]
+
+        for file in ast.sortedFiles where
+            sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+        {
+            let basename = sourceManager.path(of: file.fileID)
+                .split(separator: "/")
+                .last
+                .map(String.init) ?? ""
+            guard let nominalName = bundledSetFileNominals[basename],
+                  file.packageFQName == kotlinCollectionsPackage
+            else {
+                continue
+            }
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            let nominalSymbolName = interner.intern(nominalName)
+            guard file.topLevelDecls.contains(where: { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return classDecl.name == nominalSymbolName
+                case let .interfaceDecl(interfaceDecl):
+                    return interfaceDecl.name == nominalSymbolName
+                default:
+                    return false
+                }
+            }), symbols.lookup(fqName: kotlinCollectionsPackage + [nominalSymbolName]) == nil
+            else {
+                // An imported stdlib artifact already owns this nominal.
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1520: make the source-backed Comparator nominal available to early
     /// synthetic registrations without creating a duplicate declaration.
     func predeclareBundledComparatorHeaders(

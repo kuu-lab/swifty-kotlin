@@ -2130,7 +2130,7 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// `LinkedHashSet()` lowers to the `__kk_set_of` runtime factory, so the
+    /// `LinkedHashSet()` lowers to the `__kk_linked_hash_set_of` runtime factory, so the
     /// returned box never passes `kk_object_new` and never received the
     /// constructor-site `kk_object_register_vtable_method` registrations. Once
     /// `size` imported as the (Kotlin-correct) open member it is, a subclass in

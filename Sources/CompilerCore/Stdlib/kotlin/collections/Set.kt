@@ -10,6 +10,9 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
+@KsSymbolName("__kk_set_size")
+private external fun <E> __kkSetSize(set: Set<E>): Int
+
 // KSP-704: the nominal `Set<out E>` declaration is source-backed here, split
 // out of SetHOF.kt (which now holds only the extension HOF surface). Unlike
 // kotlin-stdlib's `Set`, which inherits every member from `Collection`, this
@@ -19,18 +22,17 @@ import kotlin.internal.KsSymbolName
 // virtual dispatch through the inherited `Collection` members (BUG-166, see
 // `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`).
 //
-// `size` cannot carry `@KsSymbolName` directly here: the annotation pipeline
-// (`HeaderHelpers.swift`'s `registerAnnotations`) only attaches link names to
-// `.function`/`.constructor` symbols, not `.property`. The `__kk_set_size`
-// bridge for this member therefore stays registered by `registerSetSizeMember`
-// in `HeaderHelpers+SyntheticSetStubs.swift`, which remains (along with the
-// type shell and `AbstractSet` fallback) for `--no-stdlib` contexts.
+// `size` cannot carry `@KsSymbolName` directly on the property because the
+// annotation pipeline only attaches link names to function/constructor
+// symbols. Keep the property source-backed by delegating through a private
+// external bridge instead.
 
 /**
  * A generic unordered collection of elements that does not support duplicate elements.
  */
 public interface Set<out E> : Collection<E> {
     public override val size: Int
+        get() = __kkSetSize(this)
 
     // These stay body-less abstract overrides (this compiler always flags a
     // body-less interface member abstract — see MutableSet.kt's header
