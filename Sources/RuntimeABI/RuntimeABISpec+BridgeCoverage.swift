@@ -166,7 +166,8 @@ private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
             isThrowing: false),
     bridgeSpec("kk_range_for_in_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"]),
+    bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"],
+            isThrowing: false),
     bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
             isThrowing: false),
 ]

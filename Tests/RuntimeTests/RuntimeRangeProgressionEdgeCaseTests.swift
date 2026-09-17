@@ -385,6 +385,26 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(!(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: stepped)!)))
     }
 
+    @Test func charProgressionGenericIteratorPreservesCharIdentity() {
+        let eScalar = Int(Unicode.Scalar("e").value)
+        let aScalar = Int(Unicode.Scalar("a").value)
+        let progression = __kk_char_progression_fromClosedRange(
+            0,
+            kk_box_char(eScalar),
+            kk_box_char(aScalar),
+            -1,
+            nil
+        )
+
+        let genericIterator = kk_range_iterator(progression, nil)
+        let genericElement = kk_iterator_next(genericIterator, nil)
+        #expect(kk_unbox_char(genericElement) == eScalar)
+        #expect(runtimeElementToString(genericElement) == "e")
+
+        let primitiveIterator = kk_range_iterator(progression, nil)
+        #expect(kk_range_next(primitiveIterator) == eScalar)
+    }
+
     // MARK: - CharRange edge cases
 
     @Test func charRange_toListAscending() {

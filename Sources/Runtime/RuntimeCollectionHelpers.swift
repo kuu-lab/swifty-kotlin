@@ -70,10 +70,10 @@ let hashSetRuntimeTypeID: Int64 = {
 /// their box with this ID, so it needs parent edges the way
 /// `hashSetRuntimeTypeID` has them -- without them `is MutableSet<*>` and
 /// `is Set<*>` would answer false on a box carrying this tag.
-/// `CollectionAliases.kt` declares `LinkedHashSet<E> : MutableSet<E>`, which
-/// extends neither HashSet nor AbstractMutableSet, so only those two edges are
-/// registered. Aligning the runtime hierarchy with Kotlin/Native's
-/// `LinkedHashSet : HashSet` needs the declaration change KSP-704 owns.
+/// `LinkedHashSet.kt` declares `LinkedHashSet<E> : MutableSet<E>`. The runtime
+/// identity follows that source-backed public hierarchy; the concrete class
+/// remains separate from `HashSet` because the factory/runtime representation
+/// does not expose a nominal HashSet superclass edge.
 let linkedHashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashSet")
     runtimeRegisterTypeEdge(
@@ -885,7 +885,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsString = tryCast(lhsPtr, to: RuntimeStringBox.self),
        let rhsString = tryCast(rhsPtr, to: RuntimeStringBox.self)
     {
-        return lhsString.value == rhsString.value
+        return runtimeStringsEqual(lhsString.value, rhsString.value)
     }
     if let lhsInt = tryCast(lhsPtr, to: RuntimeIntBox.self),
        let rhsInt = tryCast(rhsPtr, to: RuntimeIntBox.self)
@@ -1096,16 +1096,19 @@ func runtimeValuesEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Bool {
             else {
                 return lhs.payload0 == rhs.payload0
             }
-            return runtimeStringFromFlatFields(
-                data: lhsData,
-                length: lhs.payload1,
-                byteCount: lhs.payload2,
-                hash: lhs.payload3
-            ) == runtimeStringFromFlatFields(
-                data: rhsData,
-                length: rhs.payload1,
-                byteCount: rhs.payload2,
-                hash: rhs.payload3
+            return runtimeStringsEqual(
+                runtimeStringFromFlatFields(
+                    data: lhsData,
+                    length: lhs.payload1,
+                    byteCount: lhs.payload2,
+                    hash: lhs.payload3
+                ),
+                runtimeStringFromFlatFields(
+                    data: rhsData,
+                    length: rhs.payload1,
+                    byteCount: rhs.payload2,
+                    hash: rhs.payload3
+                )
             )
         default:
             return runtimeValuesEqual(lhs.payload0, rhs.payload0)
@@ -1220,6 +1223,14 @@ func runtimeElementToString(_ elem: Int) -> String {
         } else {
             return "\(first)..\(last) step \(rangeBox.step)"
         }
+    }
+    if let rangeBox = tryCast(ptr, to: RuntimeDoubleRangeBox.self) {
+        let separator = rangeBox.endExclusive ? "..<" : ".."
+        return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
+    }
+    if let rangeBox = tryCast(ptr, to: RuntimeFloatRangeBox.self) {
+        let separator = rangeBox.endExclusive ? "..<" : ".."
+        return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         let parts = arrayBox.values.map { runtimeElementToString($0) }

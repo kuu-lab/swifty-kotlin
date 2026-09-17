@@ -2,8 +2,8 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-1078: the Set nominal declaration and its four built-in members are
-/// bundled Kotlin source while the compatibility shell retains runtime links.
+/// KSP-704: the Set nominal declaration and its four built-in members are
+/// bundled Kotlin source; only the private bridge helpers retain runtime links.
 @Suite
 struct SetSourceMigrationTests {
     private func makeSema() throws -> CompilationContext {
@@ -67,7 +67,7 @@ struct SetSourceMigrationTests {
             case "contains": "__kk_set_contains"
             case "isEmpty": "__kk_set_is_empty"
             case "iterator": "kk_list_iterator"
-            case "size": "__kk_set_size"
+            case "size": nil
             default: fatalError("unhandled Set member: \(member)")
             }
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == expectedLink)

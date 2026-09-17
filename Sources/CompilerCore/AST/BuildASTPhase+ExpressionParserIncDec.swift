@@ -5,14 +5,17 @@ extension BuildASTPhase.ExpressionParser {
     /// expression parser.
     ///
     /// Both forms are desugared into an already supported block expression so
-    /// that no new AST node has to be threaded through Sema/KIR:
+    /// that no new AST node has to be threaded through Sema/KIR. The synthesized
+    /// compound-assignment node is marked in the arena, which lets later phases
+    /// distinguish `++` / `--` from source-written `+=` / `-=` and resolve the
+    /// required `inc()` / `dec()` operator.
     ///
     ///   `x++`  ->  `{ val tmp = x; x += 1; tmp }`
     ///   `++x`  ->  `{ x += 1; x }`
     ///
-    /// The augmented assignment reuses `.compoundAssign` / `.memberCompoundAssign`,
+    /// The marked assignment reuses `.compoundAssign` / `.memberCompoundAssign`,
     /// which already know how to store back into locals, captured variables,
-    /// globals and instance fields.
+    /// globals and instance fields after the operator result is computed.
     func tryParseIncrementDecrement(operand: ExprID) -> ExprID? {
         guard let opToken = current(), let op = compoundAssignOp(for: opToken.kind) else {
             return nil
@@ -76,12 +79,14 @@ extension BuildASTPhase.ExpressionParser {
         case let .nameRef(name, _):
             readExpr = astArena.appendExpr(.nameRef(name, operandRange))
             let one = astArena.appendExpr(.intLiteral(1, opRange))
-            assignExpr = astArena.appendExpr(.compoundAssign(
+            let assignment = astArena.appendExpr(.compoundAssign(
                 op: op,
                 name: name,
                 value: one,
                 range: range
             ))
+            astArena.markIncrementDecrement(assignment)
+            assignExpr = assignment
 
         case let .memberCall(receiver, callee, typeArgs, args, _)
             where typeArgs.isEmpty && args.isEmpty && isSideEffectFreeReceiver(receiver):
@@ -93,13 +98,15 @@ extension BuildASTPhase.ExpressionParser {
                 range: operandRange
             ))
             let one = astArena.appendExpr(.intLiteral(1, opRange))
-            assignExpr = astArena.appendExpr(.memberCompoundAssign(
+            let assignment = astArena.appendExpr(.memberCompoundAssign(
                 op: op,
                 receiver: receiver,
                 callee: callee,
                 value: one,
                 range: range
             ))
+            astArena.markIncrementDecrement(assignment)
+            assignExpr = assignment
 
         default:
             // Unsupported target (e.g. `a[i]++`): leave the operator unparsed so

@@ -11,7 +11,7 @@ expr e@5:19 name(Instant) type=kotlin.time.Instant.Companion ref=kotlin.time.Ins
 expr e@5:49 long(1000) type=Long
 expr e@5:19#1 memberCall recv=e@5:19 callee=fromEpochMilliseconds args=[_:e@5:49] type=kotlin.time.Instant call=kotlin.time.fromEpochMilliseconds[kind=fun;recv=kotlin.time.Instant.Companion;params=Long]
 expr e@5:59 int(500) type=Int
-expr e@5:59#1 memberCall recv=e@5:59 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.milliseconds.$get[kind=fun;recv=Int;params=]
+expr e@5:59#1 memberCall recv=e@5:59 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Int;params=]
 expr e@5:19#2 binary(add) lhs=e@5:19#1 rhs=e@5:59#1 type=kotlin.time.Instant call=kotlin.time.plus[kind=fun;recv=kotlin.time.Instant;params=kotlin.time.Duration]
 expr e@5:5 localDecl instant mutable=0 type=_ init=e@5:19#2 type=Unit ref=__local_0.instant[kind=local]
 expr e@6:16 name(Instant) type=kotlin.time.Instant.Companion ref=kotlin.time.Instant[kind=class]

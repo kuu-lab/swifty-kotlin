@@ -146,6 +146,27 @@ public fun CharSequence.windowed(
     return result
 }
 
+public fun <R> CharSequence.windowed(
+    size: Int,
+    step: Int = 1,
+    partialWindows: Boolean = false,
+    transform: (CharSequence) -> R
+): List<R> {
+    require(size > 0) { "size must be positive, but was $size" }
+    require(step > 0) { "step must be positive, but was $step" }
+    val length = this.length
+    val result = mutableListOf<R>()
+    var index = 0
+    while (index < length) {
+        val end = if (index + size < length) index + size else length
+        if (end - index == size || partialWindows) {
+            result.add(transform(charSequenceWindow(this, index, end)))
+        }
+        index += step
+    }
+    return result
+}
+
 public fun CharSequence.windowedSequence(
     size: Int,
     step: Int = 1,

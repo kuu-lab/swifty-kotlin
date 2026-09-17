@@ -16,8 +16,20 @@ struct BoxingCalleeTable {
 
     private static let primitiveCalleeRules: [PrimitiveCalleeRule] = [
         PrimitiveCalleeRule(
-            primitives: [.int, .uint, .ubyte, .ushort, .byte, .short],
+            primitives: [.int, .byte, .short],
             names: PrimitiveCalleeNames(box: "kk_box_int", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.uint],
+            names: PrimitiveCalleeNames(box: "kk_box_uint", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.ubyte],
+            names: PrimitiveCalleeNames(box: "kk_box_ubyte", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.ushort],
+            names: PrimitiveCalleeNames(box: "kk_box_ushort", unbox: "kk_unbox_int")
         ),
         PrimitiveCalleeRule(
             primitives: [.long],

@@ -864,7 +864,7 @@ private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     else {
         return false
     }
-    return lhsString.value == rhsString.value
+    return runtimeStringsEqual(lhsString.value, rhsString.value)
 }
 
 @_cdecl("kk_atomic_ref_array_new")

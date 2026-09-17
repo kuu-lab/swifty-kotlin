@@ -36,6 +36,13 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        let intProgressionType = syntheticNominalType(
+            named: "IntProgression",
+            in: rangesFQName,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         registerIterableSupertype(
             classSymbol: classSymbol,
             elementType: types.intType,
@@ -155,7 +162,8 @@ extension DataFlowSemaPhase {
             classFQName: classFQName,
             receiverType: intRangeType,
             parameterTypes: [],
-            returnType: intRangeType,
+            // Kotlin's IntRange.reversed() returns an IntProgression.
+            returnType: intProgressionType,
             externalLinkName: "__kk_range_reversed",
             symbols: symbols,
             interner: interner

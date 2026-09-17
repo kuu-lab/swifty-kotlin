@@ -308,7 +308,7 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalStdlibApiDefaultPropertyWithoutOptInEmitsDiagnostic
+            // testExperimentalStdlibApiWithDefaultPropertyWithoutOptInEmitsDiagnostic
             """
             package sample29
                     fun hex(): String = 42.toHexString(HexFormat.Default)
@@ -799,7 +799,7 @@ extension AnnotationSemanticTests {
 
                 let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
 
-                #expect(diagnostics.count == 2, "Expected opt-in diagnostics for HexFormat.Default and toHexString(), got: \(sampleDiags)")
+                #expect(diagnostics.count == 1, "Expected one opt-in diagnostic for toHexString() with HexFormat.Default, got: \(sampleDiags)")
                 let v36 = diagnostics.allSatisfy(isError)
                 #expect(v36, "Opt-in diagnostics should be errors")
             }

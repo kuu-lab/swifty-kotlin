@@ -110,6 +110,8 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == interner.intern("format")
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        let isSyntacticRangeCollectionMember = ["plus", "minus"].contains(interner.resolve(calleeName))
+            && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
@@ -185,7 +187,8 @@ extension CallTypeChecker {
                 receiverExpr: receiverID,
                 receiverType: lookupReceiverType,
                 sema: sema,
-                interner: interner
+                interner: interner,
+                allowSyntacticRangeExpression: isSyntacticRangeCollectionMember
             )
         } else {
             nil
@@ -1016,6 +1019,12 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
+            let instantValueSemanticsCandidates = collectInstantValueSemanticsCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            )
             let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
                 named: calleeName,
                 receiverType: memberLookupType,
@@ -1088,27 +1097,33 @@ extension CallTypeChecker {
                     ]
                 }
             }
-            let memberCandidates: [SymbolID]
+            let standardMemberCandidates: [SymbolID]
             if !arrayConversionSourceCandidates.isEmpty {
-                memberCandidates = arrayConversionSourceCandidates
+                standardMemberCandidates = arrayConversionSourceCandidates
             } else if !mutableMapPutAllSourceCandidates.isEmpty {
-                memberCandidates = mutableMapPutAllSourceCandidates
+                standardMemberCandidates = mutableMapPutAllSourceCandidates
             } else if !primitiveArraySourceCandidates.isEmpty {
                 // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
                 // exact source receiver over synthetic member stubs, including
                 // joinToString(transform), whose legacy stub shares the same name.
-                memberCandidates = primitiveArraySourceCandidates
+                standardMemberCandidates = primitiveArraySourceCandidates
             } else if !scopedRangeUserCandidates.isEmpty {
-                memberCandidates = scopedRangeUserCandidates
+                standardMemberCandidates = scopedRangeUserCandidates
             } else if !rangeSourceCandidates.isEmpty {
-                memberCandidates = rangeSourceCandidates
+                standardMemberCandidates = rangeSourceCandidates
+            } else if !instantValueSemanticsCandidates.isEmpty {
+                // Instant's source-backed value-semantics extensions intentionally
+                // replace inherited Any members for a statically typed Instant.
+                // Without this preference, the nominal source shell makes
+                // Any.equals/hashCode/toString win before extension fallback.
+                standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
                 // Source-backed bundled extensions are the live implementation
                 // for migrated atomic APIs, including overrides of inherited
                 // synthetic Any members such as AtomicInt.toString().
-                memberCandidates = bundledStdlibCandidates
+                standardMemberCandidates = bundledStdlibCandidates
             } else {
-                memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
                     receiverType: memberLookupType,
                     sema: sema,
@@ -1116,6 +1131,35 @@ extension CallTypeChecker {
                     interner: interner
                 )
             }
+            // Duration.toString(DurationUnit, Int) is a bundled source extension
+            // that overloads Duration's ordinary zero-argument toString member.
+            // Keep the source extension in the same candidate set when a member
+            // with the same name already exists; otherwise the non-empty argument
+            // call would stop at the zero-argument member and never reach the
+            // normal extension fallback.
+            let sourceBackedOverloads: [SymbolID] = {
+                guard interner.resolve(calleeName) == "toString", !args.isEmpty else {
+                    return []
+                }
+                let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
+                return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                    guard sema.symbols.isSourceBackedSymbol(candidate),
+                          let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType,
+                          signature.parameterTypes.count >= args.count
+                    else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: receiverForExtensionLookup,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }()
+            let memberCandidates = sourceBackedOverloads + standardMemberCandidates
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -1863,6 +1907,31 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
+        // Regex keeps a String-specific runtime bridge for the historical
+        // `(MatchResult) -> String` overload alongside the source-backed
+        // CharSequence overload whose transform returns CharSequence. Lambda
+        // preparation intentionally erases return types while finding a shared
+        // input shape, which would otherwise leave these two overloads
+        // ambiguous even after the lambda body has produced a String. Once the
+        // body type is known, prefer the bridge only when its String callback is
+        // actually applicable; custom CharSequence callbacks continue through
+        // the source declaration.
+        if memberNameText == "replace",
+           args.count == 2,
+           sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,
+           preparedArgs.lambdaLiteralIndices.contains(1),
+           case let .functionType(lambdaType) = sema.types.kind(
+               of: sema.types.makeNonNullable(preparedArgs.argTypes[1])
+           ),
+           sema.types.isSubtype(lambdaType.returnType, sema.types.stringType)
+        {
+            let regexStringBridgeCandidates = candidates.filter {
+                sema.symbols.externalLinkName(for: $0) == "__kk_regex_replace_lambda"
+            }
+            if !regexStringBridgeCandidates.isEmpty {
+                candidates = regexStringBridgeCandidates
+            }
+        }
         let resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -2337,6 +2406,47 @@ extension CallTypeChecker {
         }
     }
 
+    /// Finds the source-backed value-semantics extensions for Instant. Instant
+    /// keeps these operations as package-level Kotlin functions, but its source
+    /// nominal shell also inherits Any's methods. They must be preferred when
+    /// the call site's static receiver is Instant.
+    private func collectInstantValueSemanticsCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let supportedNames: Set<String> = ["equals", "hashCode", "toString"]
+        guard supportedNames.contains(interner.resolve(calleeName)),
+              let receiverOwner = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(receiverType),
+                  types: sema.types
+              ),
+              let receiverSymbol = sema.symbols.symbol(receiverOwner),
+              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "time", "Instant"]
+        else {
+            return []
+        }
+
+        let kotlinTimePackage = [interner.intern("kotlin"), interner.intern("time")]
+        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  Array(symbol.fqName.dropLast()) == kotlinTimePackage,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+    }
+
     /// Finds bundled stdlib extension functions named `calleeName` whose receiver
     /// matches `receiverType`. Bundled stdlib extensions (e.g. the atomic-array
     /// `loadAt`/`storeAt` migration source) are conceptually members and should be
@@ -2525,7 +2635,7 @@ extension CallTypeChecker {
              "toList", "forEach", "map", "mapIndexed", "mapNotNull",
              "filter", "filterIndexed", "filterNot",
              "take", "drop", "chunked", "windowed", "sorted", "average",
-             "random", "randomOrNull", "step":
+             "random", "randomOrNull", "step", "plus", "minus":
             return true
         default:
             return false
@@ -2536,13 +2646,15 @@ extension CallTypeChecker {
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
     ) -> TypeID? {
         guard let rangeKind = sourceLevelRangeMemberReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
             sema: sema,
-            interner: interner
+            interner: interner,
+            allowSyntacticRangeExpression: allowSyntacticRangeExpression
         ) else {
             return nil
         }
@@ -2591,7 +2703,8 @@ extension CallTypeChecker {
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
@@ -2621,7 +2734,7 @@ extension CallTypeChecker {
             }
         }
 
-        guard sema.bindings.isRangeExpr(receiverExpr) else {
+        guard sema.bindings.isRangeExpr(receiverExpr) || allowSyntacticRangeExpression else {
             return nil
         }
         if sema.bindings.isFloatingPointRangeExpr(receiverExpr) {

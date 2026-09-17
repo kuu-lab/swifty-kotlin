@@ -10,9 +10,19 @@ public struct InternedString: Hashable, Sendable, Codable {
     }
 }
 
+private struct StringInternerKey: Hashable {
+    let utf16CodeUnits: [UInt16]
+
+    init(_ string: String) {
+        utf16CodeUnits = Array(string.utf16)
+    }
+}
+
 public final class StringInterner: @unchecked Sendable {
     private var nextID: Int32 = 0
-    private var map: [String: Int32] = [:]
+    // Swift String hashing uses canonical equivalence. Kotlin string literals
+    // and identifiers must remain distinct when their UTF-16 sequences differ.
+    private var map: [StringInternerKey: Int32] = [:]
     private var values: [String] = []
     private let lock = NSLock()
     private let compilerNamesLock = NSLock()
@@ -36,12 +46,13 @@ public final class StringInterner: @unchecked Sendable {
     public func intern(_ string: String) -> InternedString {
         lock.lock()
         defer { lock.unlock() }
-        if let existing = map[string] {
+        let key = StringInternerKey(string)
+        if let existing = map[key] {
             return InternedString(rawValue: existing)
         }
         let id = nextID
         nextID += 1
-        map[string] = id
+        map[key] = id
         values.append(string)
         return InternedString(rawValue: id)
     }

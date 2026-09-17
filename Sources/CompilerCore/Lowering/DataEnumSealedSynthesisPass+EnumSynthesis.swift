@@ -366,6 +366,156 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
+    /// Synthesizes one ordinal switch for each enum member function that has
+    /// an override in an entry body. Enum values are raw ordinals in KIR, so a
+    /// generated switch preserves the existing representation while selecting
+    /// the entry-specific implementation.
+    func appendSyntheticEnumEntryDispatchesIfNeeded(
+        owner: SemanticSymbol,
+        entries: [SemanticSymbol],
+        module: KIRModule,
+        sema: SemaModule,
+        existingFunctionSymbols: Set<SymbolID>,
+        interner: StringInterner
+    ) {
+        let ordinalByEntry = Dictionary(
+            uniqueKeysWithValues: entries.enumerated().map { ($1.id, $0) }
+        )
+        let dispatchPrefix = "$enumEntryDispatch$"
+        let dispatchSymbols = sema.symbols.children(ofFQName: owner.fqName)
+            .compactMap { sema.symbols.symbol($0) }
+            .filter { symbol in
+                symbol.kind == .function
+                    && symbol.flags.contains(.synthetic)
+                    && interner.resolve(symbol.name).hasPrefix(dispatchPrefix)
+            }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        for dispatch in dispatchSymbols {
+            guard !existingFunctionSymbols.contains(dispatch.id),
+                  let signature = sema.symbols.functionSignature(for: dispatch.id),
+                  let receiverType = signature.receiverType,
+                  signature.reifiedTypeParameterIndices.isEmpty
+            else {
+                continue
+            }
+            let targets = sema.symbols.enumEntryDispatchTargets(for: dispatch.id)
+            guard !targets.isEmpty else {
+                continue
+            }
+
+            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: dispatch.id)
+            let receiverRef = module.arena.appendExpr(
+                .symbolRef(receiverSymbol),
+                type: receiverType
+            )
+            var params = [KIRParameter(symbol: receiverSymbol, type: receiverType)]
+            var argumentRefs: [KIRExprID] = []
+            for (parameterSymbol, parameterType) in zip(
+                signature.valueParameterSymbols,
+                signature.parameterTypes
+            ) {
+                params.append(KIRParameter(symbol: parameterSymbol, type: parameterType))
+                let parameterRef = module.arena.appendExpr(
+                    .symbolRef(parameterSymbol),
+                    type: parameterType
+                )
+                argumentRefs.append(parameterRef)
+            }
+
+            var body = KIRLoweringEmitContext()
+            body.append(.constValue(result: receiverRef, value: .symbolRef(receiverSymbol)))
+            for (parameterSymbol, parameterRef) in zip(signature.valueParameterSymbols, argumentRefs) {
+                body.append(.constValue(result: parameterRef, value: .symbolRef(parameterSymbol)))
+            }
+            let unboxedOrdinal = emitNonThrowingCall(
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                arg: receiverRef,
+                resultType: intType,
+                arena: module.arena,
+                into: &body
+            )
+
+            var nextLabel: Int32 = 7000
+            for target in targets {
+                guard let ordinal = ordinalByEntry[target.entrySymbol] else {
+                    continue
+                }
+                let ordinalExpr = module.arena.appendExpr(
+                    .intLiteral(Int64(ordinal)),
+                    type: intType
+                )
+                body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
+                let matchLabel = nextLabel
+                nextLabel += 1
+                let fallthroughLabel = nextLabel
+                nextLabel += 1
+                body.append(.jumpIfEqual(lhs: unboxedOrdinal, rhs: ordinalExpr, target: matchLabel))
+                body.append(.jump(fallthroughLabel))
+                body.append(.label(matchLabel))
+
+                guard let targetSymbol = sema.symbols.symbol(target.functionSymbol) else {
+                    body.append(.label(fallthroughLabel))
+                    continue
+                }
+                let resultExpr: KIRExprID? = signature.returnType == sema.types.unitType
+                    ? nil
+                    : module.arena.appendTemporary(type: signature.returnType)
+                body.append(.call(
+                    symbol: target.functionSymbol,
+                    callee: targetSymbol.name,
+                    arguments: [receiverRef] + argumentRefs,
+                    result: resultExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                if let resultExpr {
+                    body.append(.returnValue(resultExpr))
+                } else {
+                    body.append(.returnUnit)
+                }
+                body.append(.label(fallthroughLabel))
+            }
+
+            // An abstract enum member should be implemented by every entry.
+            // Keep malformed or incomplete metadata from producing an undefined
+            // call; the normal abstract-member validation reports the source
+            // error before this fallback could be reached.
+            let unreachableResult: KIRExprID? = signature.returnType == sema.types.unitType
+                ? nil
+                : module.arena.appendTemporary(type: signature.returnType)
+            let nullOutThrown = module.arena.appendExpr(
+                .null,
+                type: sema.types.nullableAnyType
+            )
+            body.append(.constValue(result: nullOutThrown, value: .null))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_abort_unreachable"),
+                arguments: [nullOutThrown],
+                result: unreachableResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let unreachableResult {
+                body.append(.returnValue(unreachableResult))
+            } else {
+                body.append(.returnUnit)
+            }
+
+            appendSyntheticFunctionWithSymbol(
+                functionSymbol: dispatch.id,
+                name: dispatch.name,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: params,
+                body: body.instructions
+            )
+        }
+    }
+
     /// Synthesizes `valueOf(String)` which does a linear comparison of the
     /// argument against each entry name and returns the matching ordinal.
     /// If no match is found, it calls `kk_enum_valueOf_throw` to signal an

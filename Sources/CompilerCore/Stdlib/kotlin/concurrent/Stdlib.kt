@@ -21,10 +21,6 @@ public class AtomicArray<T> private constructor()
 public class AtomicInt private constructor()
 
 @SinceKotlin("1.9")
-@ExperimentalStdlibApi
-public class AtomicIntArray private constructor()
-
-@SinceKotlin("1.9")
 public class AtomicLong private constructor()
 
 @SinceKotlin("1.9")
