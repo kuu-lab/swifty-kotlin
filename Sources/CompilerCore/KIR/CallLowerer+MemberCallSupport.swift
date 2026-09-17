@@ -8,17 +8,15 @@ struct MemberCallReceiver {
 /// call site (Any-fallback member calls, string concatenation/interpolation,
 /// data class `toString()` synthesis, `println(dataClass)` rewriting, ...):
 /// 1=default (Int/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
-/// 6=Double, 7=ULong, 8=Long. ULong spans the full 64 bits, so kk_any_to_string
-/// must reinterpret it as unsigned (tag 1 would print the signed
+/// 6=Double, 7=ULong, 8=Long, 9=UInt, 10=UByte, 11=UShort. ULong spans the
+/// full 64 bits, so `kk_any_to_string` must reinterpret it as unsigned (tag 1
+/// would print the signed
 /// reinterpretation, or even "null" for values whose bit pattern equals
-/// Int.min). UInt/UByte/UShort stay on the default tag: they are always
-/// zero-extended into this container, so tag 1's signed decimal rendering
-/// already matches their unsigned value. Long gets its own tag (distinct from
-/// the default) solely so `kk_any_hashCode` can apply the `(this xor (this
-/// ushr 32)).toInt()` formula to unboxed Long receivers; `kk_any_to_string`
-/// and `kk_any_equals` treat tag 8 exactly like tag 1 (Long's raw 64-bit slot
-/// value already prints/compares correctly without reinterpretation), so this
-/// addition changes no other call site's behavior. This is a free function
+/// Int.min). UInt/UByte/UShort are zero-extended into this container, so their
+/// dedicated tags let `kk_any_hashCode` reinterpret the low 32/8/16 bits as
+/// Kotlin's signed backing value. `kk_any_to_string` and `kk_any_equals` treat
+/// tags 8 through 11 like tag 1, preserving their existing rendering and
+/// comparison behavior. This is a free function
 /// (not a `CallLowerer` method) so every lowering pass that stringifies an
 /// arbitrary Any-typed value can share the exact same tag computation instead
 /// of drifting out of sync.
@@ -38,6 +36,12 @@ func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
         7
     case .primitive(.long, _):
         8
+    case .primitive(.uint, _):
+        9
+    case .primitive(.ubyte, _):
+        10
+    case .primitive(.ushort, _):
+        11
     default:
         1
     }
