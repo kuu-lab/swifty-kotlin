@@ -744,8 +744,8 @@ func runtimeReadArrayElement(arrayRaw: Int, index: Int) -> Int {
     guard let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self) else {
         return 0
     }
-    guard index >= 0, index < arrayBox.elements.count else {
+    guard index >= 0, index < arrayBox.count else {
         return 0
     }
-    return arrayBox.elements[index]
+    return arrayBox[index]
 }

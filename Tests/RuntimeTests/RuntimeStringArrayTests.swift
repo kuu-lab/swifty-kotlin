@@ -1911,6 +1911,57 @@ struct RuntimeStringArrayTests {
         #expect(output.contains("some error"))
     }
 
+    // MARK: - kk_array_fill (KUU-554)
+
+    @Test
+    func testArrayFillWritesEveryElement() {
+        let array = kk_array_new(4)
+        var thrown = 0
+        _ = kk_array_set(array, 0, 1, &thrown)
+        _ = kk_array_fill(array, 7)
+        for index in 0 ..< 4 {
+            #expect(kk_array_get(array, index, &thrown) == 7)
+            #expect(thrown == 0)
+        }
+    }
+
+    @Test
+    func testArrayFillPreservesAnyFallbackTags() {
+        // fill must behave like repeated kk_array_set: overwrite the payload
+        // while keeping each slot's anyFallbackTag for Any-erased dispatch.
+        let array = kk_array_new(3)
+        _ = kk_array_set_typed(array, 0, 10, 8)
+        _ = kk_array_set_typed(array, 1, 20, 5)
+        _ = kk_array_set_typed(array, 2, 30, 7)
+        _ = kk_array_fill(array, 0)
+        let box = runtimeArrayBox(from: array)
+        #expect(box?.values.map(\.anyFallbackTag) == [8, 5, 7])
+        #expect(box?.values.map(\.legacyRawValue) == [0, 0, 0])
+    }
+
+    @Test
+    func testArrayFillLargeArray() {
+        // Exercises the O(n) subscript path; the previous elements[i] loop was
+        // O(n²) and could not complete at this size.
+        let array = kk_array_new(100_000)
+        _ = kk_array_fill(array, 42)
+        var thrown = 0
+        #expect(kk_array_get(array, 0, &thrown) == 42)
+        #expect(kk_array_get(array, 99_999, &thrown) == 42)
+        #expect(thrown == 0)
+    }
+
+    @Test
+    func testArrayCopyOfPreservesAnyFallbackTags() {
+        let array = kk_array_new(2)
+        _ = kk_array_set_typed(array, 0, 10, 8)
+        _ = kk_array_set_typed(array, 1, 20, 6)
+        let copy = __kk_array_copyOf(array)
+        let box = runtimeArrayBox(from: copy)
+        #expect(box?.values.map(\.anyFallbackTag) == [8, 6])
+        #expect(box?.values.map(\.legacyRawValue) == [10, 20])
+    }
+
     // MARK: - STDLIB-TEXT-FN-115: String.withIndex()
 
 

@@ -451,8 +451,8 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
         return runtimeMakeStringRaw("")
     }
     var scalars = String.UnicodeScalarView()
-    for i in 0..<box.elements.count {
-        let charValue = kk_unbox_char(box.elements[i])
+    for i in 0..<box.count {
+        let charValue = kk_unbox_char(box[i])
         if let scalar = UnicodeScalar(charValue) {
             scalars.append(scalar)
         }

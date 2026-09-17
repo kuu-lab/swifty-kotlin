@@ -338,7 +338,7 @@ public func __kk_throwable_rawStackFrames(
         runtimeStructuredPanic("__kk_throwable_rawStackFrames: array allocation failed")
     }
     for (i, frame) in frameStrings.enumerated() {
-        arrayBox.elements[i] = registerRuntimeObject(RuntimeStringBox(frame))
+        arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
     }
     return arrayRaw
 }
@@ -467,7 +467,7 @@ public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
 
     let arrayBox = RuntimeArrayBox(length: suppressed.count)
     for (i, elem) in suppressed.enumerated() {
-        arrayBox.elements[i] = elem
+        arrayBox[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -2063,14 +2063,14 @@ public func kk_array_set_typed(
 public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> Int {
     guard let pairs = runtimeArrayBox(from: pairsArrayRaw),
           pairCount > 0,
-          pairs.elements.count >= pairCount * 2 else { return kk_array_new(0) }
+          pairs.count >= pairCount * 2 else { return kk_array_new(0) }
     var totalCount = 0
     for i in 0 ..< pairCount {
-        let marker = pairs.elements[i * 2]
-        let value = pairs.elements[i * 2 + 1]
+        let marker = pairs[i * 2]
+        let value = pairs[i * 2 + 1]
         if marker == -1 {
             if let array = runtimeArrayBox(from: value) {
-                totalCount += array.elements.count
+                totalCount += array.count
             }
         } else {
             totalCount += 1
@@ -2080,17 +2080,25 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     if let box = runtimeArrayBox(from: result) {
         var writeIndex = 0
         for i in 0 ..< pairCount {
-            let marker = pairs.elements[i * 2]
-            let value = pairs.elements[i * 2 + 1]
+            let marker = pairs[i * 2]
+            let sourceValue = pairs.values[i * 2 + 1]
             if marker == -1 {
-                if let array = runtimeArrayBox(from: value) {
-                    for elem in array.elements {
-                        box.elements[writeIndex] = elem
+                if let array = runtimeArrayBox(from: sourceValue.legacyRawValue) {
+                    for element in array.values {
+                        box.setValue(
+                            element.legacyRawValue,
+                            at: writeIndex,
+                            anyFallbackTag: element.anyFallbackTag
+                        )
                         writeIndex += 1
                     }
                 }
             } else {
-                box.elements[writeIndex] = value
+                box.setValue(
+                    sourceValue.legacyRawValue,
+                    at: writeIndex,
+                    anyFallbackTag: sourceValue.anyFallbackTag
+                )
                 writeIndex += 1
             }
         }

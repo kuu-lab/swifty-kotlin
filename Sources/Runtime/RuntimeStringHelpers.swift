@@ -80,7 +80,7 @@ func runtimeMakeListRaw(_ values: [Int]) -> Int {
 func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
     let box = RuntimeArrayBox(length: values.count)
     for (index, value) in values.enumerated() {
-        box.elements[index] = value
+        box[index] = value
     }
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in

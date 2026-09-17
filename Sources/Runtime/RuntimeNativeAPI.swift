@@ -251,13 +251,13 @@ private func runtimeNativeByteArrayLoadUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.count else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
     var value: UInt64 = 0
     for byteOffset in 0..<byteCount {
-        let byte = UInt8(truncatingIfNeeded: array.elements[index + byteOffset])
+        let byte = UInt8(truncatingIfNeeded: array[index + byteOffset])
         value |= UInt64(byte) << UInt64(byteOffset * 8)
     }
     return value
@@ -274,13 +274,13 @@ private func runtimeNativeByteArrayStoreUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.count else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
     for byteOffset in 0..<byteCount {
         let byte = UInt8(truncatingIfNeeded: value >> UInt64(byteOffset * 8))
-        array.elements[index + byteOffset] = Int(Int8(bitPattern: byte))
+        array[index + byteOffset] = Int(Int8(bitPattern: byte))
     }
     return 0
 }
