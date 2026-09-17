@@ -410,6 +410,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
                 }()
+                // Source-backed bridge calls keep the Kotlin declaration name in
+                // KIR (for example, `__kk_duration_parseOrNull`) while the ABI
+                // throwing contract is keyed by the external runtime link name
+                // (`kk_duration_parseOrNull`). Consult both names so a
+                // non-throwing bridge does not acquire an outThrown parameter
+                // merely because its source name is absent from the runtime set.
+                let isNonThrowingExternalLink: Bool = {
+                    guard let s = effectiveCallSymbol,
+                          let linkName = symbols?.externalLinkName(for: s)
+                    else {
+                        return false
+                    }
+                    return nonThrowingCalleeSet.contains(ctx.interner.intern(linkName))
+                }()
                 // Closure-related callees (kk_closure_invoke_* wrappers and their
                 // internal kk_lambda_* targets) are registered as non-throwing by
                 // LambdaClosureConversionPass via module.nonThrowingClosureCallees.
@@ -419,7 +433,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     || isDelegatedAccessor
                     || (!isSyntheticAccessor
                         && !isClosureRelatedCallee
-                        && !nonThrowingCalleeSet.contains(effectiveCallee))
+                        && !nonThrowingCalleeSet.contains(effectiveCallee)
+                        && !isNonThrowingExternalLink)
 
                 var signature: FunctionSignature?
                 if let symbols, let effectiveCallSymbol {
