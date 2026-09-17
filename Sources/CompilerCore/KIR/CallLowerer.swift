@@ -1429,7 +1429,12 @@ final class CallLowerer {
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
             "__kk_mutable_set_add",
+            "__kk_mutable_set_remove",
+            "__kk_mutable_set_clear",
             "__kk_mutable_map_put",
+            "__kk_mutable_map_remove",
+            "__kk_mutable_map_clear",
+            "__kk_mutable_map_putAll",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
@@ -1450,6 +1455,12 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_mutable_set_remove",
+            "__kk_mutable_set_clear",
+            "__kk_mutable_map_put",
+            "__kk_mutable_map_remove",
+            "__kk_mutable_map_clear",
+            "__kk_mutable_map_putAll",
         ].contains(interner.resolve(calleeName))
     }
 

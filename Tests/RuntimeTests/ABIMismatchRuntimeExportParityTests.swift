@@ -70,7 +70,10 @@ struct ABIMismatchRuntimeExportParityTests {
             ("kk_sequence_elementAtOrNull", false),
             ("__kk_mutable_list_add", true),
             ("__kk_mutable_set_add", true),
+            ("__kk_mutable_set_remove", true),
             ("__kk_mutable_map_put", true),
+            ("__kk_mutable_map_remove", true),
+            ("__kk_mutable_map_clear", true),
         ]
         let exportsByName = Dictionary(grouping: try runtimeExportedABIs(), by: \.name)
         let specsByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)

@@ -51,7 +51,12 @@ struct ABIMismatchTests {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
+            ("__kk_mutable_set_remove", ["setRaw", "elem", "outThrown"]),
+            ("__kk_mutable_set_clear", ["setRaw", "outThrown"]),
             ("__kk_mutable_map_put", ["mapRaw", "key", "value", "outThrown"]),
+            ("__kk_mutable_map_remove", ["mapRaw", "key", "outThrown"]),
+            ("__kk_mutable_map_clear", ["mapRaw", "outThrown"]),
+            ("__kk_mutable_map_putAll", ["mapRaw", "entriesRaw", "outThrown"]),
         ]
         for item in expected {
             let spec = try requireSpec(item.name)

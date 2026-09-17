@@ -301,14 +301,13 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        // KUU-556: linkedMapOf is declared to return LinkedHashMap<K, V>, now a
-        // real HashMap subclass, so it gets its own runtime tag instead of the
-        // generic __kk_map_of hashMapOf/mutableMapOf still share.
+        // KUU-646: linkedMapOf / mutableMapOf share the LinkedHashMap tag;
+        // hashMapOf uses HashMap. `__kk_map_of` is the read-only Map factory.
         #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf should become __kk_linked_hash_map_of")
     }
 
     @Test
-    func testHashMapOfRewrittenToKkMapOf() throws {
+    func testHashMapOfRewrittenToKkHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let pair = arena.appendExpr(.temporary(0))
@@ -333,7 +332,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "hashMapOf should become __kk_map_of")
+        #expect(callees.contains("__kk_hash_map_of"), "hashMapOf should become __kk_hash_map_of")
+        #expect(!callees.contains("__kk_map_of"), "hashMapOf must not keep the read-only Map tag")
     }
 
     @Test
@@ -747,7 +747,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgMutableMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgMutableMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableMapOf")
@@ -758,7 +758,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "mutableMapOf() should become __kk_map_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_linked_hash_map_of"),
+            "mutableMapOf() should become __kk_linked_hash_map_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_map_of"), "mutableMapOf() must not keep the read-only Map tag")
     }
 
     @Test
@@ -777,7 +781,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgHashMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgHashMapOfRewrittenToKkHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("hashMapOf")
@@ -788,7 +792,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf() should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "hashMapOf() should become __kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_hash_map_of"), "hashMapOf() should become __kk_hash_map_of (fresh mutable)")
+        #expect(!callees.contains("__kk_map_of"), "hashMapOf() must not keep the read-only Map tag")
     }
 
     // MARK: - setOf rewriting
