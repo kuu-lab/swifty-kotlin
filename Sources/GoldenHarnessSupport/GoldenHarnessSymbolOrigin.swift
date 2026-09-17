@@ -72,6 +72,24 @@ final class GoldenSymbolOriginClassifier {
         return resolved
     }
 
+    /// Returns the unique bundled-source declaration represented by a
+    /// source-backed member alias. The relationship is intentionally exposed
+    /// separately from `origin(of:)`: callers may project an alias to the
+    /// declaration's public FQName, but only when the evidence identifies one
+    /// canonical sibling. Ambiguous siblings are left unprojected rather than
+    /// being collapsed by an implementation detail such as an ABI link name.
+    func sourceBackedAliasTarget(of symbolID: SymbolID) -> SymbolID? {
+        guard origin(of: symbolID) == .sourceBackedAlias,
+              let symbol = sema.symbols.symbol(symbolID)
+        else {
+            return nil
+        }
+        let candidates = sourceBackedAliasCandidates(for: symbol)
+            .filter { origin(of: $0.id) == .bundledSource }
+        guard candidates.count == 1 else { return nil }
+        return candidates[0].id
+    }
+
     private func resolveOrigin(of symbolID: SymbolID) -> GoldenSymbolOrigin {
         guard let symbol = sema.symbols.symbol(symbolID) else {
             return .unknown
@@ -130,11 +148,7 @@ final class GoldenSymbolOriginClassifier {
     private func isSourceBackedMemberAlias(_ symbol: SemanticSymbol) -> Bool {
         guard symbol.kind == .function,
               symbol.declSite == nil,
-              symbol.flags.contains(.synthetic),
-              let parent = sema.symbols.parentSymbol(for: symbol.id),
-              let signature = sema.symbols.functionSignature(for: symbol.id),
-              let linkName = sema.symbols.externalLinkName(for: symbol.id),
-              !linkName.isEmpty
+              symbol.flags.contains(.synthetic)
         else {
             return false
         }
@@ -148,12 +162,27 @@ final class GoldenSymbolOriginClassifier {
             }
             sourceBackedFunctionsByName = index
         }
-        return (sourceBackedFunctionsByName?[symbol.name] ?? []).contains { candidate in
+        return !sourceBackedAliasCandidates(for: symbol).isEmpty
+    }
+
+    /// Finds declarations that have the exact shape HeaderCollection uses for
+    /// a source-backed member alias. The explicit origin check keeps a
+    /// user-declared declaration with the same shape out of the alias proof.
+    private func sourceBackedAliasCandidates(for symbol: SemanticSymbol) -> [SemanticSymbol] {
+        guard let parent = sema.symbols.parentSymbol(for: symbol.id),
+              let signature = sema.symbols.functionSignature(for: symbol.id),
+              let linkName = sema.symbols.externalLinkName(for: symbol.id),
+              !linkName.isEmpty
+        else {
+            return []
+        }
+        return (sourceBackedFunctionsByName?[symbol.name] ?? []).filter { candidate in
             candidate.id != symbol.id
                 && candidate.fqName != symbol.fqName
                 && sema.symbols.parentSymbol(for: candidate.id) == parent
                 && sema.symbols.functionSignature(for: candidate.id) == signature
                 && sema.symbols.externalLinkName(for: candidate.id) == linkName
+                && origin(of: candidate.id) == .bundledSource
         }
     }
 

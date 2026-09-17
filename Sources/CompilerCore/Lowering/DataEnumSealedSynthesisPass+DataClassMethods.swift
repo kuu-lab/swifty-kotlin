@@ -740,67 +740,25 @@ extension DataEnumSealedSynthesisPass {
             return nextLabel
         }
 
-        // STDLIB-DATA-014: If data class inherits from another class, start with super.toString()
-        let explicitSuperclass = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner)
-        var builderExpr: KIRExprID
-        if let superSymbol = explicitSuperclass {
-            let receiverRef = module.arena.appendExpr(.symbolRef(parameterSymbol), type: receiverType)
-            body.append(.constValue(result: receiverRef, value: .symbolRef(parameterSymbol)))
-
-            let superToStringResult = module.arena.appendTemporary(type: stringType
-            )
-
-            // Find super.toString() method symbol
-            let toStringName = interner.intern("toString")
-            let superToStringFQName = superSymbol.fqName + [toStringName]
-            let superToStringSymbol = sema.symbols.lookupAll(fqName: superToStringFQName).first
-
-            // Call super.toString() if it exists, otherwise use default
-            if let superToStringSymbol = superToStringSymbol {
-                body.append(.call(
-                    symbol: superToStringSymbol,
-                    callee: interner.intern("toString"),
-                    arguments: [receiverRef],
-                    result: superToStringResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Fallback: use simple class name representation
-                let className = interner.resolve(superSymbol.name)
-                let fallbackStr = interner.intern("\(className)")
-                body.append(.constValue(result: superToStringResult, value: .stringLiteral(fallbackStr)))
-            }
-
-            // Create string builder from super.toString()
-            builderExpr = module.arena.appendTemporary(type: builderType
-            )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_string_builder_new_from_string_flat"),
-                arguments: [superToStringResult],
-                result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        } else {
-            // Start with "ClassName(" for data class with no inheritance
-            let className = interner.resolve(owner.name)
-            let prefixStr = interner.intern("\(className)(")
-            let prefixExpr = module.arena.appendTemporary(type: stringType
-            )
-            body.append(.constValue(result: prefixExpr, value: .stringLiteral(prefixStr)))
-            builderExpr = module.arena.appendTemporary(type: builderType
-            )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_string_builder_new_from_string_flat"),
-                arguments: [prefixExpr],
-                result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        // A data class always owns the generated toString() representation,
+        // including when it extends another class. The inherited class name
+        // must not leak into the data-class output (for example, A(n=5), not
+        // Sn=5).
+        let className = interner.resolve(owner.name)
+        let prefixStr = interner.intern("\(className)(")
+        let prefixExpr = module.arena.appendTemporary(type: stringType
+        )
+        body.append(.constValue(result: prefixExpr, value: .stringLiteral(prefixStr)))
+        let builderExpr = module.arena.appendTemporary(type: builderType
+        )
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_string_builder_new_from_string_flat"),
+            arguments: [prefixExpr],
+            result: builderExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
 
         for (index, property) in properties.enumerated() {
             let propName = interner.resolve(property.name)
@@ -967,24 +925,19 @@ extension DataEnumSealedSynthesisPass {
             ))
         }
 
-        // Append closing ")" only if not inheriting from another class
-        let shouldCloseParen = explicitSuperclass == nil
+        let suffixStr = interner.intern(")")
+        let suffixExpr = module.arena.appendTemporary(type: stringType
+        )
+        body.append(.constValue(result: suffixExpr, value: .stringLiteral(suffixStr)))
 
-        if shouldCloseParen {
-            let suffixStr = interner.intern(")")
-            let suffixExpr = module.arena.appendTemporary(type: stringType
-            )
-            body.append(.constValue(result: suffixExpr, value: .stringLiteral(suffixStr)))
-
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_string_builder_append_obj"),
-                arguments: [builderExpr, suffixExpr],
-                result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_string_builder_append_obj"),
+            arguments: [builderExpr, suffixExpr],
+            result: builderExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
 
         let resultExpr = module.arena.appendTemporary(type: stringType
         )

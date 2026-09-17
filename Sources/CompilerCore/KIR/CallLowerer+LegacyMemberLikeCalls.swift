@@ -857,7 +857,14 @@ extension CallLowerer {
         let isKClassReceiver = isKClassReceiverType(
             anyFallbackReceiverType, sema: sema, interner: interner
         )
-        let allowsAnyFallback: Bool = if isKClassReceiver {
+        let memberName = interner.resolve(calleeName)
+        let hasResolvedCallBinding = sema.bindings.callBindings[exprID].map { $0.chosenCallee != .invalid } ?? false
+        let isUnresolvedNullableAnyToStringOrHashCode = !hasResolvedCallBinding
+            && sema.types.nullability(of: anyFallbackReceiverType) == .nullable
+            && (memberName == "toString" || memberName == "hashCode")
+        let allowsAnyFallback: Bool = if isUnresolvedNullableAnyToStringOrHashCode {
+            true
+        } else if isKClassReceiver {
             true
         } else {
             switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {

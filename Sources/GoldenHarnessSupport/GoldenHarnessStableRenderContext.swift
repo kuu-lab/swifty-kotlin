@@ -8,6 +8,15 @@ final class StableRenderContext {
 
     private let sourceManager: SourceManager
     private let symbolFQ: [Int32: String]
+    /// FQ names projected onto the public declaration when a symbol is a
+    /// source-backed member alias. This is kept separate from `symbolFQ` so
+    /// the existing implementation-topology key remains unchanged until the
+    /// ordinary Golden output is switched by RF-GOLDEN-008.
+    private let publicSymbolFQ: [Int32: String]
+    /// Maps `SymbolID.rawValue` to the opt-in public reference key. Ordinary
+    /// Golden rendering deliberately continues to use `symbolKeys` until
+    /// RF-GOLDEN-008 wires this projection into the default output.
+    private let publicReferenceKeys: [Int32: String]
     /// Maps `SymbolID.rawValue` to a stable key derived from the declaration's
     /// meaning (`<fq>[kind=…;recv=…;params=…]`), not from its position in the
     /// candidate set. Adding or removing *unreferenced* same-FQName symbols
@@ -56,6 +65,36 @@ final class StableRenderContext {
         )
         self.symbolKeys = keyComputer.computeKeys()
         self.typeParamIndices = keyComputer.typeParamIndices
+
+        let originClassifier = GoldenSymbolOriginClassifier(
+            sema: sema,
+            sourceManager: sourceManager,
+            interner: interner
+        )
+        var publicFQMap = fqMap
+        for symbol in sema.symbols.allSymbols() {
+            guard let target = originClassifier.sourceBackedAliasTarget(of: symbol.id),
+                  let targetFQ = fqMap[target.rawValue]
+            else {
+                continue
+            }
+            publicFQMap[symbol.id.rawValue] = targetFQ
+        }
+        self.publicSymbolFQ = publicFQMap
+
+        var publicOrigins: [Int32: GoldenSymbolOrigin] = [:]
+        for symbol in sema.symbols.allSymbols() {
+            publicOrigins[symbol.id.rawValue] = originClassifier.origin(of: symbol.id)
+        }
+        let publicKeyComputer = StableSemanticKeyComputer(
+            sema: sema,
+            interner: interner,
+            symbolFQ: publicFQMap,
+            fileKeys: fileKeys,
+            sourceManager: sourceManager,
+            publicOriginBySymbol: publicOrigins
+        )
+        self.publicReferenceKeys = publicKeyComputer.computePublicKeys()
     }
 
     /// Returns the stable, meaning-derived key for a symbol. The key combines the
@@ -65,6 +104,21 @@ final class StableRenderContext {
     /// candidates share the FQName, their registration order, or SymbolIDs.
     func stableKey(for symbolID: SymbolID) -> String {
         symbolKeys[symbolID.rawValue] ?? "_"
+    }
+
+    /// Returns a stable reference for the public API represented by a symbol.
+    ///
+    /// A runtime-linked bundled extension may have both a package-level
+    /// source declaration and a synthetic member alias under its receiver.
+    /// The alias is projected to the source declaration's public FQName only
+    /// when RF-GOLDEN-002 proves a unique bundled sibling with the same
+    /// receiver, signature, and link. The link itself never appears in this
+    /// key, and fixture-owned or unresolved symbols are never projected.
+    ///
+    /// This projection is intentionally opt-in. RF-GOLDEN-008 will decide when
+    /// it becomes the default spelling used by ordinary Golden output.
+    func publicReferenceKey(for symbolID: SymbolID) -> String {
+        publicReferenceKeys[symbolID.rawValue] ?? "_"
     }
 
     /// Returns the stable, source-position-derived key for an expression.
@@ -126,8 +180,26 @@ final class StableRenderContext {
     }
 
     func renderSignature(_ signature: FunctionSignature) -> String {
-        let raw = GoldenHarnessSemaFormat.renderFunctionSignature(signature, types: sema.types)
+        let raw = GoldenHarnessSemaFormat.renderFunctionSignature(signature, renderType: renderType)
         return stabilizeTypeRefs(in: raw)
+    }
+
+    /// Renders a resolved type through the public declaration projection.
+    /// This keeps the usual human-readable type spelling while replacing
+    /// implementation-specific `Class#` references with the projected public
+    /// FQName. Unlike `renderType`, this method does not add symbols to the
+    /// ordinary transitive metadata set.
+    func renderPublicType(_ typeID: TypeID) -> String {
+        let raw = sema.types.renderType(typeID)
+        return stabilizeTypeRefs(in: raw, symbolFQ: publicSymbolFQ, collectRequiredSymbols: false)
+    }
+
+    /// Renders a function signature through the public type projection. The
+    /// formatter retains return type, nullability, variance, bounds, suspend,
+    /// default and vararg masks; parameter names remain available in the
+    /// public reference key when named-argument resolution depends on them.
+    func renderPublicSignature(_ signature: FunctionSignature) -> String {
+        GoldenHarnessSemaFormat.renderFunctionSignature(signature, renderType: renderPublicType)
     }
 
     func expandRequiredSymbols() {
@@ -229,20 +301,27 @@ final class StableRenderContext {
         return keys
     }
 
-    private func stabilizeTypeRefs(in text: String) -> String {
+    private func stabilizeTypeRefs(
+        in text: String,
+        symbolFQ: [Int32: String]? = nil,
+        collectRequiredSymbols: Bool = true
+    ) -> String {
         let nsText = text as NSString
         let range = NSRange(location: 0, length: nsText.length)
         let matches = Self.typeRefRegex.matches(in: text, range: range)
         guard !matches.isEmpty else { return text }
 
+        let projectedSymbolFQ = symbolFQ ?? self.symbolFQ
         let mutable = NSMutableString(string: text)
         for match in matches.reversed() {
             let idRange = match.range(at: 2)
             guard idRange.location != NSNotFound,
                   let rawID = Int32(nsText.substring(with: idRange))
             else { continue }
-            if let fq = symbolFQ[rawID] {
-                requiredSymbols.insert(rawID)
+            if let fq = projectedSymbolFQ[rawID] {
+                if collectRequiredSymbols {
+                    requiredSymbols.insert(rawID)
+                }
                 mutable.replaceCharacters(in: match.range, with: fq)
             } else if let index = typeParamIndices[rawID] {
                 // Imported-library type parameters carry negative virtual
@@ -321,6 +400,11 @@ private final class StableSemanticKeyComputer {
     private let symbolFQ: [Int32: String]
     private let fileKeys: [Int32: String]
     private let sourceManager: SourceManager
+    /// Only public-reference keys carry this origin discriminator. It keeps a
+    /// fixture declaration that happens to reuse a library FQName distinct
+    /// from the library API while allowing source/imported/alias forms to
+    /// share one key.
+    private let publicOriginBySymbol: [Int32: GoldenSymbolOrigin]
 
     /// Per-render memoization of encoded types and type-parameter indices.
     private var typeKeyMemo: [TypeID: String] = [:]
@@ -344,36 +428,22 @@ private final class StableSemanticKeyComputer {
         interner: StringInterner,
         symbolFQ: [Int32: String],
         fileKeys: [Int32: String],
-        sourceManager: SourceManager
+        sourceManager: SourceManager,
+        publicOriginBySymbol: [Int32: GoldenSymbolOrigin] = [:]
     ) {
         self.sema = sema
         self.interner = interner
         self.symbolFQ = symbolFQ
         self.fileKeys = fileKeys
         self.sourceManager = sourceManager
+        self.publicOriginBySymbol = publicOriginBySymbol
     }
 
     /// Returns `stableKey` for every symbol: `<displayFQ>[<inner>]`.
     func computeKeys() -> [Int32: String] {
         let allSymbols = sema.symbols.allSymbols()
 
-        for symbol in allSymbols {
-            // Nominal declarations first: a class-level type parameter keeps
-            // the same index whether it is seen through the class itself or
-            // through a member signature that lists class parameters first.
-            for (index, typeParam) in sema.types.nominalTypeParameterSymbols(for: symbol.id).enumerated() {
-                if typeParamIndexBySymbol[typeParam.rawValue] == nil {
-                    typeParamIndexBySymbol[typeParam.rawValue] = index
-                }
-            }
-            if let signature = sema.symbols.functionSignature(for: symbol.id) {
-                for (index, typeParam) in signature.typeParameterSymbols.enumerated() {
-                    if typeParamIndexBySymbol[typeParam.rawValue] == nil {
-                        typeParamIndexBySymbol[typeParam.rawValue] = index
-                    }
-                }
-            }
-        }
+        indexTypeParameters(in: allSymbols)
 
         var inner: [Int32: String] = [:]
         inner.reserveCapacity(allSymbols.count)
@@ -406,6 +476,56 @@ private final class StableSemanticKeyComputer {
         return result
     }
 
+    /// Computes the public API projection of every symbol. Unlike
+    /// `computeKeys()`, this key uses the canonical public FQName supplied by
+    /// the caller and includes the signature facts that affect source-level
+    /// calls: return type, bounds, parameter names, default/vararg masks,
+    /// nullability, variance, suspend and throwing behavior. It deliberately
+    /// does not add declaration-position scopes: a source declaration and its
+    /// proven alias are one public declaration, while genuinely different
+    /// overloads remain distinct through their structural contract.
+    func computePublicKeys() -> [Int32: String] {
+        let allSymbols = sema.symbols.allSymbols()
+        indexTypeParameters(in: allSymbols)
+
+        var result: [Int32: String] = [:]
+        result.reserveCapacity(allSymbols.count)
+        for symbol in allSymbols {
+            let displayFQ = symbolFQ[symbol.id.rawValue] ?? "_"
+            var inner = publicInnerKey(for: symbol)
+            switch publicOriginBySymbol[symbol.id.rawValue] {
+            case .fixture:
+                inner += ";origin=fixture"
+            case .unknown:
+                inner += ";origin=unknown"
+            default:
+                break
+            }
+            result[symbol.id.rawValue] = "\(displayFQ)[\(inner)]"
+        }
+        return result
+    }
+
+    private func indexTypeParameters(in symbols: [SemanticSymbol]) {
+        for symbol in symbols {
+            // Nominal declarations first: a class-level type parameter keeps
+            // the same index whether it is seen through the class itself or
+            // through a member signature that lists class parameters first.
+            for (index, typeParam) in sema.types.nominalTypeParameterSymbols(for: symbol.id).enumerated() {
+                if typeParamIndexBySymbol[typeParam.rawValue] == nil {
+                    typeParamIndexBySymbol[typeParam.rawValue] = index
+                }
+            }
+            if let signature = sema.symbols.functionSignature(for: symbol.id) {
+                for (index, typeParam) in signature.typeParameterSymbols.enumerated() {
+                    if typeParamIndexBySymbol[typeParam.rawValue] == nil {
+                        typeParamIndexBySymbol[typeParam.rawValue] = index
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Inner key
 
     private func innerKey(for symbol: SemanticSymbol) -> String {
@@ -436,6 +556,98 @@ private final class StableSemanticKeyComputer {
             default:
                 break
             }
+        }
+        return parts.joined(separator: ";")
+    }
+
+    /// Structural identity for the public declaration contract. This is kept
+    /// separate from RF-GOLDEN-010's existing implementation-topology key so
+    /// the opt-in projection can grow without changing ordinary Goldens.
+    private func publicInnerKey(for symbol: SemanticSymbol) -> String {
+        var parts = ["kind=\(Self.kindToken(symbol.kind))"]
+        if let signature = sema.symbols.functionSignature(for: symbol.id) {
+            if let receiver = signature.receiverType {
+                parts.append("recv=\(encodeTypeKey(receiver))")
+            }
+            let params = signature.parameterTypes.enumerated().map { index, type in
+                let isVararg = index < signature.valueParameterIsVararg.count
+                    && signature.valueParameterIsVararg[index]
+                return (isVararg ? "*" : "") + encodeTypeKey(type)
+            }
+            parts.append("params=\(params.joined(separator: ","))")
+            parts.append("ret=\(encodeTypeKey(signature.returnType))")
+            if signature.isSuspend {
+                parts.append("susp")
+            }
+            if signature.canThrow {
+                parts.append("throws")
+            }
+            if !signature.typeParameterSymbols.isEmpty {
+                parts.append("gen=\(signature.typeParameterSymbols.count)")
+                if signature.classTypeParameterCount > 0 {
+                    parts.append("classGen=\(signature.classTypeParameterCount)")
+                }
+                let bounds = signature.typeParameterUpperBoundsList.map { upperBounds in
+                    upperBounds.isEmpty
+                        ? "_"
+                        : upperBounds.map { encodeTypeKey($0) }.joined(separator: "&")
+                }.joined(separator: ",")
+                if signature.typeParameterUpperBoundsList.contains(where: { !$0.isEmpty }) {
+                    parts.append("bounds=[\(bounds)]")
+                }
+                if !signature.reifiedTypeParameterIndices.isEmpty {
+                    parts.append("reified=[\(signature.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ","))]")
+                }
+            }
+            if signature.valueParameterHasDefaultValues.contains(true) {
+                parts.append("defaults=[\(signature.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined(separator: ","))]")
+            }
+            if signature.valueParameterIsVararg.contains(true) {
+                parts.append("vararg=[\(signature.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined(separator: ","))]")
+            }
+            if signature.valueParameterAllowsNonLocalReturn.contains(false) {
+                parts.append("nonlocal=[\(signature.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }.joined(separator: ","))]")
+            }
+            let names = signature.valueParameterSymbols.compactMap { parameter in
+                sema.symbols.symbol(parameter).map { Self.escapeKeyAtom(interner.resolve($0.name)) }
+            }
+            if !names.isEmpty {
+                parts.append("names=[\(names.joined(separator: ","))]")
+            }
+        } else {
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                let typeParams = sema.types.nominalTypeParameterSymbols(for: symbol.id)
+                if !typeParams.isEmpty {
+                    parts.append("gen=\(typeParams.count)")
+                    let variances = sema.types.nominalTypeParameterVariances(for: symbol.id)
+                    let rendered = typeParams.indices.map { index in
+                        switch index < variances.count ? variances[index] : .invariant {
+                        case .invariant: "i"
+                        case .out: "o"
+                        case .in: "n"
+                        }
+                    }
+                    parts.append("variance=[\(rendered.joined(separator: ","))]")
+                }
+                if symbol.kind == .typeAlias,
+                   let underlying = sema.symbols.typeAliasUnderlyingType(for: symbol.id) {
+                    parts.append("underlying=\(encodeTypeKey(underlying))")
+                } else if let underlying = sema.symbols.effectiveValueClassUnderlyingType(for: symbol.id) {
+                    parts.append("underlying=\(encodeTypeKey(underlying))")
+                }
+            default:
+                break
+            }
+            if let propertyType = sema.symbols.propertyType(for: symbol.id) {
+                parts.append("type=\(encodeTypeKey(propertyType))")
+            }
+        }
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol.id) {
+            parts.append("recv=\(encodeTypeKey(receiverType))")
+        }
+        if symbol.flags.contains(.mutable) {
+            parts.append("mutable")
         }
         return parts.joined(separator: ";")
     }

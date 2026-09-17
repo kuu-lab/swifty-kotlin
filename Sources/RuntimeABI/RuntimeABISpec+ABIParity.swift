@@ -210,29 +210,6 @@ public extension RuntimeABISpec {
             p("arg2", .intptr),
         ]),
         // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
-        abiParitySpec("kk_freezable_atomic_ref_compareAndSet", parameters: [
-            p("refHandle", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_compareAndSwap", parameters: [
-            p("refHandle", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_create", parameters: [
-            p("initialRaw", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_is_frozen", parameters: [
-            p("refHandle", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_load", parameters: [
-            p("refHandle", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_store", parameters: [
-            p("refHandle", .intptr),
-            p("valueRaw", .intptr),
-        ]),
         abiParitySpec("kk_freeze_object", parameters: [
             p("objectRaw", .intptr),
         ]),

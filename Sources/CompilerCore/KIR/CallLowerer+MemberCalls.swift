@@ -426,6 +426,17 @@ extension CallLowerer {
         } else {
             calleeName
         }
+        if let typeQualifiedConstructorResult = tryLowerTypeQualifiedConstructorCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) { return typeQualifiedConstructorResult }
         if let objProp = tryLowerObjectMemberPropertyRead(
             exprID, receiverExpr: receiverExpr, args: args, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,

@@ -1347,6 +1347,10 @@ public final class BindingTable {
     /// before their package-path receiver is type-checked. The receiver is a
     /// qualifier such as `kotlin.math` or `kotlin`, not a runtime value.
     public private(set) var fqnQualifiedValueExprIDs: Set<ExprID> = []
+    /// Tracks `.memberCall` expressions resolved as constructors of a static
+    /// nested class (for example, `Outer.Inner()`): the type qualifier is not
+    /// an instance receiver and must not be passed to the constructor ABI.
+    public private(set) var typeQualifiedConstructorCallExprIDs: Set<ExprID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
@@ -1836,6 +1840,18 @@ public final class BindingTable {
     /// Whether this expression's receiver is a namespace-only qualifier path.
     public func isFQNQualifiedValueExpr(_ expr: ExprID) -> Bool {
         fqnQualifiedValueExprIDs.contains(expr)
+    }
+
+    /// Mark a `.memberCall` expression as a constructor call through a type
+    /// qualifier rather than an instance receiver (`Outer.Inner()`).
+    public func markTypeQualifiedConstructorCallExpr(_ expr: ExprID) {
+        typeQualifiedConstructorCallExprIDs.insert(expr)
+    }
+
+    /// Whether the call expression must lower its constructor without lowering
+    /// the type qualifier as a runtime receiver.
+    public func isTypeQualifiedConstructorCallExpr(_ expr: ExprID) -> Bool {
+        typeQualifiedConstructorCallExprIDs.contains(expr)
     }
 
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
