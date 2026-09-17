@@ -1978,6 +1978,28 @@ extension ExprLowerer {
                     return nil
                 }
 
+                if ast.arena.isIncrementDecrement(exprID) {
+                    let callResult = arena.appendTemporary(type: resultType)
+                    let operatorName = op == .plusAssign ? "inc" : "dec"
+                    let loweredCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
+                                                               !externalLinkName.isEmpty {
+                        interner.intern(externalLinkName)
+                    } else if let symbol = sema.symbols.symbol(callBinding.chosenCallee) {
+                        symbol.name
+                    } else {
+                        interner.intern(operatorName)
+                    }
+                    instructions.append(.call(
+                        symbol: callBinding.chosenCallee,
+                        callee: loweredCalleeName,
+                        arguments: [lhs],
+                        result: callResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return callResult
+                }
+
                 // `String?.plus(Any?)` is a bundled source wrapper around a
                 // runtime bridge. Compound assignment must use the builtin
                 // string conversion path so statically-known class/value-class
