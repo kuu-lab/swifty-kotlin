@@ -105,7 +105,8 @@ let package = Package(
             path: "Sources/GoldenHarnessWorker"
         ),
         .target(
-            name: "Runtime"
+            name: "Runtime",
+            dependencies: ["RuntimeABI"]
         ),
         .testTarget(
             name: "CompilerCoreTests",

@@ -265,15 +265,8 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
 /// Kotlin `StringBuilder.appendRange` and `CharSequence` use UTF-16 code unit indexing.
 /// Swift `String.Index` is based on `Character` (extended grapheme clusters) by default,
 /// which differs for non-BMP characters (emoji, surrogate pairs). This helper bridges the
-/// gap by operating on the `.utf16` view directly.
-///
-/// **Limitation:** Swift `String` cannot represent unpaired UTF-16 surrogates. When
-/// `startIndex` or `endIndex` splits a surrogate pair (e.g., slicing in the middle of
-/// an emoji), `String(decoding:as:)` replaces the ill-formed code unit with U+FFFD
-/// (replacement character). This diverges from JVM Kotlin, where unpaired surrogates
-/// are preserved as `Char` values. For well-formed UTF-16 input (the common case),
-/// behavior is identical. Callers/tests should not assume full fidelity for these
-/// edge cases.
+/// gap by operating on a Kotlin UTF-16 code-unit buffer and restoring isolated
+/// surrogates through the compiler/runtime marker representation.
 ///
 /// - Parameters:
 ///   - source: The Swift string to slice.
@@ -281,14 +274,12 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
 ///   - endIndex: End offset in UTF-16 code units (exclusive).
 /// - Returns: The substring, or triggers `fatalError` on out-of-bounds.
 func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> String {
-    let utf16 = source.utf16
+    let utf16 = runtimeKotlinStringUTF16CodeUnits(source)
     let length = utf16.count
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
         fatalError("StringIndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(length)")
     }
-    let start = utf16.index(utf16.startIndex, offsetBy: startIndex)
-    let end = utf16.index(utf16.startIndex, offsetBy: endIndex)
-    return String(decoding: utf16[start..<end], as: UTF16.self)
+    return runtimeKotlinStringFromUTF16CodeUnits(Array(utf16[startIndex ..< endIndex]))
 }
 
 func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
