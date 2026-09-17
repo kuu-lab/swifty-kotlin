@@ -103,7 +103,7 @@ extension CallLowerer {
                 callArguments.append(paramExpr)
                 continue
             }
-            let unboxedExpr = arena.appendTemporary(type: normalizedLambdaParamType)
+            let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
             body.append(.call(
                 symbol: nil,
                 callee: unboxCallee,

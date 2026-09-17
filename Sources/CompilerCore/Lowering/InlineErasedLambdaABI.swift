@@ -77,10 +77,12 @@ enum InlineErasedLambdaABI {
         }
         var boxed = loweredArguments
         for index in loweredArguments.indices.dropFirst() {
+            // Same scoping as boxPrimitiveArgumentsForErasedParameters: only a
+            // concrete primitive arg gets a plain box here; enum/value-class
+            // args stay raw so a later nominal-aware boundary keeps their tag.
             guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(loweredArguments[index]), ctx: ctx
-                  )
+                  let loweredType = module.arena.exprType(loweredArguments[index]),
+                  case let .primitive(primitive, .nonNull) = types.kind(of: loweredType)
             else {
                 continue
             }
@@ -179,27 +181,6 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
-    /// Return the concrete primitive type used by an erased lambda ABI slot.
-    /// Value-class parameters still retain their nominal type in KIR after
-    /// `ValueClassUnboxingPass`; at an erased callback boundary their runtime
-    /// representation is nevertheless the underlying primitive.
-    private static func nonNullPrimitiveType(of type: TypeID?, ctx: KIRContext) -> TypeID? {
-        guard let type, let types = ctx.sema?.types,
-              let symbols = ctx.sema?.symbols
-        else {
-            return nil
-        }
-        let resolvedKind = resolveValueClassKind(
-            types.kind(of: type),
-            types: types,
-            symbols: symbols
-        )
-        guard case let .primitive(primitive, .nonNull) = resolvedKind else {
-            return nil
-        }
-        return types.make(.primitive(primitive, .nonNull))
-    }
-
     /// Unbox arguments when a lambda is reached through an erased function
     /// value.  Concrete lambda parameter types determine the required primitive
     /// unboxing callee; nullable and reference values stay boxed.
@@ -221,12 +202,11 @@ enum InlineErasedLambdaABI {
             let argumentIsErased = module.arena.exprType(arguments[index])
                 .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
             guard argumentIsErased,
-                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx),
-                  let unboxedType = nonNullPrimitiveType(of: lambdaFunction.params[index].type, ctx: ctx)
+                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
             else {
                 continue
             }
-            let unboxed = module.arena.appendTemporary(type: unboxedType)
+            let unboxed = module.arena.appendTemporary(type: lambdaFunction.params[index].type)
             body.append(.call(
                 symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
@@ -284,10 +264,14 @@ enum InlineErasedLambdaABI {
         }
         var boxed = arguments
         for index in arguments.indices {
+            // Only true primitives need the explicit box: enum and value-class
+            // arguments keep their nominal expr type, so the erased slots they
+            // reach downstream (e.g. the `__kk_sequence_generate` seed bridge)
+            // still see the concrete class and emit `kk_enum_box_ordinal` /
+            // `kk_tag_value_class_box` instead of a tagless primitive box.
             guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(arguments[index]), ctx: ctx
-                  )
+                  let argType = module.arena.exprType(arguments[index]),
+                  case let .primitive(primitive, .nonNull) = types.kind(of: argType)
             else {
                 continue
             }

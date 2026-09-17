@@ -40,7 +40,7 @@ final class LambdaLowerer {
             // collection HOFs pass elements through Any-erased slots as
             // RuntimeIntBox handles. Normalize both representations before
             // lowering the body (e.g. `entries.find { it.rgb == rgb }`).
-            if case let .classType(classType) = kind,
+            if case let .classType(classType) = rawKind,
                classType.nullability == .nonNull,
                let symbol = sema.symbols.symbol(classType.classSymbol),
                symbol.kind == .enumClass
@@ -58,7 +58,7 @@ final class LambdaLowerer {
         let normalizedExpr = emitNonThrowingCall(
             callee: unboxCallee,
             arg: exprID,
-            resultType: sema.types.make(kind),
+            resultType: type,
             arena: arena,
             into: &instructions
         )
