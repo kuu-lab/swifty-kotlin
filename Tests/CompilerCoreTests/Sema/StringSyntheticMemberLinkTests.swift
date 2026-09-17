@@ -156,10 +156,15 @@ struct StringSyntheticMemberLinkTests {
                 )
             }
             // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+            // are bundled Kotlin wrappers; only their private bridge retains the
+            // runtime link.
             #expect(
-                externalLinks(for: "plus", sema: sema, interner: interner)
-                    .contains("kk_string_plus"),
-                "String?.plus(other: Any?) should link to kk_string_plus"
+                externalLinks(for: "plus", sema: sema, interner: interner).isEmpty,
+                "String?.plus(other: Any?) should be source-backed"
+            )
+            #expect(
+                externalLink(for: "__kkStringPlus", sema: sema, interner: interner) == "__kk_string_plus",
+                "String?.plus bridge should link to __kk_string_plus"
             )
             // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
             let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
@@ -206,32 +211,49 @@ struct StringSyntheticMemberLinkTests {
         }
 
         do {
-            // Originally testCodePointCountStubsHaveCorrectExternalLinks
-                    let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount"),
-                        "CharSequence.codePointCount() should link to __kk_string_codePointCount"
-                    )
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount_from"),
-                        "CharSequence.codePointCount(startIndex) should link to __kk_string_codePointCount_from"
-                    )
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount_range"),
-                        "CharSequence.codePointCount(startIndex, endIndex) should link to __kk_string_codePointCount_range"
-                    )
+            // KSP-717: codePointCount() / (startIndex) / (startIndex, endIndex)
+            // are bundled Kotlin wrappers (Stdlib/kotlin/text/StringBasics.kt)
+            // over private bridges of the same name; the public `codePointCount`
+            // symbols no longer carry an external link directly.
+            let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
+            #expect(
+                codePointCountLinks.isEmpty,
+                "CharSequence.codePointCount overloads should be bundled Kotlin wrappers with no direct C external link; got \(codePointCountLinks)"
+            )
+            #expect(
+                externalLink(for: "__kk_string_codePointCount", sema: sema, interner: interner) == "__kk_string_codePointCount",
+                "codePointCount() bridge should link to __kk_string_codePointCount"
+            )
+            #expect(
+                externalLink(for: "__kk_string_codePointCount_from", sema: sema, interner: interner) == "__kk_string_codePointCount_from",
+                "codePointCount(startIndex) bridge should link to __kk_string_codePointCount_from"
+            )
+            #expect(
+                externalLink(for: "__kk_string_codePointCount_range", sema: sema, interner: interner) == "__kk_string_codePointCount_range",
+                "codePointCount(startIndex, endIndex) bridge should link to __kk_string_codePointCount_range"
+            )
         }
 
         do {
-            // Originally testStringNormalizationStubsHaveCorrectExternalLinks
-                    #expect(
-                        externalLink(for: "normalize", sema: sema, interner: interner) == "__kk_string_normalize_flat",
-                        "String.normalize should link to __kk_string_normalize_flat"
-                    )
-                    #expect(
-                        externalLink(for: "isNormalized", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
-                        "String.isNormalized should link to __kk_string_isNormalized_flat"
-                    )
+            // KSP-717: normalize/isNormalized are bundled Kotlin wrappers
+            // (Stdlib/kotlin/text/StringNormalize.kt) over private bridges of
+            // a different name; the public symbols carry no direct link.
+            #expect(
+                externalLink(for: "normalize", sema: sema, interner: interner) == nil,
+                "String.normalize should be a bundled Kotlin wrapper with no direct C external link"
+            )
+            #expect(
+                externalLink(for: "isNormalized", sema: sema, interner: interner) == nil,
+                "String.isNormalized should be a bundled Kotlin wrapper with no direct C external link"
+            )
+            #expect(
+                externalLink(for: "__kk_string_normalize_flat", sema: sema, interner: interner) == "__kk_string_normalize_flat",
+                "normalize's bridge should link to __kk_string_normalize_flat"
+            )
+            #expect(
+                externalLink(for: "__kk_string_isNormalized_flat", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
+                "isNormalized's bridge should link to __kk_string_isNormalized_flat"
+            )
         }
 
         do {
@@ -1034,16 +1056,36 @@ struct StringSyntheticMemberLinkTests {
                 // The property lives on String's companion object, not top-level kotlin.text.
                 let companionPropertyFQName = ["kotlin", "String", "Companion", "CASE_INSENSITIVE_ORDER"]
                     .map { interner.intern($0) }
-                let propertySymbol = try #require(sema.symbols.lookup(fqName: companionPropertyFQName))
+                let stringFQName = ["kotlin", "String"].map { interner.intern($0) }
+                let stringSymbol = try #require(sema.symbols.lookup(fqName: stringFQName))
+                let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: stringSymbol))
+                let companionType = sema.types.make(.classType(ClassType(
+                    classSymbol: companionSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let propertySymbol = try #require(sema.symbols.lookupAll(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("text"),
+                    interner.intern("CASE_INSENSITIVE_ORDER"),
+                ]).first { candidate in
+                    sema.symbols.symbol(candidate)?.kind == .property
+                        && sema.symbols.extensionPropertyReceiverType(for: candidate) == companionType
+                })
                 #expect(
-                    sema.symbols.externalLinkName(for: propertySymbol) == "kk_string_case_insensitive_order"
+                    sema.symbols.externalLinkName(for: propertySymbol) == nil
                 )
-                let parentSymbol = try #require(sema.symbols.parentSymbol(for: propertySymbol))
-                #expect(sema.symbols.symbol(parentSymbol)?.kind == .object)
+                #expect(sema.symbols.symbol(propertySymbol)?.declSite != nil)
+                #expect(!sema.symbols.symbol(propertySymbol)!.flags.contains(.synthetic))
+                let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+                #expect(sema.symbols.externalLinkName(for: getter) == nil)
+                #expect(
+                    externalLink(for: "__kkStringCaseInsensitiveOrder", sema: sema, interner: interner)
+                        == "__kk_string_case_insensitive_order"
+                )
 
                 // The buggy top-level kotlin.text.CASE_INSENSITIVE_ORDER must not exist.
-                let topLevelFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { interner.intern($0) }
-                #expect(sema.symbols.lookup(fqName: topLevelFQName) == nil)
+                #expect(sema.symbols.lookup(fqName: companionPropertyFQName) == nil)
 
                 let comparatorFQName = ["kotlin", "Comparator"].map { interner.intern($0) }
                 let comparatorSymbol = try #require(sema.symbols.lookup(fqName: comparatorFQName))
@@ -1737,15 +1779,13 @@ struct StringSyntheticMemberLinkTests {
             // === testStringNormalizationMembersResolveInCallExpressions ===
 
             do {
-
+                // KSP-717: normalize/isNormalized are bundled Kotlin wrappers
+                // now (Stdlib/kotlin/text/StringNormalize.kt) over private
+                // bridges of a different name, so the chosen callee for the
+                // call expression itself carries no direct external link.
                 let samplePath = paths[2]
 
-                let expectedLinks: [String: String] = [
-                    "normalize": "__kk_string_normalize_flat",
-                    "isNormalized": "__kk_string_isNormalized_flat",
-                ]
-
-                for (memberName, externalLinkName) in expectedLinks {
+                for memberName in ["normalize", "isNormalized"] {
                     let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         return interner.resolve(callee) == memberName
@@ -1755,8 +1795,8 @@ struct StringSyntheticMemberLinkTests {
                         "Expected call binding for \(memberName)"
                     )
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected \(memberName) to resolve to a bundled Kotlin wrapper with no direct C external link"
                     )
                 }
 

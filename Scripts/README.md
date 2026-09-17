@@ -22,7 +22,7 @@
 
 - Tune XCTest and Swift Testing workers (including Golden): `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`
 - Tune build jobs: `SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh`
-- Disable parallel mode: `SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh`
+- Disable parallel mode: `bash Scripts/swift_test.sh --no-parallel`
 
 `SWIFT_TEST_WORKERS` must be a positive integer. Explicit Swift Testing
 `--experimental-maximum-parallelization-width` or

@@ -134,6 +134,59 @@ struct RuntimeABIExternalLinkValidationTests {
         )
     }
 
+    @Test func testBundledKsSymbolNameAnnotationsPropagateToSemaExternalLinks() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let context = makeCompilationContext(inputs: [path])
+            try runSema(context)
+            let sema = try #require(context.sema)
+
+            let annotatedSymbols = sema.symbols.allSymbols().filter { symbol in
+                guard symbol.kind == .function || symbol.kind == .constructor,
+                      let fileID = sema.symbols.sourceFileID(for: symbol.id),
+                      context.sourceManager.origin(of: fileID)?.isBundledStdlib == true
+                else {
+                    return false
+                }
+                return sema.symbols.annotations(for: symbol.id).contains {
+                    $0.annotationFQName == "KsSymbolName"
+                        || $0.annotationFQName == "kotlin.internal.KsSymbolName"
+                }
+            }
+            #expect(!annotatedSymbols.isEmpty, "Expected bundled @KsSymbolName symbols in Sema")
+
+            var mismatches: [String] = []
+            for symbol in annotatedSymbols {
+                guard let annotation = sema.symbols.annotations(for: symbol.id).first(where: {
+                    $0.annotationFQName == "KsSymbolName"
+                        || $0.annotationFQName == "kotlin.internal.KsSymbolName"
+                }),
+                      let rawArgument = annotation.arguments.first
+                else {
+                    mismatches.append("missing annotation argument for \(symbol.id)")
+                    continue
+                }
+
+                var expectedLink = rawArgument.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let equals = expectedLink.firstIndex(of: "=") {
+                    expectedLink = String(expectedLink[expectedLink.index(after: equals)...])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                expectedLink = expectedLink.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                let actualLink = sema.symbols.externalLinkName(for: symbol.id)
+                if actualLink != expectedLink {
+                    mismatches.append(
+                        "\(symbol.fqName.map { context.interner.resolve($0) }.joined(separator: ".")): expected \(expectedLink), got \(actualLink ?? "nil")"
+                    )
+                }
+            }
+
+            #expect(
+                mismatches.isEmpty,
+                "Bundled @KsSymbolName annotations did not reach Sema externalLinkName: \(mismatches.joined(separator: "; "))"
+            )
+        }
+    }
+
     private var allowedCompilerExternalLinks: Set<String> {
         [
             "kk_for_lowered",
@@ -163,7 +216,6 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_op_uplus",
             "kk_op_usub",
             "kk_program_main",
-            "kk_string_length",
             "kk_string_struct_get_length",
             "kk_uint",
             "kk_ulong",
@@ -661,6 +713,13 @@ struct RuntimeABIExternalLinkValidationTests {
         // after this continuation; that slot is stripped by the caller above.
         if declaration.isSuspend {
             types.append(RuntimeABICType.intptr.rawValue)
+        }
+        // KSP-717: a "_flat" bridge returning String reconstructs its result
+        // out-of-band, via three nullable intptr* out-params (length,
+        // byteCount, hash) appended after the source parameters -- mirrors
+        // the arity-side "+3" in runtimeABIArityCandidates.
+        if isFlat && normalizedKotlinType(declaration.returnType) == "String" {
+            types.append(contentsOf: Array(repeating: RuntimeABICType.nullableIntptrPointer.rawValue, count: 3))
         }
         return types
     }

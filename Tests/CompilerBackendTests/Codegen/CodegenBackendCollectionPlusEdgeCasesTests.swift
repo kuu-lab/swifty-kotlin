@@ -25,5 +25,22 @@ struct CodegenBackendCollectionPlusEdgeCasesTests {
 
         try assertKotlinOutput(source, moduleName: "CollectionPlusEdgeCases", expected: "[1, 2, 3]\n[1, 2, 4, 5]\n{a=1, b=2}\n{a=9, b=2}\n")
     }
+
+    @Test
+    func testCodegenRangeReceiverPlusAndMinusReturnLists() throws {
+        let source = """
+        fun main() {
+            println((1..5).minus(3))
+            println((1..5).plus(6))
+            println((1..5).minus(listOf(1, 2)))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionPlusMinusRangeReceiver",
+            expected: "[1, 2, 4, 5]\n[1, 2, 3, 4, 5, 6]\n[3, 4, 5]\n"
+        )
+    }
 }
 #endif

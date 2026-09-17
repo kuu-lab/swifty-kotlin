@@ -74,6 +74,11 @@ private fun exercise(
 }
 
 fun main() {
+    println(listOf(3.0, 1.0).min())
+    println(listOf(3.0f, 1.0f).min())
+    println(listOf(3.0, 1.0).minOrNull())
+    println(listOf(3.0f, 1.0f).minOrNull())
+
     exercise(
         listOf(3, 1, 2, 1),
         listOf(3.0, 1.0, 2.0),

@@ -1,0 +1,59 @@
+symbol fq=__local_0.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicInt
+symbol fq=__local_1.loaded[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_2.exchanged[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_3.added[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_4.oldAdded[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_5.oldIncrement[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_6.oldDecrement[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_7.compared[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_8.current[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=golden.sema.atomicIntReceiverMembers[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+file fstdlib_kotlin_concurrent_atomics_AtomicInt_AtomicInt_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicIntReceiverMembers[kind=fun;params=] fun atomicIntReceiverMembers sym=golden.sema.atomicIntReceiverMembers[kind=fun;params=]
+expr e@8:28 int(10) type=Int
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:28] type=kotlin.concurrent.AtomicInt call=kotlin.concurrent.AtomicInt.<init>[kind=ctor;params=Int]
+expr e@8:5 localDecl atomic mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.atomic[kind=local]
+expr e@9:18 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@9:18#1 memberCall recv=e@9:18 callee=load args=[] type=Int call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@9:5 localDecl loaded mutable=0 type=_ init=e@9:18#1 type=Unit ref=__local_1.loaded[kind=local]
+expr e@10:5 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@10:18 int(11) type=Int
+expr e@10:5#1 memberCall recv=e@10:5 callee=store args=[_:e@10:18] type=Unit call=kotlin.concurrent.atomics.store[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int]
+expr e@11:21 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@11:37 int(12) type=Int
+expr e@11:21#1 memberCall recv=e@11:21 callee=exchange args=[_:e@11:37] type=Int call=kotlin.concurrent.atomics.exchange[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int]
+expr e@11:5 localDecl exchanged mutable=0 type=_ init=e@11:21#1 type=Unit ref=__local_2.exchanged[kind=local]
+expr e@12:17 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@12:36 int(3) type=Int
+expr e@12:17#1 memberCall recv=e@12:17 callee=addAndFetch args=[_:e@12:36] type=Int call=kotlin.concurrent.atomics.addAndFetch[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int]
+expr e@12:5 localDecl added mutable=0 type=_ init=e@12:17#1 type=Unit ref=__local_3.added[kind=local]
+expr e@13:20 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@13:37 int(4) type=Int
+expr e@13:20#1 memberCall recv=e@13:20 callee=getAndAdd args=[_:e@13:37] type=Int call=kotlin.concurrent.atomics.getAndAdd[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int]
+expr e@13:5 localDecl oldAdded mutable=0 type=_ init=e@13:20#1 type=Unit ref=__local_4.oldAdded[kind=local]
+expr e@14:24 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@14:24#1 memberCall recv=e@14:24 callee=getAndIncrement args=[] type=Int call=kotlin.concurrent.atomics.getAndIncrement[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@14:5 localDecl oldIncrement mutable=0 type=_ init=e@14:24#1 type=Unit ref=__local_5.oldIncrement[kind=local]
+expr e@15:24 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@15:24#1 memberCall recv=e@15:24 callee=getAndDecrement args=[] type=Int call=kotlin.concurrent.atomics.getAndDecrement[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@15:5 localDecl oldDecrement mutable=0 type=_ init=e@15:24#1 type=Unit ref=__local_6.oldDecrement[kind=local]
+expr e@16:20 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@16:46 int(15) type=Int
+expr e@16:50 int(16) type=Int
+expr e@16:20#1 memberCall recv=e@16:20 callee=compareAndExchange args=[_:e@16:46,_:e@16:50] type=Int call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int,Int]
+expr e@16:5 localDecl compared mutable=0 type=_ init=e@16:20#1 type=Unit ref=__local_7.compared[kind=local]
+expr e@17:19 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@17:19#1 memberCall recv=e@17:19 callee=value args=[] type=Int call=kotlin.concurrent.atomics.value.$get[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@17:5 localDecl current mutable=0 type=_ init=e@17:19#1 type=Unit ref=__local_8.current[kind=local]
+expr e@18:14 name(loaded) type=Int ref=__local_1.loaded[kind=local]
+expr e@18:22 name(exchanged) type=Int ref=__local_2.exchanged[kind=local]
+expr e@18:33 name(added) type=Int ref=__local_3.added[kind=local]
+expr e@18:40 name(oldAdded) type=Int ref=__local_4.oldAdded[kind=local]
+expr e@18:50 name(oldIncrement) type=Int ref=__local_5.oldIncrement[kind=local]
+expr e@18:64 name(oldDecrement) type=Int ref=__local_6.oldDecrement[kind=local]
+expr e@18:78 name(compared) type=Int ref=__local_7.compared[kind=local]
+expr e@18:88 name(current) type=Int ref=__local_8.current[kind=local]
+expr e@18:98 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
+expr e@18:98#1 memberCall recv=e@18:98 callee=toString args=[] type=String call=kotlin.concurrent.atomics.toString[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@18:12 stringTemplate[expr(e@18:14),lit(:),expr(e@18:22),lit(:),expr(e@18:33),lit(:),expr(e@18:40),lit(:),expr(e@18:50),lit(:),expr(e@18:64),lit(:),expr(e@18:78),lit(:),expr(e@18:88),lit(:),expr(e@18:98#1)] type=String
+expr e@18:5 return value=e@18:12 type=Nothing

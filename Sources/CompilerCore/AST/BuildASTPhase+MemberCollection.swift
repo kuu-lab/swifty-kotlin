@@ -30,6 +30,80 @@ extension BuildASTPhase {
             return []
         }
 
+        // The parser keeps an enum entry and its anonymous class body as one
+        // CST node. Walk those nodes directly so declaration keywords inside
+        // the body (most importantly `override fun`) are not mistaken for a
+        // class-level declaration and cause the whole entry to be discarded.
+        let syntaxEntries = arena.children(of: bodyBlockID).compactMap { child -> NodeID? in
+            guard case let .node(childID) = child,
+                  arena.node(childID).kind == .enumEntry
+            else {
+                return nil
+            }
+            return childID
+        }
+        if !syntaxEntries.isEmpty {
+            var entries: [EnumEntryDecl] = []
+            entries.reserveCapacity(syntaxEntries.count)
+            for entryNodeID in syntaxEntries {
+                let tokens = collectTokens(from: entryNodeID, in: arena)
+                var annotations: [AnnotationNode] = []
+                var annotIndex = 0
+                while annotIndex < tokens.count, tokens[annotIndex].kind == .symbol(.at) {
+                    if let parsed = AnnotationParsingSupport.parseAnnotation(
+                        from: tokens, start: annotIndex, interner: interner, allowUseSiteTarget: false
+                    ) {
+                        if parsed.invalidUseSiteTargetRange == nil {
+                            annotations.append(parsed.annotation)
+                        }
+                        annotIndex = parsed.nextIndex
+                    } else {
+                        annotIndex += 1
+                    }
+                }
+                guard let nameIndex = tokens[annotIndex...].firstIndex(where: { token in
+                    internedIdentifier(from: token, interner: interner) != nil
+                }), let name = internedIdentifier(from: tokens[nameIndex], interner: interner) else {
+                    continue
+                }
+
+                var constructorArgs: [CallArgument] = []
+                if let argsNodeID = arena.children(of: entryNodeID).compactMap({ child -> NodeID? in
+                    guard case let .node(childID) = child,
+                          arena.node(childID).kind == .statement
+                    else {
+                        return nil
+                    }
+                    return childID
+                }).first {
+                    let argsTokens = collectTokens(from: argsNodeID, in: arena)
+                    let afterParen = skipBalancedBracket(
+                        in: argsTokens, from: 0, open: .symbol(.lParen), close: .symbol(.rParen)
+                    )
+                    let argTokens = Array(argsTokens[1..<afterParen])
+                    let parser = ExpressionParser(
+                        tokens: argTokens,
+                        interner: interner,
+                        astArena: astArena,
+                        diagnostics: diagnostics
+                    )
+                    constructorArgs = parser.parseCallArguments()
+                }
+
+                let members = declarationMemberDecls(
+                    from: entryNodeID, in: arena, interner: interner, astArena: astArena
+                )
+                entries.append(EnumEntryDecl(
+                    range: arena.node(entryNodeID).range,
+                    name: name,
+                    annotations: annotations,
+                    constructorArgs: constructorArgs,
+                    memberFunctions: members.functions
+                ))
+            }
+            return entries
+        }
+
         let tokens = collectTokens(from: bodyBlockID, in: arena)
         guard !tokens.isEmpty else {
             return []

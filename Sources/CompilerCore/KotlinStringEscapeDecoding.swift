@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 /// Decodes standard Kotlin string-literal escape sequences (`\n`, `\\`, `\"`,
 /// `\uXXXX` including surrogate pairs, etc.) so that text reconstructed from
@@ -87,6 +88,11 @@ internal func decodeKotlinStringEscapes(_ raw: String) -> String {
 
                 if let scalar = UnicodeScalar(scalarValue) {
                     result.unicodeScalars.append(scalar)
+                    index = hexEnd
+                } else if let markerValue = KotlinStringSurrogateEncoding.markerValue(for: scalarValue),
+                          let marker = UnicodeScalar(markerValue)
+                {
+                    result.unicodeScalars.append(marker)
                     index = hexEnd
                 } else {
                     result.append("\\")

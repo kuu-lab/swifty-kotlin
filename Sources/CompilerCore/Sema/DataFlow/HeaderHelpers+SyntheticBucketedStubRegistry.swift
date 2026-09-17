@@ -86,8 +86,12 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Char") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Math") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
+        // KUU-586: all kotlin.math APIs are bundled Kotlin source (Math.kt); the
+        // residual entry point only anchors Byte/Long/Short nominal + Companion
+        // symbols for bundled Companion extensions, which is (c) language-core.
+        // Kept at the former "Math" slot to preserve registration order.
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "PrimitiveCompanionAnchors") { phase, symbols, types, interner, _ in
+            phase.registerSyntheticPrimitiveCompanionAnchors(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coroutine") { phase, symbols, types, interner, context in
             phase.registerSyntheticCoroutineStubs(
@@ -154,9 +158,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         // candidate, so this is tagged (c) rather than (a).
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "JavaIOStream") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJavaIOStreamStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "Path") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         },
         // KSP-1544: the coercion/range (b) surface is fully source-backed
         // (RangeCoercion.kt + Numbers.kt Float/Double.toByte/toShort). What

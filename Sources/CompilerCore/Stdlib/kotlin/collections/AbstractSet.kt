@@ -8,8 +8,8 @@
 package kotlin.collections
 
 // KSP-932: the nominal `AbstractSet<out E>` declaration is source-backed here;
-// the compiler-side shell in `HeaderHelpers+SyntheticSetStubs.swift` remains
-// the fallback for contexts without the bundled stdlib.
+// collection type fallbacks remain available for contexts without the bundled
+// stdlib, but Set-specific synthetic shell registration is retired by KSP-704.
 
 /**
  * Provides a skeletal implementation of the read-only [Set] interface.

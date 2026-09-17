@@ -50,7 +50,8 @@ extension CallTypeChecker {
         range: SourceRange,
         receiverType: TypeID,
         expectedType: TypeID?,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        preferredSourcePackage: [InternedString]? = nil
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -59,6 +60,8 @@ extension CallTypeChecker {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
+                  preferredSourcePackage == nil
+                      || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
                   extensionSyntheticFallbackReceiverMatches(
                       callSiteReceiver: receiverType,
@@ -73,7 +76,25 @@ extension CallTypeChecker {
                 getterCandidates.append(getterAccessor)
             }
         }
+        // Canonical and legacy atomic aliases expand to the same runtime class,
+        // so a source-backed extension property must be selected by the package
+        // imported at the call site rather than by nominal type alone.
+        if let preferredSourcePackage {
+            let sourceCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .property,
+                      Array(symbol.fqName.dropLast()) == preferredSourcePackage
+                else {
+                    return false
+                }
+                return true
+            }
+            for candidate in sourceCandidates {
+                collectGetterCandidate(from: candidate, requireSynthetic: false)
+            }
+        }
         for candidate in visible {
+            guard getterCandidates.isEmpty else { break }
             collectGetterCandidate(from: candidate, requireSynthetic: false)
         }
         // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection
@@ -110,7 +131,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        let resolved = ctx.resolver.resolveCall(
+        var resolved = ctx.resolver.resolveCall(
             candidates: getterCandidates,
             call: CallExpr(
                 range: range,
@@ -121,6 +142,25 @@ extension CallTypeChecker {
             implicitReceiverType: receiverType,
             ctx: ctx.semaCtx
         )
+        // A property can be used where a contravariant generic type is
+        // expected (for example Comparator<String> passed to sortedWith's
+        // Comparator<in String> parameter).  The callable resolver's
+        // expected-return-type check is stricter than Kotlin's variance rule;
+        // retry without that contextual constraint after receiver filtering so
+        // the unique source-backed getter still resolves.
+        if resolved.chosenCallee == nil, expectedType != nil {
+            resolved = ctx.resolver.resolveCall(
+                candidates: getterCandidates,
+                call: CallExpr(
+                    range: range,
+                    calleeName: calleeName,
+                    args: []
+                ),
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                ctx: ctx.semaCtx
+            )
+        }
         if resolved.diagnostic != nil {
             return nil
         }

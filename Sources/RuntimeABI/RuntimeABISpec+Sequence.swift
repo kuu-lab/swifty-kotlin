@@ -132,6 +132,7 @@ public extension RuntimeABISpec {
             name: "__kk_iterator_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Sequence",
@@ -563,7 +564,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_indexOf",
@@ -624,7 +626,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_elementAt",

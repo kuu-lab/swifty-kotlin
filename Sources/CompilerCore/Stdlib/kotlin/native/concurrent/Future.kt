@@ -71,6 +71,11 @@ public value class Future<T> @PublishedApi internal constructor(public val id: I
     override fun toString(): String = "future $id"
 }
 
+@Deprecated("Use 'waitForMultipleFutures' top-level function instead", ReplaceWith("waitForMultipleFutures(this, millis)"), DeprecationLevel.ERROR)
+@ObsoleteWorkersApi
+public fun <T> Collection<Future<T>>.waitForMultipleFutures(millis: Int): Set<Future<T>> =
+    waitForMultipleFutures(this, millis)
+
 @ObsoleteWorkersApi
 public fun <T> waitForMultipleFutures(
     futures: Collection<Future<T>>,

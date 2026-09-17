@@ -116,8 +116,35 @@ final class CallSupportLowerer {
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSym), type: receiverType)
             driver.ctx.setImplicitReceiver(symbol: receiverSym, exprID: receiverExpr)
         }
-        for (paramSymbol, paramType) in zip(signature.valueParameterSymbols, signature.parameterTypes) {
-            params.append(KIRParameter(symbol: paramSymbol, type: paramType))
+        let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: paramCount)
+        var effectiveParameterTypes: [TypeID] = []
+        effectiveParameterTypes.reserveCapacity(paramCount)
+        for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
+            let effectiveType: TypeID
+            if index < isVararg.count, isVararg[index] {
+                // Default stubs receive the already-packed vararg collection,
+                // just like the original function's call boundary. Keeping the
+                // erased collection type here prevents a String/Char element
+                // type from being flattened into the aggregate ABI.
+                let listFQName: [InternedString] = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("List"),
+                ]
+                if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
+                    effectiveType = sema.types.make(.classType(ClassType(
+                        classSymbol: listSymbol,
+                        args: [.invariant(paramType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    effectiveType = paramType
+                }
+            } else {
+                effectiveType = paramType
+            }
+            effectiveParameterTypes.append(effectiveType)
+            params.append(KIRParameter(symbol: paramSymbol, type: effectiveType))
         }
         var reifiedTokenSymbols: [SymbolID] = []
         if !signature.reifiedTypeParameterIndices.isEmpty {
@@ -144,8 +171,8 @@ final class CallSupportLowerer {
         var resolvedParamExprs: [KIRExprID] = []
         for i in 0 ..< paramCount {
             let paramSymbol = signature.valueParameterSymbols[i]
-            let paramType = signature.parameterTypes[i]
-            let paramExpr = arena.appendExpr(.symbolRef(paramSymbol), type: paramType)
+            let effectiveParamType = effectiveParameterTypes[i]
+            let paramExpr = arena.appendExpr(.symbolRef(paramSymbol), type: effectiveParamType)
             body.append(.constValue(result: paramExpr, value: .symbolRef(paramSymbol)))
 
             if i < defaultExpressions.count, let defaultExprID = defaultExpressions[i] {
@@ -175,7 +202,7 @@ final class CallSupportLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &body
                 )
-                let resolvedExpr = arena.appendTemporary(type: paramType)
+                let resolvedExpr = arena.appendTemporary(type: effectiveParamType)
                 body.append(.copy(from: defaultVal, to: resolvedExpr))
                 body.append(.jump(afterLabel))
 
@@ -237,6 +264,7 @@ final class CallSupportLowerer {
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
+        sourceArgExprs: [ExprID] = [],
         ast _: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -340,6 +368,31 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
+                // A function-value element (e.g. `arrayOf(block)`) must be
+                // wrapped via kk_function_create_N before the ordinary
+                // primitive/value-class boxing below, which has no notion of
+                // function values and would otherwise leave a non-capturing
+                // lambda's bare, constant-folded symbolRef stored straight
+                // into the erased array -- the same erased-boundary wrapping
+                // a typeParam-typed argument gets in
+                // materializeSourceBackedFunctionValueArguments (KUU-548).
+                for argIndex in argIndices {
+                    guard argIndex < boxedArguments.count,
+                          argIndex < sourceArgExprs.count,
+                          !(argIndex < spreadFlags.count && spreadFlags[argIndex]),
+                          let materialized = driver.callLowerer.materializeCollectionFactoryFunctionValueElementIfNeeded(
+                              boxedArguments[argIndex],
+                              sourceArgExprID: sourceArgExprs[argIndex],
+                              sema: sema,
+                              arena: arena,
+                              interner: interner,
+                              instructions: &instructions
+                          )
+                    else {
+                        continue
+                    }
+                    boxedArguments[argIndex] = materialized
+                }
                 // `kk_array_of` backs both generic arrayOf<T> and primitive array
                 // factories. Preserve erased-type boxing and skip boxing for concrete
                 // primitive storage.

@@ -223,11 +223,15 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let body = try findKIRFunctionBody(named: "f", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("kk_iterator_hasNext") || callees.contains("hasNext"),
+            callees.contains("kk_iterable_iterator"),
+            "Iterable for-loop should acquire its iterator through the generic bridge, got: \(callees)"
+        )
+        #expect(
+            callees.contains("kk_iterator_hasNext"),
             "Iterable for-loop should use Iterator.hasNext dispatch, got: \(callees)"
         )
         #expect(
-            callees.contains("kk_iterator_next") || callees.contains("next"),
+            callees.contains("kk_iterator_next"),
             "Iterable for-loop should use Iterator.next dispatch, got: \(callees)"
         )
         #expect(
@@ -255,10 +259,15 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(
-            callees.contains("kk_list_iterator_next"),
-            "List for-loop should keep using kk_list_iterator_next, got: \(callees)"
-        )
+        #expect(callees.contains("kk_list_iterator"), "List for-loop should acquire a list iterator, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_hasNext"), "List for-loop should use list iterator hasNext, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_next"), "List for-loop should keep using kk_list_iterator_next, got: \(callees)")
+        #expect(!callees.contains("kk_iterable_iterator"), "Concrete List must not use the generic Iterable bridge, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_hasNext"), "Concrete List must not use generic hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_next"), "Concrete List must not use generic next, got: \(callees)")
+        #expect(!callees.contains("kk_range_iterator"), "Concrete List must not use the range iterator, got: \(callees)")
+        #expect(!callees.contains("kk_range_hasNext"), "Concrete List must not use range hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_range_next"), "Concrete List must not use range next, got: \(callees)")
     }
 
     @Test
@@ -445,6 +454,52 @@ struct CodegenBackendInterfaceIterableForLoopTests {
             source,
             moduleName: "ConcreteMutableSetInterfaceSourceClassForLoopIteration",
             expected: "saw 4\nsaw 5\nsaw 6\ndone\n"
+        )
+    }
+
+    @Test
+    func testConcreteMutableListInterfaceSourceClassForLoopIteration() throws {
+        let source = """
+        class NonNativeMutableList : MutableList<Int> {
+            private val backing = mutableListOf(7, 8, 9)
+            override val size: Int get() = backing.size
+            override fun get(index: Int): Int = backing[index]
+            override fun isEmpty(): Boolean = backing.isEmpty()
+            override fun contains(element: Int): Boolean = backing.contains(element)
+            override fun containsAll(elements: Collection<Int>): Boolean = backing.containsAll(elements)
+            override fun indexOf(element: Int): Int = backing.indexOf(element)
+            override fun lastIndexOf(element: Int): Int = backing.lastIndexOf(element)
+            override fun iterator(): MutableIterator<Int> {
+                println("iterator() called")
+                return backing.iterator()
+            }
+            override fun listIterator(): MutableListIterator<Int> = backing.listIterator()
+            override fun listIterator(index: Int): MutableListIterator<Int> = backing.listIterator(index)
+            override fun subList(fromIndex: Int, toIndex: Int): MutableList<Int> = backing.subList(fromIndex, toIndex)
+            override fun set(index: Int, element: Int): Int = backing.set(index, element)
+            override fun add(index: Int, element: Int) = backing.add(index, element)
+            override fun removeAt(index: Int): Int = backing.removeAt(index)
+            override fun add(element: Int): Boolean = backing.add(element)
+            override fun remove(element: Int): Boolean = backing.remove(element)
+            override fun addAll(elements: Collection<Int>): Boolean = backing.addAll(elements)
+            override fun addAll(index: Int, elements: Collection<Int>): Boolean = backing.addAll(index, elements)
+            override fun removeAll(elements: Collection<Int>): Boolean = backing.removeAll(elements)
+            override fun retainAll(elements: Collection<Int>): Boolean = backing.retainAll(elements)
+            override fun clear() = backing.clear()
+        }
+
+        fun main() {
+            val values: MutableList<Int> = NonNativeMutableList()
+            for (value in values) {
+                println("saw " + value)
+            }
+            println("done")
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "ConcreteMutableListInterfaceSourceClassForLoopIteration",
+            expected: "iterator() called\nsaw 7\nsaw 8\nsaw 9\ndone\n"
         )
     }
 

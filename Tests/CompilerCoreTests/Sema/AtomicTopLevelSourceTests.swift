@@ -40,7 +40,18 @@ struct AtomicTopLevelSourceTests {
     func testAtomicNominalsAndFactoriesAreSourceBacked() throws {
         let (ctx, sema, interner) = try sharedSema()
         let package = ["kotlin", "concurrent"]
-        let sourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/concurrent/Stdlib.kt")
+        let defaultSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/concurrent/Stdlib.kt")
+        let sourceFileIDs = [
+            "AtomicIntArray": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicIntArray/AtomicIntArray.kt"
+            ),
+            "AtomicLongArray": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicLongArray/AtomicLongArray.kt"
+            ),
+            "AtomicNativePtr": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicNativePtr/Stdlib.kt"
+            )
+        ]
         let nominalNames = [
             "AtomicArray",
             "AtomicInt",
@@ -56,7 +67,7 @@ struct AtomicTopLevelSourceTests {
             #expect(info.kind == .class)
             #expect(!info.flags.contains(.synthetic), Comment(rawValue: name + " must not remain synthetic"))
             #expect(sema.symbols.isSourceBackedSymbol(nominal), Comment(rawValue: name + " must be source-backed"))
-            #expect(sema.symbols.sourceFileID(for: nominal) == sourceFileID)
+            #expect(sema.symbols.sourceFileID(for: nominal) == (sourceFileIDs[name] ?? defaultSourceFileID))
             #expect(info.declSite != nil)
         }
 

@@ -106,25 +106,29 @@ struct MemberRuntimeDispatchTests {
 
     @Test func testULongRangeHOFDispatchDefersToBundledSource() {
         let sourceBackedMembers: [(String, Int)] = [
-            ("iterator", 0), ("step", 1),
+            ("map", 1), ("mapIndexed", 1), ("mapNotNull", 1),
+            ("filter", 1), ("filterIndexed", 1), ("filterNot", 1),
             ("forEach", 1),
             ("reduce", 1), ("reduceIndexed", 1), ("fold", 2), ("foldIndexed", 2),
             ("find", 1), ("findLast", 1),
             ("first", 1), ("firstOrNull", 1), ("last", 1), ("lastOrNull", 1),
             ("any", 1), ("all", 1), ("none", 1),
+            ("iterator", 0), ("step", 1),
             ("take", 1), ("drop", 1), ("chunked", 1), ("windowed", 1),
         ]
         for member in sourceBackedMembers {
             let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
             #expect(
                 MemberRuntimeDispatch.rangeRuntimeLinkName(for: key) == nil,
-                "ULongRange.\(member.0) should be source-backed after KSP-1528/KSP-1530"
+                "ULongRange.\(member.0) should be source-backed after KSP-1530"
             )
         }
 
         let progressionMembers: [(String, Int)] = [
             ("iterator", 0), ("step", 1),
             ("take", 1), ("drop", 1), ("chunked", 1), ("windowed", 1),
+            ("map", 1), ("mapIndexed", 1), ("mapNotNull", 1),
+            ("filter", 1), ("filterIndexed", 1), ("filterNot", 1),
         ]
         for member in progressionMembers {
             let key = MemberDispatchKey(receiverKind: .ulongProgression, memberName: member.0, arity: member.1)
@@ -134,11 +138,12 @@ struct MemberRuntimeDispatchTests {
             )
         }
 
+        // reduce/fold/forEach/etc. on ULongProgression are outside KSP-1530's
+        // scope and still share the kk_ulong_range_* runtime prefix.
         let ulongProgressionKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "reduce", arity: 1)
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey) == "kk_ulong_range_reduce")
 
-        // KSP-1530 retains the constant-time step property bridge (arity 0),
-        // matching the kk_uint_range_step carve-out kept by KSP-1529.
+        // KSP-1524 retains the constant-time step property bridge (arity 0).
         let ulongStepPropertyKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "step", arity: 0)
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == "kk_ulong_range_step")
     }

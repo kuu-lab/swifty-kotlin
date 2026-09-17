@@ -533,7 +533,7 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         let bytes = Array(value.utf8)
         // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
         // `byteCount` is the UTF-8 byte count used by the flat ABI.
-        self.length = value.utf16.count
+        self.length = runtimeKotlinStringUTF16Length(value)
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
@@ -651,18 +651,8 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     return opaque
 }
 
-@_cdecl("kk_int_toString_radix")
-public func kk_int_toString_radix(_ value: Int, _ radix: Int) -> UnsafeMutableRawPointer {
-    let clampedRadix = max(2, min(36, radix))
-    let str = String(value, radix: clampedRadix)
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
-}
-
-@_cdecl("kk_string_concat_flat")
-public func kk_string_concat_flat(
+@_cdecl("__kk_string_concat_flat")
+public func __kk_string_concat_flat(
     _ lhsData: UnsafePointer<UInt8>?,
     _ lhsLength: Int,
     _ lhsByteCount: Int,
@@ -725,8 +715,8 @@ public func kk_string_compareTo_flat(
 // Receiver is passed as Int (intptr) so null receivers produce "null".
 // Primitives passed as `other` are already boxed by the ABI lowering pass
 // when widened to Any?, so runtimeElementToString handles them correctly.
-@_cdecl("kk_string_plus")
-public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_string_plus")
+public func __kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeElementToString(receiverRaw)
     let rhs = runtimeElementToString(otherRaw)
     return runtimeMakeStringRaw(lhs + rhs)
@@ -800,10 +790,10 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
         //
-        // Even when boxed, Int/UInt/UByte/UShort all box via kk_box_int into
-        // the same RuntimeIntBox (see BoxingCalleeTable), so they remain
-        // indistinguishable from each other here — a separate, pre-existing
-        // limitation of the box representation itself, not fixed by this check.
+        // Even when boxed, Int/UInt/UByte/UShort use the same RuntimeIntBox
+        // representation (through distinct boxing entry points that preserve
+        // hashCode metadata), so they remain indistinguishable from each other
+        // here — a separate, pre-existing limitation of runtime type checks.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -958,6 +948,29 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
     outThrown?.pointee = 0
     if kk_op_is(value, typeToken) != 0 {
         return value
+    }
+    // Kotlin/JVM reports a null-to-non-null cast as NullPointerException,
+    // while a non-null value with the wrong runtime type is ClassCastException.
+    // Keep the distinction before allocating the generic cast failure.
+    if value == runtimeNullSentinelInt {
+        let token = Int64(truncatingIfNeeded: typeToken)
+        let base = token & RuntimeTypeTokenEncoding.baseMask
+        let isNullableTarget = (token & RuntimeTypeTokenEncoding.nullableBit) != 0
+        if !isNullableTarget, base != RuntimeTypeTokenEncoding.nullBase {
+            let targetName: String = {
+                if base == RuntimeTypeTokenEncoding.nominalBase,
+                   let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+                {
+                    return metadata.qualifiedName
+                }
+                let targetNameRaw = __kk_type_token_qualified_name(typeToken, 0)
+                return runtimeStringFromRaw(targetNameRaw) ?? "Unknown"
+            }()
+            outThrown?.pointee = runtimeAllocateNullPointerException(
+                message: "null cannot be cast to non-null type \(targetName)"
+            )
+            return 0
+        }
     }
     outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
     return 0
@@ -1192,7 +1205,7 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
 // a bare type token + name hint known at the `T::class` call site), these take
 // the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
-// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt) can
+// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt) can
 // be ordinary extension properties dispatched on `this`, without requiring
 // reified static type information at the call site.
 
@@ -2181,6 +2194,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "{\(rendered)}"
     }
     if tryCast(raw, to: RuntimeRangeBox.self) != nil {
+        return runtimeElementToString(value)
+    }
+    if tryCast(raw, to: RuntimeDoubleRangeBox.self) != nil
+        || tryCast(raw, to: RuntimeFloatRangeBox.self) != nil
+    {
         return runtimeElementToString(value)
     }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {

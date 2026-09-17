@@ -36,7 +36,7 @@ public extension RuntimeABISpec {
             section: "Comparator"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_case_insensitive_order",
+            name: "__kk_string_case_insensitive_order",
             parameters: [],
             returnType: .intptr,
             section: "Comparator"

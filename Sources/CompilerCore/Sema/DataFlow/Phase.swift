@@ -31,6 +31,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         let sema = SemaModule(
             symbols: symbols, types: types,
             bindings: bindings, diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
             bundledIndex: bundledIndex
         )
 
@@ -50,6 +51,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        predeclareBundledSetHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1520: `Comparator.kt` is source-backed, but comparator-typed
         // synthetic signatures are registered before the normal bundled header
         // collection pass. Predeclare its nominal so those signatures resolve
@@ -59,10 +65,27 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1517: `Array<T>`/primitive array class shells are source-backed
+        // in `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
+        // `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
+        // before the normal bundled header collection pass.
+        predeclareBundledArrayHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols, types: types,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
         // extension bridges need the source symbol before synthetic
         // registration constructs their signatures.
         predeclareBundledStringEncodingHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        // KSP-717: `Locale.kt` owns `java.util.Locale`.  The source-backed
+        // String.Companion.format(locale, ...) bridge is collected after this
+        // predeclaration, so its signature can resolve the nominal type.
+        predeclareBundledJavaUtilLocaleHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -96,6 +119,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
         predeclareBundledAnnotationHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        // KSP-1472: ExperimentalTime is source-backed, but the opt-in bootstrap
+        // registers its constructor and metadata before ordinary bundled headers.
+        // Claim the real annotation header first so that bootstrap can augment it
+        // instead of creating a second annotation class with the same FQName.
+        predeclareBundledExperimentalTimeHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -199,6 +231,52 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        // KSP-704: the Set/MutableSet nominal headers are only predeclared
+        // before residual registration; their type parameters become available
+        // when the complete bundled headers are collected. Register the
+        // remaining MutableSet addAll bridges now that their owner signatures
+        // can be constructed against the source-backed symbols. The helpers
+        // are idempotent, so MutableList registrations made during the early
+        // synthetic pass remain unchanged.
+        let kotlinCollectionsPackage = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
+        if let iterableSymbol = symbols.lookup(fqName: kotlinCollectionsPackage + [ctx.interner.intern("Iterable")]) {
+            registerMutableCollectionIterableAddAllMembers(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner,
+                kotlinCollectionsPkg: kotlinCollectionsPackage,
+                iterableInterfaceSymbol: iterableSymbol
+            )
+        }
+        if let mutableCollectionSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPackage + [ctx.interner.intern("MutableCollection")]
+        ),
+        let mutableListSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPackage + [ctx.interner.intern("MutableList")]
+        ),
+        let mutableSetSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPackage + [ctx.interner.intern("MutableSet")]
+        ),
+        let sequenceSymbol = symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("sequences"), ctx.interner.intern("Sequence")]) {
+            registerMutableCollectionSequenceAddAllMembers(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner,
+                mutableCollectionSymbol: mutableCollectionSymbol,
+                mutableListSymbol: mutableListSymbol,
+                mutableSetSymbol: mutableSetSymbol,
+                sequenceSymbol: sequenceSymbol
+            )
+        }
+        registerMutableCollectionArrayAddAllMembers(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            kotlinCollectionsPkg: kotlinCollectionsPackage
+        )
         // KSP-1332: the source declaration spells this as List<KTypeProjection>,
         // while the compiler's residual List model represents covariant uses
         // with an explicit out projection. Reapply that existing KType contract
@@ -235,16 +313,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         // once header registration finished.
         sema.bundledIndex = bundledIndex
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
-        patchSourceBackedCharIteratorReturnType(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
-        patchSourceBackedIndexedValueReturnType(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
         patchSourceBackedPreconditionContractEffects(
             symbols: symbols,
             types: types,
@@ -428,6 +496,13 @@ final class DataFlowSemaPhase: CompilerPhase {
         // List/MutableCollection edges, while the retained compiler shell
         // still supplies the MutableIterable residual compatibility edge.
         patchSourceBackedMutableListSupertypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+        registerAllEnumEntryDispatchFunctions(
+            ast: ast,
+            bindings: bindings,
             symbols: symbols,
             types: types,
             interner: ctx.interner

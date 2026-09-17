@@ -9,7 +9,7 @@ import Testing
 ///
 /// KSP-423 moved every one of these List overloads to
 /// `Stdlib/kotlin/collections/ListSearchHOF.kt`, so
-/// `shouldPreserveSourceBackedAggregateCall` keeps the resolved Kotlin
+/// the source-backed preservation gate keeps the resolved Kotlin
 /// declaration and no `kk_*` rewrite may fire for a List receiver.  That is
 /// what makes the deleted List `count(predicate)` rewrite unreachable.
 ///
@@ -58,7 +58,7 @@ struct ListSearchPredicateLoweringRoutingTests {
     ]
 
     /// The overloads that carry a resolved `ListSearchHOF.kt` symbol and are
-    /// therefore preserved by `shouldPreserveSourceBackedAggregateCall`.
+    /// therefore preserved by the source-backed preservation gate.
     /// No-predicate overloads take just the receiver; predicate overloads take
     /// receiver + lambda.  `count/1` is absent on purpose — see
     /// `sourceBackedListSearchCallsSurviveCollectionLiteralLowering`.
@@ -76,7 +76,7 @@ struct ListSearchPredicateLoweringRoutingTests {
     ]
 
     /// The four names RF-LOWER-CALL-010 dropped from
-    /// `shouldPreserveSourceBackedAggregateCall` / `...VirtualCall` plus
+    /// the direct / virtual source-backed preservation gates plus
     /// `containsAll`: no rewrite anywhere in either collection lowering pass
     /// keys on them, so preserving them by name was indistinguishable from
     /// the `loweredBody.append(instruction)` fallthrough.
@@ -331,10 +331,13 @@ struct ListSearchPredicateLoweringRoutingTests {
                 callees.contains("__kk_range_contains"),
                 "IntRange.contains must still reach __kk_range_contains; callees: \(callees.sorted())"
             )
-            // Map.count(predicate) is source-backed in MapHOF.kt, and
-            // `+CallRewriteFactories` guards it with its own
-            // `isSourceBackedBundledFunction` check rather than the name
-            // allowlist — so the runtime bridge must not appear.
+            // Map.count(predicate) is source-backed in MapHOF.kt. A
+            // RF-LOWER-CALL-012 follow-up deleted the dead `+CallRewriteFactories`
+            // branch that used to guard this with its own
+            // `isSourceBackedBundledFunction` check (rather than the name
+            // allowlist) — the runtime bridge was never reachable, and now
+            // there is no rewrite left to reach it. `MapCountLoweringRoutingTests`
+            // pins the routing and symbol resolution directly.
             #expect(
                 !callees.contains("kk_map_count"),
                 "source-backed Map.count(predicate) must not reach kk_map_count; callees: \(callees.sorted())"

@@ -224,25 +224,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// True when `symbol` is an extension whose receiver is `kotlin.collections.List`.
-    private func isListReceiverFunction(
-        symbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let receiverType = sema.symbols.functionSignature(for: symbol)?.receiverType,
-              case let .classType(classType) = sema.types.kind(of: receiverType),
-              let receiverName = sema.symbols.symbol(classType.classSymbol)?.fqName
-        else {
-            return false
-        }
-        return receiverName == [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-    }
-
     private func isRuntimeBackedBundledStdlibSourceFunction(
         symbol: SymbolID,
         sema: SemaModule,
@@ -288,10 +269,6 @@ extension KIRLoweringDriver {
                  "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
                  "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 return true
-            case "shuffled":
-                // List overloads still have dedicated runtime lowering; Set and
-                // Iterable overloads remain ordinary source declarations.
-                return isListReceiverFunction(symbol: symbol, sema: sema, interner: interner)
             default:
                 return false
             }

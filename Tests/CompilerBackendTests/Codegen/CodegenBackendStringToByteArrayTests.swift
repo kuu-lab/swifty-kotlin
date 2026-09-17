@@ -45,5 +45,28 @@ struct CodegenBackendStringToByteArrayTests {
         """
         try assertKotlinOutput(source, moduleName: "StringToByteArrayCharsets", expected: "5\n5\n5\n4\n4\n")
     }
+
+    @Test
+    func testCodegenStringToByteArrayCharsetsUseSignedBytes() throws {
+        let source = """
+        fun main() {
+            val utf8 = "é".toByteArray(Charsets.UTF_8)
+            println(utf8.contentToString())
+            println(utf8[0])
+            println(utf8[0].toInt())
+
+            val latin1 = "é".toByteArray(Charsets.ISO_8859_1)
+            println(latin1.contentToString())
+
+            val utf16 = "é".toByteArray(Charsets.UTF_16)
+            println(utf16.contentToString())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToByteArrayCharsetSignedBytes",
+            expected: "[-61, -87]\n-61\n-61\n[-23]\n[-2, -1, 0, -23]\n"
+        )
+    }
 }
 #endif

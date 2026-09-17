@@ -105,6 +105,15 @@ public enum GoldenHarness {
     public static func render(suiteName: String, sourcePath: String) throws -> String {
         let resolvedSuite = try suite(named: suiteName)
         let caseFile = caseFile(sourcePath: sourcePath)
+        do {
+            try GoldenHarnessCaseDiscovery.validateCaseFile(
+                caseFile,
+                suite: resolvedSuite,
+                requireExpectedGolden: false
+            )
+        } catch {
+            throw GoldenHarnessAPIError.invalidCaseSpec(String(describing: error))
+        }
         let spec = try validatedCaseSpec(caseFile, suite: resolvedSuite)
         let stdlibLibraryPath = ProcessInfo.processInfo.environment[stdlibLibraryEnvironmentKey]
         if stdlibLibraryPath == nil, resolvedSuite == .sema || resolvedSuite == .diagnostics {
@@ -350,15 +359,30 @@ public enum GoldenHarness {
         actual: String,
         updateMode: Bool
     ) throws -> Bool {
-        try GoldenHarnessGoldenFileIO.persistIfUpdating(
-            caseFile: caseFile(sourcePath: sourcePath),
+        let resolvedSuite = try suite(named: suiteName)
+        let caseFile = caseFile(sourcePath: sourcePath)
+        // Validate before normalizing or opening the output path. In
+        // particular, an invalid/deleted spec must not be interpreted as a
+        // spec-free case and overwrite the legacy `<name>.golden`.
+        try GoldenHarnessCaseDiscovery.validateCaseFile(
+            caseFile,
+            suite: resolvedSuite,
+            requireExpectedGolden: false
+        )
+        return try GoldenHarnessGoldenFileIO.persistIfUpdating(
+            caseFile: caseFile,
             actual: stableOutputForPersistence(suiteName: suiteName, output: actual),
             updateMode: updateMode
         )
     }
 
     public static func loadExpectedGolden(sourcePath: String) throws -> String {
-        try GoldenHarnessGoldenFileIO.loadExpectedGolden(caseFile: caseFile(sourcePath: sourcePath))
+        let caseFile = caseFile(sourcePath: sourcePath)
+        try GoldenHarnessCaseDiscovery.validateCaseFile(
+            caseFile,
+            requireExpectedGolden: true
+        )
+        return try GoldenHarnessGoldenFileIO.loadExpectedGolden(caseFile: caseFile)
     }
 
     /// Normalizes suite output before comparison so the checked-in golden can stay

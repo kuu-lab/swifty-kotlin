@@ -14,6 +14,7 @@ package kotlin.time
 import kotlin.internal.KsSymbolName
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
+import kotlin.time.nanoseconds
 
 @KsSymbolName("__kk_time_source_monotonic_mark_now")
 private external fun __kk_time_source_monotonic_mark_now(receiver: Long): Long
@@ -103,6 +104,29 @@ public inline fun TimeSource.measureTime(block: () -> Unit): Duration {
 public inline fun <T> TimeSource.measureTimedValue(block: () -> T): TimedValue<T> {
     contract {
         callsInPlace(block, kotlin.contracts.InvocationKind.EXACTLY_ONCE)
+    }
+    val mark = markNow()
+    val result = block()
+    return TimedValue(result, mark.elapsedNow())
+}
+
+// KSP-1474
+// Keep the Monotonic overloads source-backed so overload resolution preserves
+// the specialized ValueTimeMark return path of TimeSource.Monotonic.
+@OptIn(ExperimentalContracts::class)
+public inline fun TimeSource.Monotonic.measureTime(block: () -> Unit): Duration {
+    contract {
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
+    val mark = markNow()
+    block()
+    return mark.elapsedNow()
+}
+
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> TimeSource.Monotonic.measureTimedValue(block: () -> T): TimedValue<T> {
+    contract {
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
     }
     val mark = markNow()
     val result = block()

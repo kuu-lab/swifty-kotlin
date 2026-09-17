@@ -17,8 +17,7 @@ public func kk_box_unit(_ value: Int) -> Int {
     }
 }
 
-@_cdecl("kk_box_int")
-public func kk_box_int(_ value: Int) -> Int {
+private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32) -> Int {
     if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo, or an already-boxed RuntimeIntBox), pass it
@@ -31,12 +30,32 @@ public func kk_box_int(_ value: Int) -> Int {
             return value
         }
     }
-    let box = RuntimeIntBox(value)
+    let box = RuntimeIntBox(value, anyFallbackTag: anyFallbackTag)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     return Int(bitPattern: opaque)
+}
+
+@_cdecl("kk_box_int")
+public func kk_box_int(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 1)
+}
+
+@_cdecl("kk_box_uint")
+public func kk_box_uint(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 9)
+}
+
+@_cdecl("kk_box_ubyte")
+public func kk_box_ubyte(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 10)
+}
+
+@_cdecl("kk_box_ushort")
+public func kk_box_ushort(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 11)
 }
 
 @_cdecl("kk_box_bool")

@@ -92,4 +92,28 @@ struct KsSymbolNameSemaTests {
             }
         }
     }
+
+    @Test
+    func bundledKsSymbolNameCanBindToProperty() throws {
+        let ctx = makeContextFromSource(
+            "fun read(pair: Pair<Int, String>): Int = pair.first\n"
+        )
+        try runSema(ctx)
+
+        let sema = try #require(ctx.sema)
+        let pairFQName = ["kotlin", "Pair"].map(ctx.interner.intern)
+        let pairSymbol = try #require(sema.symbols.lookup(fqName: pairFQName))
+        let firstSymbol = try #require(
+            sema.symbols.lookup(fqName: pairFQName + [ctx.interner.intern("first")])
+        )
+
+        #expect(sema.symbols.symbol(firstSymbol)?.kind == .property)
+        #expect(sema.symbols.parentSymbol(for: firstSymbol) == pairSymbol)
+        #expect(sema.symbols.externalLinkName(for: firstSymbol) == "__kk_pair_first")
+        #expect(
+            sema.symbols.annotations(for: firstSymbol).contains {
+                KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
+            }
+        )
+    }
 }

@@ -12,11 +12,6 @@ struct InlineExpansion {
 final class InlineLoweringPass: LoweringPass {
     static let name = "InlineLowering"
 
-    private struct InlineTypeSubstitution {
-        let substitution: [TypeVarID: TypeID]
-        let typeVarBySymbol: [SymbolID: TypeVarID]
-    }
-
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()
         if module.features.contains(.hasInlineFunction) { return true }
@@ -171,109 +166,6 @@ final class InlineLoweringPass: LoweringPass {
         }
     }
 
-    /// Redirects throw-producing instructions inside an inline/lambda expansion
-    /// that are not already routed to a local exception slot (`thrownResult == nil`
-    /// on a `canThrow` call, or a bare `.rethrow`) so they no longer rely on the
-    /// callee's own function-level auto-propagation (codegen's fallback for
-    /// unrouted throws: store into the *current* function's own out-parameter and
-    /// return early). Once inlined, "the current function" is the caller, so an
-    /// unrouted throw would silently escape the caller instead of reaching its
-    /// enclosing try.
-    ///
-    /// This matters because `appendThrowAwareInstructions` runs on the caller's
-    /// try body *before* inlining, when the call to the (later-inlined) function
-    /// is still a single opaque `.call`. If that call site was itself protected
-    /// by an enclosing try (`callerThrownResult != nil`), any unprotected throw
-    /// newly spliced into the caller by inlining must be redirected here so it
-    /// still reaches the caller's catch dispatch -- the pre-existing instructions
-    /// immediately following this splice point in the caller body.
-    ///
-    /// Instructions already routed to a local slot (the callee's own try/catch,
-    /// or an already-wrapped finally-guard region) are left untouched.
-    private func rerouteUnprotectedThrows(
-        in instructions: [KIRInstruction],
-        callerThrownResult: KIRExprID?,
-        labels: inout InlineLabelAllocator
-    ) -> (instructions: [KIRInstruction], trailingLabel: Int32?) {
-        guard let callerThrownResult else {
-            return (instructions, nil)
-        }
-        let throwLabel = labels.allocateCallerLabel()
-        var result: [KIRInstruction] = []
-        result.reserveCapacity(instructions.count)
-        var finallyGuardDepth = 0
-        // A call's own `canThrow` flag is not a reliable "can the callee ever
-        // throw" predicate for ordinary (non-synthetic) functions -- it
-        // defaults to `false` and is only ever explicitly set to `true` for
-        // synthetic native-bridge stub registrations. A regular Kotlin
-        // function that throws conditionally (e.g. `checkWindowSizeStep`
-        // inside `Sequence.chunked`/`windowed`'s bundled Kotlin-source body,
-        // whose `throw` sits inside a nested `if`) still compiles its call
-        // sites with `canThrow: false, thrownResult: nil`, since that
-        // function has no local try/catch of its own: codegen unconditionally
-        // checks every call's outThrown slot regardless of the KIR-level
-        // `canThrow` flag, and `thrownResult == nil` means "propagate
-        // implicitly via my own outThrown parameter" -- correct as long as
-        // the function compiles standalone. Once auto-inlining
-        // (KIRLoweringDriver's `hasLambdaParam` heuristic) splices this body
-        // into a caller with its own enclosing try/catch, "my own outThrown"
-        // becomes the *caller's* outThrown, silently skipping the caller's
-        // catch block. Rerouting on `thrownResult == nil` alone (regardless
-        // of `canThrow`) catches this; for a call that genuinely cannot
-        // throw, the added check is simply dead code (it never observes a
-        // thrown value), not a correctness risk.
-        for instruction in instructions {
-            if case .beginFinallyGuard = instruction {
-                finallyGuardDepth += 1
-                result.append(instruction)
-                continue
-            }
-            if case .endFinallyGuard = instruction {
-                finallyGuardDepth -= 1
-                result.append(instruction)
-                continue
-            }
-            if finallyGuardDepth > 0 {
-                result.append(instruction)
-                continue
-            }
-            switch instruction {
-            case let .call(symbol, callee, arguments, callResult, _, thrownResult, isSuperCall, qualifiedSuperType)
-                where thrownResult == nil:
-                result.append(.call(
-                    symbol: symbol,
-                    callee: callee,
-                    arguments: arguments,
-                    result: callResult,
-                    canThrow: true,
-                    thrownResult: callerThrownResult,
-                    isSuperCall: isSuperCall,
-                    qualifiedSuperType: qualifiedSuperType
-                ))
-                result.append(.jumpIfNotNull(value: callerThrownResult, target: throwLabel))
-            case let .virtualCall(symbol, callee, receiver, arguments, callResult, _, thrownResult, dispatch)
-                where thrownResult == nil:
-                result.append(.virtualCall(
-                    symbol: symbol,
-                    callee: callee,
-                    receiver: receiver,
-                    arguments: arguments,
-                    result: callResult,
-                    canThrow: true,
-                    thrownResult: callerThrownResult,
-                    dispatch: dispatch
-                ))
-                result.append(.jumpIfNotNull(value: callerThrownResult, target: throwLabel))
-            case let .rethrow(value):
-                result.append(.copy(from: value, to: callerThrownResult))
-                result.append(.jump(throwLabel))
-            default:
-                result.append(instruction)
-            }
-        }
-        return (result, throwLabel)
-    }
-
     /// Upper bound on how many times a function body is re-scanned for inline
     /// calls. Nested expansions terminate well below this; the cap only keeps
     /// mutually recursive inline functions from looping forever.
@@ -346,8 +238,8 @@ final class InlineLoweringPass: LoweringPass {
             loweredBody.currentSourceRange = index < callerLocations.count
                 ? callerLocations[index]
                 : nil
-            let instruction = rewriteInstruction(originalInstruction, aliases: aliases)
-            if let defined = definedResult(in: instruction) {
+            let instruction = InlineExprAliasing.rewriteInstruction(originalInstruction, aliases: aliases)
+            if let defined = InlineExprAliasing.definedResult(in: instruction) {
                 aliases.removeValue(forKey: defined)
             }
 
@@ -356,7 +248,7 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
 
-            let resolvedArguments = arguments.map { resolveAlias(of: $0, aliases: aliases) }
+            let resolvedArguments = arguments.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
             if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
                let callableExpr = resolvedArguments.first,
                let lambdaFunction = resolveLambdaFunction(
@@ -367,11 +259,11 @@ final class InlineLoweringPass: LoweringPass {
                )
             {
                 let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
-                    .map { resolveAlias(of: $0, aliases: aliases) }
+                    .map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
                 // A lambda spliced into an already-inlined generic body reads
                 // its arguments from erased (type-parameter) slots, so unbox
                 // them for the lambda's own concrete parameter types.
-                let fullArgs = unboxErasedLambdaArguments(
+                let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                     arguments: captureArgs + Array(resolvedArguments.dropFirst()),
                     lambdaFunction: lambdaFunction,
                     module: module,
@@ -386,25 +278,25 @@ final class InlineLoweringPass: LoweringPass {
                     ctx: ctx,
                     labels: &labels
                 ) {
-                    let (reroutedInstructions, trailingThrowLabel) = rerouteUnprotectedThrows(
+                    let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
                         in: labels.relocate(lambdaExpansion.instructions),
                         callerThrownResult: callerThrownResult,
                         labels: &labels
                     )
                     loweredBody.append(contentsOf: reroutedInstructions)
                     didExpand = true
-                    if let trailingThrowLabel {
-                        loweredBody.append(.label(trailingThrowLabel))
+                    if let throwDispatchLabel {
+                        loweredBody.append(.label(throwDispatchLabel))
                     }
                     if let result {
                         // The lambda may return through a non-local return on
                         // every path, in which case `returnedExpr` refers to a
                         // slot no emitted instruction defines. Read it only
                         // when a definition actually survives in the body.
-                        if let lambdaReturn = lambdaExpansion.returnedExpr.map({ resolveAlias(of: $0, aliases: aliases) }),
+                        if let lambdaReturn = lambdaExpansion.returnedExpr.map({ InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }),
                            exprIsDefined(lambdaReturn, in: loweredBody.instructions)
                         {
-                            let finalExpr = boxErasedLambdaResultIfNeeded(
+                            let finalExpr = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                 returnedExpr: lambdaReturn,
                                 result: result,
                                 module: module,
@@ -455,8 +347,8 @@ final class InlineLoweringPass: LoweringPass {
             // boxed representation chosen there; this expansion cannot
             // re-specialize them. Box primitive arguments that flow into an
             // erased parameter so the splice honours that representation.
-            let expansionArguments = usesErasedLambdaABI(inlineTarget, ctx: ctx)
-                ? boxPrimitiveArgumentsForErasedParameters(
+            let expansionArguments = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
+                ? InlineErasedLambdaABI.boxPrimitiveArgumentsForErasedParameters(
                     arguments: arguments,
                     inlineTarget: inlineTarget,
                     module: module,
@@ -485,9 +377,9 @@ final class InlineLoweringPass: LoweringPass {
 
             // Redirect any throw inside the expansion that isn't already routed to
             // a local exception slot, so it reaches the caller's enclosing try
-            // (see `rerouteUnprotectedThrows`) instead of silently escaping the
+            // (see `InlineThrowRerouting`) instead of silently escaping the
             // caller via codegen's unrouted-throw auto-propagation.
-            let (reroutedInstructions, trailingThrowLabel) = rerouteUnprotectedThrows(
+            let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
                 in: remappedInstructions,
                 callerThrownResult: callerThrownResult,
                 labels: &labels
@@ -522,7 +414,7 @@ final class InlineLoweringPass: LoweringPass {
                     case let .nonLocalReturn(value):
                         // Convert to a real return from the caller.
                         if let value {
-                            loweredBody.append(.returnValue(resolveAlias(of: value, aliases: aliases)))
+                            loweredBody.append(.returnValue(InlineExprAliasing.resolveAlias(of: value, aliases: aliases)))
                         } else {
                             loweredBody.append(.returnUnit)
                         }
@@ -576,8 +468,8 @@ final class InlineLoweringPass: LoweringPass {
             // exception slot, land here so the pre-existing caller instructions
             // that follow (from the original call site's throw-aware wrapping)
             // can pick it up and dispatch to the enclosing try's catch/finally.
-            if let trailingThrowLabel {
-                loweredBody.append(.label(trailingThrowLabel))
+            if let throwDispatchLabel {
+                loweredBody.append(.label(throwDispatchLabel))
             }
 
             // Copy the expansion's returned expression into the call result so the
@@ -589,10 +481,10 @@ final class InlineLoweringPass: LoweringPass {
                 // `returnedExpr` (e.g. the merge slot) without a surviving
                 // definition — the dead-code filter above drops its writers.
                 // Fall back to unit instead of reading an undefined slot.
-                if let returnedExpr = expansion.returnedExpr.map({ resolveAlias(of: $0, aliases: aliases) }),
+                if let returnedExpr = expansion.returnedExpr.map({ InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }),
                    exprIsDefined(returnedExpr, in: loweredBody.instructions)
                 {
-                    let finalExpr = unboxErasedInlineResultIfNeeded(
+                    let finalExpr = InlineErasedLambdaABI.unboxErasedInlineResultIfNeeded(
                         returnedExpr: returnedExpr,
                         result: result,
                         inlineTarget: inlineTarget,
@@ -611,295 +503,6 @@ final class InlineLoweringPass: LoweringPass {
         return (loweredBody.instructions, loweredBody.instructionLocations, didExpand)
     }
 
-    /// Runtime entry points that call a function value: the value is an adapter
-    /// with the erased convention, so every argument arrives boxed and the
-    /// result comes back boxed.
-    static let erasedFunctionInvokeCallees: Set<String> = [
-        "kk_function_invoke", "kk_function_invoke_0",
-        "kk_function_invoke_2", "kk_function_invoke_3",
-        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
-    ]
-
-    /// Imported inline HOF bodies were ABI-lowered before they were serialized.
-    /// Their erased selector results therefore remain boxed when a lowered
-    /// floating-point operator consumes them in the caller.
-    private func unboxErasedArithmeticArgumentsIfNeeded(
-        callee: InternedString,
-        arguments: [KIRExprID],
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        let primitive: PrimitiveType? = switch ctx.interner.resolve(callee) {
-        case "kk_op_fadd", "kk_op_fsub", "kk_op_fmul", "kk_op_fdiv": .float
-        case "kk_op_dadd", "kk_op_dsub", "kk_op_dmul", "kk_op_ddiv": .double
-        default: nil
-        }
-        guard let primitive, let types = ctx.sema?.types else {
-            return arguments
-        }
-        var normalized = arguments
-        for index in arguments.indices {
-            let argument = arguments[index]
-            let isErasedInvokeResult = body.reversed().contains { instruction in
-                guard case let .call(_, invokeCallee, _, callResult, _, _, _, _) = instruction else {
-                    return false
-                }
-                return callResult == argument
-                    && Self.erasedFunctionInvokeCallees.contains(ctx.interner.resolve(invokeCallee))
-            }
-            guard isErasedInvokeResult else { continue }
-            let targetType = module.arena.exprType(argument)
-                ?? types.make(.primitive(primitive, .nonNull))
-            let unboxed = module.arena.appendTemporary(type: targetType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [argument],
-                result: unboxed,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            normalized[index] = unboxed
-        }
-        return normalized
-    }
-
-    /// Box the arguments an inline expansion passes to an erased function-value
-    /// invoke: type substitution replaced the callee body's erased slots with
-    /// concrete primitives, which the adapter would misread as boxed pointers.
-    private func boxSubstitutedErasedArguments(
-        originalArguments: [KIRExprID],
-        loweredArguments: [KIRExprID],
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        guard originalArguments.count == loweredArguments.count, let types = ctx.sema?.types else {
-            return loweredArguments
-        }
-        var boxed = loweredArguments
-        for index in loweredArguments.indices.dropFirst() {
-            guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(loweredArguments[index]), ctx: ctx
-                  )
-            else {
-                continue
-            }
-            let boxedArg = module.arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [loweredArguments[index]],
-                result: boxedArg,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            boxed[index] = boxedArg
-        }
-        return boxed
-    }
-
-    /// Counterpart of `boxSubstitutedErasedArguments` for the invoke's result.
-    private func substitutedErasedResultUnboxingCallee(
-        originalResult: KIRExprID,
-        loweredResult: KIRExprID,
-        expectedType: TypeID?,
-        module: KIRModule,
-        ctx: KIRContext
-    ) -> InternedString? {
-        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx) || expectedType != nil,
-              let primitive = nonNullPrimitiveKind(
-                  of: expectedType ?? module.arena.exprType(loweredResult),
-                  ctx: ctx
-              )
-        else {
-            return nil
-        }
-        return ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner)
-    }
-
-    private func importedLambdaInvokeReturnType(
-        inlineTarget: KIRFunction,
-        typeSubstitution: InlineTypeSubstitution?,
-        ctx: KIRContext
-    ) -> TypeID? {
-        guard let types = ctx.sema?.types else { return nil }
-        for parameter in inlineTarget.params {
-            guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
-                continue
-            }
-            return substituteInlineType(functionType.returnType, using: typeSubstitution, ctx: ctx)
-        }
-        return nil
-    }
-
-    /// An imported generic higher-order function: its body was ABI-lowered when
-    /// the library was built and invokes its lambda through the erased
-    /// `kk_function_create_N` convention, so every value that meets an erased
-    /// slot in the expansion must be boxed. Imported non-HOF declarations keep
-    /// the raw representation their callers already pass.
-    private func usesErasedLambdaABI(_ inlineTarget: KIRFunction, ctx: KIRContext) -> Bool {
-        guard ctx.sema?.symbols.symbol(inlineTarget.symbol)?.flags.contains(.importedLibrary) == true,
-              let types = ctx.sema?.types
-        else {
-            return false
-        }
-        return inlineTarget.params.contains { param in
-            if case .functionType = types.kind(of: param.type) { return true }
-            return false
-        }
-    }
-
-    /// A type whose values are carried as boxed references once erased: an
-    /// unsubstituted type parameter or `Any`.
-    private func isErasedType(_ type: TypeID?, ctx: KIRContext) -> Bool {
-        guard let type, let types = ctx.sema?.types else { return false }
-        switch types.kind(of: type) {
-        case .typeParam, .any:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func nonNullPrimitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
-        guard let type, let types = ctx.sema?.types,
-              case let .primitive(primitive, .nonNull) = types.kind(of: type)
-        else {
-            return nil
-        }
-        return primitive
-    }
-
-    private func unboxErasedLambdaArguments(
-        arguments: [KIRExprID],
-        lambdaFunction: KIRFunction,
-        module: KIRModule,
-        ctx: KIRContext,
-        erasedCallConvention: Bool = false,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        guard arguments.count == lambdaFunction.params.count else {
-            return arguments
-        }
-        var normalized = arguments
-        for index in arguments.indices {
-            // Instructions restored from a library's inline KIR carry no expr
-            // types, so inside such an expansion every value is erased.
-            let argumentIsErased = module.arena.exprType(arguments[index])
-                .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
-            guard argumentIsErased,
-                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
-            else {
-                continue
-            }
-            let unboxed = module.arena.appendTemporary(type: lambdaFunction.params[index].type)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [arguments[index]],
-                result: unboxed,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            normalized[index] = unboxed
-        }
-        return normalized
-    }
-
-    /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
-    /// feeds an erased slot, the primitive the lambda body produced must be
-    /// boxed again.
-    private func boxErasedLambdaResultIfNeeded(
-        returnedExpr: KIRExprID,
-        result: KIRExprID,
-        module: KIRModule,
-        ctx: KIRContext,
-        erasedCallConvention: Bool = false,
-        into body: inout KIRLoweringEmitContext
-    ) -> KIRExprID {
-        let resultType = module.arena.exprType(result)
-        let resultIsErased = resultType.map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
-        guard resultIsErased, let types = ctx.sema?.types,
-              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx)
-        else {
-            return returnedExpr
-        }
-        let boxed = module.arena.appendTemporary(type: resultType ?? types.anyType)
-        body.append(.call(
-            symbol: nil,
-            callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-            arguments: [returnedExpr],
-            result: boxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return boxed
-    }
-
-    private func boxPrimitiveArgumentsForErasedParameters(
-        arguments: [KIRExprID],
-        inlineTarget: KIRFunction,
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        guard arguments.count == inlineTarget.params.count, let types = ctx.sema?.types else {
-            return arguments
-        }
-        var boxed = arguments
-        for index in arguments.indices {
-            guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(arguments[index]), ctx: ctx
-                  )
-            else {
-                continue
-            }
-            let boxedResult = module.arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [arguments[index]],
-                result: boxedResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            boxed[index] = boxedResult
-        }
-        return boxed
-    }
-
-    private func unboxErasedInlineResultIfNeeded(
-        returnedExpr: KIRExprID,
-        result: KIRExprID,
-        inlineTarget: KIRFunction,
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> KIRExprID {
-        guard usesErasedLambdaABI(inlineTarget, ctx: ctx),
-              isErasedType(inlineTarget.returnType, ctx: ctx),
-              let resultType = module.arena.exprType(result),
-              let primitive = nonNullPrimitiveKind(of: resultType, ctx: ctx),
-              nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx) == nil
-        else {
-            return returnedExpr
-        }
-        let unboxed = module.arena.appendTemporary(type: resultType)
-        body.append(.call(
-            symbol: nil,
-            callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
-            arguments: [returnedExpr],
-            result: unboxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return unboxed
-    }
-
     private func expandInlineCall(
         inlineTarget: KIRFunction,
         arguments: [KIRExprID],
@@ -915,22 +518,26 @@ final class InlineLoweringPass: LoweringPass {
 
         let parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
 
-        let typeParamTokenValues = buildTypeParamTokenValues(
+        let typeParamTokenValues = InlineReifiedTypeTokens.buildTypeParamTokenValues(
             inlineTarget: inlineTarget,
             parameterValues: parameterValues,
             ctx: ctx
         )
-        let inlineTypeSubstitution = buildInlineTypeSubstitution(
+        let inlineTypeSubstitution = InlineTypeSubstitution.build(
             inlineTarget: inlineTarget,
             arguments: arguments,
             module: module,
             ctx: ctx
         )
-        let substitutedInlineReturnType = substituteInlineType(
-            inlineTarget.returnType,
-            using: inlineTypeSubstitution,
-            ctx: ctx
-        )
+        // Keep expression cloning independent from the type-substitution
+        // mapping by passing only the operation it needs.
+        func substituteType(_ type: TypeID?) -> TypeID? {
+            inlineTypeSubstitution?.applying(to: type, in: ctx) ?? type
+        }
+        let substitutedInlineReturnType = inlineTypeSubstitution?.applying(
+            to: inlineTarget.returnType,
+            in: ctx
+        ) ?? inlineTarget.returnType
 
         // Build a set of parameter symbols that have function types so we can
         // detect calls to lambda parameters inside the inline body.
@@ -960,7 +567,7 @@ final class InlineLoweringPass: LoweringPass {
         // A body restored from a library's inline KIR was ABI-lowered when that
         // library was built: it passes and receives every erased value boxed,
         // and its instructions carry no expr types to detect that from.
-        let erasedExpansionABI = usesErasedLambdaABI(inlineTarget, ctx: ctx)
+        let erasedExpansionABI = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var unitResultAliasExprs: Set<KIRExprID> = []
@@ -1025,8 +632,8 @@ final class InlineLoweringPass: LoweringPass {
             case let .jumpIfEqual(lhs, rhs, target):
                 lowered.append(
                     .jumpIfEqual(
-                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: resolveAlias(of: rhs, aliases: localExprMap),
+                        lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap),
                         target: labelRemap[target] ?? target
                     )
                 )
@@ -1047,7 +654,7 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .returnValue(value):
                 hasNormalReturn = true
-                let resolved = resolveAlias(of: value, aliases: localExprMap)
+                let resolved = InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)
                 if needsInlineMergeLabel, let dest = inlineMergeResult {
                     lowered.append(.copy(from: resolved, to: dest))
                     lowered.append(.jump(inlineExitLabel))
@@ -1065,7 +672,7 @@ final class InlineLoweringPass: LoweringPass {
                 // to a real return from the enclosing function.
                 hasNonLocalReturn = true
                 if let value {
-                    lowered.append(.nonLocalReturn(resolveAlias(of: value, aliases: localExprMap)))
+                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
                 } else {
                     lowered.append(.nonLocalReturn(nil))
                 }
@@ -1081,19 +688,19 @@ final class InlineLoweringPass: LoweringPass {
                    let captureArgs = module.arena.lambdaCaptureArgsBySymbol[symbol],
                    !captureArgs.isEmpty
                 {
-                    let resolvedCaptureArgs = captureArgs.map { resolveAlias(of: $0, aliases: localExprMap) }
+                    let resolvedCaptureArgs = captureArgs.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                     module.arena.registerLambdaCaptureArgs(symbol, captureArgs: resolvedCaptureArgs)
                 }
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 lowered.append(
                     .binary(
                         op: op,
-                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: resolveAlias(of: rhs, aliases: localExprMap),
+                        lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap),
                         result: loweredResult
                     )
                 )
@@ -1116,7 +723,7 @@ final class InlineLoweringPass: LoweringPass {
                        callerBody: callerBody
                    )
                 {
-                    let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                    let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                     let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
                     let valueArgs: [KIRExprID]
                     if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"]
@@ -1126,7 +733,7 @@ final class InlineLoweringPass: LoweringPass {
                     } else {
                         valueArgs = resolvedArgs
                     }
-                    let fullArgs = unboxErasedLambdaArguments(
+                    let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + valueArgs,
                         lambdaFunction: lambdaFunction,
                         module: module,
@@ -1144,12 +751,17 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
                             {
-                                localExprMap[result] = boxErasedLambdaResultIfNeeded(
+                                localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
                                     module: module,
@@ -1172,7 +784,7 @@ final class InlineLoweringPass: LoweringPass {
                 // If that symbol still carries capture arguments in the callee's
                 // local alias map, inline its body here as well so returned
                 // function values preserve their captures.
-                let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                 if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let lambdaFunction = resolveLambdaFunction(
@@ -1183,8 +795,8 @@ final class InlineLoweringPass: LoweringPass {
                    )
                 {
                     let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
-                        .map { resolveAlias(of: $0, aliases: localExprMap) }
-                    let fullArgs = unboxErasedLambdaArguments(
+                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                    let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + Array(resolvedArgs.dropFirst()),
                         lambdaFunction: lambdaFunction,
                         module: module,
@@ -1202,12 +814,17 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
                             {
-                                localExprMap[result] = boxErasedLambdaResultIfNeeded(
+                                localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
                                     module: module,
@@ -1227,12 +844,12 @@ final class InlineLoweringPass: LoweringPass {
                 }
 
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 }
-                var loweredArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                var loweredArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
 
                 // The nullable seed branch of bundled `generateSequence` can
                 // leave the bridge argument typed only as `T` after inlining.
@@ -1244,11 +861,7 @@ final class InlineLoweringPass: LoweringPass {
                    let substitutedSeedType: TypeID? = {
                        if let seedType = module.arena.exprType(seed),
                           case .typeParam = types.kind(of: seedType),
-                          let substituted = substituteInlineType(
-                              seedType,
-                              using: inlineTypeSubstitution,
-                              ctx: ctx
-                          ),
+                          let substituted = inlineTypeSubstitution?.applying(to: seedType, in: ctx),
                           substituted != seedType
                        {
                            return substituted
@@ -1258,9 +871,7 @@ final class InlineLoweringPass: LoweringPass {
                        // branch. `generateSequence` has one type parameter, so
                        // its inline substitution is still an unambiguous source
                        // of the concrete seed type in that representation.
-                       guard let inlineTypeSubstitution,
-                             inlineTypeSubstitution.substitution.count == 1,
-                             let substituted = inlineTypeSubstitution.substitution.values.first
+                       guard let substituted = inlineTypeSubstitution?.soleSubstitutedType
                        else {
                            return nil
                        }
@@ -1282,10 +893,10 @@ final class InlineLoweringPass: LoweringPass {
                 // function value whose adapter speaks the erased convention.
                 // Substituting concrete type arguments turned the values that
                 // meet the invoke into plain primitives; re-erase them.
-                let erasedInvoke = Self.erasedFunctionInvokeCallees
+                let erasedInvoke = InlineErasedLambdaABI.erasedFunctionInvokeCallees
                     .contains(ctx.interner.resolve(callee))
                 let erasedInvokeReturnType = erasedInvoke
-                    ? importedLambdaInvokeReturnType(
+                    ? InlineErasedLambdaABI.importedLambdaInvokeReturnType(
                         inlineTarget: inlineTarget,
                         typeSubstitution: inlineTypeSubstitution,
                         ctx: ctx
@@ -1297,7 +908,7 @@ final class InlineLoweringPass: LoweringPass {
                     module.arena.setExprType(erasedInvokeReturnType, for: loweredResult)
                 }
                 if erasedInvoke {
-                    loweredArgs = boxSubstitutedErasedArguments(
+                    loweredArgs = InlineErasedLambdaABI.boxSubstitutedErasedArguments(
                         originalArguments: args,
                         loweredArguments: loweredArgs,
                         module: module,
@@ -1306,7 +917,7 @@ final class InlineLoweringPass: LoweringPass {
                     )
                 }
                 if erasedInvoke, let result, let loweredResult,
-                   let unboxCallee = substitutedErasedResultUnboxingCallee(
+                   let unboxCallee = InlineErasedLambdaABI.substitutedErasedResultUnboxingCallee(
                        originalResult: result,
                        loweredResult: loweredResult,
                        expectedType: erasedInvokeReturnType,
@@ -1338,7 +949,7 @@ final class InlineLoweringPass: LoweringPass {
                     break
                 }
                 let normalizedArgs = erasedExpansionABI
-                    ? unboxErasedArithmeticArgumentsIfNeeded(
+                    ? InlineErasedLambdaABI.unboxErasedArithmeticArgumentsIfNeeded(
                         callee: callee,
                         arguments: loweredArgs,
                         module: module,
@@ -1361,17 +972,17 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 }
                 lowered.append(
                     .virtualCall(
                         symbol: symbol,
                         callee: callee,
-                        receiver: resolveAlias(of: receiver, aliases: localExprMap),
-                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        receiver: InlineExprAliasing.resolveAlias(of: receiver, aliases: localExprMap),
+                        arguments: args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) },
                         result: loweredResult,
                         canThrow: canThrow,
                         thrownResult: loweredThrownResult,
@@ -1382,34 +993,33 @@ final class InlineLoweringPass: LoweringPass {
             case let .returnIfEqual(lhs, rhs):
                 lowered.append(
                     .returnIfEqual(
-                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: resolveAlias(of: rhs, aliases: localExprMap)
+                        lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap)
                     )
                 )
 
             case let .jumpIfNotNull(value, target):
                 lowered.append(
                     .jumpIfNotNull(
-                        value: resolveAlias(of: value, aliases: localExprMap),
+                        value: InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap),
                         target: labelRemap[target] ?? target
                     )
                 )
 
             case let .copy(from, to):
-                let resolvedFrom = resolveAlias(of: from, aliases: localExprMap)
+                let resolvedFrom = InlineExprAliasing.resolveAlias(of: from, aliases: localExprMap)
                 // A branch-merged slot is written by multiple arms and may be
                 // read after the merge. Give its first write a stable caller
                 // expression so a later call using the same serialized KIR ID
                 // cannot be cloned into a different, branch-local value.
                 var resolvedTo = mergeSlotExprs.contains(to)
-                    ? cloneOrReuseExpr(
+                    ? InlineExprCloning.cloneOrReuseExpr(
                         to,
                         localExprMap: &localExprMap,
-                        module: module,
-                        typeSubstitution: inlineTypeSubstitution,
-                        ctx: ctx
+                        in: module.arena,
+                        substituteType: substituteType
                     )
-                    : resolveAlias(of: to, aliases: localExprMap)
+                    : InlineExprAliasing.resolveAlias(of: to, aliases: localExprMap)
                 if !mergeSlotExprs.contains(to),
                    let fromType = module.arena.exprType(resolvedFrom),
                    shouldRetypeInlineCopyTarget(
@@ -1453,35 +1063,35 @@ final class InlineLoweringPass: LoweringPass {
             case let .storeGlobal(value, symbol):
                 lowered.append(
                     .storeGlobal(
-                        value: resolveAlias(of: value, aliases: localExprMap),
+                        value: InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap),
                         symbol: symbol
                     )
                 )
 
             case let .loadGlobal(result, symbol):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 lowered.append(.loadGlobal(result: loweredResult, symbol: symbol))
 
             case let .rethrow(value):
                 lowered.append(
-                    .rethrow(value: resolveAlias(of: value, aliases: localExprMap))
+                    .rethrow(value: InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap))
                 )
 
             case let .unary(op, operand, result):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 lowered.append(
                     .unary(
                         op: op,
-                        operand: resolveAlias(of: operand, aliases: localExprMap),
+                        operand: InlineExprAliasing.resolveAlias(of: operand, aliases: localExprMap),
                         result: loweredResult
                     )
                 )
 
             case let .nullAssert(operand, result):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 lowered.append(
                     .nullAssert(
-                        operand: resolveAlias(of: operand, aliases: localExprMap),
+                        operand: InlineExprAliasing.resolveAlias(of: operand, aliases: localExprMap),
                         result: loweredResult
                     )
                 )
@@ -1650,8 +1260,8 @@ final class InlineLoweringPass: LoweringPass {
             case let .jumpIfEqual(lhs, rhs, target):
                 lowered.append(
                     .jumpIfEqual(
-                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: resolveAlias(of: rhs, aliases: localExprMap),
+                        lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap),
                         target: labelRemap[target] ?? target
                     )
                 )
@@ -1669,7 +1279,7 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .returnValue(value):
                 hasNormalReturn = true
-                let resolved = resolveAlias(of: value, aliases: localExprMap)
+                let resolved = InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)
                 if needsMergeLabel, let dest = mergeResult {
                     lowered.append(.copy(from: resolved, to: dest))
                     lowered.append(.jump(exitLabel))
@@ -1685,22 +1295,22 @@ final class InlineLoweringPass: LoweringPass {
                     localExprMap[result] = mapped
                     continue
                 }
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
                 lowered.append(
                     .binary(
                         op: op,
-                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: resolveAlias(of: rhs, aliases: localExprMap),
+                        lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap),
                         result: loweredResult
                     )
                 )
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-                let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                 if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let nestedLambdaFunction = resolveLambdaFunction(
@@ -1711,7 +1321,7 @@ final class InlineLoweringPass: LoweringPass {
                    )
                 {
                     let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[nestedLambdaFunction.symbol] ?? [])
-                        .map { resolveAlias(of: $0, aliases: localExprMap) }
+                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: nestedLambdaFunction,
@@ -1723,7 +1333,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
                                 localExprMap[result] = lambdaReturn
@@ -1737,10 +1352,10 @@ final class InlineLoweringPass: LoweringPass {
                     }
                 }
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
                 }
                 lowered.append(
                     .call(
@@ -1757,17 +1372,17 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
+                    InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
                 }
                 lowered.append(
                     .virtualCall(
                         symbol: symbol,
                         callee: callee,
-                        receiver: resolveAlias(of: receiver, aliases: localExprMap),
-                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        receiver: InlineExprAliasing.resolveAlias(of: receiver, aliases: localExprMap),
+                        arguments: args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) },
                         result: loweredResult,
                         canThrow: canThrow,
                         thrownResult: loweredThrownResult,
@@ -1778,15 +1393,15 @@ final class InlineLoweringPass: LoweringPass {
             case let .returnIfEqual(lhs, rhs):
                 lowered.append(
                     .returnIfEqual(
-                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: resolveAlias(of: rhs, aliases: localExprMap)
+                        lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap)
                     )
                 )
 
             case let .jumpIfNotNull(value, target):
                 lowered.append(
                     .jumpIfNotNull(
-                        value: resolveAlias(of: value, aliases: localExprMap),
+                        value: InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap),
                         target: labelRemap[target] ?? target
                     )
                 )
@@ -1797,42 +1412,42 @@ final class InlineLoweringPass: LoweringPass {
                 // written from more than one branch (`&&`/`||`/`?:`) would
                 // otherwise be cloned by whichever branch happened to be
                 // rewritten into a call first and left dangling in the others.
-                let loweredFrom = resolveAlias(of: from, aliases: localExprMap)
-                let loweredTo = cloneOrReuseExpr(to, localExprMap: &localExprMap, module: module)
+                let loweredFrom = InlineExprAliasing.resolveAlias(of: from, aliases: localExprMap)
+                let loweredTo = InlineExprCloning.cloneOrReuseExpr(to, localExprMap: &localExprMap, in: module.arena)
                 lowered.append(.copy(from: loweredFrom, to: loweredTo))
 
             case let .storeGlobal(value, symbol):
                 lowered.append(
                     .storeGlobal(
-                        value: resolveAlias(of: value, aliases: localExprMap),
+                        value: InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap),
                         symbol: symbol
                     )
                 )
 
             case let .loadGlobal(result, symbol):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
                 lowered.append(.loadGlobal(result: loweredResult, symbol: symbol))
 
             case let .rethrow(value):
                 lowered.append(
-                    .rethrow(value: resolveAlias(of: value, aliases: localExprMap))
+                    .rethrow(value: InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap))
                 )
 
             case let .unary(op, operand, result):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
                 lowered.append(
                     .unary(
                         op: op,
-                        operand: resolveAlias(of: operand, aliases: localExprMap),
+                        operand: InlineExprAliasing.resolveAlias(of: operand, aliases: localExprMap),
                         result: loweredResult
                     )
                 )
 
             case let .nullAssert(operand, result):
-                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
+                let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
                 lowered.append(
                     .nullAssert(
-                        operand: resolveAlias(of: operand, aliases: localExprMap),
+                        operand: InlineExprAliasing.resolveAlias(of: operand, aliases: localExprMap),
                         result: loweredResult
                     )
                 )
@@ -1842,7 +1457,7 @@ final class InlineLoweringPass: LoweringPass {
                 // caller's inlineTransform can convert it to a real return.
                 hasNonLocalReturn = true
                 if let value {
-                    lowered.append(.nonLocalReturn(resolveAlias(of: value, aliases: localExprMap)))
+                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
                 } else {
                     lowered.append(.nonLocalReturn(nil))
                 }
@@ -1868,124 +1483,6 @@ final class InlineLoweringPass: LoweringPass {
         )
     }
 
-    private func buildTypeParamTokenValues(
-        inlineTarget: KIRFunction,
-        parameterValues: [SymbolID: KIRExprID],
-        ctx: KIRContext
-    ) -> [SymbolID: KIRExprID] {
-        guard let sema = ctx.sema,
-              let sig = sema.symbols.functionSignature(for: inlineTarget.symbol),
-              !sig.reifiedTypeParameterIndices.isEmpty
-        else {
-            return [:]
-        }
-        var result: [SymbolID: KIRExprID] = [:]
-        for index in sig.reifiedTypeParameterIndices.sorted() {
-            guard index < sig.typeParameterSymbols.count else { continue }
-            let typeParamSymbol = sig.typeParameterSymbols[index]
-            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParamSymbol)
-            if let tokenArg = parameterValues[tokenSymbol] {
-                result[typeParamSymbol] = tokenArg
-            }
-        }
-        return result
-    }
-
-    private func rewriteInstruction(_ instruction: KIRInstruction, aliases: [KIRExprID: KIRExprID]) -> KIRInstruction {
-        switch instruction {
-        case let .binary(op, lhs, rhs, result):
-            .binary(
-                op: op,
-                lhs: resolveAlias(of: lhs, aliases: aliases),
-                rhs: resolveAlias(of: rhs, aliases: aliases),
-                result: result
-            )
-
-        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-            .call(
-                symbol: symbol,
-                callee: callee,
-                arguments: arguments.map { resolveAlias(of: $0, aliases: aliases) },
-                result: result,
-                canThrow: canThrow,
-                thrownResult: thrownResult,
-                isSuperCall: isSuperCall,
-                qualifiedSuperType: qualifiedSuperType
-            )
-
-        case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-            .virtualCall(
-                symbol: symbol,
-                callee: callee,
-                receiver: resolveAlias(of: receiver, aliases: aliases),
-                arguments: arguments.map { resolveAlias(of: $0, aliases: aliases) },
-                result: result,
-                canThrow: canThrow,
-                thrownResult: thrownResult,
-                dispatch: dispatch
-            )
-
-        case let .returnValue(value):
-            .returnValue(resolveAlias(of: value, aliases: aliases))
-
-        case let .nonLocalReturn(value):
-            .nonLocalReturn(value.map { resolveAlias(of: $0, aliases: aliases) })
-
-        case let .returnIfEqual(lhs, rhs):
-            .returnIfEqual(
-                lhs: resolveAlias(of: lhs, aliases: aliases),
-                rhs: resolveAlias(of: rhs, aliases: aliases)
-            )
-
-        case let .jumpIfEqual(lhs, rhs, target):
-            .jumpIfEqual(
-                lhs: resolveAlias(of: lhs, aliases: aliases),
-                rhs: resolveAlias(of: rhs, aliases: aliases),
-                target: target
-            )
-
-        case let .jumpIfNotNull(value, target):
-            .jumpIfNotNull(
-                value: resolveAlias(of: value, aliases: aliases),
-                target: target
-            )
-
-        case let .copy(from, to):
-            .copy(
-                from: resolveAlias(of: from, aliases: aliases),
-                to: resolveAlias(of: to, aliases: aliases)
-            )
-
-        case let .rethrow(value):
-            .rethrow(value: resolveAlias(of: value, aliases: aliases))
-
-        case let .unary(op, operand, result):
-            .unary(
-                op: op,
-                operand: resolveAlias(of: operand, aliases: aliases),
-                result: result
-            )
-
-        case let .nullAssert(operand, result):
-            .nullAssert(
-                operand: resolveAlias(of: operand, aliases: aliases),
-                result: result
-            )
-
-        case let .storeGlobal(value, symbol):
-            .storeGlobal(
-                value: resolveAlias(of: value, aliases: aliases),
-                symbol: symbol
-            )
-
-        case .loadGlobal:
-            instruction
-
-        default:
-            instruction
-        }
-    }
-
     /// Whether any instruction in `instructions` defines `expr` — including
     /// `copy` destinations and `thrownResult` slots, matching the register-def
     /// notion used by `KIRVerifier`'s undefined-read check.
@@ -2007,230 +1504,6 @@ final class InlineLoweringPass: LoweringPass {
                 false
             }
         }
-    }
-
-    private func definedResult(in instruction: KIRInstruction) -> KIRExprID? {
-        switch instruction {
-        case let .constValue(result, _):
-            result
-        case let .binary(_, _, _, result):
-            result
-        case let .call(_, _, _, result, _, _, _, _):
-            result
-        case let .virtualCall(_, _, _, _, result, _, _, _):
-            result
-        case let .unary(_, _, result):
-            result
-        case let .nullAssert(_, result):
-            result
-        case let .loadGlobal(result, _):
-            result
-        default:
-            nil
-        }
-    }
-
-    private func resolveAlias(of expr: KIRExprID, aliases: [KIRExprID: KIRExprID]) -> KIRExprID {
-        var current = expr
-        var visited: Set<KIRExprID> = []
-        while let next = aliases[current], visited.insert(current).inserted {
-            if next == current {
-                break
-            }
-            current = next
-        }
-        return current
-    }
-
-    /// Clones `source` into a fresh caller-scoped expression the first time it is
-    /// encountered within a single inline expansion, and returns that same clone
-    /// for every later occurrence of `source`. It is also used for `result` so
-    /// that imported inline-KIR bodies (which are serialized after lowerings such
-    /// as `IntegerNarrowingPass` and may reuse a single `KIRExprID` as a mutable
-    /// loop variable) preserve writes across back-edges. `thrownResult` is
-    /// routed this way because it is the field where the callee's own KIR
-    /// intentionally reuses one physical expression -- a try/catch's shared
-    /// exception slot -- as the `thrownResult` of every protected call inside the
-    /// same try body (see ControlFlowLowerer.appendThrowAwareInstructions, which
-    /// rewrites each protected call's `thrownResult` to the same pre-allocated
-    /// `exceptionSlot`, while leaving `result` untouched). Cloning that slot
-    /// independently on each occurrence would fragment one physical register into
-    /// several disconnected ones, losing track of writes made through earlier
-    /// clones.
-    private func cloneOrReuseExpr(
-        _ source: KIRExprID,
-        localExprMap: inout [KIRExprID: KIRExprID],
-        module: KIRModule,
-        typeSubstitution: InlineTypeSubstitution?,
-        ctx: KIRContext
-    ) -> KIRExprID {
-        if let existing = localExprMap[source] {
-            return existing
-        }
-        let cloned = cloneExpr(source, in: module.arena, typeSubstitution: typeSubstitution, ctx: ctx)
-        localExprMap[source] = cloned
-        return cloned
-    }
-
-    /// Lambda-body variant of `cloneOrReuseExpr(_:localExprMap:module:typeSubstitution:ctx:)`
-    /// (lambda expansion has no inline type substitution to apply).
-    private func cloneOrReuseExpr(
-        _ source: KIRExprID,
-        localExprMap: inout [KIRExprID: KIRExprID],
-        module: KIRModule
-    ) -> KIRExprID {
-        if let existing = localExprMap[source] {
-            return existing
-        }
-        let cloned = cloneExpr(source, in: module.arena)
-        localExprMap[source] = cloned
-        return cloned
-    }
-
-    private func buildInlineTypeSubstitution(
-        inlineTarget: KIRFunction,
-        arguments: [KIRExprID],
-        module: KIRModule,
-        ctx: KIRContext
-    ) -> InlineTypeSubstitution? {
-        guard let sema = ctx.sema,
-              let signature = sema.symbols.functionSignature(for: inlineTarget.symbol),
-              !signature.typeParameterSymbols.isEmpty
-        else {
-            return nil
-        }
-
-        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        var substitution: [TypeVarID: TypeID] = [:]
-        for (parameter, argument) in zip(inlineTarget.params, arguments) {
-            guard let argumentType = module.arena.exprType(argument) else {
-                continue
-            }
-            collectInlineTypeSubstitution(
-                expected: parameter.type,
-                actual: argumentType,
-                sema: sema,
-                typeVarBySymbol: typeVarBySymbol,
-                substitution: &substitution
-            )
-        }
-        guard !substitution.isEmpty else {
-            return nil
-        }
-        return InlineTypeSubstitution(substitution: substitution, typeVarBySymbol: typeVarBySymbol)
-    }
-
-    private func collectInlineTypeSubstitution(
-        expected: TypeID,
-        actual: TypeID,
-        sema: SemaModule,
-        typeVarBySymbol: [SymbolID: TypeVarID],
-        substitution: inout [TypeVarID: TypeID]
-    ) {
-        switch sema.types.kind(of: expected) {
-        case let .typeParam(typeParam):
-            guard let typeVar = typeVarBySymbol[typeParam.symbol],
-                  substitution[typeVar] == nil
-            else {
-                return
-            }
-            substitution[typeVar] = actual
-
-        case let .classType(expectedClass):
-            guard let actualClass = resolveClassType(actual, sema: sema),
-                  expectedClass.classSymbol == actualClass.classSymbol
-            else {
-                return
-            }
-            for (expectedArg, actualArg) in zip(expectedClass.args, actualClass.args) {
-                guard let expectedInner = inlineTypeArgPayload(expectedArg),
-                      let actualInner = inlineTypeArgPayload(actualArg)
-                else {
-                    continue
-                }
-                collectInlineTypeSubstitution(
-                    expected: expectedInner,
-                    actual: actualInner,
-                    sema: sema,
-                    typeVarBySymbol: typeVarBySymbol,
-                    substitution: &substitution
-                )
-            }
-
-        case let .functionType(expectedFunction):
-            guard case let .functionType(actualFunction) = sema.types.kind(of: sema.types.makeNonNullable(actual)) else {
-                return
-            }
-            if let expectedReceiver = expectedFunction.receiver,
-               let actualReceiver = actualFunction.receiver
-            {
-                collectInlineTypeSubstitution(
-                    expected: expectedReceiver,
-                    actual: actualReceiver,
-                    sema: sema,
-                    typeVarBySymbol: typeVarBySymbol,
-                    substitution: &substitution
-                )
-            }
-            for (expectedParam, actualParam) in zip(expectedFunction.params, actualFunction.params) {
-                collectInlineTypeSubstitution(
-                    expected: expectedParam,
-                    actual: actualParam,
-                    sema: sema,
-                    typeVarBySymbol: typeVarBySymbol,
-                    substitution: &substitution
-                )
-            }
-            collectInlineTypeSubstitution(
-                expected: expectedFunction.returnType,
-                actual: actualFunction.returnType,
-                sema: sema,
-                typeVarBySymbol: typeVarBySymbol,
-                substitution: &substitution
-            )
-
-        case let .kClassType(expectedKClass):
-            guard case let .kClassType(actualKClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)) else {
-                return
-            }
-            collectInlineTypeSubstitution(
-                expected: expectedKClass.argument,
-                actual: actualKClass.argument,
-                sema: sema,
-                typeVarBySymbol: typeVarBySymbol,
-                substitution: &substitution
-            )
-
-        default:
-            return
-        }
-    }
-
-    private func inlineTypeArgPayload(_ arg: TypeArg) -> TypeID? {
-        switch arg {
-        case let .invariant(type), let .out(type), let .in(type):
-            return type
-        case .star:
-            return nil
-        }
-    }
-
-    private func substituteInlineType(
-        _ type: TypeID?,
-        using inlineTypeSubstitution: InlineTypeSubstitution?,
-        ctx: KIRContext
-    ) -> TypeID? {
-        guard let type,
-              let inlineTypeSubstitution,
-              let sema = ctx.sema
-        else {
-            return type
-        }
-        return sema.types.substituteTypeParameters(
-            in: type,
-            substitution: inlineTypeSubstitution.substitution,
-            typeVarBySymbol: inlineTypeSubstitution.typeVarBySymbol
-        )
     }
 
     private func isInlineUnitType(_ type: TypeID, ctx: KIRContext) -> Bool {
@@ -2290,24 +1563,22 @@ final class InlineLoweringPass: LoweringPass {
         return true
     }
 
-    private func cloneExpr(
-        _ source: KIRExprID,
-        in arena: KIRArena,
-        typeSubstitution: InlineTypeSubstitution?,
-        ctx: KIRContext
-    ) -> KIRExprID {
-        let fallback = KIRExprKind.temporary(Int32(arena.expressions.count))
-        return arena.appendExpr(
-            arena.expr(source) ?? fallback,
-            type: substituteInlineType(arena.exprType(source), using: typeSubstitution, ctx: ctx)
-        )
+    /// Splice a lambda expansion in place of a call that already owns a local
+    /// exception slot, routing the lambda body's throws into that slot so the
+    /// surrounding inline try/catch can observe them.
+    private func appendInlinedLambdaExpansion(
+        _ lambdaExpansion: InlineExpansion,
+        callThrownResult: KIRExprID?,
+        localExprMap: [KIRExprID: KIRExprID],
+        into lowered: inout KIRLoweringEmitContext
+    ) {
+        let routedSlot = callThrownResult.map {
+            InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap)
+        }
+        lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(
+            in: lambdaExpansion.instructions,
+            thrownSlot: routedSlot
+        ))
     }
 
-    private func cloneExpr(_ source: KIRExprID, in arena: KIRArena) -> KIRExprID {
-        let type = arena.exprType(source)
-        guard let expr = arena.expr(source) else {
-            return arena.appendTemporary(type: type)
-        }
-        return arena.appendExpr(expr, type: type)
-    }
 }

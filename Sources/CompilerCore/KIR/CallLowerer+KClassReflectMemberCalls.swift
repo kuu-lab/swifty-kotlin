@@ -4,8 +4,8 @@
 /// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
 /// class-kind flags/`members`/`constructors`/etc. now resolve as ordinary
 /// Kotlin extension declarations
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt,
-/// KClassMemberIntrospection.kt) through the normal member-call path.
+/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
+/// through the normal member-call path.
 ///
 /// `findAnnotation<T>()` / `findAssociatedObject<T>()` take a reified type
 /// argument, which this compiler only supports via a small compiler-side
@@ -193,7 +193,7 @@ extension CallLowerer {
             )
 
         // KSP-496: `properties` stays a compiler special case — see the NOTE in
-        // KClassMemberIntrospection.kt for why.
+        // KClasses.kt for why.
         case "properties":
             return emitRuntimeCall(
                 callee: "__kk_kclass_properties",

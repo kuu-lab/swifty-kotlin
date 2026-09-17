@@ -1,3 +1,3 @@
 package golden.sema
 
-fun newHexFormatBuilder() = HexFormat.Builder()
+fun newHexFormatBuilder() = kotlin.text.HexFormat.Builder()

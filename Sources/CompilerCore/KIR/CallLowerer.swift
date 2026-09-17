@@ -126,6 +126,21 @@ final class CallLowerer {
             canThrow = false
         } else if let firstArg = finalArgIDs.first,
                   let firstArgType,
+                  let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+                  sema.types.isSubtype(
+                      sema.types.makeNonNullable(firstArgType),
+                      sema.types.make(.classType(ClassType(
+                          classSymbol: charSequenceSymbol,
+                          args: [],
+                          nullability: .nonNull
+                      )))
+                  )
+        {
+            runtimeCallee = interner.intern("__kk_string_builder_new_from_char_sequence")
+            runtimeArgs = [firstArg]
+            canThrow = false
+        } else if let firstArg = finalArgIDs.first,
+                  let firstArgType,
                   sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.intType)
         {
             // BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body
@@ -791,6 +806,7 @@ final class CallLowerer {
                 callBinding: callBinding,
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),
+                sourceArgExprs: args.map(\.expr),
                 ast: ast,
                 sema: sema,
                 arena: arena,
@@ -810,6 +826,7 @@ final class CallLowerer {
         }
         var finalArgIDs = callNormalized.arguments
         var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
+        var implicitReceiverRuntimeCallee: InternedString?
         // Compiler-generated lambdas/local functions use the compiler ABI
         // (including the hidden thrown channel), so route them through their
         // lowered symbol directly instead of Swift closure helpers.
@@ -845,6 +862,24 @@ final class CallLowerer {
            isAtomicFactory,
            !hasFunctionValueParameter(chosen, sema: sema)
         {
+            // This factory bridge allocates and returns the object itself (KUU-548):
+            // it never goes through the constructor branch below, so a function-typed
+            // argument stored into one of its erased type-param slots (e.g. Pair's
+            // `first: A`) would otherwise reach `__kk_pair_new` as a bare, unwrapped
+            // lambda symbolRef -- the same erased-boundary wrapping every other
+            // typeParam-typed argument gets here. `finalArgIDs` holds plain value
+            // arguments here (no `kk_object_new`-allocated `this` prepended, unlike
+            // the constructor branch below), so index by position with no offset.
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArgIDs,
+                valueArgOffsetOverride: 0
+            )
             return lowerAtomicScalarConstructorCall(
                 constructorSymbol: chosen,
                 finalArgIDs: finalArgIDs,
@@ -1028,6 +1063,20 @@ final class CallLowerer {
             }
             if let implicitReceiver {
                 finalArgIDs.insert(implicitReceiver, at: 0)
+                // Runtime-backed MutableSet values (including collection
+                // builder receivers) do not carry a Kotlin itable for the
+                // source-backed default mutation members. Resolve those
+                // implicit calls to their demoted ABI bridges before the
+                // generic virtual-dispatch path is selected.
+                implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(
+                    memberName: interner.resolve(sourceCalleeName),
+                    receiverType: arena.exprType(implicitReceiver)
+                        ?? signature.receiverType
+                        ?? sema.types.anyType,
+                    chosenCallee: chosen,
+                    sema: sema,
+                    interner: interner
+                )
             }
             // An unqualified `compute()` inside a member body is `this.compute()`
             // and must dispatch through the receiver's vtable/itable exactly like
@@ -1036,6 +1085,7 @@ final class CallLowerer {
             // SequenceScope calls use runtime-owned builder receivers, so their
             // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
+               implicitReceiverRuntimeCallee == nil,
                sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
@@ -1200,6 +1250,8 @@ final class CallLowerer {
                       )
             {
                 sequenceBuilderCallee
+            } else if let implicitReceiverRuntimeCallee {
+                implicitReceiverRuntimeCallee
             } else if let chosen,
                                                        let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                                                        !externalLinkName.isEmpty
@@ -1351,6 +1403,8 @@ final class CallLowerer {
             return interner.intern("kk_function_invoke_3")
         case 4:
             return interner.intern("kk_function_invoke_4")
+        case 5:
+            return interner.intern("kk_function_invoke_5")
         default:
             return nil
         }
@@ -1377,6 +1431,7 @@ final class CallLowerer {
             "__kk_mutable_set_add",
             "__kk_mutable_map_put",
             "__kk_enum_entries_get",
+            "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
         ].contains(name)
     }
@@ -1392,7 +1447,9 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "__kk_synchronized",
             "__kk_enum_entries_get",
+            "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
+            "__kk_mutable_set_add",
         ].contains(interner.resolve(calleeName))
     }
 
@@ -1755,7 +1812,12 @@ final class CallLowerer {
         case ("toUInt", sema.types.charType, sema.types.uintType): nil
         case ("toUInt", sema.types.byteType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.shortType, sema.types.uintType): interner.intern("kk_int_to_uint")
-        case ("toUInt", sema.types.uintType, sema.types.uintType), ("toUInt", sema.types.ulongType, sema.types.uintType): nil
+        case ("toUInt", sema.types.uintType, sema.types.uintType): nil
+        // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the high
+        // bits away; reuse kk_long_to_uint (same raw-register representation,
+        // already truncates via UInt32(truncatingIfNeeded:)) rather than the
+        // representation-preserving identity this wrongly used before.
+        case ("toUInt", sema.types.ulongType, sema.types.uintType): interner.intern("kk_long_to_uint")
         case ("toULong", sema.types.intType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.longType, sema.types.ulongType): interner.intern("kk_long_to_ulong")
         case ("toULong", sema.types.ubyteType, sema.types.ulongType): interner.intern("kk_ubyte_to_ulong")

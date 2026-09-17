@@ -117,6 +117,31 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
     }
 
     @Test
+    func testUnsignedToStringRadixBoundaries() throws {
+        let source = try diffCaseSource("unsigned_toString_radix.kt")
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedToStringRadixBoundaries",
+            expected: """
+            0
+            0
+            ff
+            ff
+            ffffffff
+            8000000000000000
+            1111111111111111111111111111111111111111111111111111111111111111
+            11111111
+            377
+            1ekf
+            invalid
+            invalid
+            invalid
+            invalid
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testUnsignedStringTemplateHighBitSetULong() throws {
         let source = """
         fun main() {
