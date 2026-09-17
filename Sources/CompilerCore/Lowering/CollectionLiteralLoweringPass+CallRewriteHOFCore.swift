@@ -101,11 +101,11 @@ extension CollectionLiteralConstructionLoweringPass {
                     closureRawID = zeroExpr
                 }
                 let isCharRange = state.charRangeExprIDs.contains(receiverID.rawValue)
-                let isULongRange = state.ulongRangeExprIDs.contains(receiverID.rawValue)
                 let kkName: InternedString
                 if callee == lookup.mapName {
-                    // STDLIB-RANGE-037: use ULong-specific map for unsigned ranges
-                    kkName = isULongRange ? lookup.kkULongRangeMapName : lookup.kkRangeMapName
+                    // KSP-1527: ULongRange.map is source-backed in RangeHOF.kt;
+                    // kk_ulong_range_map no longer exists in Runtime.
+                    kkName = lookup.kkRangeMapName
                 } else {
                     // forEach: source-backed for ULongRange since KSP-1528; use char
                     // or default range variant otherwise.

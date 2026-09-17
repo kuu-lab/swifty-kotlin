@@ -86,8 +86,12 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Char") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Math") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
+        // KUU-586: all kotlin.math APIs are bundled Kotlin source (Math.kt); the
+        // residual entry point only anchors Byte/Long/Short nominal + Companion
+        // symbols for bundled Companion extensions, which is (c) language-core.
+        // Kept at the former "Math" slot to preserve registration order.
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "PrimitiveCompanionAnchors") { phase, symbols, types, interner, _ in
+            phase.registerSyntheticPrimitiveCompanionAnchors(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coroutine") { phase, symbols, types, interner, context in
             phase.registerSyntheticCoroutineStubs(

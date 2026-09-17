@@ -45,8 +45,8 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
-        // STDLIB-021: Iterable mutable conversion members are registered later once
-        // MutableList / MutableSet stubs exist — see calls below after those stubs.
+        // STDLIB-021: Iterable mutable conversion members are registered later
+        // once MutableList / MutableSet symbols exist — see calls below.
 
         let collectionInterfaceSymbol = registerSyntheticCollectionStub(
             symbols: symbols, types: types, interner: interner,
@@ -106,20 +106,10 @@ extension DataFlowSemaPhase {
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
 
-        let setInterfaceSymbol = registerSyntheticSetStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
-        )
-
-        registerSyntheticMutableSetStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            setInterfaceSymbol: setInterfaceSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
-            mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
-        )
+        // KSP-704: Set and MutableSet are bundled Kotlin declarations. Their
+        // real nominal headers are predeclared before this residual registry
+        // runs, so the remaining collection bridge registrations can reference
+        // them without recreating the source-backed shell.
         registerMutableCollectionIterableAddAllMembers(
             symbols: symbols,
             types: types,

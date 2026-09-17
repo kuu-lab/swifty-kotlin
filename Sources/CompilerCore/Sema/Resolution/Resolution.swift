@@ -290,7 +290,7 @@ extension OverloadResolver {
             signature: signature,
             typeVarBySymbol: typeVarBySymbol,
             ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
-            typeSystem: ctx.types
+            sema: ctx
         ) else {
             return .rejected
         }
@@ -516,8 +516,9 @@ extension OverloadResolver {
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
-        typeSystem: TypeSystem
+        sema: SemaModule
     ) -> Bool {
+        let typeSystem = sema.types
         let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
         var processedAll = true
         for argIndex in call.args.indices {
@@ -533,13 +534,23 @@ extension OverloadResolver {
             let arg = call.args[argIndex]
             let argType = arg.type
 
-            // When a spread argument (*array) is passed to a vararg parameter,
-            // the argument type is an array/collection type (e.g. Array<String>,
-            // IntArray) while the parameter type is the element type (String, Int).
-            // Skip the type constraint for spread arguments — the parameter mapping
-            // already verified this maps to a vararg param and the runtime handles
-            // the concatenation via kk_vararg_spread_concat.
+            // A spread argument contributes the element type of its array to
+            // the vararg parameter. Recover that type when possible so
+            // overloads such as `split(*arrayOf("..."))` and
+            // `split(*charArrayOf('...'))` are distinguished by the resolver.
+            // Keep the historical unconstrained fallback for synthetic or
+            // incomplete test types whose array shape cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
+                if let elementType = spreadArgumentElementType(argType, sema: sema) {
+                    let decomposed = decomposeSubtypeConstraint(
+                        subtype: elementType,
+                        supertype: paramType,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: call.range
+                    )
+                    constraints.append(contentsOf: decomposed)
+                }
                 continue
             }
 
@@ -569,6 +580,52 @@ extension OverloadResolver {
             return !(constraints.isEmpty && !call.args.isEmpty)
         }
         return true
+    }
+
+    /// Returns the source-level element type represented by a spread argument.
+    /// Generic `Array<T>`/collection types carry the element in their first type
+    /// argument; primitive arrays (notably `CharArray`) require the interner to
+    /// identify the nominal class.
+    private func spreadArgumentElementType(_ type: TypeID, sema: SemaModule) -> TypeID? {
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return nil
+        }
+        if let firstArgument = classType.args.first {
+            switch firstArgument {
+            case let .invariant(element), let .out(element), let .in(element):
+                return element
+            case .star:
+                return sema.types.nullableAnyType
+            }
+        }
+        guard let interner = sema.interner else {
+            return nil
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        switch symbol.name {
+        case knownNames.intArray, knownNames.shortArray, knownNames.byteArray:
+            return sema.types.intType
+        case knownNames.longArray:
+            return sema.types.longType
+        case knownNames.ubyteArray:
+            return sema.types.ubyteType
+        case knownNames.ushortArray:
+            return sema.types.ushortType
+        case knownNames.uintArray:
+            return sema.types.uintType
+        case knownNames.ulongArray:
+            return sema.types.ulongType
+        case knownNames.doubleArray:
+            return sema.types.doubleType
+        case knownNames.floatArray:
+            return sema.types.floatType
+        case knownNames.booleanArray:
+            return sema.types.booleanType
+        case knownNames.charArray:
+            return sema.types.charType
+        default:
+            return nil
+        }
     }
 
     private func appendLambdaInputConstraintsIgnoringReturn(

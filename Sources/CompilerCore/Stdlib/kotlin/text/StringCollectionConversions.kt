@@ -2,12 +2,14 @@ package kotlin.text
 
 import kswiftk.internal.*
 import kotlin.collections.CharIterator
+import kotlin.collections.HashSet
 import kotlin.collections.IndexedValue
 import kotlin.collections.Iterable
 import kotlin.collections.List
 import kotlin.collections.MutableCollection
 import kotlin.collections.MutableList
 import kotlin.collections.MutableSet
+import kotlin.collections.Set
 import kotlin.collections.emptyList
 import kotlin.collections.mutableListOf
 import kotlin.collections.mutableSetOf
@@ -86,6 +88,18 @@ public fun <C : MutableCollection<in Char>> CharSequence.toCollection(destinatio
         index++
     }
     return destination
+}
+
+public fun CharSequence.toHashSet(): HashSet<Char> {
+    val result = HashSet<Char>()
+    for (element in this) result.add(element)
+    return result
+}
+
+public fun CharSequence.toSet(): Set<Char> {
+    val result = mutableSetOf<Char>()
+    for (element in this) result.add(element)
+    return result
 }
 
 public fun CharSequence.toSortedSet(): MutableSet<Char> {

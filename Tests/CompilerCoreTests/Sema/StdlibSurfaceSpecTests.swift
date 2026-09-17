@@ -41,6 +41,38 @@ struct StdlibSurfaceSpecTests {
         }
     }
 
+    @Test func testCollectionHOFSpecABIShapesMatchLambdaAndThrowingContracts() throws {
+        let specsByName = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+
+        for surface in StdlibSurfaceSpec.collectionHOFMembers {
+            let runtime = try #require(
+                specsByName[surface.runtimeLinkName],
+                "Expected RuntimeABISpec entry for \(surface.runtimeLinkName)"
+            )
+            #expect(runtime.returnType == .intptr, "Collection HOF \(surface.runtimeLinkName) must return a handle")
+
+            let hasThrownChannel = runtime.parameters.last?.type == .nullableIntptrPointer
+            #expect(
+                runtime.isThrowing == hasThrownChannel,
+                "\(surface.runtimeLinkName) throwing flag must agree with its trailing outThrown parameter"
+            )
+
+            switch surface.lambdaExpectation {
+            case .none:
+                break
+            default:
+                #expect(
+                    runtime.parameters.contains { $0.name == "fnPtr" },
+                    "\(surface.runtimeLinkName) must carry a function pointer for its lambda"
+                )
+                #expect(
+                    runtime.parameters.contains { $0.name == "closureRaw" },
+                    "\(surface.runtimeLinkName) must carry the lambda closure handle"
+                )
+            }
+        }
+    }
+
     @Test func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
             list("forEach", 1),

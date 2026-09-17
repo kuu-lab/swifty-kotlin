@@ -44,7 +44,7 @@ private fun String.isBlankLine(): Boolean {
     var i = 0
     while (i < length) {
         val c = this[i]
-        if (c != ' ' && c != '\t') return false
+        if (!c.isWhitespace()) return false
         i++
     }
     return true
@@ -54,7 +54,7 @@ private fun String.leadingWhitespaceCount(): Int {
     var count = 0
     while (count < length) {
         val c = this[count]
-        if (c != ' ' && c != '\t') break
+        if (!c.isWhitespace()) break
         count++
     }
     return count
@@ -64,8 +64,8 @@ private fun String.trimBlankEdges(): List<String> {
     val lines = splitIntoLines()
     var start = 0
     var end = lines.size
-    while (start < end && lines[start].isBlankLine()) start++
-    while (end > start && lines[end - 1].isBlankLine()) end--
+    if (start < end && lines[start].isBlankLine()) start++
+    if (end > start && lines[end - 1].isBlankLine()) end--
     return lines.subList(start, end)
 }
 
@@ -133,10 +133,10 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
     var first = true
     for (line in lines) {
         if (!first) sb.append('\n')
-        val trimmedLeading = line.dropWhile { it == ' ' || it == '\t' }
-        if (trimmedLeading.startsWith(marginPrefix)) {
+        val firstNonWhitespaceIndex = line.indexOfFirst { !it.isWhitespace() }
+        if (firstNonWhitespaceIndex >= 0 && line.startsWith(marginPrefix, firstNonWhitespaceIndex)) {
             sb.append(newIndent)
-            sb.append(trimmedLeading.removePrefix(marginPrefix))
+            sb.append(line.substring(firstNonWhitespaceIndex + marginPrefix.length))
         } else {
             sb.append(line)
         }

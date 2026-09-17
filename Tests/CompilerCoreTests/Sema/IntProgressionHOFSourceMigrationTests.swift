@@ -6,6 +6,54 @@ import Testing
 @Suite
 struct IntProgressionHOFSourceMigrationTests {
     @Test
+    func positiveStepHOFCallsBindToIntProgressionSourceDefinitions() throws {
+        let source = """
+        fun probe() {
+            (1..10 step 3).map { it }
+            (1..10 step 3).filter { it > 4 }
+            val progression = 1..10 step 3
+            progression.map { it * 2 }
+            progression.forEach { _ -> }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected positive-step IntProgression HOFs to type-check: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let expectedReceiver = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("ranges"),
+                ctx.interner.intern("IntProgression"),
+            ]
+            var seenCalls: [String] = []
+
+            for offset in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(offset))
+                guard let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID)
+                else { continue }
+                let memberName = ctx.interner.resolve(callee)
+                guard ["map", "filter", "forEach"].contains(memberName),
+                      let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                      let signature = sema.symbols.functionSignature(for: chosen),
+                      let receiverType = signature.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                else { continue }
+
+                #expect(sema.symbols.isSourceBackedSymbol(chosen))
+                #expect(receiverSymbol.fqName == expectedReceiver, "Unexpected receiver for positive-step \(memberName)")
+                seenCalls.append(memberName)
+            }
+
+            #expect(seenCalls.sorted() == ["filter", "forEach", "map", "map"])
+        }
+    }
+
+    @Test
     func noArgumentFirstAndLastAreSourceDefinitions() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

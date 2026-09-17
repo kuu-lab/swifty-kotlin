@@ -484,17 +484,26 @@ public struct EnumEntryDecl: Codable {
     public let name: InternedString
     public let annotations: [AnnotationNode]
     public let constructorArgs: [CallArgument]
+    /// Functions declared in an enum entry's anonymous class body.
+    ///
+    /// These declarations are kept separate from the enum class members. The
+    /// runtime still represents enum values as ordinals, so the lowering pass
+    /// can synthesize ordinal-based dispatch for overrides without creating a
+    /// second heap-backed representation for enum entries.
+    public let memberFunctions: [DeclID]
 
     public init(
         range: SourceRange,
         name: InternedString,
         annotations: [AnnotationNode] = [],
-        constructorArgs: [CallArgument] = []
+        constructorArgs: [CallArgument] = [],
+        memberFunctions: [DeclID] = []
     ) {
         self.range = range
         self.name = name
         self.annotations = annotations
         self.constructorArgs = constructorArgs
+        self.memberFunctions = memberFunctions
     }
 }
 

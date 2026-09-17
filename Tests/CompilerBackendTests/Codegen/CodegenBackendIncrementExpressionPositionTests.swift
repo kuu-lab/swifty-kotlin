@@ -115,6 +115,43 @@ struct CodegenBackendIncrementExpressionPositionTests {
     }
 
     @Test
+    func testUserDefinedIncrementDecrementUsesOperatorFunctions() throws {
+        let source = """
+        class Vec(val x: Int) {
+            operator fun inc(): Vec = Vec(x + 1)
+            operator fun dec(): Vec = Vec(x - 1)
+            override fun toString(): String = "V$x"
+        }
+
+        fun main() {
+            var w = Vec(1)
+            w++
+            println(w)
+            ++w
+            println(w)
+            w--
+            println(w)
+            val u = w++
+            println("$u $w")
+            val t = --w
+            println("$t $w")
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "UserDefinedIncrementDecrement",
+            expected: """
+            V2
+            V3
+            V2
+            V2 V3
+            V2 V2
+
+            """
+        )
+    }
+
+    @Test
     func testLocalInitializedFromVariableSnapshotsValue() throws {
         let source = """
         fun main() {

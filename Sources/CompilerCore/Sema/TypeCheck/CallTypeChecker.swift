@@ -1980,6 +1980,37 @@ final class CallTypeChecker {
             }
         }
 
+        if let calleeName,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           ["removeAll", "retainAll"].contains(interner.resolve(calleeName)),
+           args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true })
+        {
+            let preferredCandidates = preferImplicitReceiverPredicateCandidates(
+                candidates,
+                args: args,
+                receiverType: implicitReceiverType,
+                ctx: ctx
+            )
+            if !preferredCandidates.isEmpty {
+                candidates = preferredCandidates
+            }
+        }
+
+        if let calleeName,
+           let implicitReceiverResult = tryBindImplicitReceiverCollectionMemberCall(
+               id,
+               calleeName: calleeName,
+               args: args,
+               range: range,
+               ctx: ctx,
+               locals: &locals,
+               expectedType: expectedType,
+               explicitTypeArgs: explicitTypeArgs
+           )
+        {
+            return implicitReceiverResult
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
@@ -2001,6 +2032,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
+            receiverType: ctx.implicitReceiverType,
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals

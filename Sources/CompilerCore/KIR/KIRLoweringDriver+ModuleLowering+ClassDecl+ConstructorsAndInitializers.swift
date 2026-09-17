@@ -188,6 +188,10 @@ extension KIRLoweringDriver {
             return
         }
 
+        let resolvedSuperclassFQName = superclassInfo.fqName.map(compilationCtx.interner.resolve)
+        let isSourceBackedTimeSource =
+            resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
+                || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
         let throwableFQName = [
             compilationCtx.interner.intern("kotlin"),
@@ -196,7 +200,8 @@ extension KIRLoweringDriver {
         let isZeroArgumentThrowableFactory = sema.symbols.externalLinkName(for: superCtorSymbol)
             == "__kk_throwable_new"
             && sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes.isEmpty == true
-        if callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
+        if !isSourceBackedTimeSource,
+           callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
             || isZeroArgumentThrowableFactory
         {
             // Runtime-backed Throwable construction returns its own native box,
@@ -294,9 +299,13 @@ extension KIRLoweringDriver {
         // compatibility without providing a linkable implementation. Imported
         // library declarations also carry the synthetic bit, but their
         // artifact object contains the real constructor body and must remain
-        // callable from a user-defined subclass.
+        // callable from a user-defined subclass. The time-source shells are
+        // source-backed in the bundled stdlib and their constructor initializes
+        // the inherited `unit` field, so retain that delegation even while the
+        // compatibility flag is present.
         guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
             || sema.symbols.isSourceBackedSymbol(superCtorSymbol)
+            || isSourceBackedTimeSource
         else {
             return
         }

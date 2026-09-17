@@ -214,6 +214,51 @@ struct ListSortExtremaLoweringRoutingTests {
         }
     }
 
+    /// KUU-553: the non-generic Float/Double Iterable overloads preserve
+    /// NaN and signed-zero semantics. A List receiver must not be captured by
+    /// the generic List<T> min declarations before those overloads are tried.
+    @Test
+    func floatingPointListMinCallsResolveToIterableSpecializations() throws {
+        let source = """
+        fun main() {
+            println(listOf(3.0, 1.0).min())
+            println(listOf(3.0f, 1.0f).min())
+            println(listOf(3.0, 1.0).minOrNull())
+            println(listOf(3.0f, 1.0f).minOrNull())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "FloatingPointListMinSymbols",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
+            #expect(calls.count == 4, "expected four floating-point min calls; got \(calls.count)")
+
+            for call in calls {
+                let symbolID = try #require(call.symbol, "\(call.name): missing resolved symbol")
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbolID))
+                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                #expect(
+                    ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/Iterables.kt",
+                    "\(call.name) must resolve to the specialized Iterable declaration"
+                )
+                #expect(
+                    signature.typeParameterSymbols.isEmpty,
+                    "\(call.name) must resolve to the non-generic Float/Double overload"
+                )
+            }
+        }
+    }
+
     /// A user function that merely shares one of the names — including on a
     /// `List` receiver, which is what the policy keys off — must be left alone
     /// and must never pick up a `kk_list_*` callee.
