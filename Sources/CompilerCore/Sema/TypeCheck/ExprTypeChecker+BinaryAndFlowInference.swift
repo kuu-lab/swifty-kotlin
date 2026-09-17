@@ -263,6 +263,14 @@ extension ExprTypeChecker {
                     if lhs == charType || rhs == charType {
                         sema.bindings.markCharRangeExpr(id)
                     }
+                    if lhs == sema.types.doubleType || rhs == sema.types.doubleType
+                        || lhs == sema.types.floatType || rhs == sema.types.floatType
+                    {
+                        let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
+                            ? sema.types.floatType
+                            : sema.types.doubleType
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                    }
                 } else {
                     sema.bindings.markRangeExpr(id)
                     if lhs == uintType || sema.bindings.isUIntRangeExpr(lhsID) {

@@ -79,6 +79,22 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        if (op == .rangeTo || op == .rangeUntil),
+           let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
+        {
+            let callee = floatingPointElementType == sema.types.floatType
+                ? interner.intern(op == .rangeTo ? "__kk_float_rangeTo" : "__kk_float_rangeUntil")
+                : interner.intern(op == .rangeTo ? "__kk_double_rangeTo" : "__kk_double_rangeUntil")
+            instructions.append(.call(
+                symbol: nil,
+                callee: callee,
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let isKClassEquality = (op == .equal || op == .notEqual)
             && (
                 isKClassReceiverType(
@@ -687,10 +703,18 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
-            let rangeUntilCallee = if sema.bindings.isULongRangeExpr(exprID) {
-                interner.intern("__kk_op_ulong_rangeUntil")
+            let rangeUntilCallee: InternedString
+            if sema.bindings.isFloatingPointRangeExpr(exprID) {
+                let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
+                if elementType == sema.types.floatType {
+                    rangeUntilCallee = interner.intern("__kk_float_rangeUntil")
+                } else {
+                    rangeUntilCallee = interner.intern("__kk_double_rangeUntil")
+                }
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_op_ulong_rangeUntil")
             } else {
-                interner.intern("__kk_op_rangeUntil")
+                rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
             instructions.append(.call(
                 symbol: nil,

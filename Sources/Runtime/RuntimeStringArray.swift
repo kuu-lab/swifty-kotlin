@@ -2196,6 +2196,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if tryCast(raw, to: RuntimeRangeBox.self) != nil {
         return runtimeElementToString(value)
     }
+    if tryCast(raw, to: RuntimeDoubleRangeBox.self) != nil
+        || tryCast(raw, to: RuntimeFloatRangeBox.self) != nil
+    {
+        return runtimeElementToString(value)
+    }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
         let first = runtimeRenderAnyForPrint(pairBox.firstValue)
         let second = runtimeRenderAnyForPrint(pairBox.secondValue)
