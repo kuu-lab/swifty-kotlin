@@ -1286,22 +1286,37 @@ extension ExprTypeChecker {
         // first parameter: `Type::method` becomes `(Type) -> ReturnType`.
         var unboundClassType: TypeID?
         if let receiver,
-           case let .nameRef(receiverName, _) = ast.arena.expr(receiver)
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           locals[receiverName] == nil
         {
-            // Check locals first — if there's a local variable with this
-            // name, it's a bound reference, not an unbound type reference.
-            if locals[receiverName] == nil {
-                let allCandidateIDs = ctx.cachedScopeLookup(receiverName)
-                for candidateID in allCandidateIDs {
-                    guard let sym = ctx.cachedSymbol(candidateID),
-                          sym.kind == .class || sym.kind == .interface
-                          || sym.kind == .enumClass
-                    else { continue }
+            // A local with this name is a bound receiver, so only unresolved
+            // names can introduce an unbound type reference.
+            let allCandidateIDs = ctx.cachedScopeLookup(receiverName)
+            for candidateID in allCandidateIDs {
+                guard let sym = ctx.cachedSymbol(candidateID),
+                      sym.kind == .class || sym.kind == .interface
+                      || sym.kind == .enumClass
+                else { continue }
+                // Primitive class names are represented by dedicated primitive
+                // TypeIDs at expression sites. Keep that representation here so
+                // member lookup also probes package-level extensions such as
+                // `Char::titlecase` in kotlin.text.
+                if let primitive = driver.builtinTypeNamesCache.primitiveType(for: sym.name) {
+                    unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
+                } else {
                     unboundClassType = sema.types.make(
                         .classType(ClassType(classSymbol: sym.id, args: [], nullability: .nonNull))
                     )
-                    break
                 }
+                break
+            }
+
+            if unboundClassType == nil,
+               let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName)
+            {
+                // Builtin primitive classes may not be present in the lexical scope,
+                // but their callable references still use the primitive receiver path.
+                unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
             }
         }
 
@@ -1323,6 +1338,7 @@ extension ExprTypeChecker {
                 named: member,
                 receiverType: nonNullReceiver,
                 sema: sema,
+                includeUnattachedPackageExtensions: true,
                 interner: interner
             )
             if !memberCandidates.isEmpty {
