@@ -1,5 +1,6 @@
 package kotlin.text
 
+import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.KsSymbolName
 
 // STDLIB-192: keep the flat-string equality primitive behind a private
@@ -21,7 +22,7 @@ public fun String.equals(other: String?): Boolean = __kkStringEquals(other)
  * @return The longest common prefix.
  */
 public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): String {
-    val shortestLength = minOf(this.length, other.length)
+    val shortestLength = comparisonMinOf(this.length, other.length)
     var i = 0
     while (i < shortestLength) {
         if (!__kkCharsEqual(this[i], other[i], ignoreCase)) break
@@ -40,7 +41,7 @@ public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): 
  * @return The longest common suffix.
  */
 public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): String {
-    val shortestLength = minOf(this.length, other.length)
+    val shortestLength = comparisonMinOf(this.length, other.length)
     var i = 0
     while (i < shortestLength) {
         if (!__kkCharsEqual(this[this.length - 1 - i], other[other.length - 1 - i], ignoreCase)) break
@@ -58,7 +59,7 @@ public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): 
  * @param ignoreCase `true` to ignore character case when matching a character. By default `false`.
  */
 public fun CharSequence.commonPrefixWith(other: CharSequence, ignoreCase: Boolean = false): String {
-    val shortestLength = minOf(this.length, other.length)
+    val shortestLength = comparisonMinOf(this.length, other.length)
     var i = 0
     while (i < shortestLength && __kkCharsEqual(this[i], other[i], ignoreCase)) {
         i++
@@ -78,7 +79,7 @@ public fun CharSequence.commonPrefixWith(other: CharSequence, ignoreCase: Boolea
 public fun CharSequence.commonSuffixWith(other: CharSequence, ignoreCase: Boolean = false): String {
     val thisLength = this.length
     val otherLength = other.length
-    val shortestLength = minOf(thisLength, otherLength)
+    val shortestLength = comparisonMinOf(thisLength, otherLength)
     var i = 0
     while (i < shortestLength &&
         __kkCharsEqual(this[thisLength - i - 1], other[otherLength - i - 1], ignoreCase)
@@ -113,9 +114,9 @@ private fun __kkCharSequenceRange(value: CharSequence, startIndex: Int, endIndex
 // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase) moved off the
 // Swift runtime.
 //
-// The flat String aggregate stores UTF-8 byte length, while Kotlin indexing is
-// character-based, so `length`/`this[i]` walk past non-ASCII input. Character
-// traversal goes through `toString().toList()` (see StringPrefixSuffix.kt).
+// String indexing and comparison use UTF-16 code units, matching Kotlin/JVM.
+// Character traversal goes through `toString().toList()` (see
+// StringPrefixSuffix.kt).
 //
 // Case folding follows the two-step rule of `String.compareToIgnoreCase` and
 // `Char.equals(other, ignoreCase = true)`: compare the upper-cased characters
@@ -225,7 +226,7 @@ private fun __kkContentEquals(self: List<Char>, other: List<Char>, ignoreCase: B
 public fun String.compareTo(other: String, ignoreCase: Boolean): Int {
     val selfChars = this.toList()
     val otherChars = other.toList()
-    val shared = minOf(selfChars.size, otherChars.size)
+    val shared = comparisonMinOf(selfChars.size, otherChars.size)
     var index = 0
     while (index < shared) {
         val a = selfChars[index]

@@ -251,7 +251,8 @@ struct TypeCheckScopeBuilder {
                 companionInfo.name == interner.intern("Companion"),
                 let ownerSymbol = sema.symbols.parentSymbol(for: companionSymbol),
                 let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                !ownerInfo.fqName.isEmpty
+                !ownerInfo.fqName.isEmpty,
+                !sema.symbols.isSourceBackedSymbol(symbol.id)
             {
                 Array(ownerInfo.fqName.dropLast())
             } else if symbol.fqName.count == 1 {

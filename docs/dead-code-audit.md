@@ -205,7 +205,6 @@ kk_exception_handler_invoke
 kk_float_max_value kk_float_min_value kk_float_nan
 kk_float_negative_infinity kk_float_positive_infinity
 kk_flow_count kk_flow_emit_with_timestamp kk_flow_fold kk_flow_reduce
-kk_freezable_atomic_ref_is_frozen kk_freezable_atomic_ref_store
 kk_hexformat_prefix kk_hexformat_suffix
 kk_http_client_get kk_http_client_new kk_http_client_post_async
 kk_instant_from_epoch_seconds
@@ -282,7 +281,6 @@ kk_write_barrier
 | **coroutine scope** | `kk_coroutine_{cancel,name_get}` / `kk_coroutine_scope_{is_active,is_cancelled}` | `RuntimeCoroutine.swift` |
 | **MIGRATION-PROP-001** | `kk_delegate_{get,set}_value` / `kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility}` | `RuntimeDelegates.swift` |
 | **数値コンパニオン定数** | `kk_double_{max,min}_value` / `kk_double_{nan,negative_infinity,positive_infinity}` / `kk_float_*` 同様 / `kk_int_{max,min}_value` / `kk_long_{max,min}_value` | `RuntimeMath.swift` |
-| **FreezableAtomicRef** | `kk_freezable_atomic_ref_{is_frozen,store}` | `RuntimeNativeConcurrentABI.swift` |
 | **STDLIB-REFLECT-067** | `kk_kclass_get_arity` | `RuntimeReflection.swift` |
 | **Array HOF** | `kk_array_mapNotNull` | `RuntimeCollectionHOFArray.swift` |
 | **IO** | `kk_output_stream_bufferedWriter_default` | `RuntimeFileIO.swift` |

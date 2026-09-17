@@ -1,0 +1,34 @@
+symbol fq=__local_0.calls[kind=local] kind=local vis=private flags=mutable type=Int
+symbol fq=__local_1.elapsed[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=__local_2.timed[kind=local] kind=local vis=private flags=_ type=kotlin.time.TimedValue<String>
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_time_Monotonic_n package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@10:17 int(0) type=Int
+expr e@10:5 localDecl calls mutable=1 type=_ init=e@10:17 type=Unit ref=__local_0.calls[kind=local]
+expr e@11:29 name(TimeSource) type=kotlin.time.TimeSource ref=kotlin.time.TimeSource[kind=iface]
+expr e@11:29#1 memberCall recv=e@11:29 callee=Monotonic args=[] type=kotlin.time.TimeSource.Monotonic ref=kotlin.time.TimeSource.Monotonic[kind=obj]
+expr e@12:18 int(1) type=Int
+expr e@12:9 compoundAssign(plusAssign) name=calls value=e@12:18 type=Unit ref=__local_0.calls[kind=local]
+expr e@12:9#1 blockExpr stmts=[e@12:9] trailing=_ type=Unit
+expr e@11:62 lambda params=[] body=e@12:9#1 label=measureTime type=() -> Unit
+expr e@11:29#2 memberCall recv=e@11:29#1 callee=measureTime args=[_:e@11:62] type=kotlin.time.Duration call=kotlin.time.measureTime[kind=fun;recv=kotlin.time.TimeSource.Monotonic;params=fn{p=;ret=Unit}]
+expr e@11:5 localDecl elapsed mutable=0 type=Duration init=e@11:29#2 type=Unit ref=__local_1.elapsed[kind=local]
+expr e@14:37 name(TimeSource) type=kotlin.time.TimeSource ref=kotlin.time.TimeSource[kind=iface]
+expr e@14:37#1 memberCall recv=e@14:37 callee=Monotonic args=[] type=kotlin.time.TimeSource.Monotonic ref=kotlin.time.TimeSource.Monotonic[kind=obj]
+expr e@15:9 string(value) type=String
+expr e@14:76 lambda params=[] body=e@15:9 label=measureTimedValue type=() -> String
+expr e@14:37#2 memberCall recv=e@14:37#1 callee=measureTimedValue args=[_:e@14:76] type=kotlin.time.TimedValue<String> call=kotlin.time.measureTimedValue[kind=fun;recv=kotlin.time.TimeSource.Monotonic;params=fn{p=;ret=T0};gen=1] targs=[String]
+expr e@14:5 localDecl timed mutable=0 type=TimedValue<String> init=e@14:37#2 type=Unit ref=__local_2.timed[kind=local]
+expr e@18:13 name(calls) type=Int ref=__local_0.calls[kind=local]
+expr e@18:22 int(1) type=Int
+expr e@18:13#1 binary(equal) lhs=e@18:13 rhs=e@18:22 type=Boolean
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@19:13 name(elapsed) type=kotlin.time.Duration ref=__local_1.elapsed[kind=local]
+expr e@19:13#1 memberCall recv=e@19:13 callee=inWholeNanoseconds args=[] type=Long ref=kotlin.time.Duration.inWholeNanoseconds[kind=prop]
+expr e@19:43 long(0) type=Long
+expr e@19:13#2 binary(greaterOrEqual) lhs=e@19:13#1 rhs=e@19:43 type=Boolean
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@20:13 name(timed) type=kotlin.time.TimedValue<String> ref=__local_2.timed[kind=local]
+expr e@20:13#1 memberCall recv=e@20:13 callee=value args=[] type=String ref=kotlin.time.TimedValue.value[kind=prop]
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]

@@ -1197,7 +1197,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testSetMembersUseRuntimeExternalLinks() throws {
+    func testSetMembersRetainRuntimeLinksFromBundledSource() throws {
         let source = """
         fun check(values: Set<Int>) {
             values.contains(42)
@@ -1218,7 +1218,8 @@ extension ListSyntheticMemberLinkTests {
                 return true
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_set_contains", "Expected contains to resolve to __kk_set_contains")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_set_contains", "Expected contains to retain its source annotation runtime link")
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
         }
     }
 
@@ -1461,7 +1462,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableSetMutationMembersUseRuntimeExternalLinks() throws {
+    func testMutableSetMutationMembersUseBundledSourceDefaults() throws {
         let source = """
         fun mutate(values: MutableSet<Int>) {
             values.add(1)
@@ -1478,21 +1479,15 @@ extension ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
 
-            let expectedExternalLinks = [
-                "add": "__kk_mutable_set_add",
-                "remove": "__kk_mutable_set_remove",
-                "addAll": "__kk_mutable_set_addAll",
-                "clear": "__kk_mutable_set_clear",
-            ]
-
-            for (memberName, externalLinkName) in expectedExternalLinks {
+            for memberName in ["add", "remove", "addAll", "clear"] {
                 let symbol = try #require(sema.symbols.lookup(fqName: [
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("collections"),
                     ctx.interner.intern("MutableSet"),
                     ctx.interner.intern(memberName),
                 ]))
-                #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+                #expect(sema.symbols.externalLinkName(for: symbol) == nil, "Expected \(memberName) to resolve to a source-backed default")
+                #expect(sema.symbols.isSourceBackedSymbol(symbol))
             }
 
             let addAllSymbol = try #require(sema.symbols.lookup(fqName: [
@@ -1501,7 +1496,7 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("MutableSet"),
                 ctx.interner.intern("addAll"),
             ]))
-            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_set_addAll", "Expected addAll to resolve to kk_mutable_set_addAll")
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == nil)
         }
     }
 

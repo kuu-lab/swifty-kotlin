@@ -188,8 +188,14 @@ extension KIRLoweringDriver {
             return
         }
 
+        let resolvedSuperclassFQName = superclassInfo.fqName.map(compilationCtx.interner.resolve)
+        let isSourceBackedTimeSource =
+            resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
+                || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
-        if !(sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true) {
+        if !(sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true)
+            && !isSourceBackedTimeSource
+        {
             // Runtime-backed Throwable construction returns its own native box,
             // while a Kotlin subclass already owns the compiler-emitted object.
             // Initialize that object through the message accessor instead of
@@ -267,8 +273,13 @@ extension KIRLoweringDriver {
             return
         }
         // Synthetic nominal shells may expose a constructor for Sema
-        // compatibility without providing a linkable implementation.
-        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false) else {
+        // compatibility without providing a linkable implementation. The
+        // time-source shells are source-backed in the bundled stdlib and their
+        // constructor initializes the inherited `unit` field, so retain that
+        // delegation even while the compatibility flag is present.
+        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
+            || isSourceBackedTimeSource
+        else {
             return
         }
 

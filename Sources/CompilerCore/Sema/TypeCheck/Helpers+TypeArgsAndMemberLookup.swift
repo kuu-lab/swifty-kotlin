@@ -441,6 +441,7 @@ extension TypeCheckHelpers {
         receiverType: TypeID,
         sema: SemaModule,
         allowedOwnerSymbols: Set<SymbolID>? = nil,
+        includeUnattachedPackageExtensions: Bool = false,
         interner: StringInterner
     ) -> [SymbolID] {
         let nominalRoots = allNominalSymbols(
@@ -532,10 +533,16 @@ extension TypeCheckHelpers {
                 guard seenCandidates.insert(candidate).inserted,
                       let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      sema.symbols.parentSymbol(for: candidate) == owner,
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let signatureReceiverType = signature.receiverType
                 else {
+                    continue
+                }
+                let parentMatchesOwner = sema.symbols.parentSymbol(for: candidate) == owner
+                let isUnattachedPackageExtension = includeUnattachedPackageExtensions
+                    && sema.symbols.parentSymbol(for: candidate) == nil
+                    && sema.symbols.symbol(owner)?.kind == .package
+                guard parentMatchesOwner || isUnattachedPackageExtension else {
                     continue
                 }
                 if requireReceiverSubtype,
