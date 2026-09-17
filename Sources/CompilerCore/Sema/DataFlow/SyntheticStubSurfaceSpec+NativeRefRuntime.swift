@@ -22,27 +22,4 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
             classTypeParameterCount: 1
         ),
     ]
-
-    static let rootSetStatisticsType = nativeRuntimeClass("RootSetStatistics")
-    static let rootSetStatisticsProperties: [SyntheticPropertyStubSpec] = [
-        SyntheticPropertyStubSpec(name: "threadLocalReferences", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "stackReferences", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "globalReferences", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "stableReferences", propertyType: .long),
-    ]
-    static let rootSetStatisticsConstructor = constructor(from: rootSetStatisticsProperties)
-
-    private static func nativeRuntimeClass(_ name: String) -> SyntheticStubTypeRef {
-        .namedClass(["kotlin", "native", "runtime", name])
-    }
-
-    private static func constructor(
-        from properties: [SyntheticPropertyStubSpec]
-    ) -> SyntheticConstructorStubSpec {
-        SyntheticConstructorStubSpec(
-            parameters: properties.map {
-                SyntheticStubParameterSpec(name: $0.name, type: $0.propertyType)
-            }
-        )
-    }
 }

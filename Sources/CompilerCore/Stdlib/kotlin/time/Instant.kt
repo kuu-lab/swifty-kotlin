@@ -15,6 +15,13 @@ package kotlin.time
 // Instant.now() / Instant.fromEpochMilliseconds() are now Kotlin-source
 // companion-object extensions that delegate to __kk_instant_* bridges.
 
+// KSP-1472: the runtime stores Instant values in an opaque native box. The
+// source declaration supplies the public nominal type and Companion while the
+// existing bridge extensions below expose its value operations.
+public class Instant private constructor() {
+    public companion object {}
+}
+
 public val Instant.epochSeconds: Long
     get() = this.__kk_instant_epoch_seconds()
 

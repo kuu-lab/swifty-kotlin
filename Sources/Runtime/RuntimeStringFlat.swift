@@ -31,7 +31,9 @@ func runtimeStringUTF16CodeUnitsFromFlat(
     byteCount: Int,
     hash: Int
 ) -> [UInt16] {
-    Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).utf16)
+    runtimeKotlinStringUTF16CodeUnits(
+        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
 }
 
 @_cdecl("kk_string_trim_flat")

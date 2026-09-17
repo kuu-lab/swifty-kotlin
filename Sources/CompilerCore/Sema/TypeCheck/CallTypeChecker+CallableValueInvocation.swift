@@ -35,6 +35,17 @@ extension CallTypeChecker {
 
         sema.bindings.markRangeExpr(id)
 
+        if let elementType = driver.helpers.rangeLikeDeclaredElementType(
+            for: returnType,
+            sema: sema,
+            interner: interner
+        ), elementType == sema.types.floatType || elementType == sema.types.doubleType {
+            // Generic source-backed rangeUntil resolves through OpenEndRange<T>.
+            // Preserve its concrete floating-point element type for the KIR/runtime
+            // bridge, just as the legacy scalar range path does for range literals.
+            sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+        }
+
         // Classify the concrete range/progression kind for UInt/ULong/Char dispatch.
         if let (_, symbol) = resolveClassTypeSymbol(returnType, sema: sema) {
             let className = interner.resolve(symbol.name)

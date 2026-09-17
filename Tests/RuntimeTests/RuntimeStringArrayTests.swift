@@ -1475,6 +1475,110 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatFloatingRoundingMatchesJavaFormatter() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(1.005),
+            boxDouble(0.25),
+            boxDouble(0.35),
+            boxDouble(0.5),
+            boxDouble(2.5),
+            boxDouble(2.675),
+            boxDouble(1.0005),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%.2f %.1f %.1f %.0f %.0f %.2f %.3f",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "1.01 0.3 0.4 1 3 2.68 1.001")
+    }
+
+    @Test
+    func testStringFormatFloatingPrecisionUsesShortestDecimalRepresentation() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(0.1),
+            boxDouble(0.1),
+            boxDouble(1.005),
+            boxDouble(0.0001),
+            boxDouble(0.00001),
+            boxDouble(999999.5),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%.20f %.17g %.2e %.6g %.6g %.6g",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0.10000000000000000000 0.10000000000000000 1.01e+00 0.000100000 1.00000e-05 1.00000e+06")
+    }
+
+    @Test
+    func testStringFormatGeneralAndNonFiniteFloatsMatchJavaFormatter() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(0.0001234),
+            boxDouble(.nan),
+            boxDouble(.infinity),
+            boxDouble(-.infinity),
+            boxDouble(.nan),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%g|%f|%.2f|%(f|%010E",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0.000123400|NaN|Infinity|(Infinity)|       NAN")
+    }
+
+    @Test
+    func testStringFormatParenthesizesNegativeDecimalValues() {
+        let args = makeRuntimeArray([
+            -5,
+            -5,
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: (-1234.5).bitPattern))),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%(d|%(05d|%(,.1f",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "(5)|(005)|(1,234.5)")
+    }
+
+    @Test
+    func testStringFormatSupportsJavaHexFloatingPoint() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(1.0),
+            boxDouble(3.0),
+            boxDouble(0.1),
+            boxDouble(.leastNonzeroMagnitude),
+            boxDouble(.leastNonzeroMagnitude),
+            boxDouble(1.0),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%a|%A|%.2a|%a|%.1a|%010a",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0x1.0p0|0X1.8P1|0x1.9ap-4|0x0.0000000000001p-1022|0x1.0p-1074|0x0001.0p0")
+    }
+
+    @Test
     func testStringFormatSupportsPositionalArguments() {
         let args = makeRuntimeArray([
             7,
@@ -1515,6 +1619,27 @@ struct RuntimeStringArrayTests {
 
         let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "9223372036854775807 ffffffffffffffff")
+    }
+
+    @Test
+    func testStringFormatUsesKotlinIntegerWidthsForHexAndOctal() {
+        let args = makeRuntimeArray([
+            kk_box_int(-1),
+            kk_box_long(-1),
+            kk_box_int(-1),
+            kk_box_int(-8),
+            kk_box_long(-8),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%x %x %X %o %o",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(
+            formatted ==
+                "ffffffff ffffffffffffffff FFFFFFFF 37777777770 1777777777777777777770"
+        )
     }
 
     @Test

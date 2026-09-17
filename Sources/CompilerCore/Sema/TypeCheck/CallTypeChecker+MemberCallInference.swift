@@ -30,6 +30,10 @@ extension CallTypeChecker {
             return result
         }
 
+        if let result = tryInferFQNQualifiedValue(request, locals: locals) {
+            return result
+        }
+
         if let result = tryInferFQNPackageTopLevelCall(request, locals: &locals) {
             return result
         }

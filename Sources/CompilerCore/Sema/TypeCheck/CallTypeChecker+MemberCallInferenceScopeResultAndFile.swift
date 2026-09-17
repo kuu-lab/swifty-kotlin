@@ -235,9 +235,20 @@ extension CallTypeChecker {
 
                 case "getOrElse" where args.count == 1:
                     // getOrElse(onFailure: (Throwable) -> T): T
+                    // A Result<Nothing> has no successful value to constrain T.
+                    // Infer the fallback naturally in that case, matching the
+                    // bottom-type behavior of Kotlin's generic getOrElse API.
+                    let isBottomResult = if case .nothing(.nonNull) = sema.types.kind(of: resultElementType) {
+                        true
+                    } else {
+                        false
+                    }
+                    let fallbackExpectedType = isBottomResult
+                        ? (expectedType ?? sema.types.nullableAnyType)
+                        : resultElementType
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
-                        returnType: resultElementType
+                        returnType: fallbackExpectedType
                     )))
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -248,7 +259,10 @@ extension CallTypeChecker {
                             parameterMapping: [0: 0]
                         ))
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(resultElementType) : resultElementType
+                    let inferredFallbackType = isBottomResult
+                        ? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                        : resultElementType
+                    let finalType = safeCall ? sema.types.makeNullable(inferredFallbackType) : inferredFallbackType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
