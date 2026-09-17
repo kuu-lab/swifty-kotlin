@@ -1927,7 +1927,7 @@ extension ExprLowerer {
                 }
 
                 let effectiveRHS: KIRExprID
-                if rhsType == stringType || rhsType == nullableStringType {
+                if rhsType == stringType {
                     effectiveRHS = rhs
                 } else {
                     effectiveRHS = driver.callLowerer.emitAnyToStringWithNullGuard(
@@ -1941,7 +1941,7 @@ extension ExprLowerer {
                 }
 
                 let effectiveLHS: KIRExprID
-                if lhsType == stringType || lhsType == nullableStringType {
+                if lhsType == stringType {
                     effectiveLHS = lhs
                 } else {
                     effectiveLHS = driver.callLowerer.emitAnyToStringWithNullGuard(
@@ -1971,6 +1971,23 @@ extension ExprLowerer {
                 rhs: KIRExprID,
                 resultType: TypeID
             ) -> KIRExprID? {
+                // `String += Any?` can be bound to the source-backed
+                // `String?.plus` extension during compound-assignment
+                // resolution. That call does not carry the compiler's
+                // Any-to-String conversion policy when used as the
+                // read/modify/write operator, so route String receivers
+                // through the builtin concatenation path below.
+                let lhsType = arena.exprType(lhs) ?? sema.types.anyType
+                if op == .plusAssign,
+                   lhsType == stringType || lhsType == nullableStringType
+                {
+                    return appendBuiltinCompoundResult(
+                        lhs: lhs,
+                        lhsType: lhsType,
+                        rhs: rhs,
+                        rhsType: arena.exprType(rhs)
+                    )
+                }
                 guard let callBinding = sema.bindings.callBindings[exprID],
                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
                       signature.receiverType != nil

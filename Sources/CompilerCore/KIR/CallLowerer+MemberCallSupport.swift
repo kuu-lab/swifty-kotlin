@@ -355,6 +355,28 @@ extension CallLowerer {
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
+        // A nullable flat String carries a null data pointer, while the flat
+        // concat ABI intentionally treats that pointer as an empty string.
+        // Kotlin's Any? conversion used by String.plus must render a null
+        // receiver/argument as the literal "null" instead. Materialize that
+        // spelling before callers pass the value to __kk_string_concat_flat.
+        if sema.types.makeNonNullable(valueType) == stringType,
+           sema.types.nullability(of: valueType) != .nonNull
+        {
+            let converted = arena.appendTemporary(type: stringType)
+            let nullString = interner.intern("null")
+            let nullStringID = arena.appendExpr(.stringLiteral(nullString), type: stringType)
+            instructions.append(.constValue(result: nullStringID, value: .stringLiteral(nullString)))
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: valueID, target: nonNullLabel))
+            instructions.append(.copy(from: nullStringID, to: converted))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            instructions.append(.copy(from: valueID, to: converted))
+            instructions.append(.label(endLabel))
+            return converted
+        }
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
         let isUnit: Bool = if case .unit = sema.types.kind(of: sema.types.makeNonNullable(valueType)) {
             true
