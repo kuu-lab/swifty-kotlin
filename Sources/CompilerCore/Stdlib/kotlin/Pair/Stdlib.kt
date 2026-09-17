@@ -27,6 +27,7 @@ public class Pair<out A, out B> {
     private external fun secondComponent(): B
 
     /** First value. */
+    @KsSymbolName("__kk_pair_first")
     public val first: A
         get() = firstComponent()
 

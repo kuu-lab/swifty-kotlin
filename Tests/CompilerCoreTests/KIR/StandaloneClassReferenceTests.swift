@@ -49,7 +49,7 @@ struct StandaloneClassReferenceTests {
     /// `T::class.simpleName` (chained) after inline expansion.
     ///
     /// KSP-496 moved `simpleName` to an ordinary Kotlin extension property
-    /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt), so
+    /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so
     /// `T::class` now always creates the KClass box (`__kk_kclass_create`)
     /// before dispatching to the `simpleName` getter — there is no longer a
     /// "direct path" that skips box creation for this member.
@@ -189,7 +189,7 @@ struct StandaloneClassReferenceTests {
     }
 
     /// KSP-496: `cast`/`safeCast` are bundled Kotlin extensions
-    /// (Stdlib/kotlin/reflect/KClassBasicAPI.kt), so call sites must delegate to
+    /// (Stdlib/kotlin/reflect/KClasses.kt), so call sites must delegate to
     /// them instead of being special-cased into a direct runtime call.
     private func expectBundledReflectDelegation(
         source: String,

@@ -89,6 +89,27 @@ public fun AtomicInt.decrement(): Unit {
 /** Returns the string representation of the current atomic value. */
 public fun AtomicInt.toString(): String = value.toString()
 
+@KsSymbolName("__kk_atomic_long_load")
+private external fun AtomicLong.__kkLoad(): Long
+
+@KsSymbolName("__kk_atomic_long_store")
+private external fun AtomicLong.__kkStore(value: Long): Long
+
+@KsSymbolName("__kk_atomic_long_compareAndExchange")
+private external fun AtomicLong.__kkCompareAndExchange(expected: Long, update: Long): Long
+
+@KsSymbolName("__kk_atomic_long_fetchAndAdd")
+private external fun AtomicLong.__kkFetchAndAdd(delta: Long): Long
+
+@KsSymbolName("__kk_atomic_long_fetchAndIncrement")
+private external fun AtomicLong.__kkFetchAndIncrement(): Long
+
+@KsSymbolName("__kk_atomic_long_fetchAndDecrement")
+private external fun AtomicLong.__kkFetchAndDecrement(): Long
+
+@KsSymbolName("__kk_atomic_long_addAndFetch")
+private external fun AtomicLong.__kkAddAndFetch(delta: Long): Long
+
 /**
  * A [Long] value that is always updated atomically.
  *
@@ -103,6 +124,37 @@ public fun AtomicInt.toString(): String = value.toString()
 public class AtomicLong {
     @KsSymbolName("kk_atomic_long_create")
     public constructor(value: Long = 0L)
+
+    @Volatile
+    public var value: Long
+        get() = __kkLoad()
+        set(value) {
+            __kkStore(value)
+        }
+
+    @Deprecated(message = "Use addAndGet(delta: Long) instead.", level = DeprecationLevel.ERROR)
+    public fun addAndGet(delta: Int): Long = __kkAddAndFetch(delta.toLong())
+
+    public fun compareAndSwap(expected: Long, update: Long): Long =
+        __kkCompareAndExchange(expected, update)
+
+    @Deprecated("Use decrementAndGet() or getAndDecrement() instead.", ReplaceWith("this.decrementAndGet()"), DeprecationLevel.ERROR)
+    public fun decrement(): Unit {
+        __kkAddAndFetch(-1L)
+    }
+
+    public fun getAndAdd(delta: Long): Long = __kkFetchAndAdd(delta)
+
+    public fun getAndDecrement(): Long = __kkFetchAndDecrement()
+
+    public fun getAndIncrement(): Long = __kkFetchAndIncrement()
+
+    @Deprecated("Use incrementAndGet() or getAndIncrement() instead.", ReplaceWith("this.incrementAndGet()"), DeprecationLevel.ERROR)
+    public fun increment(): Unit {
+        __kkAddAndFetch(1L)
+    }
+
+    public override fun toString(): String = value.toString()
 }
 
 /**
@@ -152,17 +204,41 @@ private fun idString(value: Any): String = value.hashCode().toString()
 private fun debugString(value: Any?): String {
     if (value == null) return "null"
     if (value is AtomicReference<*>) return "AtomicReference: ${idString(value)}"
+    if (value is FreezableAtomicReference<*>) return "FreezableAtomicReference: ${idString(value)}"
     return "${value}: ${idString(value)}"
 }
 
-// KSP-1236: Keep the top-level class and constructor source-backed. The
-// value property and member operations are owned by KSP-1237.
+// KSP-1236/KSP-1237: Keep the legacy FreezableAtomicReference API
+// source-backed.
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicReference instead.",
     ReplaceWith("kotlin.concurrent.atomics.AtomicReference"),
     DeprecationLevel.ERROR
 )
-public class FreezableAtomicReference<T> {
-    @KsSymbolName("kk_freezable_atomic_ref_create")
-    public constructor(value: T)
+public class FreezableAtomicReference<T>(value: T) {
+    @Volatile
+    public var value: T = value
+
+    /** Atomically replaces the value when it matches [expected] by reference identity. */
+    public fun compareAndSet(expected: T, newValue: T): Boolean {
+        val oldValue = value
+        if (oldValue === expected) {
+            value = newValue
+            return true
+        }
+        return false
+    }
+
+    /** Atomically replaces the value when it matches [expected] by reference identity. */
+    public fun compareAndSwap(expected: T, newValue: T): T {
+        val oldValue = value
+        if (oldValue === expected) {
+            value = newValue
+        }
+        return oldValue
+    }
+
+    /** Returns the debug representation used by Kotlin/Native's legacy API. */
+    public override fun toString(): String =
+        "FreezableAtomicReference: ${idString(this)} -> ${debugString(value)}"
 }

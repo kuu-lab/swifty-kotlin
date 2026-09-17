@@ -7,8 +7,8 @@
 ///
 /// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
 /// class-kind flags now resolve as ordinary Kotlin extension declarations
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt,
-/// KClassMemberIntrospection.kt) through normal overload resolution.
+/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
+/// through normal overload resolution.
 ///
 /// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {

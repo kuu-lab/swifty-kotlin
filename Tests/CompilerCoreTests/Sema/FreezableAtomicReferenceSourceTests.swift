@@ -5,7 +5,7 @@ import Testing
 @Suite
 struct FreezableAtomicReferenceSourceTests {
     @Test
-    func constructorIsSourceBackedAndUsesNativeCreateBridge() throws {
+    func classAndConstructorAreSourceBacked() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
@@ -47,7 +47,7 @@ struct FreezableAtomicReferenceSourceTests {
         #expect(constructorInfo.visibility == .public)
         #expect(!constructorInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(constructor))
-        #expect(sema.symbols.externalLinkName(for: constructor) == "kk_freezable_atomic_ref_create")
+        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
     }
 }
 #endif

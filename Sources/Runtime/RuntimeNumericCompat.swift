@@ -49,7 +49,7 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     return runtimeMakeStringPointer(runtimeElementToString(value))
 }
 
-private func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
+private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
     guard let objectPtr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
@@ -66,10 +66,30 @@ private func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? 
     guard thrown == 0, result != 0 else {
         return nil
     }
+    return result
+}
+
+private func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
+    guard let result = runtimeAnyToStringOverrideRaw(raw) else {
+        return nil
+    }
     if result == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
     }
     return UnsafeMutableRawPointer(bitPattern: result)
+}
+
+/// Returns the text from an object-specific Any.toString() bridge when one is
+/// registered. Collection renderers use this shared dispatch path because
+/// their element ABI has already erased the static Kotlin type.
+func runtimeAnyToStringOverrideText(_ raw: Int) -> String? {
+    guard let result = runtimeAnyToStringOverrideRaw(raw) else {
+        return nil
+    }
+    if result == runtimeNullSentinelInt {
+        return "null"
+    }
+    return extractString(from: UnsafeMutableRawPointer(bitPattern: result))
 }
 
 /// Nullable-aware variant of `kk_any_to_string`, for call sites that know

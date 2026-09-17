@@ -596,6 +596,14 @@ extension CallTypeChecker {
                                 )
                             )
                             let resultType = signature.returnType
+                            if ast.arena.isExplicitCall(id),
+                               let nestedOwner = sema.symbols.parentSymbol(for: zeroArgNested),
+                               let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                               nestedOwnerSymbol.kind == .class,
+                               !nestedOwnerSymbol.flags.contains(.innerClass)
+                            {
+                                sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                            }
                             sema.bindings.bindExprType(id, type: resultType)
                             return resultType
                         }
@@ -628,6 +636,14 @@ extension CallTypeChecker {
                             )
                         )
                         let resultType = signature.returnType
+                        if ast.arena.isExplicitCall(id),
+                           let nestedOwner = sema.symbols.parentSymbol(for: chosen),
+                           let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                           nestedOwnerSymbol.kind == .class,
+                           !nestedOwnerSymbol.flags.contains(.innerClass)
+                        {
+                            sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                        }
                         sema.bindings.bindExprType(id, type: resultType)
                         return resultType
                     }
@@ -1443,7 +1459,68 @@ extension CallTypeChecker {
             return boundType
         }
 
+        let stringMemberName = interner.resolve(calleeName)
+        if ["minWith", "minWithOrNull"].contains(stringMemberName),
+           isSyntheticStringLikeType(lookupReceiverType, sema: sema),
+           args.count == 1,
+           let comparatorElementType = resolvedComparatorElementType(
+               of: argTypes[0],
+               sema: sema,
+               interner: interner
+           ),
+           sema.types.nullability(of: argTypes[0]) != .nullable,
+           sema.types.isSubtype(sema.types.charType, comparatorElementType)
+        {
+            // The source-backed Comparator<in Char> parameter is valid for a
+            // Comparator<Char> argument, but the regular resolver currently
+            // rejects that variance. Bind the uniquely named CharSequence
+            // declaration after the normal candidates have been considered.
+            bindSyntheticStringMemberDirectlyIfAvailable(
+                id,
+                calleeName: calleeName,
+                argumentCount: args.count,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+            if sema.bindings.callBindings[id] != nil {
+                let resultType = stringMemberName == "minWithOrNull"
+                    ? sema.types.make(.primitive(.char, .nullable))
+                    : sema.types.make(.primitive(.char, .nonNull))
+                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
+
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        let memberName = interner.resolve(calleeName)
+        if !isClassNameReceiver,
+           !safeCall,
+           args.isEmpty,
+           explicitTypeArgs.isEmpty,
+           invisible.isEmpty,
+           sema.types.nullability(of: receiverType) == .nullable,
+           memberName == "toString" || memberName == "hashCode",
+           !visible.contains(where: { candidate in
+               guard let signature = sema.symbols.functionSignature(for: candidate),
+                     signature.parameterTypes.isEmpty,
+                     let declaredReceiver = signature.receiverType,
+                     sema.types.nullability(of: declaredReceiver) == .nullable
+               else {
+                   return false
+               }
+               return sema.types.isSubtype(receiverType, declaredReceiver)
+           })
+        {
+            // Kotlin exposes toString() and hashCode() through nullable Any
+            // extensions. Flat-representation and class receivers can expose
+            // only non-null synthetic members, which the normal resolver must
+            // reject for a nullable receiver before KIR can use the Any ABI.
+            let resultType = memberName == "toString" ? sema.types.stringType : sema.types.intType
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
         var candidates = preferMostSpecificMemberReceiverCandidates(
             visible,
             receiverType: lookupReceiverType,
@@ -2085,6 +2162,7 @@ extension CallTypeChecker {
             ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: args, ctx: ctx)
         driver.helpers.checkDeprecation(
             for: chosen,
             sema: sema,
@@ -2243,6 +2321,7 @@ extension CallTypeChecker {
              "kotlin.concurrent.atomics.AtomicLong",
              "kotlin.concurrent.atomics.AtomicBoolean",
              "kotlin.concurrent.atomics.AtomicReference",
+             "kotlin.concurrent.atomics.AtomicNativePtr",
              "kotlin.concurrent.atomics.AtomicIntArray",
              "kotlin.concurrent.atomics.AtomicLongArray",
              "kotlin.concurrent.AtomicInt",
