@@ -209,8 +209,9 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
             RuntimeListIteratorBox(
                 elements: set.elements,
                 removeAction: { index in
-                    guard set.elements.indices.contains(index) else { return }
-                    set.elements.remove(at: index)
+                    let currentElements = set.elements
+                    guard currentElements.indices.contains(index) else { return }
+                    _ = set.remove(rawValue: currentElements[index])
                 }
             )
         )

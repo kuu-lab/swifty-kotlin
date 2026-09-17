@@ -499,14 +499,28 @@ final class RuntimeListBox {
 final class RuntimeSetBox {
     private var storage: [RuntimeValue]
     private var index: [RuntimeElementKey: Int]
+    /// Non-nil for the mutable entry view returned by `MutableMap.entries`.
+    /// The view materializes entry values on demand while iterator removal
+    /// routes back to the destination map.
+    private let backingMapRaw: Int?
     private(set) var isReadOnly = false
 
     var values: [RuntimeValue] {
         get {
-            storage
+            if let backingMapRaw,
+               let map = runtimeMapBox(from: backingMapRaw) {
+                return zip(map.keys, map.values).map { key, value in
+                    RuntimeValue(raw: runtimeMutableMapEntryNew(
+                        mapRaw: backingMapRaw,
+                        key: key,
+                        value: value
+                    ))
+                }
+            }
+            return storage
         }
         set {
-            guard !isReadOnly else { return }
+            guard backingMapRaw == nil, !isReadOnly else { return }
             storage = newValue
             rebuildIndex()
         }
@@ -514,10 +528,10 @@ final class RuntimeSetBox {
 
     var elements: [Int] {
         get {
-            storage.map(\.legacyRawValue)
+            values.map(\.legacyRawValue)
         }
         set {
-            guard !isReadOnly else { return }
+            guard backingMapRaw == nil, !isReadOnly else { return }
             storage = newValue.map { RuntimeValue(raw: $0) }
             rebuildIndex()
         }
@@ -526,29 +540,58 @@ final class RuntimeSetBox {
     init(elements: [Int]) {
         self.storage = elements.map { RuntimeValue(raw: $0) }
         self.index = [:]
+        self.backingMapRaw = nil
         rebuildIndex()
     }
 
     init(values: [RuntimeValue]) {
         self.storage = values
         self.index = [:]
+        self.backingMapRaw = nil
         rebuildIndex()
     }
 
+    init(mapEntriesOf mapRaw: Int) {
+        self.storage = []
+        self.index = [:]
+        self.backingMapRaw = mapRaw
+    }
+
     var count: Int {
-        storage.count
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.count
+        }
+        return storage.count
     }
 
     var isEmpty: Bool {
-        storage.isEmpty
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.isEmpty
+        }
+        return storage.isEmpty
     }
 
     func contains(rawValue: Int) -> Bool {
+        if let backingMapRaw {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+                  let entry = tryCast(pointer, to: RuntimePairBox.self),
+                  entry.mutableMapRaw == backingMapRaw,
+                  let map = runtimeMapBox(from: backingMapRaw),
+                  let index = map.index(ofRawKey: entry.mutableMapKey),
+                  let currentValue = map.rawValue(at: index)
+            else {
+                return false
+            }
+            return runtimeValuesEqual(entry.secondValue, RuntimeValue(raw: currentValue))
+        }
         return index[RuntimeElementKey(value: rawValue)] != nil
     }
 
     @discardableResult
     func insert(rawValue: Int) -> Bool {
+        guard backingMapRaw == nil else { return false }
         let key = RuntimeElementKey(value: rawValue)
         guard index[key] == nil else {
             return false
@@ -561,6 +604,18 @@ final class RuntimeSetBox {
 
     @discardableResult
     func remove(rawValue: Int) -> Bool {
+        if let backingMapRaw {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+                  let entry = tryCast(pointer, to: RuntimePairBox.self),
+                  entry.mutableMapRaw == backingMapRaw,
+                  let map = runtimeMapBox(from: backingMapRaw),
+                  map.index(ofRawKey: entry.mutableMapKey) != nil
+            else {
+                return false
+            }
+            _ = map.remove(key: entry.mutableMapKey)
+            return true
+        }
         guard let index = index[RuntimeElementKey(value: rawValue)] else {
             return false
         }
@@ -571,6 +626,12 @@ final class RuntimeSetBox {
 
     @discardableResult
     func removeAll(keepingCapacity: Bool = false) -> Bool {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            let hadElements = !map.isEmpty
+            map.removeAll()
+            return hadElements
+        }
         guard !storage.isEmpty else {
             return false
         }
@@ -581,6 +642,13 @@ final class RuntimeSetBox {
 
     @discardableResult
     func removeAll(where shouldRemove: (RuntimeValue) throws -> Bool) rethrows -> Bool {
+        if backingMapRaw != nil {
+            var removed = false
+            for entry in values where try shouldRemove(entry) {
+                removed = remove(rawValue: entry.legacyRawValue) || removed
+            }
+            return removed
+        }
         let originalCount = storage.count
         try storage.removeAll(where: shouldRemove)
         guard storage.count != originalCount else {
@@ -606,6 +674,7 @@ final class RuntimeSetBox {
     init(capacity: Int) {
         self.storage = []
         self.index = [:]
+        self.backingMapRaw = nil
         self.storage.reserveCapacity(max(0, capacity))
         self.index.reserveCapacity(max(0, capacity))
     }

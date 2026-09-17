@@ -179,6 +179,22 @@ extension CallTypeChecker {
             false
         }
 
+        // KUU-566: MutableSet predicate mutations are MutableIterable source
+        // extensions, not the collection-valued synthetic set members. Bind
+        // them before the generic fallback so the predicate element type is
+        // available while resolving MutableMap.MutableEntry.key/value.
+        if let sourceType = bindMutableSetPredicateSourceExtension(
+            exprID: id,
+            memberName: calleeName,
+            receiverID: receiverID,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+        ) {
+            return sourceType
+        }
+
         // KSP-1019: MutableCollection's Iterable/Sequence/Array overloads are
         // top-level Kotlin extensions, not interface members. Bind the exact
         // source declaration before the generic collection fallback can select
@@ -634,6 +650,101 @@ extension CallTypeChecker {
             sema: sema
         )
         let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        sema.bindings.bindExprType(exprID, type: finalType)
+        return finalType
+    }
+
+    private func bindMutableSetPredicateSourceExtension(
+        exprID: ExprID,
+        memberName: InternedString,
+        receiverID: ExprID,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        guard args.count == 1, args[0].label == nil else { return nil }
+
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let memberNameString = interner.resolve(memberName)
+        guard memberNameString == "removeAll" || memberNameString == "retainAll",
+              let predicateExpr = ctx.ast.arena.expr(args[0].expr),
+              predicateExpr.isLambdaOrCallableRef
+        else {
+            return nil
+        }
+
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        guard receiverClassifier.classify(receiverID: receiverID).isMutableSetReceiver else {
+            return nil
+        }
+
+        let sourceFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            memberName,
+        ]
+        let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  let signatureReceiver = signature.receiverType,
+                  let (_, receiverSymbol) = resolveClassTypeSymbol(
+                      sema.types.makeNonNullable(signatureReceiver),
+                      sema: sema
+                  ),
+                  receiverSymbol.fqName == [
+                      interner.intern("kotlin"),
+                      interner.intern("collections"),
+                      interner.intern("MutableIterable"),
+                  ],
+                  case let .functionType(predicateType) = sema.types.kind(of:
+                      sema.types.makeNonNullable(signature.parameterTypes[0])
+                  )
+            else {
+                return false
+            }
+            return predicateType.params.count == 1
+        }
+        guard let chosenCallee else { return nil }
+
+        let receiverElementType = collectionFallbackElementType(
+            receiverID: receiverID,
+            sema: sema,
+            interner: interner
+        )
+        let predicateType = sema.types.make(.functionType(FunctionType(
+            params: [receiverElementType],
+            returnType: sema.types.booleanType
+        )))
+
+        // Pair properties on a collection HOF lambda use the collection element
+        // binding path. The selected MutableIterable extension is source-backed,
+        // so remove the marker again after inference to keep its ordinary
+        // function-value ABI at the call site.
+        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+        _ = driver.inferExpr(
+            args[0].expr,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: predicateType
+        )
+        sema.bindings.bindCall(
+            exprID,
+            binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: [receiverElementType],
+                parameterMapping: [0: 0]
+            )
+        )
+        sema.bindings.bindCallableTarget(exprID, target: .symbol(chosenCallee))
+        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+
+        let resultType = sema.types.booleanType
+        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(exprID, type: finalType)
         return finalType
     }
