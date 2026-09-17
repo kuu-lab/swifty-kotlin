@@ -1907,6 +1907,31 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
+        // Regex keeps a String-specific runtime bridge for the historical
+        // `(MatchResult) -> String` overload alongside the source-backed
+        // CharSequence overload whose transform returns CharSequence. Lambda
+        // preparation intentionally erases return types while finding a shared
+        // input shape, which would otherwise leave these two overloads
+        // ambiguous even after the lambda body has produced a String. Once the
+        // body type is known, prefer the bridge only when its String callback is
+        // actually applicable; custom CharSequence callbacks continue through
+        // the source declaration.
+        if memberNameText == "replace",
+           args.count == 2,
+           sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,
+           preparedArgs.lambdaLiteralIndices.contains(1),
+           case let .functionType(lambdaType) = sema.types.kind(
+               of: sema.types.makeNonNullable(preparedArgs.argTypes[1])
+           ),
+           sema.types.isSubtype(lambdaType.returnType, sema.types.stringType)
+        {
+            let regexStringBridgeCandidates = candidates.filter {
+                sema.symbols.externalLinkName(for: $0) == "__kk_regex_replace_lambda"
+            }
+            if !regexStringBridgeCandidates.isEmpty {
+                candidates = regexStringBridgeCandidates
+            }
+        }
         let resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,

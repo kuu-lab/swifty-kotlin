@@ -1957,6 +1957,11 @@ public final class SemaModule {
     public let types: TypeSystem
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
+    /// String interner used to recover source-level nominal names while
+    /// resolving compiler-wide type shapes (for example `CharArray` spread
+    /// arguments passed to a vararg parameter). Kept optional for lightweight
+    /// unit-test sema modules that do not build a full source environment.
+    public let interner: StringInterner?
     public var importedInlineFunctions: [SymbolID: KIRFunction]
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
@@ -1974,12 +1979,14 @@ public final class SemaModule {
         types: TypeSystem,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
+        interner: StringInterner? = nil,
         importedInlineFunctions: [SymbolID: KIRFunction] = [:]
     ) {
         self.symbols = symbols
         self.types = types
         self.bindings = bindings
         self.diagnostics = diagnostics
+        self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
     }
@@ -1994,6 +2001,7 @@ public final class SemaModule {
         types: TypeSystem,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
+        interner: StringInterner? = nil,
         importedInlineFunctions: [SymbolID: KIRFunction] = [:],
         bundledIndex: BundledDeclarationIndex
     ) {
@@ -2001,6 +2009,7 @@ public final class SemaModule {
         self.types = types
         self.bindings = bindings
         self.diagnostics = diagnostics
+        self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex
     }

@@ -31,6 +31,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         let sema = SemaModule(
             symbols: symbols, types: types,
             bindings: bindings, diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
             bundledIndex: bundledIndex
         )
 
