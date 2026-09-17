@@ -186,7 +186,10 @@ extension BuildASTPhase {
         while index < tokens.count {
             let token = tokens[index]
             if depth.angle == 0 {
-                if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) {
+                if token.kind == .symbol(.assign)
+                    || token.kind == .symbol(.lBrace)
+                    || token.kind == .symbol(.semicolon)
+                {
                     break
                 }
                 if case .softKeyword(.where) = token.kind {
