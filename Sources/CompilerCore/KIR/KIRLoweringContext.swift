@@ -25,6 +25,11 @@ final class KIRLoweringContext {
     var lambdaParamNameToSymbol: [InternedString: SymbolID] = [:]
     var currentImplicitReceiverExprID: KIRExprID?
     var currentImplicitReceiverSymbol: SymbolID?
+    /// Qualified receiver values that remain visible while an inline object
+    /// literal property initializer is lowered. The active receiver changes
+    /// to the object literal itself, but `this@Outer` must still use the
+    /// enclosing receiver value.
+    private var qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID] = [:]
     private var contextReceiverValueStack: [[ContextReceiverValue]] = []
     var currentFunctionSymbol: SymbolID?
     /// Set while lowering a lambda body that is passed to a non-crossinline
@@ -240,6 +245,22 @@ final class KIRLoweringContext {
     func clearImplicitReceiver() {
         currentImplicitReceiverSymbol = nil
         currentImplicitReceiverExprID = nil
+    }
+
+    func saveQualifiedThisReceivers() -> [InternedString: KIRExprID] {
+        qualifiedThisReceiverExprsByLabel
+    }
+
+    func restoreQualifiedThisReceivers(_ receivers: [InternedString: KIRExprID]) {
+        qualifiedThisReceiverExprsByLabel = receivers
+    }
+
+    func qualifiedThisReceiverExprID(for label: InternedString) -> KIRExprID? {
+        qualifiedThisReceiverExprsByLabel[label]
+    }
+
+    func setQualifiedThisReceiver(_ exprID: KIRExprID, for label: InternedString) {
+        qualifiedThisReceiverExprsByLabel[label] = exprID
     }
 
     func restoreImplicitReceiver(symbol: SymbolID?, exprID: KIRExprID?) {

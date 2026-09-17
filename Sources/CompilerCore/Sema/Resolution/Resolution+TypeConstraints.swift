@@ -620,9 +620,17 @@ extension OverloadResolver {
             )
         }
 
-        // Case 3: supertype is a function type with type variables in params/return.
+        // Case 3: either side is a function type with type variables in
+        // params/return. Invariant generic arguments decompose in both
+        // directions. The reverse direction can place the variable-bearing
+        // function on the subtype side, for example:
+        // `(T) -> Unit <: (String) -> Unit` from
+        // `Box<(String) -> Unit> <: Box<(T) -> Unit>`.
+        // Leaving that as a type-to-type constraint asks isSubtype to compare
+        // the unresolved T before the solver applies its bounds.
         if case let .functionType(superFunc) = supertypeKind,
-           containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+           containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+               || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
             let receiverShapesMatch: Bool = {

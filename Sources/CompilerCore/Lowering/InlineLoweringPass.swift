@@ -751,7 +751,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
@@ -809,7 +814,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
@@ -1323,7 +1333,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
                                 localExprMap[result] = lambdaReturn
@@ -1546,6 +1561,24 @@ final class InlineLoweringPass: LoweringPass {
             return isInlineUnitType(currentType, ctx: ctx) || currentType != inlineReturnType
         }
         return true
+    }
+
+    /// Splice a lambda expansion in place of a call that already owns a local
+    /// exception slot, routing the lambda body's throws into that slot so the
+    /// surrounding inline try/catch can observe them.
+    private func appendInlinedLambdaExpansion(
+        _ lambdaExpansion: InlineExpansion,
+        callThrownResult: KIRExprID?,
+        localExprMap: [KIRExprID: KIRExprID],
+        into lowered: inout KIRLoweringEmitContext
+    ) {
+        let routedSlot = callThrownResult.map {
+            InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap)
+        }
+        lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(
+            in: lambdaExpansion.instructions,
+            thrownSlot: routedSlot
+        ))
     }
 
 }

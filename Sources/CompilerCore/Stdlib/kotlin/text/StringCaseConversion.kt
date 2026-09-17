@@ -57,13 +57,30 @@ public fun String.capitalize(): String {
 }
 
 /**
- * Returns a string having its first character replaced with [transform].
- *
- * KSwiftK currently models the transform as `(Char) -> Char` to match the existing
- * callable lowering support. The upstream Kotlin stdlib also has a CharSequence
- * returning overload; migrate that surface when function-type overloads support it.
+ * Returns a copy of this string having its first character replaced with the result of [transform].
  */
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
 public fun String.replaceFirstChar(transform: (Char) -> Char): String {
+    if (this.length == 0) return this
+    val sb = StringBuilder()
+    sb.append(transform(this[0]))
+    var i = 1
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
+    return sb.toString()
+}
+
+/**
+ * Returns a copy of this string having its first character replaced with the result of [transform].
+ */
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public fun String.replaceFirstChar(transform: (Char) -> CharSequence): String {
     if (this.length == 0) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))

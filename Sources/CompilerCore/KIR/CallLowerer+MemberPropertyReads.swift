@@ -342,6 +342,28 @@ extension CallLowerer {
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
 
+        // Runtime-backed Set instances are opaque set boxes. Their
+        // source-backed `size` getter must use the set bridge directly; an
+        // itable/vtable getter would require a Kotlin object layout that the
+        // runtime box does not have.
+        if isRuntimeBackedSetSizeProperty(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_set_size"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
         // KSP-928: an abstract/open class property is a getter dispatch point,
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
@@ -608,6 +630,23 @@ extension CallLowerer {
             return nil
         }
 
+        if isRuntimeBackedSetSizeProperty(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_set_size"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
         if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
             propertySymbol: propertySymbol,
             receiverExpr: receiverExpr,
@@ -656,6 +695,24 @@ extension CallLowerer {
             thrownResult: nil
         ))
         return result
+    }
+
+    private func isRuntimeBackedSetSizeProperty(
+        _ propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.symbols.symbol(propertySymbol)?.name == interner.intern("size"),
+              let receiverType = sema.bindings.exprTypes[receiverExpr]
+        else {
+            return false
+        }
+        return isSetLikeType(
+            receiverType,
+            sema: sema,
+            interner: interner
+        )
     }
 
     func tryLowerEnumEntryPropertyRead(

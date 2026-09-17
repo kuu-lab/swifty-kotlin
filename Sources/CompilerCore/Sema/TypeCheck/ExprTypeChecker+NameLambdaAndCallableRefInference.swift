@@ -109,6 +109,145 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
+    /// Binds the zero-argument `inc()` / `dec()` call synthesized for `++` / `--`.
+    /// A missing overload returns `nil` so primitive targets can continue through
+    /// the existing builtin compound-assignment path.
+    private func bindIncrementDecrementOperatorCall(
+        exprID: ExprID,
+        op: CompoundAssignOp,
+        receiverType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let operatorName: InternedString? = switch op {
+        case .plusAssign:
+            interner.intern("inc")
+        case .minusAssign:
+            interner.intern("dec")
+        default:
+            nil
+        }
+        guard let operatorName else { return nil }
+        let operatorCandidates = collectOperatorCandidates(
+            names: [operatorName],
+            receiverType: receiverType,
+            ctx: ctx
+        )
+        guard !operatorCandidates.isEmpty else {
+            return nil
+        }
+
+        let resolved = ctx.resolver.resolveCall(
+            candidates: operatorCandidates,
+            call: CallExpr(
+                range: range,
+                calleeName: operatorName,
+                args: []
+            ),
+            expectedType: nil,
+            implicitReceiverType: receiverType,
+            ctx: ctx.semaCtx
+        )
+        if let diagnostic = resolved.diagnostic {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            sema.bindings.bindExprType(exprID, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        guard let chosen = resolved.chosenCallee else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(exprID, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
+        let returnType = driver.callChecker.bindCallAndResolveReturnType(
+            exprID,
+            chosen: chosen,
+            resolved: resolved,
+            sema: sema
+        )
+        guard sema.types.isSubtype(returnType, receiverType) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0303",
+                "Operator '\(interner.resolve(operatorName))' result type must be assignable to the left-hand side.",
+                range: range
+            )
+            sema.bindings.bindExprType(exprID, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
+        sema.bindings.bindExprType(exprID, type: sema.types.unitType)
+        return sema.types.unitType
+    }
+
+    private func isPrimitiveIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case .primitive = sema.types.kind(of: type) {
+            return true
+        }
+        return false
+    }
+
+    private func reportMissingIncrementDecrementOperator(
+        _ op: CompoundAssignOp,
+        exprID: ExprID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let name = op == .plusAssign ? "inc" : "dec"
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0002",
+            "No viable overload found for operator '\(name)'.",
+            range: range
+        )
+        ctx.sema.bindings.bindExprType(exprID, type: ctx.sema.types.errorType)
+        return ctx.sema.types.errorType
+    }
+
+    private func inferIncrementDecrementIfNeeded(
+        exprID: ExprID,
+        op: CompoundAssignOp,
+        receiverType: TypeID,
+        isMutable: Bool,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard ctx.ast.arena.isIncrementDecrement(exprID) else {
+            return nil
+        }
+        if let resolvedType = bindIncrementDecrementOperatorCall(
+            exprID: exprID,
+            op: op,
+            receiverType: receiverType,
+            range: range,
+            ctx: ctx
+        ) {
+            guard resolvedType != ctx.sema.types.errorType else {
+                return resolvedType
+            }
+            guard isMutable else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0014",
+                    "Val cannot be reassigned.",
+                    range: range
+                )
+                ctx.sema.bindings.bindExprType(exprID, type: ctx.sema.types.errorType)
+                return ctx.sema.types.errorType
+            }
+            return resolvedType
+        }
+        if !isPrimitiveIncrementDecrementTarget(receiverType, sema: ctx.sema),
+           receiverType != ctx.sema.types.errorType
+        {
+            return reportMissingIncrementDecrementOperator(op, exprID: exprID, range: range, ctx: ctx)
+        }
+        return nil
+    }
+
     /// Result type of an arithmetic compound assignment whose operator function could
     /// not be resolved: numeric targets keep their own type, everything else falls back
     /// to `Int` (BUG-015).
@@ -149,6 +288,19 @@ extension ExprTypeChecker {
                     "Variable '\(interner.resolve(name))' must be initialized before use.",
                     range: range
                 )
+            }
+            if let resolvedType = inferIncrementDecrementIfNeeded(
+                exprID: id,
+                op: op,
+                receiverType: local.type,
+                isMutable: local.isMutable,
+                range: range,
+                ctx: ctx
+            ) {
+                if resolvedType != sema.types.errorType {
+                    locals[name] = (local.type, local.symbol, local.isMutable, local.isInitialized)
+                }
+                return resolvedType
             }
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
@@ -287,6 +439,16 @@ extension ExprTypeChecker {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
             }
             let propType = implicitReceiverMember?.type ?? sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
+            if let resolvedType = inferIncrementDecrementIfNeeded(
+                exprID: id,
+                op: op,
+                receiverType: propType,
+                isMutable: propSymbol.flags.contains(.mutable),
+                range: range,
+                ctx: ctx
+            ) {
+                return resolvedType
+            }
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
                 op: op,
@@ -436,6 +598,17 @@ extension ExprTypeChecker {
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
         let propSymbol = sema.symbols.symbol(propResult.symbol)
+
+        if let resolvedType = inferIncrementDecrementIfNeeded(
+            exprID: id,
+            op: op,
+            receiverType: propType,
+            isMutable: propSymbol?.flags.contains(.mutable) == true,
+            range: range,
+            ctx: ctx
+        ) {
+            return resolvedType
+        }
 
         if let resolvedType = bindCompoundAssignmentOperatorCall(
             exprID: id,
@@ -1286,22 +1459,37 @@ extension ExprTypeChecker {
         // first parameter: `Type::method` becomes `(Type) -> ReturnType`.
         var unboundClassType: TypeID?
         if let receiver,
-           case let .nameRef(receiverName, _) = ast.arena.expr(receiver)
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           locals[receiverName] == nil
         {
-            // Check locals first — if there's a local variable with this
-            // name, it's a bound reference, not an unbound type reference.
-            if locals[receiverName] == nil {
-                let allCandidateIDs = ctx.cachedScopeLookup(receiverName)
-                for candidateID in allCandidateIDs {
-                    guard let sym = ctx.cachedSymbol(candidateID),
-                          sym.kind == .class || sym.kind == .interface
-                          || sym.kind == .enumClass
-                    else { continue }
+            // A local with this name is a bound receiver, so only unresolved
+            // names can introduce an unbound type reference.
+            let allCandidateIDs = ctx.cachedScopeLookup(receiverName)
+            for candidateID in allCandidateIDs {
+                guard let sym = ctx.cachedSymbol(candidateID),
+                      sym.kind == .class || sym.kind == .interface
+                      || sym.kind == .enumClass
+                else { continue }
+                // Primitive class names are represented by dedicated primitive
+                // TypeIDs at expression sites. Keep that representation here so
+                // member lookup also probes package-level extensions such as
+                // `Char::titlecase` in kotlin.text.
+                if let primitive = driver.builtinTypeNamesCache.primitiveType(for: sym.name) {
+                    unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
+                } else {
                     unboundClassType = sema.types.make(
                         .classType(ClassType(classSymbol: sym.id, args: [], nullability: .nonNull))
                     )
-                    break
                 }
+                break
+            }
+
+            if unboundClassType == nil,
+               let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName)
+            {
+                // Builtin primitive classes may not be present in the lexical scope,
+                // but their callable references still use the primitive receiver path.
+                unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
             }
         }
 
@@ -1323,6 +1511,7 @@ extension ExprTypeChecker {
                 named: member,
                 receiverType: nonNullReceiver,
                 sema: sema,
+                includeUnattachedPackageExtensions: true,
                 interner: interner
             )
             if !memberCandidates.isEmpty {

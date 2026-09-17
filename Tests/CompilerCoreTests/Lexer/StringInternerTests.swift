@@ -112,6 +112,18 @@ struct StringInternerTests {
         #expect(interner.resolve(id2) == "emoji 🎉")
     }
 
+    @Test func testInternDistinguishesCanonicallyEquivalentUTF16Sequences() {
+        let interner = StringInterner()
+        let decomposed = "e\u{301}"
+        let composed = "\u{00E9}"
+        let decomposedID = interner.intern(decomposed)
+        let composedID = interner.intern(composed)
+
+        #expect(decomposedID != composedID)
+        #expect(Array(interner.resolve(decomposedID).utf16) == Array(decomposed.utf16))
+        #expect(Array(interner.resolve(composedID).utf16) == Array(composed.utf16))
+    }
+
     @Test func testInternSpecialCharacters() {
         let interner = StringInterner()
         let id = interner.intern("hello\nworld\ttab")

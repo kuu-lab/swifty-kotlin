@@ -41,6 +41,14 @@ struct RuntimeNumericHashCodeTests {
         #expect(kk_any_hashCode(Int(bitPattern: UInt.max), 7) == 0) // ULong.MAX_VALUE
     }
 
+    @Test
+    func testUnboxedUnsignedHashCodeUsesSignedStorageRepresentation() {
+        #expect(kk_any_hashCode(Int(UInt32.max), 9) == -1)
+        #expect(kk_any_hashCode(2_147_483_648, 9) == -2_147_483_648)
+        #expect(kk_any_hashCode(200, 10) == -56)
+        #expect(kk_any_hashCode(40_000, 11) == -25_536)
+    }
+
     // MARK: - Boxed (Any-erased receiver) dispatch
 
     @Test
@@ -65,6 +73,20 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
+    func testBoxedUnsignedHashCodePreservesStaticStorageType() {
+        let uint = kk_box_uint(Int(UInt32.max))
+        let ubyte = kk_box_ubyte(200)
+        let ushort = kk_box_ushort(40_000)
+
+        #expect(kk_unbox_int(uint) == Int(UInt32.max))
+        #expect(kk_unbox_int(ubyte) == 200)
+        #expect(kk_unbox_int(ushort) == 40_000)
+        #expect(kk_any_hashCode(uint, 0) == -1)
+        #expect(kk_any_hashCode(ubyte, 0) == -56)
+        #expect(kk_any_hashCode(ushort, 0) == -25_536)
+    }
+
+    @Test
     func testBoxedFloatHashCode() {
         let negative = registerRuntimeObject(RuntimeFloatBox(-2.5))
         #expect(kk_any_hashCode(negative, 0) == -1_071_644_672)
@@ -83,6 +105,31 @@ struct RuntimeNumericHashCodeTests {
         let negativeZero = registerRuntimeObject(RuntimeDoubleBox(-0.0))
         #expect(negativeZero != runtimeNullSentinelInt)
         #expect(kk_any_hashCode(negativeZero, 0) == -2_147_483_648)
+    }
+
+    @Test
+    func testResultHashCodeUsesWrappedValue() {
+        let intResult = runtimeResultSuccess(registerRuntimeObject(RuntimeIntBox(1)))
+        let stringResult = runtimeResultSuccess(registerRuntimeObject(RuntimeStringBox("abc")))
+        let nullResult = runtimeResultSuccess(runtimeNullSentinelInt)
+
+        #expect(kk_any_hashCode(intResult, 0) == 1)
+        #expect(kk_any_hashCode(stringResult, 0) == 96_354)
+        #expect(kk_any_hashCode(nullResult, 0) == 0)
+
+        let exception = runtimeAllocateThrowable(message: "boom")
+        let failure = runtimeResultFailure(exception)
+        #expect(kk_any_hashCode(failure, 0) == kk_any_hashCode(exception, 0))
+    }
+
+    @Test
+    func testObjectHashCodeIsNormalizedToKotlinIntWidth() {
+        let array = kk_array_new(0)
+        #expect(kk_any_hashCode(array, 0) == Int(Int32(truncatingIfNeeded: array)))
+
+        let classID = 5_000_000_000
+        let object = kk_object_new(0, classID)
+        #expect(kk_any_hashCode(object, 0) == Int(Int32(truncatingIfNeeded: classID)))
     }
 
     @Test
@@ -139,6 +186,12 @@ struct RuntimeNumericHashCodeTests {
         let value = registerRuntimeObject(RuntimeLongBox(1_099_511_627_776)) // 1L shl 40
         let map = registerRuntimeObject(RuntimeMapBox(keys: [key], values: [value]))
         #expect(kk_any_hashCode(map, 0) == 363) // "k".hashCode() (107) xor 256
+    }
+
+    @Test
+    func testStringHashCodeUsesUTF16CodeUnits() {
+        let emoji = registerRuntimeObject(RuntimeStringBox("😀"))
+        #expect(kk_any_hashCode(emoji, 0) == 1_772_899)
     }
 }
 #endif

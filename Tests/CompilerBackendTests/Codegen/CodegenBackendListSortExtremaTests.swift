@@ -131,6 +131,31 @@ struct CodegenBackendListSortExtremaTests {
 
     // MARK: - execution contracts
 
+    /// KUU-553: compiling the bundled stdlib from source used to bind these
+    /// calls to generic List<T>.min/minOrNull and return the first element.
+    @Test
+    func floatingPointListMinUsesIterableSpecializationsWithStdlibFromSource() throws {
+        let source = """
+        fun main() {
+            println(listOf(3.0, 1.0).min())
+            println(listOf(3.0f, 1.0f).min())
+            println(listOf(3.0, 1.0).minOrNull())
+            println(listOf(3.0f, 1.0f).minOrNull())
+            println(listOf(Double.NaN, 1.0).min().isNaN())
+            println(1.0 / listOf(0.0, -0.0).min())
+            println(listOf(Float.NaN, 1.0f).min().isNaN())
+            println(1.0f / listOf(0.0f, -0.0f).min())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FloatingPointListMinSourceRuntime",
+            expected: "1.0\n1.0\n1.0\n1.0\ntrue\n-Infinity\ntrue\n-Infinity\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
+
     /// Comparator- and selector-driven ordering, and the equal-rank rule:
     /// sorting is stable (equal keys keep input order) and the extrema pick the
     /// *first* element of an equal-ranked run.

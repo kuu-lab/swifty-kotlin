@@ -25,6 +25,64 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_double_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_double_range_contains",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_range_contains",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_double_range_isEmpty",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_range_isEmpty",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_double_coerceIn_range",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

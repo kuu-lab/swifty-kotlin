@@ -79,6 +79,22 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        if (op == .rangeTo || op == .rangeUntil),
+           let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
+        {
+            let callee = floatingPointElementType == sema.types.floatType
+                ? interner.intern(op == .rangeTo ? "__kk_float_rangeTo" : "__kk_float_rangeUntil")
+                : interner.intern(op == .rangeTo ? "__kk_double_rangeTo" : "__kk_double_rangeUntil")
+            instructions.append(.call(
+                symbol: nil,
+                callee: callee,
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let isKClassEquality = (op == .equal || op == .notEqual)
             && (
                 isKClassReceiverType(
@@ -103,6 +119,41 @@ extension CallLowerer {
             ))
             return result
         }
+        // Resolve String operators before the generic call-binding path. The
+        // bundled stdlib exposes `String` APIs as ordinary Kotlin wrappers,
+        // so Sema may bind `+`/`==` to those source declarations. String is a
+        // flat runtime aggregate, however, and the generic member-call path
+        // would emit a bare `plus`/`equals` call (or compare raw words) rather
+        // than the corresponding flat runtime ABI.
+        let lhsType = sema.bindings.exprTypes[lhs]
+        let rhsType = sema.bindings.exprTypes[rhs]
+        let nullableStringType = sema.types.makeNullable(stringType)
+        let lhsIsString = lhsType == stringType || lhsType == nullableStringType
+        let rhsIsString = rhsType == stringType || rhsType == nullableStringType
+        // Null literals get type nothing(.nullable), not stringStruct. Detect
+        // them so the flat-string equality ABI receives a typed null aggregate.
+        let lhsIsNullLiteral: Bool = {
+            guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let rhsIsNullLiteral: Bool = {
+            guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
+            || (rhsIsString && lhsIsNullLiteral)
+        let isStringComparison: Bool = if isStringOperand {
+            switch op {
+            case .equal, .notEqual, .identityEqual, .notIdentityEqual,
+                 .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+        } else {
+            false
+        }
+        let isStringAdd = op == .add && sema.bindings.exprTypes[exprID] == stringType
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -116,6 +167,8 @@ extension CallLowerer {
         let isEqualsDesugaring: Bool = op == .notEqual
             && sema.bindings.callBindings[exprID] != nil
         if let callBinding = sema.bindings.callBindings[exprID],
+           !isStringAdd,
+           !isStringComparison,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee)
         {
             let isNominalMemberOperator = if let owner = sema.symbols.parentSymbol(for: callBinding.chosenCallee),
@@ -311,9 +364,8 @@ extension CallLowerer {
             // coercion so that __kk_string_concat_flat always receives two string
             // aggregate values.
             let rhsExprType = sema.bindings.exprTypes[rhs]
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
             let effectiveRHS: KIRExprID
-            if rhsExprType == stringType || rhsExprType == nullableStringType {
+            if rhsExprType == stringType {
                 effectiveRHS = rhsID
             } else {
                 effectiveRHS = emitAnyToStringWithNullGuard(
@@ -328,7 +380,7 @@ extension CallLowerer {
             // Similarly coerce LHS if it is not a String (e.g. Any + String).
             let lhsExprType = sema.bindings.exprTypes[lhs]
             let effectiveLHS: KIRExprID
-            if lhsExprType == stringType || lhsExprType == nullableStringType {
+            if lhsExprType == stringType {
                 effectiveLHS = lhsID
             } else {
                 effectiveLHS = emitAnyToStringWithNullGuard(
@@ -355,23 +407,6 @@ extension CallLowerer {
         // String comparison desugaring: route <, <=, >, >= on String operands
         // through kk_string_compareTo_flat (content comparison) instead of the default
         // kk_op_lt/le/gt/ge path which compares raw pointer addresses.
-        let lhsType = sema.bindings.exprTypes[lhs]
-        let rhsType = sema.bindings.exprTypes[rhs]
-        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-        let lhsIsString = lhsType == stringType || lhsType == nullableStringType
-        let rhsIsString = rhsType == stringType || rhsType == nullableStringType
-        // null literals get type nothing(.nullable), not stringStruct — detect them so
-        // we can pass a properly-typed null string aggregate to __kk_string_equals_flat.
-        let lhsIsNullLiteral: Bool = {
-            guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
-            return true
-        }()
-        let rhsIsNullLiteral: Bool = {
-            guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
-            return true
-        }()
-        let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
-            || (rhsIsString && lhsIsNullLiteral)
         if isStringOperand {
             // When one side is a null literal, we need an expression typed as
             // nullableStringType so the flat-string codegen generates a null string
@@ -668,10 +703,18 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
-            let rangeUntilCallee = if sema.bindings.isULongRangeExpr(exprID) {
-                interner.intern("__kk_op_ulong_rangeUntil")
+            let rangeUntilCallee: InternedString
+            if sema.bindings.isFloatingPointRangeExpr(exprID) {
+                let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
+                if elementType == sema.types.floatType {
+                    rangeUntilCallee = interner.intern("__kk_float_rangeUntil")
+                } else {
+                    rangeUntilCallee = interner.intern("__kk_double_rangeUntil")
+                }
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_op_ulong_rangeUntil")
             } else {
-                interner.intern("__kk_op_rangeUntil")
+                rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
             instructions.append(.call(
                 symbol: nil,

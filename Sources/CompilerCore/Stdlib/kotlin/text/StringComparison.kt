@@ -114,9 +114,9 @@ private fun __kkCharSequenceRange(value: CharSequence, startIndex: Int, endIndex
 // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase) moved off the
 // Swift runtime.
 //
-// The flat String aggregate stores UTF-8 byte length, while Kotlin indexing is
-// character-based, so `length`/`this[i]` walk past non-ASCII input. Character
-// traversal goes through `toString().toList()` (see StringPrefixSuffix.kt).
+// String indexing and comparison use UTF-16 code units, matching Kotlin/JVM.
+// Character traversal goes through `toString().toList()` (see
+// StringPrefixSuffix.kt).
 //
 // Case folding follows the two-step rule of `String.compareToIgnoreCase` and
 // `Char.equals(other, ignoreCase = true)`: compare the upper-cased characters
