@@ -2558,7 +2558,12 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case .thisRef:
+        case let .thisRef(label, _):
+            if let label,
+               let receiverExprID = driver.ctx.qualifiedThisReceiverExprID(for: label)
+            {
+                return receiverExprID
+            }
             if let receiverExprID = driver.ctx.activeImplicitReceiverExprID() {
                 return receiverExprID
             }
