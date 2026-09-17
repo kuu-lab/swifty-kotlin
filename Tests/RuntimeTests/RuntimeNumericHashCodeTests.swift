@@ -108,6 +108,31 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
+    func testResultHashCodeUsesWrappedValue() {
+        let intResult = runtimeResultSuccess(registerRuntimeObject(RuntimeIntBox(1)))
+        let stringResult = runtimeResultSuccess(registerRuntimeObject(RuntimeStringBox("abc")))
+        let nullResult = runtimeResultSuccess(runtimeNullSentinelInt)
+
+        #expect(kk_any_hashCode(intResult, 0) == 1)
+        #expect(kk_any_hashCode(stringResult, 0) == 96_354)
+        #expect(kk_any_hashCode(nullResult, 0) == 0)
+
+        let exception = runtimeAllocateThrowable(message: "boom")
+        let failure = runtimeResultFailure(exception)
+        #expect(kk_any_hashCode(failure, 0) == kk_any_hashCode(exception, 0))
+    }
+
+    @Test
+    func testObjectHashCodeIsNormalizedToKotlinIntWidth() {
+        let array = kk_array_new(0)
+        #expect(kk_any_hashCode(array, 0) == Int(Int32(truncatingIfNeeded: array)))
+
+        let classID = 5_000_000_000
+        let object = kk_object_new(0, classID)
+        #expect(kk_any_hashCode(object, 0) == Int(Int32(truncatingIfNeeded: classID)))
+    }
+
+    @Test
     func testDataClassObjectHashCodeUsesTypedFieldsAnd32BitFolding() {
         let classID = 0x51_232
         _ = kk_runtime_register_data_class(classID)
