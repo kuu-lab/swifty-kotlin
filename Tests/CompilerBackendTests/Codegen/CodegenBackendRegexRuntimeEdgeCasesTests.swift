@@ -22,6 +22,17 @@ struct CodegenBackendRegexRuntimeEdgeCasesTests {
             } catch (e: Throwable) {
                 println("invalid-pattern")
             }
+
+            println(Regex("a").toString())
+            println(Regex("a").pattern)
+
+            val empty = Regex("")
+            println(empty.findAll("ab").count())
+            println(empty.replace("ab", "-"))
+
+            val namedReplace = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
+            println(namedReplace.replace("2024-05", "$2/$1"))
+            println(namedReplace.replace("2024-05", "\\${month}/\\${year}"))
         }
         """
 
@@ -33,6 +44,12 @@ struct CodegenBackendRegexRuntimeEdgeCasesTests {
                 2025
                 04
                 invalid-pattern
+                a
+                a
+                3
+                -a-b-
+                05/2024
+                05/2024
                 """
                 + "\n"
         )

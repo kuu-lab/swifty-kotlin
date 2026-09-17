@@ -56,6 +56,11 @@ public class Regex {
     @KsSymbolName("__kk_regex_replace_lambda")
     public external fun replace(input: String, transform: (MatchResult) -> String): String
 
+    // Constructor parameter `pattern` is not a property; naming this
+    // `= pattern` would bind to that parameter slot (uninitialized / null)
+    // instead of the `Regex.pattern` extension.
+    public override fun toString(): String = __kkRegexPattern(this)
+
     public fun split(input: String, limit: Int = 0): List<String> {
         if (limit == 0) {
             return __kk_split_regex(input, this)

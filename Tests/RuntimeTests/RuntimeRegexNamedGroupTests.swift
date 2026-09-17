@@ -107,5 +107,40 @@ struct RuntimeRegexNamedGroupTests {
         #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "(\\d+)-(\\d+)")
         #expect(groupIndex(matchRaw, named: "year") == -1)
     }
+
+    @Test
+    func testReplaceExpandsNamedGroupReferences() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+        let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})")
+        let resultRaw = kk_string_replace_regex(
+            makeStringRaw("2024-05"),
+            regexRaw,
+            makeStringRaw("${month}/${year}")
+        )
+        #expect(runtimeString(resultRaw) == "05/2024")
+
+        let numberedRaw = kk_string_replace_regex(
+            makeStringRaw("2024-05"),
+            regexRaw,
+            makeStringRaw("$2/$1")
+        )
+        #expect(runtimeString(numberedRaw) == "05/2024")
+
+        let firstRaw = kk_string_replaceFirst_regex(
+            makeStringRaw("2024-05 2025-06"),
+            regexRaw,
+            makeStringRaw("${year}")
+        )
+        #expect(runtimeString(firstRaw) == "2024 2025-06")
+    }
+
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
+            }
+        }
+    }
 }
 #endif

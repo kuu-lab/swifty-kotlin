@@ -3887,7 +3887,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.MatchResult.Destructured` — class kotlin.text.MatchResult.Destructured  -- `final class Destructured {`
 
-- [ ] KSP-1436: kotlin.text.Regex.Regex の未実装 stdlib API を実装する（13 件）
+- [ ] KSP-1436: kotlin.text.Regex.Regex の未実装 stdlib API を実装する（12 件）
   - 対象: `kotlin.text.Regex` / receiver `Regex`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Regex/Regex.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3907,7 +3907,6 @@
     - `kotlin.text.Regex.replaceFirst` — fun Regex.replaceFirst(CharSequence, String): String  -- `final fun replaceFirst(kotlin/CharSequence, kotlin/String): kotlin/String`
     - `kotlin.text.Regex.split` — fun Regex.split(CharSequence, Int): List  -- `final fun split(kotlin/CharSequence, kotlin/Int = ...): kotlin.collections/List<kotlin/String>`
     - `kotlin.text.Regex.splitToSequence` — fun Regex.splitToSequence(CharSequence, Int): Sequence  -- `final fun splitToSequence(kotlin/CharSequence, kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
-    - `kotlin.text.Regex.toString` — fun Regex.toString(): String  -- `final fun toString(): kotlin/String`
 
 - [ ] KSP-1439: kotlin.text.StringBuilder top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.StringBuilder` / top-level
