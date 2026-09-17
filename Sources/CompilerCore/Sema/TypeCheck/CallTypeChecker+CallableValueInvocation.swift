@@ -15,6 +15,7 @@ extension CallTypeChecker {
                 "__kk_op_rangeUntil",
                 "__kk_op_ulong_rangeUntil",
                 "__kk_uint_rangeTo",
+                "__kk_ulong_rangeTo",
                 "kk_char_rangeTo",
                 "__kk_int_progression_fromClosedRange",
                 "__kk_long_progression_fromClosedRange",
@@ -64,6 +65,7 @@ extension CallTypeChecker {
             }
             if externalLinkName == "__kk_ulong_progression_fromClosedRange"
                 || externalLinkName == "__kk_op_ulong_rangeUntil"
+                || externalLinkName == "__kk_ulong_rangeTo"
             {
                 sema.bindings.markULongRangeExpr(id)
             }

@@ -8,6 +8,8 @@ package kotlin.ranges
 //   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator)
 //   Sources/Runtime/RuntimeRangeUIntULongRange.swift
 //   (__kk_uint_range_iterator, __kk_uint_range_hasNext, __kk_uint_range_next)
+//   Sources/Runtime/RuntimeRangeLongRange.swift
+//   (__kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 // See RangeMembership.kt for the contains()/isEmpty() half of this migration.
 //
 // KSP-452 removed the `for (x in range)` lowering special case, so plain range
@@ -100,14 +102,14 @@ internal class UIntProgressionIterator(first: UInt, last: UInt, private val step
 internal class ULongProgressionIterator(first: ULong, last: ULong, private val step: Int) : Iterator<ULong> {
     private val finalElement: ULong = last
     private var nextValue: ULong = first
-    private var hasNextValue: Boolean = if (step > 0L) first <= last else if (step < 0L) first >= last else false
+    private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
 
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): ULong {
         val value = nextValue
         val candidate = value + step.toULong()
-        hasNextValue = if (step > 0L) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
         nextValue = candidate
         return value
     }

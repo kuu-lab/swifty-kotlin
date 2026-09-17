@@ -41,7 +41,7 @@ expr e@5:53 uint(10) type=UInt
 expr e@5:49#1 binary(rangeTo) lhs=e@5:49 rhs=e@5:53 type=kotlin.ranges.UIntRange call=kotlin.ranges.rangeTo[kind=fun;recv=UInt;params=UInt]
 expr e@6:51 ulong(1) type=ULong
 expr e@6:56 ulong(10) type=ULong
-expr e@6:51#1 binary(rangeTo) lhs=e@6:51 rhs=e@6:56 type=ULong
+expr e@6:51#1 binary(rangeTo) lhs=e@6:51 rhs=e@6:56 type=kotlin.ranges.ULongRange call=kotlin.ranges.rangeTo[kind=fun;recv=ULong;params=ULong]
 expr e@7:49 char(97) type=Char
 expr e@7:54 char(122) type=Char
 expr e@7:49#1 binary(rangeTo) lhs=e@7:49 rhs=e@7:54 type=Int
