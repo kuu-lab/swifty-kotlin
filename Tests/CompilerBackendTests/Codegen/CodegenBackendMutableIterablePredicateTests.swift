@@ -83,6 +83,33 @@ struct CodegenBackendMutableIterablePredicateTests {
         )
     }
 
+    @Test
+    func testCodegenMutableMapEntriesPredicateOperationsMutateMap() throws {
+        let source = """
+        fun main() {
+            val retained = mutableMapOf(1 to "a", 2 to "b", 3 to "c")
+            println(retained.entries.retainAll { it.key == 2 })
+            println(retained)
+
+            val removed = mutableMapOf(1 to "a", 2 to "b", 3 to "c")
+            println(removed.entries.removeAll { it.value != "b" })
+            println(removed)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableMapEntriesPredicate",
+            expected:
+                """
+                true
+                {2=b}
+                true
+                {2=b}
+                """ + "\n"
+        )
+    }
+
     private func assertKotlinOutput(
         _ source: String,
         moduleName: String,

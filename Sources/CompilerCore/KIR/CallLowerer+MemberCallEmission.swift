@@ -335,6 +335,22 @@ extension CallLowerer {
             ))
             finalArguments[1] = converted
         }
+        // KUU-600: Regex.replace's transform uses the runtime callback ABI.
+        // Its Kotlin function-value argument must be split into the raw
+        // function pointer and closure environment expected by the bridge.
+        if loweredCallee == interner.intern("__kk_regex_replace_lambda"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
+        }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
         // reference is finalArguments[1]; inject the lambda's captures after it so the

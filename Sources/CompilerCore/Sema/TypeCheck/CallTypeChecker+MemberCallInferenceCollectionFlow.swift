@@ -2062,6 +2062,25 @@ extension CallTypeChecker {
                 return (keyType, valueType)
             }()
 
+            func sequenceSourceReceiverElementMatches(
+                _ signature: FunctionSignature,
+                actualElementType: TypeID
+            ) -> Bool {
+                // Generic Sequence<T> extensions accept every element type. A
+                // monomorphic extension, however, must only be selected when
+                // its concrete receiver element matches the actual receiver.
+                guard signature.typeParameterSymbols.isEmpty,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return true
+                }
+                return extractIterableOrSequenceElementType(
+                    signatureReceiver,
+                    sema: sema,
+                    interner: interner
+                ) == actualElementType
+            }
+
             func bindBundledSequenceAggregateSource(typeArguments: [TypeID]) {
                 guard isSequenceReceiver else {
                     return
@@ -2083,6 +2102,10 @@ extension CallTypeChecker {
                             return false
                         }
                         return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                            && sequenceSourceReceiverElementMatches(
+                                signature,
+                                actualElementType: collectionElementType
+                            )
                     }) {
                         chosenCallee = candidate
                         break
@@ -2156,6 +2179,10 @@ extension CallTypeChecker {
                             return false
                         }
                         return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                            && sequenceSourceReceiverElementMatches(
+                                signature,
+                                actualElementType: collectionElementType
+                            )
                     }) {
                         chosenCallee = candidate
                         break
@@ -5508,6 +5535,25 @@ extension CallTypeChecker {
             // an already-bound CallBinding from a list/aggregate source path.
             if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
+            }
+
+            // Sequence.sum()/average() currently have only the Int source
+            // overloads. Do not let an unsupported concrete element type fall
+            // through to the raw runtime bridge with the wrong ABI shape.
+            if isSequenceReceiver,
+               sema.bindings.callBindings[id] == nil,
+               ["sum", "average"].contains(calleeStr)
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0024",
+                    "No viable overload found for call.",
+                    range: ast.arena.exprRange(id)
+                )
+                let failedType = safeCall
+                    ? sema.types.makeNullable(sema.types.errorType)
+                    : sema.types.errorType
+                sema.bindings.bindExprType(id, type: failedType)
+                return failedType
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

@@ -40,9 +40,21 @@ enum GoldenHarnessSemaFormat {
         _ signature: FunctionSignature,
         types: TypeSystem
     ) -> String {
-        let receiver = signature.receiverType.map { types.renderType($0) } ?? "_"
-        let parameters = signature.parameterTypes.map { types.renderType($0) }.joined(separator: ",")
-        let returnType = types.renderType(signature.returnType)
+        renderFunctionSignature(signature, renderType: types.renderType)
+    }
+
+    /// Renders a function signature with a caller-provided type projection.
+    /// The default overload above preserves the historical formatter API;
+    /// GoldenHarnessStableRenderContext uses this overload so source-backed
+    /// aliases and imported declarations can share the same public type
+    /// spelling without changing CompilerCore's type renderer.
+    static func renderFunctionSignature(
+        _ signature: FunctionSignature,
+        renderType: (TypeID) -> String
+    ) -> String {
+        let receiver = signature.receiverType.map(renderType) ?? "_"
+        let parameters = signature.parameterTypes.map(renderType).joined(separator: ",")
+        let returnType = renderType(signature.returnType)
         let defaults = signature.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined(separator: ",")
         let vararg = signature.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined(separator: ",")
         var result = "recv=\(receiver) params=[\(parameters)] ret=\(returnType)"
@@ -62,7 +74,7 @@ enum GoldenHarnessSemaFormat {
                 if upperBounds.isEmpty {
                     return "_"
                 }
-                return upperBounds.map { types.renderType($0) }.joined(separator: "&")
+                return upperBounds.map(renderType).joined(separator: "&")
             }.joined(separator: ",")
             result += " bounds=[\(bounds)]"
         }

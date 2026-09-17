@@ -1363,7 +1363,8 @@ extension CallTypeChecker {
                 interner: interner,
                 isLongRange: isLongRange,
                 isUIntRange: isUIntRange,
-                isULongRange: isULongRange
+                isULongRange: isULongRange,
+                isReversed: true
             )
         case "step":
             return argCount == 0 ? sema.types.intType : rangeMemberRangeType(
@@ -1426,8 +1427,29 @@ extension CallTypeChecker {
         interner: StringInterner,
         isLongRange: Bool,
         isUIntRange: Bool,
-        isULongRange: Bool
+        isULongRange: Bool,
+        isReversed: Bool = false
     ) -> TypeID {
+        if isReversed,
+           elementType == sema.types.intType,
+           !isLongRange,
+           !isUIntRange,
+           !isULongRange
+        {
+            let intProgressionFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern("IntProgression"),
+            ]
+            if let intProgressionSymbol = sema.symbols.lookup(fqName: intProgressionFQName) {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: intProgressionSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+        }
+
         if let receiverType,
            case .classType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
         {

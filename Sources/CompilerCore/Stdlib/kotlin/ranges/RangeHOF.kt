@@ -179,7 +179,7 @@ public fun IntRange.sum(): Int {
 }
 
 @KsSymbolName("__kk_range_reversed")
-public external fun IntRange.reversed(): IntRange
+public external fun IntRange.reversed(): IntProgression
 
 // KSP-1285: Kotlin exposes exact IntRange overloads for the other signed
 // primitive integer types. Long values must be range-checked before narrowing.
