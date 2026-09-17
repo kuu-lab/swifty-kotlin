@@ -187,5 +187,11 @@ struct RuntimeNumericHashCodeTests {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [key], values: [value]))
         #expect(kk_any_hashCode(map, 0) == 363) // "k".hashCode() (107) xor 256
     }
+
+    @Test
+    func testStringHashCodeUsesUTF16CodeUnits() {
+        let emoji = registerRuntimeObject(RuntimeStringBox("😀"))
+        #expect(kk_any_hashCode(emoji, 0) == 1_772_899)
+    }
 }
 #endif
