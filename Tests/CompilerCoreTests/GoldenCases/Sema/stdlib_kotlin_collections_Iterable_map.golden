@@ -75,19 +75,19 @@ expr e@18:71 lambda params=[] body=e@18:73 label=mapTo type=(String?) -> String?
 expr e@18:45#1 memberCall recv=e@18:45 callee=mapTo args=[_:e@18:58,_:e@18:71] type=kotlin.collections.MutableCollection<Any?> call=kotlin.collections.mapTo[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T2,fn{p=T0;ret=T1};gen=3] targs=[String?,String?,kotlin.collections.MutableCollection<Any?>]
 expr e@18:5 localDecl mappedTo mutable=0 type=MutableCollection<Any?> init=e@18:45#1 type=Unit ref=__local_7.mappedTo[kind=local]
 expr e@19:16 name(mapped) type=kotlin.collections.List<String?> ref=__local_0.mapped[kind=local]
-expr e@19:16#1 memberCall recv=e@19:16 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<out T0>;params=;gen=1]
+expr e@19:16#1 memberCall recv=e@19:16 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1]
 expr e@19:36 name(indexed) type=kotlin.collections.List<String> ref=__local_1.indexed[kind=local]
-expr e@19:36#1 memberCall recv=e@19:36 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<out T0>;params=;gen=1]
+expr e@19:36#1 memberCall recv=e@19:36 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1]
 expr e@19:16#2 binary(logicalOr) lhs=e@19:16#1 rhs=e@19:36#1 type=Boolean
 expr e@19:57 name(indexedNotNull) type=kotlin.collections.List<String> ref=__local_2.indexedNotNull[kind=local]
-expr e@19:57#1 memberCall recv=e@19:57 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<out T0>;params=;gen=1]
+expr e@19:57#1 memberCall recv=e@19:57 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1]
 expr e@19:16#3 binary(logicalOr) lhs=e@19:16#2 rhs=e@19:57#1 type=Boolean
 expr e@20:9 name(indexedNotNullTo) type=kotlin.collections.MutableCollection<Any?> ref=__local_3.indexedNotNullTo[kind=local]
 expr e@19:83 blockExpr stmts=[] trailing=e@20:9 type=kotlin.collections.MutableCollection<Any?>
 expr e@21:16 name(indexedTo) type=kotlin.collections.MutableCollection<Any?> ref=__local_4.indexedTo[kind=local]
 expr e@21:16#1 memberCall recv=e@21:16 callee=isEmpty args=[] type=Boolean call=kotlin.collections.Collection.isEmpty[kind=fun;recv=kotlin.collections.Collection<T0>;params=;gen=1]
 expr e@21:39 name(notNull) type=kotlin.collections.List<String> ref=__local_5.notNull[kind=local]
-expr e@21:39#1 memberCall recv=e@21:39 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<out T0>;params=;gen=1]
+expr e@21:39#1 memberCall recv=e@21:39 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1]
 expr e@21:16#2 binary(logicalOr) lhs=e@21:16#1 rhs=e@21:39#1 type=Boolean
 expr e@21:60 name(notNullTo) type=kotlin.collections.MutableCollection<Any?> ref=__local_6.notNullTo[kind=local]
 expr e@21:60#1 memberCall recv=e@21:60 callee=isEmpty args=[] type=Boolean call=kotlin.collections.Collection.isEmpty[kind=fun;recv=kotlin.collections.Collection<T0>;params=;gen=1]

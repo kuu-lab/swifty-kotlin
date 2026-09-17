@@ -110,6 +110,8 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == interner.intern("format")
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        let isSyntacticRangeCollectionMember = ["plus", "minus"].contains(interner.resolve(calleeName))
+            && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
@@ -185,7 +187,8 @@ extension CallTypeChecker {
                 receiverExpr: receiverID,
                 receiverType: lookupReceiverType,
                 sema: sema,
-                interner: interner
+                interner: interner,
+                allowSyntacticRangeExpression: isSyntacticRangeCollectionMember
             )
         } else {
             nil
@@ -596,6 +599,14 @@ extension CallTypeChecker {
                                 )
                             )
                             let resultType = signature.returnType
+                            if ast.arena.isExplicitCall(id),
+                               let nestedOwner = sema.symbols.parentSymbol(for: zeroArgNested),
+                               let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                               nestedOwnerSymbol.kind == .class,
+                               !nestedOwnerSymbol.flags.contains(.innerClass)
+                            {
+                                sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                            }
                             sema.bindings.bindExprType(id, type: resultType)
                             return resultType
                         }
@@ -628,6 +639,14 @@ extension CallTypeChecker {
                             )
                         )
                         let resultType = signature.returnType
+                        if ast.arena.isExplicitCall(id),
+                           let nestedOwner = sema.symbols.parentSymbol(for: chosen),
+                           let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                           nestedOwnerSymbol.kind == .class,
+                           !nestedOwnerSymbol.flags.contains(.innerClass)
+                        {
+                            sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                        }
                         sema.bindings.bindExprType(id, type: resultType)
                         return resultType
                     }
@@ -635,6 +654,30 @@ extension CallTypeChecker {
             }
         }
 
+        if !isClassNameReceiver,
+           args.isEmpty,
+           !ast.arena.isExplicitCall(id),
+           let sourceFile = ctx.currentASTFile,
+           let preferredSourcePackage = preferredBundledStdlibPackage(
+               sourceFile: sourceFile,
+               candidates: sema.symbols.lookupByShortName(calleeName),
+               receiverType: memberLookupType,
+               sema: sema
+           ),
+           let extensionPropertyType = resolveExtensionPropertyGetter(
+               id: id,
+               calleeName: calleeName,
+               range: range,
+               receiverType: memberLookupType,
+               expectedType: expectedType,
+               ctx: ctx,
+               preferredSourcePackage: preferredSourcePackage
+           )
+        {
+            let finalType = safeCall ? sema.types.makeNullable(extensionPropertyType) : extensionPropertyType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
@@ -969,19 +1012,19 @@ extension CallTypeChecker {
             } else {
                 []
             }
-            let atomicSourceCandidates: [SymbolID] = if rangeSourceCandidates.isEmpty,
-                isBundledAtomicSourceMember(calleeName, interner: interner),
-                isBundledAtomicSourceReceiver(memberLookupType, sema: sema, interner: interner)
-            {
-                collectAtomicSourceExtensionCandidates(
-                    named: calleeName,
-                    receiverType: memberLookupType,
-                    sema: sema,
-                    interner: interner
-                )
-            } else {
-                []
-            }
+            let bundledStdlibCandidates = collectBundledStdlibExtensionCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sourceFile: ctx.currentASTFile,
+                sema: sema,
+                interner: interner
+            )
+            let instantValueSemanticsCandidates = collectInstantValueSemanticsCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            )
             let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
                 named: calleeName,
                 receiverType: memberLookupType,
@@ -1054,24 +1097,33 @@ extension CallTypeChecker {
                     ]
                 }
             }
-            let memberCandidates: [SymbolID]
+            let standardMemberCandidates: [SymbolID]
             if !arrayConversionSourceCandidates.isEmpty {
-                memberCandidates = arrayConversionSourceCandidates
+                standardMemberCandidates = arrayConversionSourceCandidates
             } else if !mutableMapPutAllSourceCandidates.isEmpty {
-                memberCandidates = mutableMapPutAllSourceCandidates
+                standardMemberCandidates = mutableMapPutAllSourceCandidates
             } else if !primitiveArraySourceCandidates.isEmpty {
                 // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
                 // exact source receiver over synthetic member stubs, including
                 // joinToString(transform), whose legacy stub shares the same name.
-                memberCandidates = primitiveArraySourceCandidates
+                standardMemberCandidates = primitiveArraySourceCandidates
             } else if !scopedRangeUserCandidates.isEmpty {
-                memberCandidates = scopedRangeUserCandidates
+                standardMemberCandidates = scopedRangeUserCandidates
             } else if !rangeSourceCandidates.isEmpty {
-                memberCandidates = rangeSourceCandidates
-            } else if !atomicSourceCandidates.isEmpty {
-                memberCandidates = atomicSourceCandidates
+                standardMemberCandidates = rangeSourceCandidates
+            } else if !instantValueSemanticsCandidates.isEmpty {
+                // Instant's source-backed value-semantics extensions intentionally
+                // replace inherited Any members for a statically typed Instant.
+                // Without this preference, the nominal source shell makes
+                // Any.equals/hashCode/toString win before extension fallback.
+                standardMemberCandidates = instantValueSemanticsCandidates
+            } else if !bundledStdlibCandidates.isEmpty {
+                // Source-backed bundled extensions are the live implementation
+                // for migrated atomic APIs, including overrides of inherited
+                // synthetic Any members such as AtomicInt.toString().
+                standardMemberCandidates = bundledStdlibCandidates
             } else {
-                memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
                     receiverType: memberLookupType,
                     sema: sema,
@@ -1079,6 +1131,35 @@ extension CallTypeChecker {
                     interner: interner
                 )
             }
+            // Duration.toString(DurationUnit, Int) is a bundled source extension
+            // that overloads Duration's ordinary zero-argument toString member.
+            // Keep the source extension in the same candidate set when a member
+            // with the same name already exists; otherwise the non-empty argument
+            // call would stop at the zero-argument member and never reach the
+            // normal extension fallback.
+            let sourceBackedOverloads: [SymbolID] = {
+                guard interner.resolve(calleeName) == "toString", !args.isEmpty else {
+                    return []
+                }
+                let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
+                return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                    guard sema.symbols.isSourceBackedSymbol(candidate),
+                          let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType,
+                          signature.parameterTypes.count >= args.count
+                    else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: receiverForExtensionLookup,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }()
+            let memberCandidates = sourceBackedOverloads + standardMemberCandidates
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -1213,6 +1294,7 @@ extension CallTypeChecker {
                         scopeCandidates = collectBundledStdlibExtensionCandidates(
                             named: calleeName,
                             receiverType: memberLookupType,
+                            sourceFile: ctx.currentASTFile,
                             sema: sema,
                             interner: interner
                         )
@@ -1421,7 +1503,68 @@ extension CallTypeChecker {
             return boundType
         }
 
+        let stringMemberName = interner.resolve(calleeName)
+        if ["minWith", "minWithOrNull"].contains(stringMemberName),
+           isSyntheticStringLikeType(lookupReceiverType, sema: sema),
+           args.count == 1,
+           let comparatorElementType = resolvedComparatorElementType(
+               of: argTypes[0],
+               sema: sema,
+               interner: interner
+           ),
+           sema.types.nullability(of: argTypes[0]) != .nullable,
+           sema.types.isSubtype(sema.types.charType, comparatorElementType)
+        {
+            // The source-backed Comparator<in Char> parameter is valid for a
+            // Comparator<Char> argument, but the regular resolver currently
+            // rejects that variance. Bind the uniquely named CharSequence
+            // declaration after the normal candidates have been considered.
+            bindSyntheticStringMemberDirectlyIfAvailable(
+                id,
+                calleeName: calleeName,
+                argumentCount: args.count,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+            if sema.bindings.callBindings[id] != nil {
+                let resultType = stringMemberName == "minWithOrNull"
+                    ? sema.types.make(.primitive(.char, .nullable))
+                    : sema.types.make(.primitive(.char, .nonNull))
+                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
+
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        let memberName = interner.resolve(calleeName)
+        if !isClassNameReceiver,
+           !safeCall,
+           args.isEmpty,
+           explicitTypeArgs.isEmpty,
+           invisible.isEmpty,
+           sema.types.nullability(of: receiverType) == .nullable,
+           memberName == "toString" || memberName == "hashCode",
+           !visible.contains(where: { candidate in
+               guard let signature = sema.symbols.functionSignature(for: candidate),
+                     signature.parameterTypes.isEmpty,
+                     let declaredReceiver = signature.receiverType,
+                     sema.types.nullability(of: declaredReceiver) == .nullable
+               else {
+                   return false
+               }
+               return sema.types.isSubtype(receiverType, declaredReceiver)
+           })
+        {
+            // Kotlin exposes toString() and hashCode() through nullable Any
+            // extensions. Flat-representation and class receivers can expose
+            // only non-null synthetic members, which the normal resolver must
+            // reject for a nullable receiver before KIR can use the Any ABI.
+            let resultType = memberName == "toString" ? sema.types.stringType : sema.types.intType
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
         var candidates = preferMostSpecificMemberReceiverCandidates(
             visible,
             receiverType: lookupReceiverType,
@@ -1764,6 +1907,31 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
+        // Regex keeps a String-specific runtime bridge for the historical
+        // `(MatchResult) -> String` overload alongside the source-backed
+        // CharSequence overload whose transform returns CharSequence. Lambda
+        // preparation intentionally erases return types while finding a shared
+        // input shape, which would otherwise leave these two overloads
+        // ambiguous even after the lambda body has produced a String. Once the
+        // body type is known, prefer the bridge only when its String callback is
+        // actually applicable; custom CharSequence callbacks continue through
+        // the source declaration.
+        if memberNameText == "replace",
+           args.count == 2,
+           sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,
+           preparedArgs.lambdaLiteralIndices.contains(1),
+           case let .functionType(lambdaType) = sema.types.kind(
+               of: sema.types.makeNonNullable(preparedArgs.argTypes[1])
+           ),
+           sema.types.isSubtype(lambdaType.returnType, sema.types.stringType)
+        {
+            let regexStringBridgeCandidates = candidates.filter {
+                sema.symbols.externalLinkName(for: $0) == "__kk_regex_replace_lambda"
+            }
+            if !regexStringBridgeCandidates.isEmpty {
+                candidates = regexStringBridgeCandidates
+            }
+        }
         let resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -1851,18 +2019,6 @@ extension CallTypeChecker {
                 return fallbackType
             }
             if let fallbackType = tryStringMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryPathCharsetReadExtensionFallback(
                 id,
                 calleeName: calleeName,
                 isClassNameReceiver: isClassNameReceiver,
@@ -2075,6 +2231,7 @@ extension CallTypeChecker {
             ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: args, ctx: ctx)
         driver.helpers.checkDeprecation(
             for: chosen,
             sema: sema,
@@ -2233,6 +2390,7 @@ extension CallTypeChecker {
              "kotlin.concurrent.atomics.AtomicLong",
              "kotlin.concurrent.atomics.AtomicBoolean",
              "kotlin.concurrent.atomics.AtomicReference",
+             "kotlin.concurrent.atomics.AtomicNativePtr",
              "kotlin.concurrent.atomics.AtomicIntArray",
              "kotlin.concurrent.atomics.AtomicLongArray",
              "kotlin.concurrent.AtomicInt",
@@ -2240,10 +2398,52 @@ extension CallTypeChecker {
              "kotlin.concurrent.AtomicBoolean",
              "kotlin.concurrent.AtomicReference",
              "kotlin.concurrent.AtomicIntArray",
-             "kotlin.concurrent.AtomicLongArray":
+             "kotlin.concurrent.AtomicLongArray",
+             "java.util.concurrent.atomic.AtomicInteger":
             return true
         default:
             return false
+        }
+    }
+
+    /// Finds the source-backed value-semantics extensions for Instant. Instant
+    /// keeps these operations as package-level Kotlin functions, but its source
+    /// nominal shell also inherits Any's methods. They must be preferred when
+    /// the call site's static receiver is Instant.
+    private func collectInstantValueSemanticsCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let supportedNames: Set<String> = ["equals", "hashCode", "toString"]
+        guard supportedNames.contains(interner.resolve(calleeName)),
+              let receiverOwner = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(receiverType),
+                  types: sema.types
+              ),
+              let receiverSymbol = sema.symbols.symbol(receiverOwner),
+              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "time", "Instant"]
+        else {
+            return []
+        }
+
+        let kotlinTimePackage = [interner.intern("kotlin"), interner.intern("time")]
+        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  Array(symbol.fqName.dropLast()) == kotlinTimePackage,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
         }
     }
 
@@ -2259,6 +2459,7 @@ extension CallTypeChecker {
         named calleeName: InternedString,
         receiverType: TypeID,
         requireOperator: Bool = false,
+        sourceFile: ASTFile? = nil,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
@@ -2272,7 +2473,7 @@ extension CallTypeChecker {
             return []
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+        let candidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
                   let signature = sema.symbols.functionSignature(for: candidate),
@@ -2303,7 +2504,21 @@ extension CallTypeChecker {
                 symbols: sema.symbols,
                 types: sema.types,
                 interner: interner
-            ), sema.bundledIndex.contains(key)
+            )
+            else {
+                return false
+            }
+            // Typealias receivers expand to their runtime nominal owner when a
+            // symbol key is built. The AST index still retains the declaration's
+            // package for source-backed aliases, so accept either representation
+            // here and let the source-file provenance filter choose between them.
+            let declaredOwnerKey = BundledMemberKey(
+                ownerFQName: Array(symbol.fqName.dropLast()),
+                name: symbol.name,
+                arity: signature.parameterTypes.count
+            )
+            guard sema.bundledIndex.contains(key)
+                || sema.bundledIndex.contains(declaredOwnerKey)
             else {
                 return false
             }
@@ -2313,6 +2528,102 @@ extension CallTypeChecker {
                 sema: sema
             )
         }
+        guard !candidates.isEmpty else {
+            return []
+        }
+
+        // Typealiases for the canonical and legacy atomic packages expand to the
+        // same runtime nominal type. When both source implementations are in the
+        // symbol table, retain the package selected by the current file's import
+        // or package context instead of reporting a false opt-in/overload clash.
+        guard let sourceFile,
+              let preferredPackage = preferredBundledStdlibPackage(
+                  sourceFile: sourceFile,
+                  candidates: candidates,
+                  receiverType: nonNullReceiver,
+                  sema: sema
+              )
+        else {
+            return candidates
+        }
+        let preferredCandidates = candidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            return Array(symbol.fqName.dropLast()) == preferredPackage
+        }
+        return preferredCandidates.isEmpty ? candidates : preferredCandidates
+    }
+
+    /// Chooses the bundled source package that introduced the receiver visible
+    /// at a call site. Canonical atomics aliases and their legacy shells share a
+    /// runtime class, so the receiver type alone cannot carry this provenance.
+    func preferredBundledStdlibPackage(
+        sourceFile: ASTFile,
+        candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> [InternedString]? {
+        let packages = candidates.compactMap { candidate -> [InternedString]? in
+            guard let symbol = sema.symbols.symbol(candidate), symbol.fqName.count > 1 else {
+                return nil
+            }
+            return Array(symbol.fqName.dropLast())
+        }
+        guard !packages.isEmpty else {
+            return nil
+        }
+        if packages.contains(where: { $0 == sourceFile.packageFQName }) {
+            return sourceFile.packageFQName
+        }
+
+        let receiverOwner = driver.helpers.nominalSymbol(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types
+        )
+        for importDecl in sourceFile.imports {
+            let path = importDecl.path
+            if packages.contains(path) {
+                return path
+            }
+            guard path.count > 1,
+                  let package = packages.first(where: { $0 == Array(path.dropLast()) }),
+                  let receiverOwner
+            else {
+                continue
+            }
+            let matchesReceiver = sema.symbols.lookupAll(fqName: path).contains { importedID in
+                guard let imported = sema.symbols.symbol(importedID) else {
+                    return false
+                }
+                let importedType: TypeID?
+                switch imported.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    importedType = sema.types.make(.classType(ClassType(
+                        classSymbol: importedID,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                case .typeAlias:
+                    importedType = sema.symbols.typeAliasUnderlyingType(for: importedID)
+                default:
+                    importedType = nil
+                }
+                guard let importedType,
+                      let importedOwner = driver.helpers.nominalSymbol(
+                          of: sema.types.makeNonNullable(importedType),
+                          types: sema.types
+                      )
+                else {
+                    return false
+                }
+                return importedOwner == receiverOwner
+            }
+            if matchesReceiver {
+                return package
+            }
+        }
+        return nil
     }
 
     private func isBundledRangeSourceMember(
@@ -2324,7 +2635,7 @@ extension CallTypeChecker {
              "toList", "forEach", "map", "mapIndexed", "mapNotNull",
              "filter", "filterIndexed", "filterNot",
              "take", "drop", "chunked", "windowed", "sorted", "average",
-             "random", "randomOrNull", "step":
+             "random", "randomOrNull", "step", "plus", "minus":
             return true
         default:
             return false
@@ -2335,13 +2646,15 @@ extension CallTypeChecker {
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
     ) -> TypeID? {
         guard let rangeKind = sourceLevelRangeMemberReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
             sema: sema,
-            interner: interner
+            interner: interner,
+            allowSyntacticRangeExpression: allowSyntacticRangeExpression
         ) else {
             return nil
         }
@@ -2390,7 +2703,8 @@ extension CallTypeChecker {
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
@@ -2420,7 +2734,7 @@ extension CallTypeChecker {
             }
         }
 
-        guard sema.bindings.isRangeExpr(receiverExpr) else {
+        guard sema.bindings.isRangeExpr(receiverExpr) || allowSyntacticRangeExpression else {
             return nil
         }
         if sema.bindings.isFloatingPointRangeExpr(receiverExpr) {
@@ -2491,7 +2805,7 @@ extension CallTypeChecker {
                       symbol.kind == .function,
                       (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                       (sema.symbols.parentSymbol(for: candidate) == rangesPackageSymbol
-                          || ((isUIntRangeMigrationMember || isULongRangeMigrationMember || isULongProgressionFirstLastMember)
+                          || ((isUIntRangeMigrationMember || isULongProgressionFirstLastMember || isULongRangeMigrationMember)
                               && sema.symbols.isSourceBackedSymbol(candidate))),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let declaredReceiver = signature.receiverType
@@ -2539,92 +2853,5 @@ extension CallTypeChecker {
         }
     }
 
-    /// The CAS-loop update operators migrated to bundled Kotlin source
-    /// (`AtomicMigration.kt`).  Like the range-source members these live as
-    /// package-scoped extension functions in `kotlin.concurrent`, so they must
-    /// be recovered by an explicit source lookup rather than ordinary
-    /// member-call resolution.
-    private func isBundledAtomicSourceMember(
-        _ calleeName: InternedString,
-        interner: StringInterner
-    ) -> Bool {
-        switch interner.resolve(calleeName) {
-        case "compareAndExchange", "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
-             "fetchAndUpdateAt", "updateAt", "updateAndFetchAt", "compareAndSet":
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// True when `receiverType` is one of the atomic box types whose CAS-loop
-    /// update operators are provided by bundled Kotlin source.
-    private func isBundledAtomicSourceReceiver(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let nominal = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
-              let symbol = sema.symbols.symbol(nominal)
-        else {
-            return false
-        }
-        let fqName = symbol.fqName
-        guard fqName.count >= 2 else { return false }
-        let name = interner.resolve(fqName[fqName.count - 1])
-        switch name {
-        case "AtomicInt", "AtomicLong", "AtomicBoolean", "AtomicReference",
-             "AtomicArray", "AtomicIntArray", "AtomicLongArray", "AtomicInteger":
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// Recover bundled `kotlin.concurrent` extension functions (the migrated CAS
-    /// loops in `AtomicMigration.kt`) as member candidates for atomic receivers.
-    private func collectAtomicSourceExtensionCandidates(
-        named calleeName: InternedString,
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> [SymbolID] {
-        let kotlin = interner.intern("kotlin")
-        let concurrent = interner.intern("concurrent")
-        let atomics = interner.intern("atomics")
-        let packageFQNames: [[InternedString]] = [
-            [kotlin, concurrent],
-            [kotlin, concurrent, atomics],
-        ]
-        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        var candidates: [SymbolID] = []
-        for packageFQName in packageFQNames {
-            let memberFQName = packageFQName + [calleeName]
-            candidates.append(contentsOf: sema.symbols.lookupAll(fqName: memberFQName)
-                .filter { candidate in
-                    // Top-level bundled extension functions declared directly in
-                    // the package (identified by their exact FQ name so class
-                    // members with the same short name are excluded). The
-                    // package symbol identity cannot be used because synthetic
-                    // atomic stubs create a distinct package symbol from the one
-                    // owning the bundled source declarations.
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          !symbol.flags.contains(.synthetic),
-                          symbol.fqName == memberFQName,
-                          let signature = sema.symbols.functionSignature(for: candidate),
-                          let declaredReceiver = signature.receiverType
-                    else {
-                        return false
-                    }
-                    return extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: nonNullReceiver,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                })
-        }
-        return candidates.sorted { $0.rawValue < $1.rawValue }
-    }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length

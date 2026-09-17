@@ -163,6 +163,19 @@ struct BundledDeclarationIndex: Sendable {
             guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
                 continue
             }
+            // Typealias-backed source properties can share the normalized
+            // runtime-owner key with a retained compatibility property while
+            // keeping their declared package FQName distinct. This is an
+            // intentional alias overlap, not a missed synthetic-stub skip.
+            guard !Self.isSyntheticAliasForSourceBackedProperty(
+                symbol,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) else {
+                continue
+            }
             // KSP-1019: MutableCollection keeps its interface members for
             // member-priority dispatch while the same names also have
             // source-backed top-level extensions. The arity-only index cannot
@@ -311,6 +324,38 @@ struct BundledDeclarationIndex: Sendable {
                 return false
             }
             return true
+        }
+    }
+
+    private static func isSyntheticAliasForSourceBackedProperty(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        guard symbol.kind == .property,
+              symbol.flags.contains(.synthetic)
+        else {
+            return false
+        }
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.id != symbol.id,
+                  candidate.kind == .property,
+                  symbols.isSourceBackedSymbol(candidate.id),
+                  candidate.name == symbol.name,
+                  candidate.fqName != symbol.fqName,
+                  let candidateKey = memberKey(
+                      for: candidate,
+                      symbolID: candidate.id,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return candidateKey == key
         }
     }
 
@@ -471,17 +516,33 @@ struct BundledDeclarationIndex: Sendable {
             // as members while also declaring source-backed overloads. The
             // bundled index records arity but not parameter types, so these
             // retained bridges are intentional overload collisions rather than
-            // missed KSP-002 skips.
+            // missed KSP-002 skips. KSP-703 moved `remove`'s interface member
+            // itself to a source-backed @KsSymbolName override on
+            // MutableMap.kt (no synthetic `remove` registration exists to
+            // overlap-warn about any more) — this arm is now vestigial for
+            // `remove` specifically but harmless to leave, since `putAll`
+            // still needs it and both share this one arity-only check.
             let name = interner.resolve(key.name)
             return (name == "putAll" || name == "remove") && key.arity == 1
+        }
+        if ownerFQName == ["kotlin", "collections", "MutableSet"] {
+            // MutableSet.addAll(Collection) is now a source-backed default
+            // (KSP-704), while the retained Array/Iterable/Sequence overloads
+            // are registered as hidden runtime bridges. The bundled index is
+            // arity-only, so these distinct overloads intentionally share one
+            // key and must not emit KSWIFTK-SEMA-0102.
+            return interner.resolve(key.name) == "addAll" && key.arity == 1
         }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }
         if ownerFQName == ["kotlin", "collections", "Map"] {
             // Map.get has two intentional surfaces: the source-backed variance
-            // extension and the synthetic interface member that lowers to the
-            // runtime lookup bridge. They must not be collapsed into one symbol.
+            // extension (MapLookupAndTransform.kt) and the interface member
+            // it delegates to. KSP-703 made the interface member itself
+            // source-backed too (@KsSymbolName on Map.kt) rather than
+            // synthetic, so this arm is likewise now vestigial-but-harmless:
+            // no synthetic `get` registration remains to overlap-warn about.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
         return false
@@ -497,8 +558,9 @@ struct BundledDeclarationIndex: Sendable {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
         // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
         // contains, any, all, none, count, first, last, single) are source-bound.
-        case "shuffled":
-            return key.arity == 0 || key.arity == 1
+        // KSP-1511: shuffled/shuffled(Random) moved off the kk_list_shuffled(_random)
+        // runtime bridge onto ListSortingHOF.kt (which now special-cases
+        // Random.Default the same way MutableList.shuffle(random) already did).
         default:
             return false
         }

@@ -105,6 +105,51 @@ struct LLVMOptimizationRegressionTests {
     }
 
     @Test(arguments: [0, 2])
+    func nestedClassRuntimeSemanticsRemainValidAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        open class P {
+            class Q : P()
+            object O : P()
+        }
+
+        class Wrapper {
+            class Item(val v: Int) {
+                fun twice() = v * 2
+            }
+        }
+
+        sealed class S {
+            data class A(val n: Int) : S()
+            object B : S()
+        }
+
+        fun main() {
+            val q = P.Q()
+            println(q is P.Q)
+            println(q is P)
+            val p: P = q
+            println(p == P.O)
+            val erased: Any = P.Q()
+            println(erased is P.Q)
+            val s: S = S.A(5)
+            println(s is S.A)
+            println(when (s) {
+                is S.A -> "A${s.n}"
+                S.B -> "B"
+            })
+            println(Wrapper.Item(5).twice())
+            println(S.A(5))
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationNestedClassRuntime",
+            expected: "true\ntrue\nfalse\ntrue\ntrue\nA5\n10\nA(n=5)\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func virtualPropertyGetterArityDoesNotCollideWithSameNamedMethodAtEachOptimizationLevel(optimization: Int) throws {
         let source = """
         abstract class Base {

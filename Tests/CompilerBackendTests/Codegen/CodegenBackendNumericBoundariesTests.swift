@@ -319,6 +319,34 @@ struct CodegenBackendNumericBoundariesTests {
     }
 
     @Test
+    func testNumericBoundaryULongToUIntTruncates() throws {
+        // KSP-1533 regression: ULong.toUInt() was wired as a
+        // representation-preserving 64->64 copy (correct for Long<->ULong)
+        // instead of an actual 64->32 truncating mask, so any ULong value
+        // with a nonzero high 32 bits kept its full 64-bit payload instead of
+        // being narrowed. Fixed by reusing kk_long_to_uint (same raw-register
+        // representation as ULong, already masks via UInt32(truncatingIfNeeded:)).
+        let source = """
+        fun main() {
+            println(ULong.MAX_VALUE.toUInt())
+            println(ULong.MAX_VALUE.toUInt() == UInt.MAX_VALUE)
+            println(4294967301uL.toUInt())
+            println(100uL.toUInt())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumericBoundaryULongToUIntTruncates",
+            expected: """
+            4294967295
+            true
+            5
+            100
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testNumericBoundaryIntToCharTruncates() throws {
         let source = """
         fun main() {

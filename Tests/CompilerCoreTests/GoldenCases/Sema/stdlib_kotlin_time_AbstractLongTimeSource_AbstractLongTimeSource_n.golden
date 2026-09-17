@@ -1,0 +1,24 @@
+symbol fq=Probe.<init>[kind=ctor;recv=Probe;params=] kind=constructor vis=private flags=_ sig=recv=Probe params=[] ret=Probe
+symbol fq=Probe.sourceUnit[kind=fun;recv=Probe;params=] kind=function vis=public flags=_ sig=recv=Probe params=[] ret=kotlin.time.DurationUnit
+symbol fq=Probe[kind=class] kind=class vis=private flags=_
+symbol fq=__local_0.probe[kind=local] kind=local vis=private flags=_ type=Probe
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_time_AbstractLongTimeSource_AbstractLongTimeSource_n package=_ annotations=[@file:Suppress("DEPRECATION","DEPRECATION_ERROR")]
+  decl Probe[kind=class] class Probe sym=Probe[kind=class]
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@9:33 long(12) type=Long
+expr e@11:24 name(unit) type=kotlin.time.DurationUnit ref=kotlin.time.AbstractLongTimeSource.unit[kind=prop]
+expr e@8:46 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@8:46#1 memberCall recv=e@8:46 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field]
+expr e@16:17 call callee=e@16:17#1 args=[] type=Probe call=Probe.<init>[kind=ctor;recv=Probe;params=]
+expr e@16:5 localDecl probe mutable=0 type=_ init=e@16:17 type=Unit ref=__local_0.probe[kind=local]
+expr e@17:13 name(probe) type=Probe ref=__local_0.probe[kind=local]
+expr e@17:13#1 memberCall recv=e@17:13 callee=sourceUnit args=[] type=kotlin.time.DurationUnit call=Probe.sourceUnit[kind=fun;recv=Probe;params=]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@18:13 name(probe) type=Probe ref=__local_0.probe[kind=local]
+expr e@18:13#1 memberCall recv=e@18:13 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractLongTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractLongTimeSource;params=]
+expr e@18:13#2 memberCall recv=e@18:13#1 callee=elapsedNow args=[] type=kotlin.time.Duration call=kotlin.time.elapsedNow[kind=fun;recv=kotlin.time.ComparableTimeMark;params=]
+expr e@18:13#3 memberCall recv=e@18:13#2 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=]
+expr e@18:65 long(0) type=Long
+expr e@18:13#4 binary(greaterOrEqual) lhs=e@18:13#3 rhs=e@18:65 type=Boolean
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#4] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

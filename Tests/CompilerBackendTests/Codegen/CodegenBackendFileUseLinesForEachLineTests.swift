@@ -17,8 +17,10 @@ import Testing
 // outright: their only path to a receiver was `File.bufferedReader()`, which
 // is dead, and `kotlin.io.path.Path` has no confirmed working substitute —
 // `Path.useLines` was independently removed by CLEANUP-STUB-116 (see
-// Tests/CompilerCoreTests/Sema/PathGenericFunctionStubRemovalTests.swift),
-// and no Sema registration for `Path.bufferedReader()` could be found either.
+// Tests/CompilerCoreTests/Sema/PathStubRemovalTests.swift), and no Sema
+// registration for `Path.bufferedReader()` could be found either.
+// `kotlin.io.path.Path` itself (the whole shell, not just these members) was
+// later removed entirely by CLEANUP-STUB-115.
 @Suite
 struct CodegenBackendFileUseLinesForEachLineTests {
 

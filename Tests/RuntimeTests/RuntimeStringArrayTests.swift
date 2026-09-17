@@ -183,7 +183,7 @@ struct RuntimeStringArrayTests {
                 var outLength = 0
                 var outByteCount = 0
                 var outHash = 0
-                let resultData = kk_string_concat_flat(
+                let resultData = __kk_string_concat_flat(
                     lhsData,
                     lhsLength,
                     lhsByteCount,
@@ -209,7 +209,7 @@ struct RuntimeStringArrayTests {
     private func makeLocale(language: String, country: String) -> Int {
         withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
             withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                kk_locale_new_language_country_flat(
+                __kk_locale_new_language_country_flat(
                     languageData,
                     languageLength,
                     languageByteCount,
@@ -478,7 +478,7 @@ struct RuntimeStringArrayTests {
         #expect(output == "")
     }
 
-    // MARK: - kk_string_concat_flat
+    // MARK: - __kk_string_concat_flat
 
     @Test
     func testStringConcatFlatTwoStrings() {
@@ -627,7 +627,6 @@ struct RuntimeStringArrayTests {
         }
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat) == "kswiftk")
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat) == "KSWIFTK")
-        #expect(flatStringReturnValue("abc", using: kk_string_reversed_flat) == "cba")
     }
 
     @Test
@@ -703,11 +702,11 @@ struct RuntimeStringArrayTests {
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
         #expect(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)) == 1)
         #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)) == 1)
-        #expect(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)) == 1)
+        #expect(kk_unbox_bool(__kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)) == 1)
 
         withFlatString("") { data, length, byteCount, hash in
             #expect(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)) == 1)
-            #expect(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
+            #expect(kk_unbox_bool(__kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
         }
 
         withFlatString("  \n\t") { data, length, byteCount, hash in
@@ -716,10 +715,10 @@ struct RuntimeStringArrayTests {
 
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)) == 0)
-            #expect(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
+            #expect(kk_unbox_bool(__kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
                 #expect(kk_unbox_bool(
-                        kk_string_equals_flat(
+                        __kk_string_equals_flat(
                             data,
                             length,
                             byteCount,
@@ -733,7 +732,7 @@ struct RuntimeStringArrayTests {
             }
             withFlatString("KSwiftK") { sameData, sameLength, sameByteCount, sameHash in
                 #expect(kk_unbox_bool(
-                        kk_string_equals_flat(
+                        __kk_string_equals_flat(
                             data,
                             length,
                             byteCount,
@@ -763,7 +762,7 @@ struct RuntimeStringArrayTests {
             #expect(kk_string_isNullOrBlank_flat(data, length, byteCount, hash) == 0)
 
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
-                #expect(kk_string_equals_flat(
+                #expect(__kk_string_equals_flat(
                         data,
                         length,
                         byteCount,
@@ -893,50 +892,50 @@ struct RuntimeStringArrayTests {
     func testFlatStringCharSelectionRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("abc") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_first_flat(data, length, byteCount, hash, &thrown) == 97)
+            #expect(__kk_string_first_flat(data, length, byteCount, hash, &thrown) == 97)
             #expect(thrown == 0)
-            #expect(kk_string_last_flat(data, length, byteCount, hash, &thrown) == 99)
+            #expect(__kk_string_last_flat(data, length, byteCount, hash, &thrown) == 99)
             #expect(thrown == 0)
-            #expect(kk_string_firstOrNull_flat(data, length, byteCount, hash) == 97)
-            #expect(kk_string_lastOrNull_flat(data, length, byteCount, hash) == 99)
-            #expect(kk_string_get_flat(data, length, byteCount, hash, 1, &thrown) == 98)
+            #expect(__kk_string_firstOrNull_flat(data, length, byteCount, hash) == 97)
+            #expect(__kk_string_lastOrNull_flat(data, length, byteCount, hash) == 99)
+            #expect(__kk_string_get_flat(data, length, byteCount, hash, 1, &thrown) == 98)
             #expect(thrown == 0)
-            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == 98)
-            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, -1) == runtimeNullSentinelInt)
-            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 3) == runtimeNullSentinelInt)
+            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == 98)
+            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, -1) == runtimeNullSentinelInt)
+            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 3) == runtimeNullSentinelInt)
 
             thrown = 0
-            #expect(kk_string_get_flat(data, length, byteCount, hash, 3, &thrown) == 0)
+            #expect(__kk_string_get_flat(data, length, byteCount, hash, 3, &thrown) == 0)
             #expect(thrown != 0)
 
             thrown = 0
-            #expect(kk_string_single_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(__kk_string_single_flat(data, length, byteCount, hash, &thrown) == 0)
             #expect(thrown != 0)
             let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
             #expect(thrownOutput.contains("more than one element"))
-            #expect(kk_string_singleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_singleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
         }
 
         withFlatString("x") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_single_flat(data, length, byteCount, hash, &thrown) == 120)
+            #expect(__kk_string_single_flat(data, length, byteCount, hash, &thrown) == 120)
             #expect(thrown == 0)
-            #expect(kk_string_singleOrNull_flat(data, length, byteCount, hash) == 120)
+            #expect(__kk_string_singleOrNull_flat(data, length, byteCount, hash) == 120)
         }
 
         withFlatString("") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_first_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(__kk_string_first_flat(data, length, byteCount, hash, &thrown) == 0)
             #expect(thrown != 0)
             thrown = 0
-            #expect(kk_string_last_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(__kk_string_last_flat(data, length, byteCount, hash, &thrown) == 0)
             #expect(thrown != 0)
             thrown = 0
-            #expect(kk_string_single_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(__kk_string_single_flat(data, length, byteCount, hash, &thrown) == 0)
             #expect(thrown != 0)
-            #expect(kk_string_firstOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
-            #expect(kk_string_lastOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
-            #expect(kk_string_singleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_firstOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_lastOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_singleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
         }
     }
 
@@ -950,9 +949,9 @@ struct RuntimeStringArrayTests {
         #expect(kk_string_getOrNull(stringRaw, 2) == runtimeNullSentinelInt)
 
         withFlatString("🥦") { data, length, byteCount, hash in
-            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 0) == Int(expectedCodeUnits[0]))
-            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == Int(expectedCodeUnits[1]))
-            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 2) == runtimeNullSentinelInt)
+            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 0) == Int(expectedCodeUnits[0]))
+            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == Int(expectedCodeUnits[1]))
+            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 2) == runtimeNullSentinelInt)
         }
     }
 
@@ -1069,20 +1068,8 @@ struct RuntimeStringArrayTests {
 
     // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);
     // their runtime bridges and direct tests were removed.
-
-    @Test
-    func testStringRepeatFlatFunction() {
-        #expect(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat) == "")
-        #expect(flatStringReturnValue("ab", intArg: 3, using: kk_string_repeat_flat) == "ababab")
-        #expect(flatStringReturnValue("é", intArg: 2, using: kk_string_repeat_flat) == "éé")
-    }
-
-    @Test
-    func testStringRepeatFlatNegativeThrowsIllegalArgumentException() {
-        var thrown = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_repeat_flat, outThrown: &thrown)
-        #expect(thrown != 0, "kk_string_repeat_flat(-1) should set outThrown")
-    }
+    // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its
+    // runtime bridge and direct tests were removed.
 
     @Test
     func testStringReplaceSupportsLiteralReplacement() {
@@ -1488,6 +1475,110 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatFloatingRoundingMatchesJavaFormatter() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(1.005),
+            boxDouble(0.25),
+            boxDouble(0.35),
+            boxDouble(0.5),
+            boxDouble(2.5),
+            boxDouble(2.675),
+            boxDouble(1.0005),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%.2f %.1f %.1f %.0f %.0f %.2f %.3f",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "1.01 0.3 0.4 1 3 2.68 1.001")
+    }
+
+    @Test
+    func testStringFormatFloatingPrecisionUsesShortestDecimalRepresentation() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(0.1),
+            boxDouble(0.1),
+            boxDouble(1.005),
+            boxDouble(0.0001),
+            boxDouble(0.00001),
+            boxDouble(999999.5),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%.20f %.17g %.2e %.6g %.6g %.6g",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0.10000000000000000000 0.10000000000000000 1.01e+00 0.000100000 1.00000e-05 1.00000e+06")
+    }
+
+    @Test
+    func testStringFormatGeneralAndNonFiniteFloatsMatchJavaFormatter() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(0.0001234),
+            boxDouble(.nan),
+            boxDouble(.infinity),
+            boxDouble(-.infinity),
+            boxDouble(.nan),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%g|%f|%.2f|%(f|%010E",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0.000123400|NaN|Infinity|(Infinity)|       NAN")
+    }
+
+    @Test
+    func testStringFormatParenthesizesNegativeDecimalValues() {
+        let args = makeRuntimeArray([
+            -5,
+            -5,
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: (-1234.5).bitPattern))),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%(d|%(05d|%(,.1f",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "(5)|(005)|(1,234.5)")
+    }
+
+    @Test
+    func testStringFormatSupportsJavaHexFloatingPoint() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(1.0),
+            boxDouble(3.0),
+            boxDouble(0.1),
+            boxDouble(.leastNonzeroMagnitude),
+            boxDouble(.leastNonzeroMagnitude),
+            boxDouble(1.0),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%a|%A|%.2a|%a|%.1a|%010a",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0x1.0p0|0X1.8P1|0x1.9ap-4|0x0.0000000000001p-1022|0x1.0p-1074|0x0001.0p0")
+    }
+
+    @Test
     func testStringFormatSupportsPositionalArguments() {
         let args = makeRuntimeArray([
             7,
@@ -1528,6 +1619,27 @@ struct RuntimeStringArrayTests {
 
         let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "9223372036854775807 ffffffffffffffff")
+    }
+
+    @Test
+    func testStringFormatUsesKotlinIntegerWidthsForHexAndOctal() {
+        let args = makeRuntimeArray([
+            kk_box_int(-1),
+            kk_box_long(-1),
+            kk_box_int(-1),
+            kk_box_int(-8),
+            kk_box_long(-8),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%x %x %X %o %o",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(
+            formatted ==
+                "ffffffff ffffffffffffffff FFFFFFFF 37777777770 1777777777777777777770"
+        )
     }
 
     @Test

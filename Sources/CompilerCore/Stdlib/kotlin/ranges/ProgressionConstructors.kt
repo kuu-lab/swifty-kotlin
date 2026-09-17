@@ -15,10 +15,12 @@ import kotlin.internal.KsSymbolName
 // the stdlib layer; source-backed operators use them only where their construction
 // semantics still need a runtime handle.
 
-// MARK: - UInt/ULong rangeTo bridges
+// MARK: - UInt rangeTo bridge
 
 @KsSymbolName("__kk_uint_rangeTo")
 internal external fun __uintRangeTo(a: UInt, b: UInt): UIntRange
+
+// MARK: - ULong rangeTo bridge
 
 @KsSymbolName("__kk_ulong_rangeTo")
 internal external fun __ulongRangeTo(a: ULong, b: ULong): ULongRange
@@ -72,18 +74,6 @@ internal external fun __uintProgressionStep(range: UIntProgression, step: Int): 
 @KsSymbolName("__kk_uint_step")
 internal external fun __uintRangeStep(range: UIntRange, step: Int): UIntProgression
 
-@KsSymbolName("__kk_ulong_step")
-internal external fun __ulongProgressionStep(range: ULongProgression, step: Int): ULongProgression
-
-@KsSymbolName("__kk_ulong_step")
-internal external fun __ulongProgressionStep(range: ULongProgression, step: Long): ULongProgression
-
-@KsSymbolName("__kk_ulong_step")
-internal external fun __ulongRangeStep(range: ULongRange, step: Int): ULongProgression
-
-@KsSymbolName("__kk_ulong_step")
-internal external fun __ulongRangeStep(range: ULongRange, step: Long): ULongProgression
-
 // MARK: - fromClosedRange bridges
 
 @KsSymbolName("__kk_int_progression_fromClosedRange")
@@ -100,6 +90,9 @@ internal external fun UIntProgression.Companion.__uintProgressionFromClosedRange
 
 @KsSymbolName("__kk_ulong_progression_fromClosedRange")
 internal external fun ULongProgression.Companion.__ulongProgressionFromClosedRange(start: ULong, end: ULong, step: Int): ULongProgression
+
+@KsSymbolName("__kk_ulong_progression_fromClosedRange")
+internal external fun ULongProgression.Companion.__ulongProgressionFromClosedRange(start: ULong, end: ULong, step: Long): ULongProgression
 
 // MARK: - Int/Byte/Short/Long until / rangeUntil
 
@@ -188,8 +181,8 @@ public operator infix fun ULongProgression.step(step: Int): ULongProgression {
     return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun ULongProgression.step(step: Long): ULongProgression {
-    require(step > 0) { "Step must be positive, was: $step." }
-    return ULongProgression.fromClosedRange(first, last, (if (this.step > 0) step else -step).toInt())
+    require(step > 0L) { "Step must be positive, was: $step." }
+    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun IntRange.step(step: Int): IntProgression = __intRangeStep(this, step)
 public operator infix fun LongRange.step(step: Int): LongProgression = __longRangeStep(this, step)
@@ -204,8 +197,8 @@ public operator infix fun ULongRange.step(step: Int): ULongProgression {
     return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun ULongRange.step(step: Long): ULongProgression {
-    require(step > 0) { "Step must be positive, was: $step." }
-    return ULongProgression.fromClosedRange(first, last, (if (this.step > 0) step else -step).toInt())
+    require(step > 0L) { "Step must be positive, was: $step." }
+    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 
 // MARK: - fromClosedRange companion factories
@@ -214,3 +207,4 @@ public fun LongProgression.Companion.fromClosedRange(start: Long, end: Long, ste
 public fun CharProgression.Companion.fromClosedRange(start: Char, end: Char, step: Int): CharProgression = __charProgressionFromClosedRange(start, end, step)
 public fun UIntProgression.Companion.fromClosedRange(start: UInt, end: UInt, step: Int): UIntProgression = __uintProgressionFromClosedRange(start, end, step)
 public fun ULongProgression.Companion.fromClosedRange(start: ULong, end: ULong, step: Int): ULongProgression = __ulongProgressionFromClosedRange(start, end, step)
+public fun ULongProgression.Companion.fromClosedRange(start: ULong, end: ULong, step: Long): ULongProgression = __ulongProgressionFromClosedRange(start, end, step)

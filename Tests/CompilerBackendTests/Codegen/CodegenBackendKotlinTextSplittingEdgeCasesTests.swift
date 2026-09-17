@@ -107,6 +107,39 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
         )
     }
 
+    @Test func testKotlinTextSplitVarargAndCharSequenceReceivers() throws {
+        let source = """
+        fun main() {
+            val source: CharSequence = "a,b;c:d"
+            val stringDelimiters = arrayOf(",", ";", ":")
+            val charDelimiters = charArrayOf(',', ';', ':')
+            println(source.split(",", ";", ":"))
+            println(source.split(',', ';', ':'))
+            println(source.splitToSequence(",", ";", ":").toList())
+            println(source.split(*stringDelimiters))
+            println(source.split(*charDelimiters))
+            println(source.splitToSequence(*stringDelimiters).toList())
+            println(source.splitToSequence(*charDelimiters).toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSplitVarargs",
+            expected:
+                """
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                """
+                + "\n"
+        )
+    }
+
     @Test func testKotlinTextChunkedEdgeCases() throws {
         let source = """
         fun main() {

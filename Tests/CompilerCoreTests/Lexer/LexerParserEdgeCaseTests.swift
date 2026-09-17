@@ -68,6 +68,43 @@ struct LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testRawStringSimpleNameTemplatesProduceTemplateTokens() {
+        let source = """
+        val v = 1
+        val text = \"\"\"raw $v ${v} $v\"\"\"
+        """
+
+        let result = lex(source)
+        let vID = result.interner.intern("v")
+        let textID = result.interner.intern("text")
+        let rawPrefixID = result.interner.intern("raw ")
+        let spaceID = result.interner.intern(" ")
+        #expect(result.tokens.map(\.kind) == [
+            .keyword(.val),
+            .identifier(vID),
+            .symbol(.assign),
+            .intLiteral("1"),
+            .keyword(.val),
+            .identifier(textID),
+            .symbol(.assign),
+            .rawStringQuote,
+            .stringSegment(rawPrefixID),
+            .templateSimpleNameStart,
+            .identifier(vID),
+            .stringSegment(spaceID),
+            .templateExprStart,
+            .identifier(vID),
+            .templateExprEnd,
+            .stringSegment(spaceID),
+            .templateSimpleNameStart,
+            .identifier(vID),
+            .rawStringQuote,
+            .eof,
+        ])
+        #expect(!result.diagnostics.hasError)
+    }
+
+    @Test
     func testLexerNumericAndCharLiteralsCoverErrorAndSuffixPaths() {
         let source = """
         0x1F 0X 0b101 0b 0o77 0o

@@ -14,12 +14,13 @@ extension CollectionLiteralConstructionLoweringPass {
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // STDLIB-pipeline §5 / KSP-441〜447: Bundled Kotlin source implementations
-        // (e.g. flatten, toSet) take priority over runtime shortcuts, but a runtime
-        // Sequence handle still needs the corresponding `kk_*` helper because source
-        // `for-in` cannot dispatch against an opaque runtime box.
+        // (e.g. flatten, toSet) take priority over runtime shortcuts. Only a
+        // confirmed RuntimeSequenceBox may use the `kk_*` helper; source objects,
+        // non-Sequence receivers, and unknown provenance stay on the source
+        // iterator path.
         if isSourceBacked(symbol: symbol, ctx: ctx),
            let receiverID = arguments.first,
-           !state.sequenceExprIDs.contains(receiverID.rawValue) {
+           state.sequenceRuntimeRepresentation(of: receiverID) != .runtimeBox {
             return false
         }
     // toSet() on sequence → kk_sequence_toSet (STDLIB-470)

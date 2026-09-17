@@ -1,0 +1,22 @@
+symbol fq=__local_0.statistics[kind=local] kind=local vis=private flags=_ type=kotlin.native.runtime.RootSetStatistics
+symbol fq=golden.sema.rootSetStatisticsProperties[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+file fstdlib_kotlin_native_runtime_RootSetStatistics_RootSetStatistics_n package=golden.sema
+  decl golden.sema.rootSetStatisticsProperties[kind=fun;params=] fun rootSetStatisticsProperties sym=golden.sema.rootSetStatisticsProperties[kind=fun;params=]
+expr e@8:33 long(1) type=Long
+expr e@9:27 long(2) type=Long
+expr e@10:28 long(3) type=Long
+expr e@11:28 long(4) type=Long
+expr e@7:22 call callee=e@7:22#1 args=[threadLocalReferences:e@8:33,stackReferences:e@9:27,globalReferences:e@10:28,stableReferences:e@11:28] type=kotlin.native.runtime.RootSetStatistics call=kotlin.native.runtime.RootSetStatistics.<init>[kind=ctor;recv=kotlin.native.runtime.RootSetStatistics;params=Long,Long,Long,Long]
+expr e@7:5 localDecl statistics mutable=0 type=_ init=e@7:22 type=Unit ref=__local_0.statistics[kind=local]
+expr e@13:12 name(statistics) type=kotlin.native.runtime.RootSetStatistics ref=__local_0.statistics[kind=local]
+expr e@13:12#1 memberCall recv=e@13:12 callee=threadLocalReferences args=[] type=Long ref=kotlin.native.runtime.RootSetStatistics.threadLocalReferences[kind=prop]
+expr e@14:9 name(statistics) type=kotlin.native.runtime.RootSetStatistics ref=__local_0.statistics[kind=local]
+expr e@14:9#1 memberCall recv=e@14:9 callee=stackReferences args=[] type=Long ref=kotlin.native.runtime.RootSetStatistics.stackReferences[kind=prop]
+expr e@13:12#2 binary(add) lhs=e@13:12#1 rhs=e@14:9#1 type=Long
+expr e@15:9 name(statistics) type=kotlin.native.runtime.RootSetStatistics ref=__local_0.statistics[kind=local]
+expr e@15:9#1 memberCall recv=e@15:9 callee=globalReferences args=[] type=Long ref=kotlin.native.runtime.RootSetStatistics.globalReferences[kind=prop]
+expr e@13:12#3 binary(add) lhs=e@13:12#2 rhs=e@15:9#1 type=Long
+expr e@16:9 name(statistics) type=kotlin.native.runtime.RootSetStatistics ref=__local_0.statistics[kind=local]
+expr e@16:9#1 memberCall recv=e@16:9 callee=stableReferences args=[] type=Long ref=kotlin.native.runtime.RootSetStatistics.stableReferences[kind=prop]
+expr e@13:12#4 binary(add) lhs=e@13:12#3 rhs=e@16:9#1 type=Long
+expr e@13:5 return value=e@13:12#4 type=Nothing

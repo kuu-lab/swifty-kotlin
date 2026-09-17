@@ -71,6 +71,53 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func durationParsingBridgesMatchThrowingAndReturnContracts() throws {
+        let expected: [(name: String, isThrowing: Bool)] = [
+            ("kk_duration_parse", true),
+            ("kk_duration_parseOrNull", false),
+            ("kk_duration_parseIsoString", true),
+            ("kk_duration_parseIsoStringOrNull", false),
+        ]
+
+        for item in expected {
+            let spec = try requireSpec(item.name)
+            let expectedTypes: [RuntimeABICType] = [.intptr]
+                + (item.isThrowing ? [.nullableIntptrPointer] : [])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == expectedTypes)
+            #expect(spec.isThrowing == item.isThrowing)
+            #expect(
+                RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name) == !item.isThrowing,
+                "Non-throwing set disagrees with \(item.name)"
+            )
+        }
+    }
+
+    @Test
+    func listBoundsSignaturesIncludeThrowingChannel() throws {
+        let expected: [(name: String, parameters: [String])] = [
+            ("__kk_list_get", ["listRaw", "index", "outThrown"]),
+            ("kk_list_iterator_next", ["iterRaw", "outThrown"]),
+            ("__kk_mutable_list_removeAt", ["listRaw", "index", "outThrown"]),
+        ]
+        for item in expected {
+            let spec = try requireSpec(item.name)
+            #expect(spec.parameters.map(\.name) == item.parameters)
+            #expect(spec.parameters.dropLast().allSatisfy { $0.type == .intptr })
+            #expect(spec.parameters.last?.type == .nullableIntptrPointer)
+            #expect(spec.isThrowing)
+            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name))
+
+            let extern = try #require(RuntimeABIExterns.externDecl(named: item.name))
+            #expect(extern.parameterTypes == spec.parameterTypeStrings)
+            #expect(
+                RuntimeABISpec.generateCHeader().contains(spec.cDeclaration),
+                "Generated C header must expose the throwing list bounds ABI for \(item.name)"
+            )
+        }
+    }
+
+    @Test
     func charNumericBridgeABIsRemoved() {
         for name in ["kk_char_to_int", "kk_char_to_long", "kk_char_to_uint", "kk_char_to_ulong"] {
             #expect(
@@ -94,6 +141,31 @@ struct ABIMismatchTests {
             #expect(
                 !RuntimeABISpec.allFunctions.contains { $0.name == name },
                 "\(name) should be removed: no unsigned type has toChar() in real Kotlin (BUG-251)"
+            )
+        }
+    }
+
+    // DEADCODE-014: source-backed reflection and collection migrations leave
+    // no compiler, test, or runtime-internal consumer for these legacy exports.
+    @Test
+    func deadReflectionAndCollectionBridgeABIsAreRemoved() {
+        let removedNames = [
+            "__kk_kfunction_get_name",
+            "__kk_kfunction_get_arity",
+            "__kk_kfunction_get_return_type",
+            "kk_callable_ref_name",
+            "kk_callable_ref_arity",
+            "kk_callable_ref_is_suspend",
+            "kk_callable_ref_parameters",
+            "__kk_kproperty_stub_name",
+            "__kk_kproperty_stub_return_type",
+            "kk_indexed_value_new",
+            "__kk_mutable_collection_addAll_sequence",
+        ]
+        for name in removedNames {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be removed after its source-backed migration"
             )
         }
     }
@@ -128,7 +200,11 @@ struct ABIMismatchTests {
     func kkGcCollectSignature() throws {
         let spec = try requireSpec("kk_gc_collect")
         #expect(spec.returnType == .void)
-        #expect(spec.parameters.count == 0)
+        // GC.collect() is a real bundled-source `object` member now, so the
+        // GC receiver crosses the ABI as the sole parameter (see Platform.kt's
+        // identical bridge functions for the established convention).
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
     @Test
@@ -312,7 +388,7 @@ struct ABIMismatchTests {
     func kkStringConcatPointerABIRemoved() {
         #expect(
             !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_concat" }),
-            "String concat should use kk_string_concat_flat instead of the legacy pointer ABI"
+            "String concat should use __kk_string_concat_flat instead of the legacy pointer ABI"
         )
     }
 
@@ -386,7 +462,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringConcatFlatSignature() throws {
-        let spec = try requireSpec("kk_string_concat_flat")
+        let spec = try requireSpec("__kk_string_concat_flat")
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 11)
         #expect(spec.parameters.map(\.type) == [
@@ -602,57 +678,22 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringPadPointerABIRemoved() {
+    func kkStringPadABIRemoved() {
         let legacyNames = [
             "kk_string_padStart_default",
             "kk_string_padEnd_default",
             "kk_string_padStart",
             "kk_string_padEnd",
+            "kk_string_padStart_default_flat",
+            "kk_string_padEnd_default_flat",
+            "kk_string_padStart_flat",
+            "kk_string_padEnd_flat",
         ]
         for legacyName in legacyNames {
             #expect(
                 !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+                "\(legacyName) should be removed because String pad APIs are source-backed"
             )
-        }
-    }
-
-    @Test
-    func kkStringPadDefaultFlatSignatures() throws {
-        for name in ["kk_string_padStart_default_flat", "kk_string_padEnd_default_flat"] {
-            let spec = try requireSpec(name)
-            #expect(spec.returnType == .nullableUInt8Pointer)
-            #expect(spec.parameters.count == 8)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
-        }
-    }
-
-    @Test
-    func kkStringPadExplicitFlatSignatures() throws {
-        for name in ["kk_string_padStart_flat", "kk_string_padEnd_flat"] {
-            let spec = try requireSpec(name)
-            #expect(spec.returnType == .nullableUInt8Pointer)
-            #expect(spec.parameters.count == 9)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
         }
     }
 

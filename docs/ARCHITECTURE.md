@@ -150,7 +150,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | コレクション | `RuntimeCollections.swift`, `RuntimeCollectionHOF.swift`, `RuntimeCollectionHelpers.swift`, `RuntimeArrayBasics.swift`, `RuntimeSetAndMap.swift` 等 | 配列・リスト・セット・マップ操作 |
 | Coroutine/Flow | `RuntimeCoroutine.swift`, `RuntimeCoroutineChannel.swift`, `RuntimeCoroutineContext.swift`, `RuntimeCoroutineFlow.swift` | coroutine ステートマシン、Channel、Flow |
 | 数値・演算 | `RuntimeMath.swift`, `RuntimeNumericCoercion.swift`, `RuntimeNumericCompat.swift`, `RuntimeRandom.swift` | 数値変換・互換演算・乱数 |
-| IO・ネットワーク | `RuntimeFileIO.swift`, `RuntimeNetwork.swift`, `RuntimePath.swift`, `RuntimeFileSystemException.swift` | ファイル IO、HTTP、パス操作 |
+| IO・ネットワーク | `RuntimeFileIO.swift`, `RuntimeNetwork.swift`, `RuntimeFileSystemException.swift` | ファイル IO、HTTP |
 | プラットフォーム | `RuntimeHelpers.swift`, `RuntimePlatform.swift`, `RuntimeSystem.swift`, `RuntimeTime.swift`, `RuntimeInstant.swift` | ヘルパー関数、プラットフォーム検出、時間 |
 | Delegate | `RuntimeDelegates.swift` | delegate プロパティランタイムサポート |
 | 並行・同期 | `RuntimeAtomic.swift`, `RuntimeSync.swift`, `RuntimeThreadLocal.swift` | アトミック操作、ロック、スレッドローカル |

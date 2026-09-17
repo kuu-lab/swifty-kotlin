@@ -12,10 +12,27 @@ struct CollectionLiteralLookupRegistry {
 
 final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionLiteralConstructionLowering"
+
+    /// Shared with `CollectionVirtualCallRewriteLoweringPass` so direct and
+    /// virtual dispatch apply the same source-backed preservation rule.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
 }
 
 final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionVirtualCallRewrite"
+
+    /// See `CollectionLiteralConstructionLoweringPass.sourceBackedPreservation`.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
 
     func lowerVirtualCallInstruction(
         symbol: SymbolID?,
@@ -60,8 +77,13 @@ struct CollectionLiteralLoweringRegistry {
 
     init(interner: StringInterner) {
         lookupRegistry = CollectionLiteralLookupRegistry(interner: interner)
-        constructionPass = CollectionLiteralConstructionLoweringPass()
-        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass()
+        let sourceBackedPreservation = SourceBackedCallPreservationPolicy()
+        constructionPass = CollectionLiteralConstructionLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
+        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
     }
 
     var componentNames: [String] {

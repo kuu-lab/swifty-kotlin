@@ -151,7 +151,11 @@ final class ControlFlowTypeChecker {
             parameterMapping: nextResolved.parameterMapping
         )
 
-        let elementType = substituteResolvedType(
+        let elementType = TypeCheckHelpers().mapEntryElementType(
+            for: nonNullIterableType,
+            sema: sema,
+            interner: interner
+        ) ?? substituteResolvedType(
             nextSignature.returnType,
             signature: nextSignature,
             substitutedTypeArguments: nextResolved.substitutedTypeArguments,

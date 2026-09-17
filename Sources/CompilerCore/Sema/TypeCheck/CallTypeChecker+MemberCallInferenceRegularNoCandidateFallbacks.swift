@@ -556,8 +556,7 @@ extension CallTypeChecker {
             {
                 let calleeStr = interner.resolve(calleeName)
                 let resultType: TypeID? = switch calleeStr {
-                case "repeat", "drop", "take", "takeLast", "dropLast",
-                     "padStart", "padEnd":
+                case "repeat", "drop", "take", "takeLast", "dropLast":
                     sema.types.stringType
                 case "toInt":
                     sema.types.intType
@@ -1060,10 +1059,6 @@ extension CallTypeChecker {
                     sema.types.intType
                 case "substring" where sema.types.isSubtype(arg1Type, sema.types.intType):
                     sema.types.stringType
-                case "padStart" where arg1Type == sema.types.charType:
-                    sema.types.stringType
-                case "padEnd" where arg1Type == sema.types.charType:
-                    sema.types.stringType
                 default:
                     nil
                 }
@@ -1223,18 +1218,6 @@ extension CallTypeChecker {
             return fallbackType
         }
         if let fallbackType = tryStringMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryPathCharsetReadExtensionFallback(
             id,
             calleeName: calleeName,
             isClassNameReceiver: isClassNameReceiver,

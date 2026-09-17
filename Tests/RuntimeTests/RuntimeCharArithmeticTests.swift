@@ -101,7 +101,7 @@ struct RuntimeCharArithmeticTests {
     func testStringGet_normalAccess() {
         withFlatString("hello") { data, length, byteCount, hash in
             var outThrown: Int = 0
-            let ch = kk_string_get_flat(data, length, byteCount, hash, 1, &outThrown)
+            let ch = __kk_string_get_flat(data, length, byteCount, hash, 1, &outThrown)
             #expect(outThrown == 0)
             #expect(ch == Int(Unicode.Scalar("e").value))
         }
@@ -111,7 +111,7 @@ struct RuntimeCharArithmeticTests {
     func testStringGet_firstChar() {
         withFlatString("world") { data, length, byteCount, hash in
             var outThrown: Int = 0
-            let ch = kk_string_get_flat(data, length, byteCount, hash, 0, &outThrown)
+            let ch = __kk_string_get_flat(data, length, byteCount, hash, 0, &outThrown)
             #expect(outThrown == 0)
             #expect(ch == Int(Unicode.Scalar("w").value))
         }
@@ -121,7 +121,7 @@ struct RuntimeCharArithmeticTests {
     func testStringGet_outOfBounds_throws() {
         withFlatString("hi") { data, length, byteCount, hash in
             var outThrown: Int = 0
-            _ = kk_string_get_flat(data, length, byteCount, hash, 5, &outThrown)
+            _ = __kk_string_get_flat(data, length, byteCount, hash, 5, &outThrown)
             #expect(outThrown != 0, "index 5 on length-2 string must throw")
         }
     }

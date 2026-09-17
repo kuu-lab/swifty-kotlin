@@ -233,6 +233,66 @@ struct SemaDelegateTypeCheckTests {
         }
     }
 
+    @Test func testPrimaryConstructorParametersAreVisibleInDelegatedPropertyInitializers() throws {
+        let source = """
+        package kuu561
+
+        class Delegate {
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+        }
+
+        class PlainParameter(m: Delegate) {
+            val value: Int by m
+        }
+
+        class ValParameter(val m: Delegate) {
+            val value: Int by m
+        }
+
+        class VarParameter(var m: Delegate) {
+            val value: Int by m
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Primary constructor parameters in delegated property initializers should be clean, got: \(errors.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let cases: [(className: String, expectedKind: SymbolKind)] = [
+            ("PlainParameter", .valueParameter),
+            ("ValParameter", .property),
+            ("VarParameter", .property),
+        ]
+
+        for testCase in cases {
+            let property = try #require(
+                memberProperty(named: "value", ofClass: testCase.className, in: ast, interner: ctx.interner),
+                "Missing delegated property in \(testCase.className)"
+            )
+            let delegateExpression = try #require(
+                property.delegateExpression,
+                "Missing delegate expression in \(testCase.className)"
+            )
+            let boundSymbol = try #require(
+                sema.bindings.identifierSymbol(for: delegateExpression),
+                "Delegate expression should bind in \(testCase.className)"
+            )
+            let symbol = try #require(sema.symbols.symbol(boundSymbol))
+            #expect(ctx.interner.resolve(symbol.name) == "m")
+            #expect(
+                symbol.kind == testCase.expectedKind,
+                "Expected \(testCase.className).m to bind as \(testCase.expectedKind), got \(symbol.kind)"
+            )
+        }
+    }
+
     @Test func testDelegateTypeChecks() throws {
         let sources: [String] = [
             """

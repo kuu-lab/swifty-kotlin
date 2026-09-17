@@ -46,6 +46,41 @@ struct CodegenBackendEnumEdgeCoverageTests {
         )
     }
 
+    /// DEBT-DIFF-007: elements returned by `values()`/`entries` cross an
+    /// Any-erased collection boundary as `RuntimeIntBox` handles, while the
+    /// enum HOF lambda consumes a raw ordinal. The lambda entry point must
+    /// unbox the callback argument before constructor-property access; without
+    /// that normalization, `$enumConstructorProperty$...` receives a boxed
+    /// pointer as its ordinal and falls through to `kk_abort_unreachable`.
+    @Test
+    func testCodegenEnumCollectionHOFUnboxesConstructorPropertyReceiver() throws {
+        let source = """
+        enum class Color(val rgb: Int) {
+            RED(0xFF0000),
+            GREEN(0x00FF00),
+            BLUE(0x0000FF),
+        }
+
+        fun main() {
+            println(Color.entries.find { it.rgb == 0xFF0000 })
+            println(Color.values().find { it.rgb == 0x00FF00 })
+            println(Color.entries.find { it.rgb == 123456 })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumCollectionHOFConstructorProperty",
+            expected:
+                """
+                RED
+                GREEN
+                null
+                """
+                + "\n"
+        )
+    }
+
     /// BUG-178: `EnumEntries<T>` was registered as a completely empty
     /// synthetic interface (`HeaderHelpers+SyntheticEnumStubs.swift`'s
     /// `ensureEnumEntriesInterface`) with no `get` operator, so `entries[i]` /

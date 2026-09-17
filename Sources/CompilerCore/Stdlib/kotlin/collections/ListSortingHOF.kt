@@ -10,9 +10,10 @@ import kotlin.random.Random
 //   Sources/Runtime/RuntimeCollectionHOF.swift
 //   Sources/Runtime/RuntimeCollectionHOFMaxMin.swift
 //
-// These inline implementations are used by bundled List call sites. Legacy
-// synthetic ABI registrations remain only as compatibility fallbacks outside
-// the bundled source path.
+// KSP-1511 removed the last synthetic ABI fallback (shuffled/shuffled(Random),
+// the two members KSP-426 had deliberately kept runtime-backed via
+// BundledDeclarationIndex's shuffled retained-overlap case): every member
+// below is now the sole, source-backed implementation.
 
 public inline fun <T : Comparable<T>> List<T>.sorted(): List<T> {
     val result = mutableListOf<T>()
@@ -224,7 +225,14 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
 
     var i = result.size - 1
     while (i > 0) {
-        val j = random.nextInt(i + 1)
+        val j = if (random === Random.Default) {
+            // Random.Default is represented by the runtime singleton handle,
+            // so use the bridge instead of virtual dispatch on that handle
+            // (same workaround as MutableList.shuffle(random) below).
+            __kk_mutable_list_random_nextInt(random, 0..i)
+        } else {
+            random.nextInt(i + 1)
+        }
         val tmp = result[i]
         result[i] = result[j]
         result[j] = tmp

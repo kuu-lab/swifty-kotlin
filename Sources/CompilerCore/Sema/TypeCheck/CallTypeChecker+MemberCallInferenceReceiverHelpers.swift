@@ -334,6 +334,21 @@ extension CallTypeChecker {
         if sema.types.isSubtype(actual, declared) {
             return true
         }
+        // Builtin nominal shells (notably String's Companion) may be recreated
+        // while bundled source headers are collected.  Their SymbolIDs differ,
+        // but they still denote the same FQName; accept that identity for
+        // non-generic companion receivers so source-backed extensions can be
+        // selected without restoring a synthetic member.
+        if case let .classType(actualClass) = sema.types.kind(of: actual),
+           case let .classType(declaredClass) = sema.types.kind(of: declared),
+           actualClass.args.isEmpty,
+           declaredClass.args.isEmpty,
+           let actualSymbol = sema.symbols.symbol(actualClass.classSymbol),
+           let declaredSymbol = sema.symbols.symbol(declaredClass.classSymbol),
+           actualSymbol.fqName == declaredSymbol.fqName
+        {
+            return true
+        }
         // A type parameter's upper bound is the receiver contract at the call
         // site. `T : Comparable<T>` therefore matches the source-backed
         // `Comparable<T>.compareTo` receiver even when the subtype checker

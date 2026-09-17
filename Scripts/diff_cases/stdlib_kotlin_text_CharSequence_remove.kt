@@ -38,14 +38,29 @@ private class RecordedSlice(private val content: String) : CharSequence {
 }
 
 fun main() {
+    val prefixSource: CharSequence = "A😀BC"
+    println(prefixSource.removePrefix("A"))
+    println(prefixSource.removeSuffix("C"))
+    println(prefixSource.removeSurrounding("A"))
+    println(prefixSource.removeSurrounding("A", "C"))
+
     val string: CharSequence = "A😀BC"
     println(string.removeRange(1, 3))
     println(string.removeRange(1..2))
 
     val builder: CharSequence = StringBuilder("A😀BC")
+    println(builder.removePrefix("A"))
+    println(builder.removeSuffix("C"))
+    println(builder.removeSurrounding("A", "C"))
     println(builder.removeRange(1, 3))
 
     val custom = RecordedSequence("A😀BC")
+    println(custom.removePrefix("A"))
+    println(custom.removeSuffix("C"))
+    println(custom.removeSurrounding("A", "C"))
+    println(custom.removePrefix("x").toString())
+    println(custom.removeSuffix("x").toString())
+    println(custom.removeSurrounding("x", "y").toString())
     println(custom.removeRange(1, 3))
     println(custom.subSequenceCalls)
     println(custom.lengthCalls)

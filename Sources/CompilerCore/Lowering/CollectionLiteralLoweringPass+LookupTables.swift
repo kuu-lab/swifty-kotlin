@@ -9,12 +9,15 @@ struct CollectionLiteralLookupTables {
     let arrayLookup: ArrayLookupNames
     let rangeLookup: RangeLookupNames
     let stringLookup: StringLookupNames
-    let builderDSLLookup: BuilderDSLLookupNames
     let fileIOLookup: FileIOLookupNames
     let commonLookup: CommonLookupNames
 
-    // Sequence factories that return a runtime RuntimeSequenceBox handle
-    // (source body is only a thin bridge to a __kk_* / kk_* runtime entry).
+    // Sequence factories whose call site is known to return a
+    // RuntimeSequenceBox handle. The public `sequenceOf` / `emptySequence` /
+    // `generateSequence` declarations are intentionally not listed: their
+    // source bodies include overloads that construct source objects, and a
+    // name-only match would erase that distinction. Their private bridge
+    // results remain unknown until a later, explicit runtime fact is available.
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
@@ -26,7 +29,6 @@ struct CollectionLiteralLookupTables {
         arrayLookup = ArrayLookupNames(interner: interner)
         rangeLookup = RangeLookupNames(interner: interner)
         stringLookup = StringLookupNames(interner: interner)
-        builderDSLLookup = BuilderDSLLookupNames(interner: interner)
         fileIOLookup = FileIOLookupNames(interner: interner)
         commonLookup = CommonLookupNames(interner: interner)
 
@@ -115,14 +117,10 @@ struct CollectionLiteralLookupTables {
     var kkListMaxOfWithOrNullName: InternedString { listLookup.kkListMaxOfWithOrNullName }
     var kkListMinOfWithName: InternedString { listLookup.kkListMinOfWithName }
     var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
-    var kkListSortedName: InternedString { listLookup.kkListSortedName }
-    var kkListShuffledName: InternedString { listLookup.kkListShuffledName }
-    var kkListShuffledRandomName: InternedString { listLookup.kkListShuffledRandomName }
     var kkListChunkedBridgeName: InternedString { listLookup.kkListChunkedBridgeName }
     var kkListChunkedTransformBridgeName: InternedString { listLookup.kkListChunkedTransformBridgeName }
     var kkListWindowedBridgeName: InternedString { listLookup.kkListWindowedBridgeName }
     var kkListWindowedTransformBridgeName: InternedString { listLookup.kkListWindowedTransformBridgeName }
-    var kkListSortedDescendingName: InternedString { listLookup.kkListSortedDescendingName }
     var kkListSortedByDescendingName: InternedString { listLookup.kkListSortedByDescendingName }
     var kkListSortedWithName: InternedString { listLookup.kkListSortedWithName }
     var kkListPartitionName: InternedString { listLookup.kkListPartitionName }
@@ -155,6 +153,8 @@ struct CollectionLiteralLookupTables {
     var kkHashSetOfName: InternedString { setLookup.kkHashSetOfName }
     var kkLinkedHashSetOfName: InternedString { setLookup.kkLinkedHashSetOfName }
     var kkIterableToHashSetName: InternedString { setLookup.kkIterableToHashSetName }
+    var kkMutableSetAddName: InternedString { setLookup.kkMutableSetAddName }
+    var kkMutableSetRemoveName: InternedString { setLookup.kkMutableSetRemoveName }
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
 
@@ -170,23 +170,10 @@ struct CollectionLiteralLookupTables {
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
     var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
+    var kkLinkedHashMapOfName: InternedString { mapLookup.kkLinkedHashMapOfName }
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
-    var kkMapForEachName: InternedString { mapLookup.kkMapForEachName }
-    var kkMapMapName: InternedString { mapLookup.kkMapMapName }
-    var kkMapFilterName: InternedString { mapLookup.kkMapFilterName }
-    var kkMapFilterKeysName: InternedString { mapLookup.kkMapFilterKeysName }
-    var kkMapFilterValuesName: InternedString { mapLookup.kkMapFilterValuesName }
-    var kkMapMapValuesName: InternedString { mapLookup.kkMapMapValuesName }
-    var kkMapMapKeysName: InternedString { mapLookup.kkMapMapKeysName }
-    var kkMapCountName: InternedString { mapLookup.kkMapCountName }
-    var kkMapAnyName: InternedString { mapLookup.kkMapAnyName }
-    var kkMapAllName: InternedString { mapLookup.kkMapAllName }
-    var kkMapNoneName: InternedString { mapLookup.kkMapNoneName }
-    var kkMapFlatMapName: InternedString { mapLookup.kkMapFlatMapName }
-    var kkMapMaxByOrNullName: InternedString { mapLookup.kkMapMaxByOrNullName }
-    var kkMapMinByOrNullName: InternedString { mapLookup.kkMapMinByOrNullName }
     var kkMapToStringName: InternedString { mapLookup.kkMapToStringName }
     var kkMapIteratorName: InternedString { mapLookup.kkMapIteratorName }
     var kkMapIteratorHasNextName: InternedString { mapLookup.kkMapIteratorHasNextName }
@@ -251,8 +238,6 @@ struct CollectionLiteralLookupTables {
     var toSetName: InternedString { sequenceLookup.toSetName }
     var toMapName: InternedString { sequenceLookup.toMapName }
     var takeName: InternedString { sequenceLookup.takeName }
-    var sequenceName: InternedString { sequenceLookup.sequenceName }
-    var iteratorBuilderName: InternedString { sequenceLookup.iteratorBuilderName }
     var yieldName: InternedString { sequenceLookup.yieldName }
     var yieldAllName: InternedString { sequenceLookup.yieldAllName }
 
@@ -275,21 +260,10 @@ struct CollectionLiteralLookupTables {
     var kkArrayNewName: InternedString { arrayLookup.kkArrayNewName }
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
-    var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-
     var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
-    var kkArrayFillName: InternedString { arrayLookup.kkArrayFillName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
     var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
-    var toMutableListName: InternedString { arrayLookup.toMutableListName }
-    var toTypedArrayName: InternedString { arrayLookup.toTypedArrayName }
-    var sliceArrayName: InternedString { arrayLookup.sliceArrayName }
-    var reversedArrayName: InternedString { arrayLookup.reversedArrayName }
-    var asListName: InternedString { arrayLookup.asListName }
-    var copyOfName: InternedString { arrayLookup.copyOfName }
-    var copyOfRangeName: InternedString { arrayLookup.copyOfRangeName }
-    var fillName: InternedString { arrayLookup.fillName }
     var arrayOfFactoryNames: Set<InternedString> { arrayLookup.arrayOfFactoryNames }
 
     // MARK: - Range lookup names (see CollectionLiteralLoweringPass+LookupTables+Range.swift)
@@ -352,7 +326,6 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
-    var kkULongRangeMapName: InternedString { rangeLookup.kkULongRangeMapName }
 
     // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
 
@@ -362,19 +335,10 @@ struct CollectionLiteralLookupTables {
     // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
 
 
-    // MARK: - BuilderDSL lookup names (see CollectionLiteralLoweringPass+LookupTables+BuilderDSL.swift)
-
-    var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }
-    var kkMutableSetRemoveName: InternedString { builderDSLLookup.kkMutableSetRemoveName }
-    var builderDSLNames: Set<InternedString> { builderDSLLookup.builderDSLNames }
-
     // MARK: - FileIO lookup names (see CollectionLiteralLoweringPass+LookupTables+FileIO.swift)
 
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
     var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
-    var kkPathUseLinesName: InternedString { fileIOLookup.kkPathUseLinesName }
-    var kkPathUseLinesDefaultName: InternedString { fileIOLookup.kkPathUseLinesDefaultName }
-    var kkPathWalkName: InternedString { fileIOLookup.kkPathWalkName }
 
     // MARK: - Common lookup names (see CollectionLiteralLoweringPass+LookupTables+Common.swift)
 
@@ -419,14 +383,10 @@ struct CollectionLiteralLookupTables {
     var noneName: InternedString { commonLookup.noneName }
     var allName: InternedString { commonLookup.allName }
     var foldName: InternedString { commonLookup.foldName }
-    var foldRightName: InternedString { commonLookup.foldRightName }
     var reduceName: InternedString { commonLookup.reduceName }
-    var reduceRightName: InternedString { commonLookup.reduceRightName }
-    var reduceOrNullName: InternedString { commonLookup.reduceOrNullName }
     var scanName: InternedString { commonLookup.scanName }
     var runningFoldName: InternedString { commonLookup.runningFoldName }
     var runningReduceName: InternedString { commonLookup.runningReduceName }
-    var scanReduceName: InternedString { commonLookup.scanReduceName }
     var groupByName: InternedString { commonLookup.groupByName }
     var findName: InternedString { commonLookup.findName }
     var findLastName: InternedString { commonLookup.findLastName }
@@ -438,39 +398,29 @@ struct CollectionLiteralLookupTables {
     var associateWithToName: InternedString { commonLookup.associateWithToName }
     var groupByToName: InternedString { commonLookup.groupByToName }
     var mapValuesName: InternedString { commonLookup.mapValuesName }
-    var mapValuesToName: InternedString { commonLookup.mapValuesToName }
     var mapKeysName: InternedString { commonLookup.mapKeysName }
-    var mapKeysToName: InternedString { commonLookup.mapKeysToName }
     var filterKeysName: InternedString { commonLookup.filterKeysName }
     var filterValuesName: InternedString { commonLookup.filterValuesName }
     var zipName: InternedString { commonLookup.zipName }
     var zipWithNextName: InternedString { commonLookup.zipWithNextName }
     var unzipName: InternedString { commonLookup.unzipName }
-    var withIndexName: InternedString { commonLookup.withIndexName }
     var forEachIndexedName: InternedString { commonLookup.forEachIndexedName }
     var onEachName: InternedString { commonLookup.onEachName }
     var onEachIndexedName: InternedString { commonLookup.onEachIndexedName }
     var mapIndexedName: InternedString { commonLookup.mapIndexedName }
     var mapIndexedNotNullName: InternedString { commonLookup.mapIndexedNotNullName }
     var foldIndexedName: InternedString { commonLookup.foldIndexedName }
-    var foldRightIndexedName: InternedString { commonLookup.foldRightIndexedName }
-    var reduceRightIndexedName: InternedString { commonLookup.reduceRightIndexedName }
-    var reduceRightIndexedOrNullName: InternedString { commonLookup.reduceRightIndexedOrNullName }
-    var reduceRightOrNullName: InternedString { commonLookup.reduceRightOrNullName }
     var reduceIndexedName: InternedString { commonLookup.reduceIndexedName }
     var filterIndexedName: InternedString { commonLookup.filterIndexedName }
     var reduceIndexedOrNullName: InternedString { commonLookup.reduceIndexedOrNullName }
     var runningFoldIndexedName: InternedString { commonLookup.runningFoldIndexedName }
     var runningReduceIndexedName: InternedString { commonLookup.runningReduceIndexedName }
     var scanIndexedName: InternedString { commonLookup.scanIndexedName }
-    var sumOfName: InternedString { commonLookup.sumOfName }
     var sumByName: InternedString { commonLookup.sumByName }
     var sumByDoubleName: InternedString { commonLookup.sumByDoubleName }
     var maxName: InternedString { commonLookup.maxName }
     var maxOrNullName: InternedString { commonLookup.maxOrNullName }
     var minOrNullName: InternedString { commonLookup.minOrNullName }
-    var maxByOrNullName: InternedString { commonLookup.maxByOrNullName }
-    var minByOrNullName: InternedString { commonLookup.minByOrNullName }
     var dropName: InternedString { commonLookup.dropName }
     var reversedName: InternedString { commonLookup.reversedName }
     var asReversedName: InternedString { commonLookup.asReversedName }

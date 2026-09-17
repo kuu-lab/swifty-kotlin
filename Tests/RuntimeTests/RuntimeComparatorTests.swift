@@ -214,7 +214,7 @@ struct RuntimeComparatorTests {
 
     @Test
     func testCaseInsensitiveOrderComparatorObjectDispatchesThroughITable() {
-        let comparatorRaw = kk_string_case_insensitive_order()
+        let comparatorRaw = __kk_string_case_insensitive_order()
         let compareFnPtr = kk_itable_lookup(comparatorRaw, 0, 0)
         #expect(compareFnPtr != 0)
 
@@ -238,7 +238,7 @@ struct RuntimeComparatorTests {
             makeRuntimeString("c"),
             makeRuntimeString("a"),
         ])
-        let comparatorRaw = kk_string_case_insensitive_order()
+        let comparatorRaw = __kk_string_case_insensitive_order()
 
         let sorted = kk_list_sortedWith(source, comparatorRaw, 0, nil)
         #expect(listElements(sorted).map(runtimeStringValue) == ["A", "a", "b", "c"])

@@ -83,16 +83,8 @@ public extension RuntimeABISpec {
             section: "Bitwise",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_toString_radix",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "radix", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Bitwise",
-            isThrowing: false
-        ),
+        // KSP-717: kk_int_toString_radix removed. Int/Long.toString(radix) is
+        // pure Kotlin source (Stdlib/kotlin/text/StringNumberConversions.kt).
         // STDLIB-BIT-007: One-bit functions are source-backed in
         // `Stdlib/kotlin/BitOperations.kt` since KSP-644.
         // Int/Long comparison operators

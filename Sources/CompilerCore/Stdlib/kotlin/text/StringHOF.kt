@@ -3,7 +3,11 @@ package kotlin.text
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.random.Random
+
+private external fun kk_max_float(a: Float, b: Float): Float
+private external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-TEXT-008 / KSP-410
 // String higher-order functions migrated from Swift runtime (RuntimeStringHOF.swift).
@@ -52,6 +56,96 @@ import kotlin.random.Random
  */
 public val CharSequence.indices: IntRange
     get() = 0..length - 1
+
+// KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
+// CharSequence values through indexed UTF-16 units so custom implementations do
+// not lose their contents by returning a display-only toString() value.
+@PublishedApi
+internal fun charSequenceRegexInputForReplace(value: CharSequence): String {
+    if (value is String) return value.toString()
+    val length = value.length
+    val chars = CharArray(length)
+    var index = 0
+    while (index < length) {
+        chars[index] = value[index]
+        index++
+    }
+    return StringBuilder().append(chars).toString()
+}
+
+/**
+ * Returns a new string obtained by replacing all matches of [regex] in this
+ * char sequence with [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replace(regex: Regex, replacement: String): String =
+    regex.replace(charSequenceRegexInputForReplace(this), replacement)
+
+/**
+ * Returns a new string obtained by replacing all matches of [regex] in this
+ * char sequence with the value returned by [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replace(
+    regex: Regex,
+    noinline replacement: (MatchResult) -> CharSequence
+): String {
+    val input = charSequenceRegexInputForReplace(this)
+    val result = StringBuilder()
+    var lastEnd = 0
+    for (match in regex.findAll(input)) {
+        val start = match.range.first
+        if (start > lastEnd) {
+            result.append(input.substring(lastEnd, start))
+        }
+        result.append(charSequenceRegexInputForReplace(replacement(match)))
+        lastEnd = match.range.last + 1
+    }
+    if (lastEnd < input.length) {
+        result.append(input.substring(lastEnd, input.length))
+    }
+    return result.toString()
+}
+
+/**
+ * Returns a new string with the first match of [regex] replaced by
+ * [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replaceFirst(regex: Regex, replacement: String): String =
+    regex.replaceFirst(charSequenceRegexInputForReplace(this), replacement)
+
+/**
+ * Returns a copy of this char sequence with the specified index range
+ * replaced by [replacement]. The end index is exclusive.
+ */
+public fun CharSequence.replaceRange(
+    startIndex: Int,
+    endIndex: Int,
+    replacement: CharSequence
+): CharSequence {
+    val length = this.length
+    if (startIndex < 0 || startIndex > length ||
+        endIndex < 0 || endIndex > length || startIndex > endIndex
+    ) {
+        throw IndexOutOfBoundsException(
+            "start=$startIndex, end=$endIndex, length=$length"
+        )
+    }
+
+    val result = StringBuilder()
+    result.append(charSequenceRegexInputForReplace(this.subSequence(0, startIndex)))
+    result.append(charSequenceRegexInputForReplace(replacement))
+    result.append(charSequenceRegexInputForReplace(this.subSequence(endIndex, length)))
+    return result
+}
+
+/**
+ * Returns a copy of this char sequence with the specified inclusive range
+ * replaced by [replacement].
+ */
+public fun CharSequence.replaceRange(range: IntRange, replacement: CharSequence): CharSequence =
+    replaceRange(range.start, range.endInclusive + 1, replacement)
 
 public fun String.filter(predicate: (Char) -> Boolean): String {
     val sb = StringBuilder()
@@ -323,6 +417,19 @@ public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapTo(
     }
     return destination
 }
+
+// KSP-1378: CharSequence indexed default accessors are source-backed. Keep
+// the bounds check and indexed interface dispatch in the inline body so
+// custom CharSequence implementations observe the Kotlin contract.
+@kotlin.internal.InlineOnly
+@OptIn(ExperimentalContracts::class)
+public inline fun CharSequence.getOrElse(index: Int, defaultValue: (Int) -> Char): Char {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    return if (index >= 0 && index < length) get(index) else defaultValue(index)
+}
+
+public fun CharSequence.getOrNull(index: Int): Char? =
+    if (index >= 0 && index < length) get(index) else null
 
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.elementAt(index: Int): Char = get(index)
@@ -720,29 +827,27 @@ public fun CharSequence.reduceRightIndexedOrNull(operation: (index: Int, Char, a
     return accumulator
 }
 
-public fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
+public inline fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
     var accumulator = initial
     var i = 0
-    val sz = this.length
-    while (i < sz) {
+    while (i < this.length) {
         accumulator = operation(accumulator, this[i])
         i++
     }
     return accumulator
 }
 
-public fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
+public inline fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
     var accumulator = initial
     var i = 0
-    val sz = this.length
-    while (i < sz) {
+    while (i < this.length) {
         accumulator = operation(i, accumulator, this[i])
         i++
     }
     return accumulator
 }
 
-public fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
+public inline fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
     var accumulator = initial
     var i = this.length - 1
     while (i >= 0) {
@@ -752,7 +857,7 @@ public fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R
     return accumulator
 }
 
-public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
+public inline fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
     var accumulator = initial
     var i = this.length - 1
     while (i >= 0) {
@@ -760,6 +865,227 @@ public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int,
         i--
     }
     return accumulator
+}
+
+// KSP-1387: CharSequence max-family APIs are source-backed. Keep the
+// floating-point overloads on the shared numeric helpers so NaN and signed-zero
+// ordering stays aligned with Kotlin's maxOf semantics.
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.max(): Char {
+    if (isEmpty()) throw NoSuchElementException()
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <R : Comparable<R>> CharSequence.maxBy(selector: (Char) -> R): Char {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxElem = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return maxElem
+    var maxValue = selector(maxElem)
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    }
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+public inline fun <R : Comparable<R>> CharSequence.maxByOrNull(selector: (Char) -> R): Char? {
+    if (isEmpty()) return null
+    var maxElem = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return maxElem
+    var maxValue = selector(maxElem)
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    }
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOf(selector: (Char) -> Double): Double {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOf(selector: (Char) -> Float): Float {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.maxOf(selector: (Char) -> R): R {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (maxValue < v) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOfOrNull(selector: (Char) -> Double): Double? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOfOrNull(selector: (Char) -> Float): Float? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.maxOfOrNull(selector: (Char) -> R): R? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (maxValue < v) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.maxOfWith(comparator: Comparator<in R>, selector: (Char) -> R): R {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (comparator.compare(maxValue, v) < 0) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.maxOfWithOrNull(comparator: Comparator<in R>, selector: (Char) -> R): R? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (comparator.compare(maxValue, v) < 0) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.maxOrNull(): Char? {
+    if (isEmpty()) return null
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.maxWith(comparator: Comparator<in Char>): Char {
+    if (isEmpty()) throw NoSuchElementException()
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.maxWithOrNull(comparator: Comparator<in Char>): Char? {
+    if (isEmpty()) return null
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
 }
 
 public inline fun CharSequence.forEach(action: (Char) -> Unit): Unit {
@@ -777,6 +1103,237 @@ public inline fun CharSequence.forEachIndexed(action: (index: Int, Char) -> Unit
         action(index, this[index])
         index++
     }
+}
+
+// KSP-1388: CharSequence min-family APIs are source-backed. Keep the indexed
+// walk in Kotlin so String, StringBuilder, and user-defined CharSequence
+// implementations use the interface's length/get contract.
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.min(): Char {
+    if (this.length == 0) throw NoSuchElementException()
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (min > value) min = value
+        i++
+    }
+    return min
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <R : Comparable<R>> CharSequence.minBy(selector: (Char) -> R): Char {
+    if (this.length == 0) throw NoSuchElementException()
+    var minElement = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return minElement
+    var minValue = selector(minElement)
+    var i = 1
+    while (i <= lastIndex) {
+        val value = this[i]
+        val key = selector(value)
+        if (minValue > key) {
+            minElement = value
+            minValue = key
+        }
+        i++
+    }
+    return minElement
+}
+
+@SinceKotlin("1.4")
+public inline fun <R : Comparable<R>> CharSequence.minByOrNull(selector: (Char) -> R): Char? {
+    if (this.length == 0) return null
+    var minElement = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return minElement
+    var minValue = selector(minElement)
+    var i = 1
+    while (i <= lastIndex) {
+        val value = this[i]
+        val key = selector(value)
+        if (minValue > key) {
+            minElement = value
+            minValue = key
+        }
+        i++
+    }
+    return minElement
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOf(selector: (Char) -> Double): Double {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOf(selector: (Char) -> Float): Float {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.minOf(selector: (Char) -> R): R {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (minValue > value) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOfOrNull(selector: (Char) -> Double): Double? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOfOrNull(selector: (Char) -> Float): Float? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.minOfOrNull(selector: (Char) -> R): R? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (minValue > value) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.minOfWith(
+    comparator: Comparator<in R>,
+    selector: (Char) -> R
+): R {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (comparator.compare(minValue, value) > 0) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.minOfWithOrNull(
+    comparator: Comparator<in R>,
+    selector: (Char) -> R
+): R? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (comparator.compare(minValue, value) > 0) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.minOrNull(): Char? {
+    if (this.length == 0) return null
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (min > value) min = value
+        i++
+    }
+    return min
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.minWith(comparator: Comparator<in Char>): Char {
+    if (this.length == 0) throw NoSuchElementException()
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (comparator.compare(min, value) > 0) min = value
+        i++
+    }
+    return min
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.minWithOrNull(comparator: Comparator<in Char>): Char? {
+    if (this.length == 0) return null
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (comparator.compare(min, value) > 0) min = value
+        i++
+    }
+    return min
 }
 
 @Suppress("UNCHECKED_CAST")

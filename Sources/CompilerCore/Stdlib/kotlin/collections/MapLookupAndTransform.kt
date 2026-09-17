@@ -11,11 +11,12 @@ import kotlin.reflect.KProperty
 // RuntimeCollectionHOF.swift (kk_map_getOrElse, kk_mutable_map_getOrPut,
 // kk_map_toList) and RuntimeCollections.swift (kk_map_orEmpty).
 //
-// Remaining bridges: the six abstract `Map` members use the runtime-backed
-// placeholders registered by `HeaderHelpers+SyntheticMapStubs.swift` for
-// built-in map boxes. The entry bridge tags each entry with the runtime
-// map-entry type so `toString` prints `k=v`; the `withDefault` state remains
-// stored on the runtime map box
+// Remaining bridges: Map's four abstract properties (size/keys/values/
+// entries) use the runtime-backed placeholders registered by
+// `HeaderHelpers+SyntheticMapStubs.swift` for built-in map boxes (isEmpty/get
+// moved to @KsSymbolName directly on Map.kt in KSP-703). The entry bridge
+// tags each entry with the runtime map-entry type so `toString` prints
+// `k=v`; the `withDefault` state remains stored on the runtime map box
 // (`__kk_map_withDefault` / `__kk_map_has_default` / `__kk_map_implicit_default`).
 
 @KsSymbolName("__kk_map_withDefault")

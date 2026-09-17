@@ -1,6 +1,18 @@
 package kotlin.collections
 
+import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
+
+// Float/Double maxOf uses these existing shared numeric helpers directly, the
+// same way Iterables.kt does, so NaN and signed-zero behavior stays identical
+// to kotlin.comparisons.maxOf (calling that inline wrapper itself by
+// fully-qualified name from a non-inline caller left an unresolved "_maxOf"
+// symbol at link time in --stdlib-from-source mode). minOf uses the
+// comparisonMinOf import alias above instead of a local kk_min_float/double
+// redeclaration — a local redeclaration of kk_min_float produced wrong
+// results (returned the first operand unchanged) when called directly.
+private external fun kk_max_float(a: Float, b: Float): Float
+private external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-SEQ-004
 // Sequence aggregate HOFs migrated to Kotlin source.
@@ -359,7 +371,17 @@ public fun <T, R : Comparable<R>> Sequence<T>.maxBy(selector: (T) -> R): T {
     return bestElem
 }
 
-public fun <T, R : Comparable<R>> Sequence<T>.minOf(selector: (T) -> R): R {
+// KSP-1353/KSP-1354: the generic Comparable overloads below now share their
+// name with the Double/Float-specialized overloads added further down, so
+// all of them opt into @OverloadResolutionByLambdaReturnType (matching
+// kotlin.collections.Iterable's maxOf/minOf family in Iterables.kt) —
+// otherwise the lambda's inferred return type can't disambiguate which
+// overload a call site means.
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Sequence<T>.minOf(selector: (T) -> R): R {
     val elements = this.toList()
     if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
     var bestKey = selector(elements[0])
@@ -372,7 +394,11 @@ public fun <T, R : Comparable<R>> Sequence<T>.minOf(selector: (T) -> R): R {
     return bestKey
 }
 
-public fun <T, R : Comparable<R>> Sequence<T>.maxOf(selector: (T) -> R): R {
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Sequence<T>.maxOf(selector: (T) -> R): R {
     val elements = this.toList()
     if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
     var bestKey = selector(elements[0])
@@ -385,7 +411,11 @@ public fun <T, R : Comparable<R>> Sequence<T>.maxOf(selector: (T) -> R): R {
     return bestKey
 }
 
-public fun <T, R : Comparable<R>> Sequence<T>.minOfOrNull(selector: (T) -> R): R? {
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Sequence<T>.minOfOrNull(selector: (T) -> R): R? {
     val elements = this.toList()
     if (elements.isEmpty()) return null
     var bestKey = selector(elements[0])
@@ -398,7 +428,11 @@ public fun <T, R : Comparable<R>> Sequence<T>.minOfOrNull(selector: (T) -> R): R
     return bestKey
 }
 
-public fun <T, R : Comparable<R>> Sequence<T>.maxOfOrNull(selector: (T) -> R): R? {
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Sequence<T>.maxOfOrNull(selector: (T) -> R): R? {
     val elements = this.toList()
     if (elements.isEmpty()) return null
     var bestKey = selector(elements[0])
@@ -461,6 +495,196 @@ public fun <T> Sequence<T>.maxWithOrNull(comparator: Comparator<in T>): T? {
         i += 1
     }
     return best
+}
+
+// KSP-1353/KSP-1354: Double/Float-specialized maxOf/minOf overloads and the
+// Comparator-based maxOfWith/minOfWith. maxOf delegates pairwise comparisons
+// to kk_max_double/kk_max_float directly, the same way Iterables.kt's own
+// maxOf(Double|Float) does; minOf goes through the comparisonMinOf import
+// alias at the top of this file instead (see that alias's own comment for
+// why). Either way this keeps NaN propagation and signed-zero ordering
+// matching Kotlin's IEEE-754 pairwise semantics, instead of the
+// Comparable.compareTo total ordering used by the generic
+// <T : Comparable<T>> overloads above.
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.maxOf(selector: (T) -> Double): Double {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = kk_max_double(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.maxOf(selector: (T) -> Float): Float {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = kk_max_float(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.maxOfOrNull(selector: (T) -> Double): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = kk_max_double(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.maxOfOrNull(selector: (T) -> Float): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = kk_max_float(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+public fun <T, R> Sequence<T>.maxOfWith(comparator: Comparator<in R>, selector: (T) -> R): R {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        val value = selector(elements[i])
+        if (comparator.compare(result, value) < 0) result = value
+        i += 1
+    }
+    return result
+}
+
+public fun <T, R> Sequence<T>.maxOfWithOrNull(comparator: Comparator<in R>, selector: (T) -> R): R? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        val value = selector(elements[i])
+        if (comparator.compare(result, value) < 0) result = value
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.minOf(selector: (T) -> Double): Double {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = comparisonMinOf(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.minOf(selector: (T) -> Float): Float {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = comparisonMinOf(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.minOfOrNull(selector: (T) -> Double): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = comparisonMinOf(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Sequence<T>.minOfOrNull(selector: (T) -> Float): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        result = comparisonMinOf(result, selector(elements[i]))
+        i += 1
+    }
+    return result
+}
+
+public fun <T, R> Sequence<T>.minOfWith(comparator: Comparator<in R>, selector: (T) -> R): R {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw NoSuchElementException("Sequence is empty.")
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        val value = selector(elements[i])
+        if (comparator.compare(result, value) > 0) result = value
+        i += 1
+    }
+    return result
+}
+
+public fun <T, R> Sequence<T>.minOfWithOrNull(comparator: Comparator<in R>, selector: (T) -> R): R? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var result = selector(elements[0])
+    var i = 1
+    while (i < elements.size) {
+        val value = selector(elements[i])
+        if (comparator.compare(result, value) > 0) result = value
+        i += 1
+    }
+    return result
 }
 
 @Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))

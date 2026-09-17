@@ -1,11 +1,13 @@
 package kotlin.ranges
 
 // MIGRATION-RANGE-001
-// iterator() for IntRange, LongRange, CharRange, UIntRange, IntProgression,
-// LongProgression, CharProgression, and UIntProgression.
+// iterator() for IntRange, LongRange, CharRange, UIntRange, ULongRange,
+// IntProgression, LongProgression, CharProgression, UIntProgression, and
+// ULongProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (kk_range_iterator, kk_range_hasNext, kk_range_next)
-//   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator)
+//   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator,
+//   __kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 //   Sources/Runtime/RuntimeRangeUIntULongRange.swift
 //   (__kk_uint_range_iterator, __kk_uint_range_hasNext, __kk_uint_range_next)
 //   Sources/Runtime/RuntimeRangeLongRange.swift

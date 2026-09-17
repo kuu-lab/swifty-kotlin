@@ -11,11 +11,8 @@ struct RuntimeBufferedWriterTests {
         try "old-content".write(to: fileURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
-        #expect(pathRaw != 0)
-
         var thrown = 0
-        let writerRaw = kk_path_bufferedWriter(pathRaw, 0, kk_box_int(8192), 0)
+        let writerRaw = openBufferedWriter(fileURL.path)
         #expect(writerRaw != 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("hello"), &thrown) == 0)
@@ -35,11 +32,8 @@ struct RuntimeBufferedWriterTests {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
-        #expect(pathRaw != 0)
-
         var thrown = 0
-        let writerRaw = kk_path_bufferedWriter(pathRaw, 0, kk_box_int(8192), 0)
+        let writerRaw = openBufferedWriter(fileURL.path)
         #expect(writerRaw != 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("created"), &thrown) == 0)
@@ -55,11 +49,8 @@ struct RuntimeBufferedWriterTests {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
-        #expect(pathRaw != 0)
-
         var thrown = 0
-        let writerRaw = kk_path_bufferedWriter(pathRaw, 0, kk_box_int(8192), 0)
+        let writerRaw = openBufferedWriter(fileURL.path)
         #expect(writerRaw != 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("日本語テスト"), &thrown) == 0)
@@ -76,12 +67,7 @@ struct RuntimeBufferedWriterTests {
         try "old-content".write(to: fileURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let writerRaw = kk_path_bufferedWriter(
-            runtimeTestPathHandle(fileURL.path),
-            0,
-            kk_box_int(2),
-            0
-        )
+        let writerRaw = openBufferedWriter(fileURL.path, bufferSize: 2)
         #expect(writerRaw != 0)
 
         var thrown = 0
@@ -106,9 +92,8 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let writerRaw = kk_path_writer(runtimeTestPathHandle(fileURL.path), 0, 0, &thrown)
+        let writerRaw = openBufferedWriter(fileURL.path)
         #expect(writerRaw != 0)
-        #expect(thrown == 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("hello"), &thrown) == 0)
         #expect(thrown == 0)
@@ -128,9 +113,8 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let writerRaw = kk_path_writer(runtimeTestPathHandle(fileURL.path), 0, 0, &thrown)
+        let writerRaw = openBufferedWriter(fileURL.path)
         #expect(writerRaw != 0)
-        #expect(thrown == 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("created"), &thrown) == 0)
         #expect(thrown == 0)
@@ -146,9 +130,8 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let writerRaw = kk_path_writer(runtimeTestPathHandle(fileURL.path), 0, 0, &thrown)
+        let writerRaw = openBufferedWriter(fileURL.path)
         #expect(writerRaw != 0)
-        #expect(thrown == 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("日本語テスト"), &thrown) == 0)
         #expect(thrown == 0)
@@ -166,10 +149,7 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let pathRaw = kk_path_new(makeStringRaw(fileURL.path))
-        #expect(pathRaw != 0)
-
-        let streamRaw = kk_path_outputStream(pathRaw, 0)
+        let streamRaw = openOutputStream(fileURL.path)
         #expect(streamRaw != 0)
 
         // charsetRaw = 0 corresponds to UTF-8 (mirrors Charsets.UTF_8).
@@ -194,9 +174,7 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let pathRaw = kk_path_new(makeStringRaw(fileURL.path))
-        #expect(pathRaw != 0)
-        let streamRaw = kk_path_outputStream(pathRaw, 0)
+        let streamRaw = openOutputStream(fileURL.path)
         #expect(streamRaw != 0)
 
         // __kk_output_stream_bufferedWriter_default (File's no-charset-arg facade) is gone;
@@ -219,7 +197,29 @@ struct RuntimeBufferedWriterTests {
         }
     }
 
-    private func runtimeTestPathHandle(_ path: String) -> Int {
-        kk_path_new(makeStringRaw(path))
+    /// Fixture replacement for the removed `kk_path_bufferedWriter`/`kk_path_writer`
+    /// (CLEANUP-STUB-115): creates/truncates `path` and boxes the result exactly as
+    /// those cdecls did (charset fixed to UTF-8, matching every call site below).
+    private func openBufferedWriter(_ path: String, bufferSize: Int = 8192) -> Int {
+        if !FileManager.default.fileExists(atPath: path) {
+            _ = FileManager.default.createFile(atPath: path, contents: Data())
+        }
+        guard let fileHandle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) else {
+            return 0
+        }
+        fileHandle.truncateFile(atOffset: 0)
+        return registerRuntimeObject(RuntimeBufferedWriterBox(fileHandle: fileHandle, bufferSize: bufferSize, encoding: .utf8))
+    }
+
+    /// Fixture replacement for the removed `kk_path_outputStream` (CLEANUP-STUB-115).
+    private func openOutputStream(_ path: String) -> Int {
+        if !FileManager.default.fileExists(atPath: path) {
+            _ = FileManager.default.createFile(atPath: path, contents: Data())
+        }
+        guard let fileHandle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) else {
+            return 0
+        }
+        fileHandle.truncateFile(atOffset: 0)
+        return registerRuntimeObject(RuntimeOutputStreamBox(fileHandle: fileHandle))
     }
 }

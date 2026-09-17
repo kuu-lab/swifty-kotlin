@@ -25,6 +25,64 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_double_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_double_range_contains",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_range_contains",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_double_range_isEmpty",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_range_isEmpty",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_double_coerceIn_range",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -194,7 +252,7 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // ULongRange count, iterator, forEach, map (STDLIB-RANGE-037)
+        // ULongRange count, iterator (STDLIB-RANGE-037)
         RuntimeABIFunctionSpec(
             name: "kk_ulong_range_count",
             parameters: [
@@ -230,17 +288,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Range",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_map",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_range_forEach",
@@ -1165,61 +1212,6 @@ public extension RuntimeABISpec {
             name: "kk_ulong_range_isEmpty",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_mapIndexed",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_mapNotNull",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_filter",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_filterIndexed",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_filterNot",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"

@@ -1,0 +1,22 @@
+symbol fq=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.configureHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.Builder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.Builder] ret=kotlin.text.HexFormat
+file fstdlib_kotlin_text_HexFormat_Builder_Builder_n package=golden.sema
+  decl golden.sema.configureHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.Builder] fun configureHexFormatBuilder sym=golden.sema.configureHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.Builder]
+expr e@4:5 name(builder) type=kotlin.text.HexFormat.Builder ref=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam]
+expr e@4:25 bool(true) type=Boolean
+expr e@4:5#1 memberAssign recv=e@4:5 callee=upperCase value=e@4:25 type=Unit ref=kotlin.text.HexFormat.Builder.upperCase[kind=prop]
+expr e@5:5 name(builder) type=kotlin.text.HexFormat.Builder ref=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam]
+expr e@5:37 string(:) type=String
+expr e@5:21 localAssign byteSeparator value=e@5:37 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.byteSeparator[kind=prop]
+expr e@5:21#1 blockExpr stmts=[e@5:21] trailing=_ type=Unit
+expr e@5:19 lambda params=[] body=e@5:21#1 label=bytes type=kotlin.text.HexFormat.BytesHexFormat.Builder.() -> Unit
+expr e@5:5#1 memberCall recv=e@5:5 callee=bytes args=[_:e@5:19] type=Unit call=kotlin.text.HexFormat.Builder.bytes[kind=fun;recv=kotlin.text.HexFormat.Builder;params=fn{r=kotlin.text.HexFormat.BytesHexFormat.Builder;p=;ret=Unit}]
+expr e@6:5 name(builder) type=kotlin.text.HexFormat.Builder ref=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam]
+expr e@6:31 string(0x) type=String
+expr e@6:22 localAssign prefix value=e@6:31 type=Unit ref=kotlin.text.HexFormat.NumberHexFormat.Builder.prefix[kind=prop]
+expr e@6:22#1 blockExpr stmts=[e@6:22] trailing=_ type=Unit
+expr e@6:20 lambda params=[] body=e@6:22#1 label=number type=kotlin.text.HexFormat.NumberHexFormat.Builder.() -> Unit
+expr e@6:5#1 memberCall recv=e@6:5 callee=number args=[_:e@6:20] type=Unit call=kotlin.text.HexFormat.Builder.number[kind=fun;recv=kotlin.text.HexFormat.Builder;params=fn{r=kotlin.text.HexFormat.NumberHexFormat.Builder;p=;ret=Unit}]
+expr e@7:12 name(builder) type=kotlin.text.HexFormat.Builder ref=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam]
+expr e@7:12#1 memberCall recv=e@7:12 callee=build args=[] type=kotlin.text.HexFormat call=kotlin.text.HexFormat.Builder.build[kind=fun;recv=kotlin.text.HexFormat.Builder;params=]
+expr e@7:5 return value=e@7:12#1 type=Nothing

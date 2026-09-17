@@ -17,7 +17,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let memberName = interner.resolve(calleeName)
-        let isUIntRangeSourceMigrationMember = [
+        let isRangeIteratorMigrationMember = [
             "iterator", "step", "take", "drop", "chunked", "windowed",
         ].contains(memberName)
 
@@ -99,15 +99,17 @@ extension CallTypeChecker {
               (sema.bindings.isRangeExpr(receiverID)
                   || isOpenEndRangeReceiver
                   || isSyntacticRangeExpression
-                  || (isTypedUIntRangeReceiver && isUIntRangeSourceMigrationMember)
+                  || (isTypedUIntRangeReceiver && isRangeIteratorMigrationMember)
                   || (isTypedULongProgressionReceiver
-                      && isULongProgressionSourceBackedHOF(memberName, argCount: args.count))
+                      && (isRangeIteratorMigrationMember
+                          || isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count)))
                   || (isTypedIntRangeReceiver
                       && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
                   || (isTypedLongRangeReceiver
                       && isLongRangeSourceBackedHOF(memberName, argCount: args.count))
                   || (isTypedULongRangeReceiver
-                      && isULongRangeSourceBackedHOF(memberName, argCount: args.count)))
+                      && (isRangeIteratorMigrationMember
+                          || isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count))))
         else {
             return nil
         }
@@ -440,62 +442,7 @@ extension CallTypeChecker {
             || memberName == "lastOrNull"
     }
 
-    private func isULongProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        if memberName == "iterator" {
-            return argCount == 0
-        }
-        if memberName == "step" {
-            return argCount == 1
-        }
-        if memberName == "first" || memberName == "firstOrNull"
-            || memberName == "last" || memberName == "lastOrNull"
-        {
-            return argCount == 0
-        }
-        if memberName == "windowed" {
-            return (1...3).contains(argCount)
-        }
-        guard argCount == 1 else { return false }
-        return [
-            "chunked", "take", "drop",
-        ].contains(memberName)
-    }
-
-    private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        if memberName == "contains" {
-            return argCount == 1
-        }
-        if memberName == "iterator" {
-            return argCount == 0
-        }
-        if memberName == "step" {
-            return argCount == 1
-        }
-        if memberName == "first" || memberName == "last"
-            || memberName == "firstOrNull" || memberName == "lastOrNull"
-        {
-            return argCount > 0
-        }
-        let sourceBacked: Set<String> = [
-            "map", "mapIndexed", "mapNotNull",
-            "filter", "filterIndexed", "filterNot",
-            "forEach",
-            "reduce", "reduceIndexed", "fold", "foldIndexed",
-            "find", "findLast",
-            "firstOrNull", "lastOrNull",
-            "any", "all", "none",
-            "chunked", "windowed", "take", "drop",
-        ]
-        if sourceBacked.contains(memberName) {
-            if memberName == "fold" || memberName == "foldIndexed" {
-                return argCount == 2
-            }
-            return memberName == "windowed" ? (1...3).contains(argCount) : argCount == 1
-        }
-        return false
-    }
-
-    private func isUIntProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+    private func isUnsignedProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
         if memberName == "iterator" {
             return argCount == 0
         }
@@ -535,7 +482,7 @@ extension CallTypeChecker {
             || argumentType == sema.types.shortType
     }
 
-    private func isULongRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+    private func isUnsignedRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
         if memberName == "contains" {
             return argCount == 1
         }
@@ -551,6 +498,8 @@ extension CallTypeChecker {
             return argCount > 0
         }
         let sourceBacked: Set<String> = [
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
             "forEach",
             "reduce", "reduceIndexed", "fold", "foldIndexed",
             "find", "findLast",
@@ -752,20 +701,18 @@ extension CallTypeChecker {
             ((rangeKind == .intRange || rangeKind == .intProgression)
                 && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .uintRange
-                && isUIntRangeSourceBackedHOF(memberName, argCount: args.count))
-            || (rangeKind == .uintProgression
-                && isUIntProgressionSourceBackedHOF(memberName, argCount: args.count))
+                && isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count))
+            || ((rangeKind == .uintProgression || rangeKind == .ulongProgression)
+                && isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .charProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longProgression
                 && isLongProgressionSourceBackedHOF(memberName, argCount: args.count))
-            || (rangeKind == .ulongProgression
-                && isULongProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longRange
                 && isLongRangeSourceBackedHOF(memberName, argCount: args.count)
                 && isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema))
             || (rangeKind == .ulongRange
-                && isULongRangeSourceBackedHOF(memberName, argCount: args.count)
+                && isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count)
                 && (memberName != "contains"
                     || isULongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
             || ((memberName == "random" || memberName == "randomOrNull")
@@ -1416,7 +1363,8 @@ extension CallTypeChecker {
                 interner: interner,
                 isLongRange: isLongRange,
                 isUIntRange: isUIntRange,
-                isULongRange: isULongRange
+                isULongRange: isULongRange,
+                isReversed: true
             )
         case "step":
             return argCount == 0 ? sema.types.intType : rangeMemberRangeType(
@@ -1479,8 +1427,29 @@ extension CallTypeChecker {
         interner: StringInterner,
         isLongRange: Bool,
         isUIntRange: Bool,
-        isULongRange: Bool
+        isULongRange: Bool,
+        isReversed: Bool = false
     ) -> TypeID {
+        if isReversed,
+           elementType == sema.types.intType,
+           !isLongRange,
+           !isUIntRange,
+           !isULongRange
+        {
+            let intProgressionFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern("IntProgression"),
+            ]
+            if let intProgressionSymbol = sema.symbols.lookup(fqName: intProgressionFQName) {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: intProgressionSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+        }
+
         if let receiverType,
            case .classType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
         {

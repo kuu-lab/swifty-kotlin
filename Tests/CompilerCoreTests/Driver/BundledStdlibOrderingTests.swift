@@ -108,7 +108,10 @@ struct BundledStdlibOrderingTests {
             }
 
             for expected in [
+                "__bundled_kotlin/native/Annotations.kt",
                 "__bundled_kotlin/native/BitSet.kt",
+                "__bundled_kotlin/native/FreezingIsDeprecated.kt",
+                "__bundled_kotlin/native/ObsoleteNativeApi.kt",
                 "__bundled_kotlin/native/Platform.kt",
                 "__bundled_kotlin/native/Runtime.kt",
                 "__bundled_kotlin/native/ThrowableExtensions.kt",
@@ -123,6 +126,90 @@ struct BundledStdlibOrderingTests {
                 "__bundled_kotlin/native/runtime/GCInfo.kt",
             ] {
                 #expect(nativePaths.contains(expected), "Missing bundled source \(expected)")
+            }
+
+            // KSP-1541 native residual: `ObjCName`/`CName`/etc. consolidated into
+            // Annotations.kt and `ObsoleteNativeApi`/`FreezingIsDeprecated` split into
+            // their own files; the old grab-bag filename must not come back.
+            #expect(!nativePaths.contains("__bundled_kotlin/native/ObjCInterop.kt"))
+        }
+    }
+
+    /// KSP-1541: packages whose synthetic-stub migration is complete keep the
+    /// upstream kotlin-stdlib / kotlin-native file layout. The artifact shapes
+    /// this replaced — `<Type>/Stdlib.kt` and `<Type>/<Type>.kt` directories
+    /// per declaration — have no counterpart upstream, so neither may come back.
+    /// Packages with remaining (b) stubs (`kotlin/` root, collections, ranges,
+    /// sequences, text, time, io, concurrent) are covered by their own M-phase
+    /// follow-ups and are intentionally not listed here yet.
+    @Test
+    func testMigratedBundledFilenamesFollowUpstreamLayout() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+
+            try LoadSourcesPhase().run(ctx)
+
+            let bundledPaths = ctx.sourceManager.fileIDs()
+                .map { ctx.sourceManager.path(of: $0) }
+                .filter { $0.hasPrefix("__bundled_") }
+
+            let migratedPrefixes = [
+                "__bundled_kotlin/annotation/",
+                "__bundled_kotlin/contracts/",
+                "__bundled_kotlin/coroutines/",
+                "__bundled_kotlin/enums/",
+                "__bundled_kotlin/experimental/",
+                "__bundled_kotlin/reflect/",
+            ]
+            let migratedPaths = bundledPaths.filter { bundledPath in
+                migratedPrefixes.contains { bundledPath.hasPrefix($0) }
+            }
+            #expect(!migratedPaths.isEmpty, "Migrated bundled sources should be injected.")
+
+            for migratedPath in migratedPaths {
+                let components = migratedPath.split(separator: "/").map(String.init)
+                let file = try #require(components.last)
+                #expect(
+                    file != "Stdlib.kt",
+                    "\(migratedPath) still uses the per-declaration Stdlib.kt artifact name."
+                )
+                if components.count >= 2 {
+                    let parent = components[components.count - 2]
+                    #expect(
+                        file != "\(parent).kt",
+                        "\(migratedPath) still nests the file inside an eponymous directory."
+                    )
+                }
+            }
+
+            for expected in [
+                "__bundled_kotlin/annotation/Annotations.kt",
+                "__bundled_kotlin/contracts/ContractBuilder.kt",
+                "__bundled_kotlin/contracts/Effect.kt",
+                "__bundled_kotlin/contracts/InvocationKind.kt",
+                "__bundled_kotlin/coroutines/Continuation.kt",
+                "__bundled_kotlin/coroutines/ContinuationInterceptor.kt",
+                "__bundled_kotlin/coroutines/CoroutineContext.kt",
+                "__bundled_kotlin/coroutines/CoroutineContextImpl.kt",
+                "__bundled_kotlin/coroutines/SafeContinuationNative.kt",
+                "__bundled_kotlin/coroutines/SuspendFunction.kt",
+                "__bundled_kotlin/coroutines/cancellation/CancellationExceptionH.kt",
+                "__bundled_kotlin/coroutines/intrinsics/IntrinsicsNative.kt",
+                "__bundled_kotlin/enums/EnumEntries.kt",
+                "__bundled_kotlin/experimental/ExperimentalNativeApi.kt",
+                "__bundled_kotlin/experimental/ExperimentalObjCEnum.kt",
+                "__bundled_kotlin/experimental/ExperimentalObjCName.kt",
+                "__bundled_kotlin/experimental/ExperimentalObjCRefinement.kt",
+                "__bundled_kotlin/experimental/inferenceMarker.kt",
+                "__bundled_kotlin/reflect/KCallable.kt",
+                "__bundled_kotlin/reflect/KClass.kt",
+                "__bundled_kotlin/reflect/KClasses.kt",
+                "__bundled_kotlin/reflect/KProperty.kt",
+                "__bundled_kotlin/reflect/KType.kt",
+                "__bundled_kotlin/reflect/KTypeProjection.kt",
+                "__bundled_kotlin/reflect/KVariance.kt",
+            ] {
+                #expect(bundledPaths.contains(expected), "Missing bundled source \(expected)")
             }
         }
     }

@@ -7,8 +7,22 @@
 
 package kotlin.collections
 
-// KSP-697: keep List's covariant nominal shell in Kotlin source. Indexed and
-// iterator members remain compiler residuals in
-// Sema/DataFlow/HeaderHelpers+SyntheticListResiduals.swift, which KSP-700 owns
-// (KSP-699 covers only the collection factory functions).
-public interface List<out E> : Collection<E>
+import kotlin.internal.KsSymbolName
+
+// KSP-700: List's covariant nominal shell and directly bridged members are
+// source-backed here. The link names stay stable for the built-in list boxes;
+// the corresponding Swift registrations remain only as no-stdlib/precompiled
+// fallbacks.
+public interface List<out E> : Collection<E> {
+    @KsSymbolName("__kk_list_get")
+    public operator fun get(index: Int): E
+
+    @KsSymbolName("kk_list_is_empty")
+    public override fun isEmpty(): Boolean
+
+    @KsSymbolName("kk_list_iterator")
+    public fun listIterator(): ListIterator<E>
+
+    @KsSymbolName("kk_list_iterator_at")
+    public fun listIterator(index: Int): ListIterator<E>
+}

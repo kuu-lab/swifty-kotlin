@@ -1,8 +1,15 @@
-// KSP-697: compiler-side Comparable residuals.
+// KSP-697/KSP-700: compiler-side Comparable residuals.
 //
-// The nominal Comparable<in T> declaration is bundled Kotlin source. This
-// residual keeps compareTo, primitive conformances, and range bounds available
-// until their metadata and lowering constraints can be removed independently.
+// The nominal Comparable<in T> declaration, including `compareTo` itself, is
+// bundled Kotlin source (Stdlib/kotlin/Comparable.kt, KSP-797); the interface
+// lookup below is a `--no-stdlib`/precompiled-metadata fallback only. What
+// remains here permanently (c) is compiler-metadata wiring with no Kotlin
+// source equivalent: making the primitive types (Int, Double, ...) implement
+// Comparable<Self> at the symbol-table level (setupPrimitiveComparableImplementations,
+// HeaderHelpers+SyntheticComparableHelpers.swift — Int/Double/etc. are compiler
+// intrinsics, not classes with a declarable supertype list) and the
+// OpenEndRange/ClosedRange upper-bound patches, which belong to the Range
+// module's own migration (KSP-714), not this one.
 extension DataFlowSemaPhase {
     func registerSyntheticComparableStub(
         symbols: SymbolTable,

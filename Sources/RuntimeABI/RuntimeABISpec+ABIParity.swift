@@ -3,27 +3,6 @@
 
 public extension RuntimeABISpec {
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
-        // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
-        abiParitySpec("kk_kclass_register_annotation", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_has_annotation", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_js", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_class_name", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_simple_class_name", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_get_arguments", parameters: [
-            p("p0", .intptr),
-        ]),
         abiParitySpec("__kk_any_javaClass", parameters: [
             p("receiverRaw", .intptr),
         ], isThrowing: false),
@@ -38,22 +17,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_int_to_int", parameters: [
             p("value", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_create", parameters: [
-            p("valueRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_load", parameters: [
-            p("refRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_compareAndSwap", parameters: [
-            p("refRaw", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_compareAndSet", parameters: [
-            p("refRaw", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
         ]),
         // Runtime @_cdecl entries awaiting a dedicated RuntimeABISpec category.
         abiParitySpec("component1", parameters: [
@@ -83,10 +46,6 @@ public extension RuntimeABISpec {
             p("index", .intptr),
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_callable_ref_arity", parameters: [
-            p("tagged", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_callable_ref_call_0", parameters: [
             p("tagged", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -109,14 +68,6 @@ public extension RuntimeABISpec {
             p("arg3", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_callable_ref_is_suspend", parameters: [
-            p("tagged", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_callable_ref_parameters", parameters: [
-            p("tagged", .intptr),
-        ],
-            isThrowing: false),
         // KSP-678: these Channel residuals are bridged from bundled Kotlin
         // (Channels.kt) and return a plain Int handle/flag; they do not use the
         // outThrown ABI lowering path.
@@ -222,10 +173,6 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("__kk_fileTime_toMillis", parameters: [
-            p("fileTimeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_flow_catch", parameters: [
             p("flowHandle", .intptr),
             p("handlerFnPtr", .intptr),
@@ -263,29 +210,6 @@ public extension RuntimeABISpec {
             p("arg2", .intptr),
         ]),
         // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
-        abiParitySpec("kk_freezable_atomic_ref_compareAndSet", parameters: [
-            p("refHandle", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_compareAndSwap", parameters: [
-            p("refHandle", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_create", parameters: [
-            p("initialRaw", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_is_frozen", parameters: [
-            p("refHandle", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_load", parameters: [
-            p("refHandle", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_store", parameters: [
-            p("refHandle", .intptr),
-            p("valueRaw", .intptr),
-        ]),
         abiParitySpec("kk_freeze_object", parameters: [
             p("objectRaw", .intptr),
         ]),
@@ -508,14 +432,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
-        abiParitySpec("__kk_normalization_form_nfc",
-            isThrowing: false),
-        abiParitySpec("__kk_normalization_form_nfd",
-            isThrowing: false),
-        abiParitySpec("__kk_normalization_form_nfkc",
-            isThrowing: false),
-        abiParitySpec("__kk_normalization_form_nfkd",
-            isThrowing: false),
+        // KSP-717: __kk_normalization_form_nfc/nfd/nfkc/nfkd removed. Their
+        // tag values are plain Kotlin constants now (StringNormalize.kt).
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
         ]),
@@ -562,15 +480,30 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_stable_ref_create", parameters: [
+            p("objectRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_stable_ref_deref", parameters: [
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_stable_ref_dispose", parameters: [
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
         // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
         // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
+        // KSP-717: both bridges are plain (non-throwing) flat-string helpers
+        // in RuntimeStringStdlib.swift (no outThrown parameter) — explicit
+        // isThrowing: false overrides abiParitySpec's throwing-by-default,
+        // matching the real Swift signature (found via
+        // RuntimeABIExternalLinkValidationTests once these gained a Kotlin
+        // `@KsSymbolName` declaration in StringNormalize.kt).
         abiParitySpec("__kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
             p("receiverByteCount", .intptr),
             p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("__kk_string_normalize_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
@@ -580,7 +513,7 @@ public extension RuntimeABISpec {
             p("outLength", .nullableIntptrPointer),
             p("outByteCount", .nullableIntptrPointer),
             p("outHash", .nullableIntptrPointer),
-        ], returnType: .nullableUInt8Pointer),
+        ], returnType: .nullableUInt8Pointer, isThrowing: false),
         abiParitySpec("__kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),

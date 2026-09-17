@@ -87,6 +87,14 @@ public fun UShortArray.toList(): List<UShort> = __kkUShortArrayToList(this)
 public fun UIntArray.toList(): List<UInt> = __kkUIntArrayToList(this)
 public fun ULongArray.toList(): List<ULong> = __kkULongArrayToList(this)
 
+// RF-LOWER-CALL-013: reuse the type-correct `toList` above instead of the
+// generic `kk_array_toMutableList` bridge, which boxed unsigned elements as
+// signed (ULong.MAX_VALUE printed as -1).
+public fun UByteArray.toMutableList(): MutableList<UByte> = this.toList().toMutableList()
+public fun UShortArray.toMutableList(): MutableList<UShort> = this.toList().toMutableList()
+public fun UIntArray.toMutableList(): MutableList<UInt> = this.toList().toMutableList()
+public fun ULongArray.toMutableList(): MutableList<ULong> = this.toList().toMutableList()
+
 public fun UByteArray.asList(): List<UByte> = __kkUByteArrayAsList(this)
 public fun UShortArray.asList(): List<UShort> = __kkUShortArrayAsList(this)
 public fun UIntArray.asList(): List<UInt> = __kkUIntArrayAsList(this)

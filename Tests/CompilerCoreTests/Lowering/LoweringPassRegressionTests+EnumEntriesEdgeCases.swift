@@ -289,7 +289,7 @@ extension LoweringPassRegressionTests {
                 "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
 
-    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals_flat + kk_enum_valueOf_throw
+    // MARK: - STDLIB-023-08: valueOf is synthesized and calls __kk_string_equals_flat + kk_enum_valueOf_throw
 
     @Test
     func testEnumValueOfSynthesizedWithStringComparisonAndThrow() throws {
@@ -310,8 +310,8 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        #expect(callees.contains("kk_string_equals_flat"),
-                "valueOf should call kk_string_equals_flat; callees: \(callees)")
+        #expect(callees.contains("__kk_string_equals_flat"),
+                "valueOf should call __kk_string_equals_flat; callees: \(callees)")
         #expect(callees.contains("kk_enum_valueOf_throw"),
                 "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }
@@ -525,18 +525,9 @@ extension LoweringPassRegressionTests {
     //
     // Note on scope: this test only runs the pipeline through Lowering (no
     // Codegen/Link), so it verifies Sema resolution + KIR synthesis linkage
-    // only. `d.name` inside the forEach lambda is included in the source to
-    // mirror the real-world call shape, but its full runtime correctness is
-    // NOT covered here: a full CLI compile+run confirmed that accessing
-    // `.name` (or even a bare `println(d)`) on a collection-HOF lambda
-    // parameter of enum type currently mis-lowers regardless of the
-    // receiver collection (reproduced independently with a plain
-    // `listOf(Direction.NORTH).forEach { d -> println(d.name) }`, with no
-    // EnumEntries/values() involved at all) — a separate, pre-existing bug
-    // in how enum-typed HOF lambda parameters are tracked, out of scope for
-    // this member-resolution fix. `Direction.values().size` and
-    // `Direction.entries.size` (see `Scripts/diff_cases/enum_values_and_entries.kt`)
-    // are confirmed fully working end-to-end (compiled, linked, and run).
+    // only. End-to-end runtime coverage for enum-typed collection-HOF lambda
+    // parameters, including constructor-property reads such as `d.name` or
+    // `d.rgb`, lives in `CodegenBackendEnumEdgeCoverageTests`.
     @Test
     func testDirectionEntriesForEachAndSizeResolveWithoutDiagnostics() throws {
         let source = """
@@ -677,12 +668,10 @@ extension LoweringPassRegressionTests {
 
     // MARK: - STDLIB-023-16: `Outer.Direction.entries.forEach { }` / `.size`
     // resolve for a nested enum class, mirroring
-    // testDirectionEntriesForEachAndSizeResolveWithoutDiagnostics above. Same
-    // scope note applies: this only runs the pipeline through Lowering (no
-    // Codegen/Link), so it verifies Sema resolution + KIR synthesis linkage
-    // only, not full runtime correctness of `d.name` inside the forEach lambda
-    // (a separate, pre-existing, unrelated bug in enum-typed HOF lambda
-    // parameters -- see the top-level test's note).
+    // testDirectionEntriesForEachAndSizeResolveWithoutDiagnostics above. This
+    // remains a Lowering-only test (no Codegen/Link); runtime normalization of
+    // enum-typed HOF lambda parameters is covered by the backend regression
+    // suite.
     @Test
     func testNestedEnumEntriesForEachAndSizeResolveWithoutDiagnostics() throws {
         let source = """

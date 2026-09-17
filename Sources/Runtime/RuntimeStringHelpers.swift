@@ -2,13 +2,75 @@
 // Split out from `RuntimeStringStdlib.swift`.
 
 import Foundation
+import RuntimeABI
 
 func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
     Array(runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars)
 }
 
 func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
-    Array(runtimeStringFromRawOrPanic(raw, caller: #function).utf16)
+    runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
+}
+
+/// Returns Kotlin's UTF-16 code units while decoding the compiler's isolated
+/// surrogate markers back to their original values.
+func runtimeKotlinStringUTF16CodeUnits(_ value: String) -> [UInt16] {
+    var result: [UInt16] = []
+    result.reserveCapacity(value.utf16.count)
+    for scalar in value.unicodeScalars {
+        let scalarValue = scalar.value
+        if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
+            result.append(UInt16(codeUnitValue))
+        } else if scalarValue <= 0xFFFF {
+            result.append(UInt16(scalarValue))
+        } else {
+            let offset = scalarValue - 0x10000
+            result.append(UInt16(0xD800 + (offset >> 10)))
+            result.append(UInt16(0xDC00 + (offset & 0x03FF)))
+        }
+    }
+    return result
+}
+
+func runtimeKotlinStringUTF16Length(_ value: String) -> Int {
+    runtimeKotlinStringUTF16CodeUnits(value).count
+}
+
+/// Reconstructs a Swift String from Kotlin UTF-16 code units, preserving
+/// isolated surrogates through the compiler/runtime marker representation.
+func runtimeKotlinStringFromUTF16CodeUnits(_ units: [UInt16]) -> String {
+    var result = ""
+    result.reserveCapacity(units.count)
+    var index = 0
+    while index < units.count {
+        let codeUnit = UInt32(units[index])
+        if (0xD800 ... 0xDBFF).contains(codeUnit),
+           index + 1 < units.count,
+           (0xDC00 ... 0xDFFF).contains(UInt32(units[index + 1]))
+        {
+            let low = UInt32(units[index + 1])
+            let combined = 0x10000 + ((codeUnit - 0xD800) << 10) + (low - 0xDC00)
+            result.unicodeScalars.append(UnicodeScalar(combined)!)
+            index += 2
+        } else if let markerValue = KotlinStringSurrogateEncoding.markerValue(for: codeUnit),
+                  let marker = UnicodeScalar(markerValue)
+        {
+            result.unicodeScalars.append(marker)
+            index += 1
+        } else {
+            result.unicodeScalars.append(UnicodeScalar(codeUnit)!)
+            index += 1
+        }
+    }
+    return result
+}
+
+/// Kotlin String equality compares the underlying UTF-16 code-unit sequence.
+/// Swift String equality uses canonical equivalence, so it cannot be used for
+/// the default Kotlin String equality contract.
+@inline(__always)
+func runtimeStringsEqual(_ lhs: String, _ rhs: String) -> Bool {
+    lhs.utf16.elementsEqual(rhs.utf16)
 }
 
 func runtimeStringFromScalars(_ scalars: some Sequence<UnicodeScalar>) -> String {
@@ -108,12 +170,12 @@ func runtimePropagateThrownOrTrap(
 // MARK: - Raw string helpers for RuntimeCollectionHOF
 
 func runtimeStringToCharListRaw(_ source: String) -> Int {
-    runtimeMakeListRaw(source.utf16.map { Int($0) })
+    runtimeMakeListRaw(runtimeKotlinStringUTF16CodeUnits(source).map { Int($0) })
 }
 
 func runtimeStringIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    let other = runtimeStringScalars(otherRaw)
+    let source = runtimeStringUTF16CodeUnits(strRaw)
+    let other = runtimeStringUTF16CodeUnits(otherRaw)
 
     if other.isEmpty {
         return 0
@@ -131,8 +193,8 @@ func runtimeStringIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
 }
 
 func runtimeStringLastIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    let other = runtimeStringScalars(otherRaw)
+    let source = runtimeStringUTF16CodeUnits(strRaw)
+    let other = runtimeStringUTF16CodeUnits(otherRaw)
 
     if other.isEmpty {
         return source.count
