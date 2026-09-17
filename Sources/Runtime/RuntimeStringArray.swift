@@ -949,6 +949,29 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
     if kk_op_is(value, typeToken) != 0 {
         return value
     }
+    // Kotlin/JVM reports a null-to-non-null cast as NullPointerException,
+    // while a non-null value with the wrong runtime type is ClassCastException.
+    // Keep the distinction before allocating the generic cast failure.
+    if value == runtimeNullSentinelInt {
+        let token = Int64(truncatingIfNeeded: typeToken)
+        let base = token & RuntimeTypeTokenEncoding.baseMask
+        let isNullableTarget = (token & RuntimeTypeTokenEncoding.nullableBit) != 0
+        if !isNullableTarget, base != RuntimeTypeTokenEncoding.nullBase {
+            let targetName: String = {
+                if base == RuntimeTypeTokenEncoding.nominalBase,
+                   let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+                {
+                    return metadata.qualifiedName
+                }
+                let targetNameRaw = __kk_type_token_qualified_name(typeToken, 0)
+                return runtimeStringFromRaw(targetNameRaw) ?? "Unknown"
+            }()
+            outThrown?.pointee = runtimeAllocateNullPointerException(
+                message: "null cannot be cast to non-null type \(targetName)"
+            )
+            return 0
+        }
+    }
     outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
     return 0
 }

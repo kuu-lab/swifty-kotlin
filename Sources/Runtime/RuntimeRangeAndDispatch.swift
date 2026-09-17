@@ -544,7 +544,7 @@ func runtimeUnsignedRangeRandom(
 public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if value == runtimeNullSentinelInt {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: nil)
         return 0
     }
     return value
