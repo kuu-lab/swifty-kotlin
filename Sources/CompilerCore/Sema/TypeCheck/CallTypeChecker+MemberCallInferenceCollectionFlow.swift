@@ -462,14 +462,17 @@ extension CallTypeChecker {
             enforceTypeParameterCount: Bool = false,
             matchingReceiverElementType: TypeID? = nil,
             allowNominalIterableReceiver: Bool = false,
+            allowCollectionReceiver: Bool = false,
             receiverElementType: TypeID? = nil
         ) -> Bool {
             // KSP-978: Generic Iterable group-family calls use the bundled
-            // source declarations; concrete List receivers keep the List path.
+            // source declarations. Concrete List receivers keep the List path
+            // unless an exact specialized Iterable overload opts in below.
             guard !isSequenceReceiver,
-                  (allowNominalIterableReceiver
-                    ? (isIterableReceiver || !isCollectionReceiver)
-                    : (isCollectionReceiver || (isIterableReceiver && (calleeStr == "none"
+                  ((allowCollectionReceiver && isCollectionReceiver)
+                    || (allowNominalIterableReceiver
+                        ? (isIterableReceiver || !isCollectionReceiver)
+                        : (isCollectionReceiver || (isIterableReceiver && (calleeStr == "none"
                         || calleeStr == "drop"
                         || calleeStr == "dropWhile"
                         || calleeStr == "runningReduce"
@@ -477,7 +480,7 @@ extension CallTypeChecker {
                         || calleeStr == "groupBy"
                         || calleeStr == "groupByTo"
                         || isIterableFilterFamilyHOF))
-                        || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
+                        || (isIterableIndexReceiver && isIterableIndexFamilyHOF))))
             else {
                 return false
             }
@@ -2224,6 +2227,7 @@ extension CallTypeChecker {
             var sourceBackedSequenceAggregateTypeArguments: [TypeID]?
             var sourceBackedIterableAggregateTypeArguments: [TypeID]?
             var sourceBackedIterableAggregateMatchingParameterTypes: [TypeID]?
+            var preferFloatingPointIterableMinSource = false
             let resultType: TypeID
             let listResultType: TypeID = if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                 sema.types.make(.classType(ClassType(
@@ -4828,7 +4832,16 @@ extension CallTypeChecker {
                         return failedType
                     }
                 }
-                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                // KUU-553: concrete Float/Double Lists must use the exact
+                // Iterable overloads. The generic List<T> declarations erase
+                // the floating-point specialization before code generation.
+                let isFloatingPointMin = (calleeStr == "min" || calleeStr == "minOrNull")
+                    && (collectionElementType == sema.types.doubleType
+                        || collectionElementType == sema.types.floatType)
+                preferFloatingPointIterableMinSource = isFloatingPointMin
+                if !isFloatingPointMin {
+                    _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                }
                 if calleeStr == "min" || calleeStr == "minOrNull" {
                     sourceBackedIterableAggregateTypeArguments = if collectionElementType == sema.types.doubleType || collectionElementType == sema.types.floatType {
                         []
@@ -5486,7 +5499,8 @@ extension CallTypeChecker {
                    matchingParameterTypes: sourceBackedIterableAggregateMatchingParameterTypes,
                    enforceTypeParameterCount: true,
                    matchingReceiverElementType: collectionElementType,
-                   allowNominalIterableReceiver: true
+                   allowNominalIterableReceiver: true,
+                   allowCollectionReceiver: preferFloatingPointIterableMinSource
                )
             {
                 for argument in args
