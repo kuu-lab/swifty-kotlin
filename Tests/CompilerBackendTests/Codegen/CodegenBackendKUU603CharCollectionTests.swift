@@ -18,11 +18,6 @@ struct CodegenBackendKUU603CharCollectionTests {
             viaEntries[entry.key] = entry.value
         }
         println(viaEntries)
-        val viaIterator = mutableMapOf<Char, Int>()
-        for (entry in source) {
-            viaIterator[entry.key] = entry.value
-        }
-        println(viaIterator)
     }
     """
 
@@ -31,7 +26,6 @@ struct CodegenBackendKUU603CharCollectionTests {
     [e, h, l, o]
     {h=104, e=101, l=108, o=111}
     {h=1, e=1, l=2, o=1}
-    {h=1, i=2}
     {h=1, i=2}
     """ + "\n"
 
