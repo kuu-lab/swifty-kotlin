@@ -374,7 +374,7 @@ extension KotlinParser {
                 children.append(.node(parseDeclaration()))
                 continue
             }
-            if isIdentifierLike(token.kind) {
+            if isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations() {
                 children.append(.node(parseEnumEntryDeclaration()))
                 continue
             }
@@ -395,7 +395,10 @@ extension KotlinParser {
     private func enumBodyStartsDeclaration() -> Bool {
         let kind = stream.peek().kind
         if kind == .symbol(.at) {
-            return true
+            // An annotation can prefix either an enum entry or a member
+            // declaration. Look through the annotation before deciding which
+            // parser should consume the node.
+            return !enumEntryStartsAfterLeadingAnnotations()
         }
         if case .softKeyword(.context) = kind {
             return true
@@ -409,10 +412,54 @@ extension KotlinParser {
         return true
     }
 
+    /// Returns whether the current token starts an annotation-prefixed enum
+    /// entry. This lookahead mirrors the token shape consumed by
+    /// `consumeDeclarationAnnotationPrefixIfPresent` without mutating the
+    /// parser stream.
+    private func enumEntryStartsAfterLeadingAnnotations() -> Bool {
+        guard stream.peek().kind == .symbol(.at) else { return false }
+
+        var offset = 0
+        while stream.peek(offset).kind == .symbol(.at) {
+            offset += 1
+
+            if isAnnotationUseSiteTarget(stream.peek(offset)),
+               stream.peek(offset + 1).kind == .symbol(.colon)
+            {
+                offset += 2
+            }
+
+            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
+            offset += 1
+            while stream.peek(offset).kind == .symbol(.dot),
+                  isIdentifierLike(stream.peek(offset + 1).kind)
+            {
+                offset += 2
+            }
+
+            if stream.peek(offset).kind == .symbol(.lParen) {
+                var depth = 0
+                repeat {
+                    let kind = stream.peek(offset).kind
+                    if kind == .symbol(.lParen) {
+                        depth += 1
+                    } else if kind == .symbol(.rParen) {
+                        depth -= 1
+                    }
+                    offset += 1
+                } while depth > 0 && stream.peek(offset - 1).kind != .eof
+            }
+        }
+
+        let nextKind = stream.peek(offset).kind
+        return isIdentifierLike(nextKind) && !isDeclarationStart(nextKind)
+    }
+
     func parseEnumEntryDeclaration() -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
+        while consumeDeclarationAnnotationPrefixIfPresent(into: &children, range: &range) {}
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         }
