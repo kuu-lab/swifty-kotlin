@@ -442,6 +442,13 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions.instructions
         ) { return objProp }
+        if let fqnQualifiedValue = tryLowerFQNQualifiedValue(
+            exprID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) { return fqnQualifiedValue }
         if let fqnTopLevelResult = tryLowerFQNTopLevelResolvedCall(
             exprID,
             calleeName: effectiveCalleeName,

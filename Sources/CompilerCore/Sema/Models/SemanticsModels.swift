@@ -1374,6 +1374,10 @@ public final class BindingTable {
     /// chain is a bare namespace path, not a real value, so it is never type
     /// -checked and must not be lowered as one.
     public private(set) var fqnTopLevelCallExprIDs: Set<ExprID> = []
+    /// Tracks namespace-qualified property and classifier expressions resolved
+    /// before their package-path receiver is type-checked. The receiver is a
+    /// qualifier such as `kotlin.math` or `kotlin`, not a runtime value.
+    public private(set) var fqnQualifiedValueExprIDs: Set<ExprID> = []
     /// Tracks `.memberCall` expressions resolved as constructors of a static
     /// nested class (for example, `Outer.Inner()`): the type qualifier is not
     /// an instance receiver and must not be passed to the constructor ABI.
@@ -1856,6 +1860,17 @@ public final class BindingTable {
     /// no type binding and must not be lowered as a value.
     public func isFQNTopLevelCallExpr(_ expr: ExprID) -> Bool {
         fqnTopLevelCallExprIDs.contains(expr)
+    }
+
+    /// Mark a namespace-qualified property or classifier expression whose
+    /// receiver path must not be lowered as a runtime value.
+    public func markFQNQualifiedValueExpr(_ expr: ExprID) {
+        fqnQualifiedValueExprIDs.insert(expr)
+    }
+
+    /// Whether this expression's receiver is a namespace-only qualifier path.
+    public func isFQNQualifiedValueExpr(_ expr: ExprID) -> Bool {
+        fqnQualifiedValueExprIDs.contains(expr)
     }
 
     /// Mark a `.memberCall` expression as a constructor call through a type
