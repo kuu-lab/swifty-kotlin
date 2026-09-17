@@ -144,6 +144,19 @@ extension CallTypeChecker {
             return propertyType
         }
 
+        let receiverIsClassifier = sema.symbols.lookupAll(fqName: receiverPath).contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return true
+            default:
+                return false
+            }
+        }
+        if receiverIsClassifier {
+            return nil
+        }
+
         guard let classifier = sema.symbols.lookupAll(fqName: qualifiedPath).first(where: { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             switch symbol.kind {
