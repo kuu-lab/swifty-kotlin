@@ -11,6 +11,9 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     if runtimeIsUnitBox(value) {
         return runtimeMakeStringPointer("kotlin.Unit")
     }
+    if let override = runtimeAnyToStringOverride(value) {
+        return override
+    }
     // Float/Double/ULong MUST be decoded before the null-sentinel check:
     // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
     // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
@@ -27,11 +30,6 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
-    }
-    if tag == 1,
-       let override = runtimeAnyToStringOverride(value)
-    {
-        return override
     }
     if tag == 2 {
         return runtimeMakeStringPointer(value != 0 ? "true" : "false")
@@ -56,6 +54,7 @@ private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
     let objectKey = UInt(bitPattern: objectPtr)
     guard let functionRaw = runtimeStorage.withMetadataLock({ state in
         state.objectAnyToStringMethods[objectKey]
+            ?? state.objectTypeByPointer[objectKey].flatMap { state.valueClassAnyToStringMethods[$0] }
     }) else {
         return nil
     }
@@ -69,7 +68,7 @@ private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
     return result
 }
 
-private func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
+func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
     guard let result = runtimeAnyToStringOverrideRaw(raw) else {
         return nil
     }

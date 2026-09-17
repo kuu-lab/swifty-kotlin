@@ -964,6 +964,16 @@ extension KIRLoweringDriver {
             body: &body
         )
 
+        appendValueClassAnyToStringRegistration(
+            nominalSymbol: ownerSymbol,
+            classID: typeToken,
+            driver: self,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+
         body.append(.returnUnit)
         body.append(.endBlock)
 
@@ -980,7 +990,7 @@ extension KIRLoweringDriver {
             ))
         )
         ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
-        return [declID]
+        return [declID] + ctx.drainGeneratedCallableDecls()
     }
 
     // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
