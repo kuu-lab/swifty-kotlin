@@ -3747,7 +3747,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.toCharArray` — fun StringBuilder.toCharArray(CharArray, Int, Int, Int): Unit  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/toCharArray(kotlin/CharArray, kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...)`
 
-- [ ] KSP-1419: kotlin.text.HexFormat top-level の未実装 stdlib API を実装する（4 件）
+- [~] KSP-1419: kotlin.text.HexFormat top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.HexFormat` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3760,7 +3760,7 @@
     - `kotlin.text.HexFormat.Companion` — object kotlin.text.HexFormat.Companion  -- `final object Companion {`
     - `kotlin.text.HexFormat.NumberHexFormat` — class kotlin.text.HexFormat.NumberHexFormat  -- `final class NumberHexFormat {`
 
-- [ ] KSP-1420: kotlin.text.HexFormat.HexFormat の未実装 stdlib API を実装する（4 件）
+- [~] KSP-1420: kotlin.text.HexFormat.HexFormat の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.HexFormat` / receiver `HexFormat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/HexFormat.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3773,7 +3773,7 @@
     - `kotlin.text.HexFormat.toString` — fun HexFormat.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.text.HexFormat.upperCase` — val HexFormat.upperCase: Boolean  -- `final val upperCase`
 
-- [ ] KSP-1422: kotlin.text.HexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
+- [~] KSP-1422: kotlin.text.HexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.text.HexFormat.Builder` / receiver `Builder`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/Builder/Builder.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3788,7 +3788,7 @@
     - `kotlin.text.HexFormat.Builder.number` — fun Builder.number(Function1): Unit  -- `final inline fun number(kotlin/Function1<kotlin.text/HexFormat.NumberHexFormat.Builder, kotlin/Unit>)`
     - `kotlin.text.HexFormat.Builder.upperCase` — val Builder.upperCase: Boolean  -- `final var upperCase`
 
-- [ ] KSP-1423: kotlin.text.HexFormat.BytesHexFormat top-level の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1423: kotlin.text.HexFormat.BytesHexFormat top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.HexFormat.BytesHexFormat` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/BytesHexFormat/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3798,7 +3798,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.HexFormat.BytesHexFormat.Builder` — class kotlin.text.HexFormat.BytesHexFormat.Builder  -- `final class Builder {`
 
-- [ ] KSP-1424: kotlin.text.HexFormat.BytesHexFormat.BytesHexFormat の未実装 stdlib API を実装する（7 件）
+- [~] KSP-1424: kotlin.text.HexFormat.BytesHexFormat.BytesHexFormat の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.text.HexFormat.BytesHexFormat` / receiver `BytesHexFormat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/BytesHexFormat/BytesHexFormat.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3814,7 +3814,7 @@
     - `kotlin.text.HexFormat.BytesHexFormat.groupSeparator` — val BytesHexFormat.groupSeparator: String  -- `final val groupSeparator`
     - `kotlin.text.HexFormat.BytesHexFormat.toString` — fun BytesHexFormat.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1425: kotlin.text.HexFormat.BytesHexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
+- [~] KSP-1425: kotlin.text.HexFormat.BytesHexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.text.HexFormat.BytesHexFormat.Builder` / receiver `Builder`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/BytesHexFormat/Builder/Builder.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3829,7 +3829,7 @@
     - `kotlin.text.HexFormat.BytesHexFormat.Builder.bytesPerLine` — val Builder.bytesPerLine: Int  -- `final var bytesPerLine`
     - `kotlin.text.HexFormat.BytesHexFormat.Builder.groupSeparator` — val Builder.groupSeparator: String  -- `final var groupSeparator`
 
-- [ ] KSP-1427: kotlin.text.HexFormat.NumberHexFormat top-level の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1427: kotlin.text.HexFormat.NumberHexFormat top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.HexFormat.NumberHexFormat` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/NumberHexFormat/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3839,7 +3839,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.HexFormat.NumberHexFormat.Builder` — class kotlin.text.HexFormat.NumberHexFormat.Builder  -- `final class Builder {`
 
-- [ ] KSP-1428: kotlin.text.HexFormat.NumberHexFormat.NumberHexFormat の未実装 stdlib API を実装する（5 件）
+- [~] KSP-1428: kotlin.text.HexFormat.NumberHexFormat.NumberHexFormat の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.text.HexFormat.NumberHexFormat` / receiver `NumberHexFormat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/NumberHexFormat/NumberHexFormat.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3853,7 +3853,7 @@
     - `kotlin.text.HexFormat.NumberHexFormat.suffix` — val NumberHexFormat.suffix: String  -- `final val suffix`
     - `kotlin.text.HexFormat.NumberHexFormat.toString` — fun NumberHexFormat.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1429: kotlin.text.HexFormat.NumberHexFormat.Builder.Builder の未実装 stdlib API を実装する（4 件）
+- [~] KSP-1429: kotlin.text.HexFormat.NumberHexFormat.Builder.Builder の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.HexFormat.NumberHexFormat.Builder` / receiver `Builder`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/NumberHexFormat/Builder/Builder.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

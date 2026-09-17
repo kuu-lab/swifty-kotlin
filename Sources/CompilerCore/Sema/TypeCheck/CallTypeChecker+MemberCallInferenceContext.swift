@@ -152,16 +152,19 @@ extension CallTypeChecker {
             default:
                 return nil
             }
-            // `Owner.AnnotationClass` and `Owner.AnnotationClass()` share the
-            // same zero-arg `.memberCall` shape, but the AST arena records whether
-            // parentheses were written. Only the parenthesis-less form can be a
-            // bare type qualifier for further nested access (for example,
-            // `RequiresOptIn.Level`); an explicit call must continue through
+            // A class qualifier and a zero-argument constructor call share the
+            // same `.memberCall` shape. The AST arena records whether parentheses
+            // were written, so a parenthesis-less class/enum/annotation reference
+            // must remain a classifier for further nested access (for example,
+            // `HexFormat.Builder`); an explicit call must continue through
             // constructor resolution.
-            if args.isEmpty,
-               !ast.arena.isExplicitCall(id),
-               classSymbol.kind == .annotationClass
-            {
+            if args.isEmpty, !ast.arena.isExplicitCall(id) {
+                switch classSymbol.kind {
+                case .class, .enumClass, .annotationClass:
+                    break
+                default:
+                    return nil
+                }
                 let classifierType = sema.types.make(.classType(ClassType(
                     classSymbol: classSymbolID,
                     args: [],
