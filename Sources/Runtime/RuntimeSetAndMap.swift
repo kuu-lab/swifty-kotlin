@@ -309,6 +309,23 @@ public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: 
     )
 }
 
+/// KUU-556: storage for the `LinkedHashMap()` constructor family and
+/// `linkedMapOf`, both of which are declared to return `LinkedHashMap`.
+/// `LinkedHashMap` is now a real `HashMap` subclass, so it needs its own
+/// nominal tag for `is LinkedHashMap<*, *>` to answer true and `is HashMap<*,
+/// *>` to also answer true via the `linkedHashMapRuntimeTypeID` -> `hashMapRuntimeTypeID`
+/// edge (mirrors `__kk_linked_hash_set_of` / BUG-254, except Map's runtime
+/// hierarchy makes LinkedHashMap a child of HashMap instead of a sibling).
+@_cdecl("__kk_linked_hash_map_of")
+public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: linkedHashMapRuntimeTypeID
+    )
+}
+
 /// Builds a mutable map from a vararg Pair array, including a spread argument.
 /// The compiler packs spread varargs before calling this bridge.
 @_cdecl("__kk_map_of_pairs")
@@ -510,13 +527,13 @@ public func kk_map_is_empty(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_entries")
 public func kk_map_entries(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    let entries = zip(map.keys, map.values).map { key, value in
-        runtimeMapEntryNew(key: key, value: value)
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: entries))
+    // MutableMap.entries is a mutable view. Keep this set handle connected to
+    // the map so MutableIterable.removeAll/retainAll can remove through its
+    // iterator rather than mutating a detached entry snapshot.
+    return registerRuntimeObject(RuntimeSetBox(mapEntriesOf: mapRaw))
 }
 
 @_cdecl("__kk_map_keys")

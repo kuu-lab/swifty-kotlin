@@ -10,6 +10,7 @@ import kotlin.internal.KsSymbolName
 public class StringBuilder : Appendable, CharSequence {
     constructor()
     constructor(content: String)
+    constructor(content: CharSequence)
     constructor(capacity: Int)
 
     override val length: Int
@@ -336,8 +337,21 @@ public class StringBuilder : Appendable, CharSequence {
         return appendRange(chars, 0, chars.size)
     }
 
-    fun insertRange(index: Int, value: CharSequence, startIndex: Int, endIndex: Int): StringBuilder =
-        insertString(index, (value as String).substring(startIndex, endIndex))
+    fun insertRange(index: Int, value: CharSequence, startIndex: Int, endIndex: Int): StringBuilder {
+        val sourceLength = value.length
+        if (startIndex < 0 || startIndex > sourceLength || endIndex < startIndex || endIndex > sourceLength) {
+            throw IndexOutOfBoundsException(
+                "startIndex=$startIndex, endIndex=$endIndex, length=$sourceLength"
+            )
+        }
+        val chars = CharArray(endIndex - startIndex)
+        var sourceIndex = startIndex
+        while (sourceIndex < endIndex) {
+            chars[sourceIndex - startIndex] = value[sourceIndex]
+            sourceIndex++
+        }
+        return insertRange(index, chars, 0, chars.size)
+    }
 
     fun insertRange(index: Int, value: CharArray, startIndex: Int, endIndex: Int): StringBuilder =
         __kk_string_builder_insert_char_array(index, value, startIndex, endIndex)

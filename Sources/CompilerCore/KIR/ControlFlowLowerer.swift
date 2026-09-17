@@ -2031,6 +2031,7 @@ final class ControlFlowLowerer {
                 switch instr {
                 case .call,
                      .virtualCall,
+                     .nullAssert,
                      .rethrow:
                     return true
                 default:
@@ -2218,6 +2219,47 @@ final class ControlFlowLowerer {
                 continue
             }
             switch instruction {
+            case let .nullAssert(operand, result):
+                // `OperatorLoweringPass` runs after this source-level control-flow
+                // lowering. Lower the assertion here as well so its thrown value
+                // is routed to the enclosing try/catch exception slot.
+                let notNullResult = arena.appendTemporary(type: arena.exprType(result))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_notnull"),
+                    arguments: [operand],
+                    result: notNullResult,
+                    canThrow: true,
+                    thrownResult: exceptionSlot
+                ))
+                let resultType = arena.exprType(result)
+                let unboxCallee: InternedString? = if let resultType,
+                                                       case .primitive(_, .nonNull) = sema.types.kind(of: resultType)
+                {
+                    BoxingCalleeTable(interner: interner).unboxCallee(
+                        for: resultType,
+                        types: sema.types,
+                        requireNonNull: false
+                    )
+                } else {
+                    nil
+                }
+                if let unboxCallee {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: unboxCallee,
+                        arguments: [notNullResult],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else {
+                    instructions.append(.copy(from: notNullResult, to: result))
+                }
+                let unknownTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+                instructions.append(.constValue(result: unknownTypeToken, value: .intLiteral(0)))
+                instructions.append(.copy(from: unknownTypeToken, to: exceptionTypeSlot))
+                instructions.append(.jumpIfNotNull(value: exceptionSlot, target: thrownTarget))
             case let .call(symbol, callee, arguments, result, _, thrownResult, isSuperCall, qualifiedSuperType)
                 where thrownResult == nil:
                 instructions.append(.call(
@@ -2456,13 +2498,13 @@ final class ControlFlowLowerer {
 
         // Detect if iterating over a Map type. The map iterator yields keys, so
         // for destructuring we need special handling: component1 = key (from next),
-        // component2 = kk_map_get(map, key).
+        // component2 = kk_map_get(map, key). HashMap and LinkedHashMap are
+        // concrete MutableMap subtypes, so use the shared map path for them too.
         let isMapIteration: Bool = {
-            guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema)
+            guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema),
+                  KnownCompilerNames(interner: interner).isMapLikeSymbol(sym)
             else { return false }
-            let mapName = interner.intern("Map")
-            let mutableMapName = interner.intern("MutableMap")
-            return sym.name == mapName || sym.name == mutableMapName
+            return true
         }()
 
         var previousValues: [(SymbolID, KIRExprID?)] = []

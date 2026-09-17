@@ -217,6 +217,36 @@ extension BuildKIRRegressionTests {
         #expect(!allCallees.contains("kk_range_next"), "User Iterable loop should not use kk_range_next, got: \(allCallees)")
     }
 
+    // KSP-697: List is source-backed and therefore no longer synthetic, but a
+    // concrete List receiver must retain the specialized iterator ABI.
+    @Test func testBuildKIRUsesConcreteSourceBackedListIterator() throws {
+        let source = """
+        fun sumAll(): Int {
+            val values: List<Int> = listOf(1, 2, 3)
+            var sum = 0
+            for (value in values) { sum += value }
+            return sum
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("kk_list_iterator"), "Concrete List must use kk_list_iterator, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_hasNext"), "Concrete List must use list iterator hasNext, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_next"), "Concrete List must use list iterator next, got: \(callees)")
+        #expect(!callees.contains("kk_iterable_iterator"), "Concrete List must not use the generic Iterable bridge, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_hasNext"), "Concrete List must not use generic hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_next"), "Concrete List must not use generic next, got: \(callees)")
+        #expect(!callees.contains("kk_range_iterator"), "Concrete List must not use the range iterator, got: \(callees)")
+        #expect(!callees.contains("kk_range_hasNext"), "Concrete List must not use range hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_range_next"), "Concrete List must not use range next, got: \(callees)")
+    }
+
     @Test func testBuildKIRUsesSourceBackedRangeContains() throws {
         let source = """
         fun usesIn(): Boolean = 5 in (1..10).step(2)

@@ -52,10 +52,10 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_enum_entries_get",
@@ -101,10 +101,10 @@ public extension RuntimeABISpec {
             name: "kk_list_iterator_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         // IndexingIterable is the iterator bridge retained by List.withIndex().
         RuntimeABIFunctionSpec(
@@ -403,6 +403,19 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_hash_map_of",
+            parameters: [
+                RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        // KUU-556: nominal-tag bridge for the LinkedHashMap constructor family
+        // and linkedMapOf, mirroring `__kk_linked_hash_set_of`.
+        RuntimeABIFunctionSpec(
+            name: "__kk_linked_hash_map_of",
             parameters: [
                 RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
@@ -1532,10 +1545,10 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_list_removeFirst",

@@ -5,12 +5,12 @@ file fstdlib_kotlin_time_TimedValue_n_n package=_
   decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
 expr e@5:52 name(null) type=Nothing?
 expr e@5:58 int(1) type=Int
-expr e@5:58#1 memberCall recv=e@5:58 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=]
+expr e@5:58#1 memberCall recv=e@5:58 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=]
 expr e@5:41 call callee=e@5:41#1 args=[_:e@5:52,_:e@5:58#1] type=kotlin.time.TimedValue<String?> call=kotlin.time.TimedValue.<init>[kind=ctor;recv=kotlin.time.TimedValue<T0>;params=T0,kotlin.time.Duration;gen=1] targs=[String?]
 expr e@5:5 localDecl nullable mutable=0 type=TimedValue<String?> init=e@5:41 type=Unit ref=__local_0.nullable[kind=local]
 expr e@6:51 string(value) type=String
 expr e@6:60 int(1) type=Int
-expr e@6:60#1 memberCall recv=e@6:60 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=]
+expr e@6:60#1 memberCall recv=e@6:60 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=]
 expr e@6:40 call callee=e@6:40#1 args=[_:e@6:51,_:e@6:60#1] type=kotlin.time.TimedValue<String> call=kotlin.time.TimedValue.<init>[kind=ctor;recv=kotlin.time.TimedValue<T0>;params=T0,kotlin.time.Duration;gen=1] targs=[String]
 expr e@6:5 localDecl inferred mutable=0 type=TimedValue<String> init=e@6:40 type=Unit ref=__local_1.inferred[kind=local]
 expr e@7:13 name(nullable) type=kotlin.time.TimedValue<String?> ref=__local_0.nullable[kind=local]

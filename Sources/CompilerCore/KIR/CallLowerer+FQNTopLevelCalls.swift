@@ -1,5 +1,91 @@
 
 extension CallLowerer {
+    /// Lowers a package-qualified property or classifier without evaluating
+    /// its namespace-only receiver path. Sema marks these expressions while
+    /// resolving `kotlin.math.PI` or the `kotlin.Int` prefix of
+    /// `kotlin.Int.MAX_VALUE`.
+    func tryLowerFQNQualifiedValue(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard sema.bindings.isFQNQualifiedValueExpr(exprID),
+              let symbolID = sema.bindings.identifierSymbol(for: exprID),
+              let symbol = sema.symbols.symbol(symbolID)
+        else {
+            return nil
+        }
+
+        let resultType = sema.bindings.exprTypes[exprID]
+            ?? sema.symbols.propertyType(for: symbolID)
+            ?? sema.types.anyType
+        if symbol.kind == .property {
+            if let constant = sema.bindings.constExprValue(for: exprID)
+                ?? sema.symbols.constValueExprKind(for: symbolID)
+            {
+                let result = arena.appendExpr(constant, type: resultType)
+                instructions.append(.constValue(result: result, value: constant))
+                return result
+            }
+            if let externalLinkName = sema.symbols.externalLinkName(for: symbolID),
+               !externalLinkName.isEmpty
+            {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: symbolID,
+                    callee: interner.intern(externalLinkName),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if symbol.flags.contains(.importedLibrary),
+               sema.symbols.propertyHasCustomGetter(for: symbolID),
+               let getter = sema.symbols.extensionPropertyGetterAccessor(for: symbolID)
+            {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: getter,
+                    callee: interner.intern("get"),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            let result = arena.appendExpr(.symbolRef(symbolID), type: resultType)
+            instructions.append(.loadGlobal(result: result, symbol: symbolID))
+            return wrapLateinitReadIfNeeded(
+                result,
+                symbol: symbolID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+
+        switch symbol.kind {
+        case .class, .interface, .object, .enumClass, .annotationClass:
+            let valueSymbol: SymbolID
+            if case let .classType(classType) = sema.types.kind(of: resultType) {
+                valueSymbol = classType.classSymbol
+            } else {
+                valueSymbol = symbolID
+            }
+            let result = arena.appendExpr(.symbolRef(valueSymbol), type: resultType)
+            instructions.append(.constValue(result: result, value: .symbolRef(valueSymbol)))
+            return result
+        default:
+            return nil
+        }
+    }
+
     /// Lowers a `.memberCall` resolved by Sema's FQN-package-qualified
     /// top-level lookup (`CallTypeChecker.tryInferFQNPackageTopLevelCall`),
     /// e.g. `kotlin.math.abs(x)` or `kotlin.text.StringBuilder()`. That

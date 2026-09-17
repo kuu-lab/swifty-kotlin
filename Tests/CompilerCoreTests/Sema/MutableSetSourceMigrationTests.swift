@@ -3,8 +3,8 @@
 import Foundation
 import Testing
 
-/// KSP-947: MutableSet is declared by bundled Kotlin source while its shared
-/// runtime mutation bridges remain compiler-side symbols.
+/// KSP-704: MutableSet and its mutation surface are declared by bundled Kotlin
+/// source while private bridge helpers retain the runtime ABI links.
 @Suite
 struct MutableSetSourceMigrationTests {
     @Test
@@ -73,33 +73,26 @@ struct MutableSetSourceMigrationTests {
                     == "__bundled_kotlin/collections/MutableSet.kt"
             )
 
-            let bridgeNames = [
-                "add": "__kk_mutable_set_add",
-                "addAll": "__kk_mutable_set_addAll",
-                "clear": "__kk_mutable_set_clear",
-                "remove": "__kk_mutable_set_remove",
-                "removeAll": "__kk_mutable_set_removeAll",
-                "retainAll": "__kk_mutable_set_retainAll",
+            let sourceMembers = [
+                "add", "addAll", "clear", "remove", "removeAll", "retainAll",
             ]
-            for (memberName, expectedLink) in bridgeNames {
+            for memberName in sourceMembers {
                 let member = try #require(
                     sema.symbols.lookup(fqName: collections + [ctx.interner.intern("MutableSet"), ctx.interner.intern(memberName)])
                 )
-                #expect(sema.symbols.symbol(member)?.flags.contains(.synthetic) == true)
-                #expect(sema.symbols.externalLinkName(for: member) == expectedLink)
+                #expect(sema.symbols.symbol(member)?.flags.contains(.synthetic) == false)
+                #expect(sema.symbols.isSourceBackedSymbol(member))
+                #expect(sema.symbols.externalLinkName(for: member) == nil)
             }
 
-            let compoundBridgeNames = [
-                "plusAssign": Set(["__kk_mutable_set_add", "__kk_mutable_set_addAll"]),
-                "minusAssign": Set(["__kk_mutable_set_remove", "__kk_mutable_set_removeAll"]),
-            ]
-            for (memberName, expectedLinks) in compoundBridgeNames {
+            for memberName in ["plusAssign", "minusAssign"] {
                 let members = sema.symbols.lookupAll(
                     fqName: collections + [ctx.interner.intern("MutableSet"), ctx.interner.intern(memberName)]
                 )
                 #expect(members.count == 2)
-                #expect(members.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true })
-                #expect(Set(members.compactMap(sema.symbols.externalLinkName)) == expectedLinks)
+                #expect(members.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+                #expect(members.allSatisfy(sema.symbols.isSourceBackedSymbol))
+                #expect(Set(members.compactMap(sema.symbols.externalLinkName)).isEmpty)
             }
         }
     }

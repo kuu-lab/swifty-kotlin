@@ -166,109 +166,6 @@ final class InlineLoweringPass: LoweringPass {
         }
     }
 
-    /// Redirects throw-producing instructions inside an inline/lambda expansion
-    /// that are not already routed to a local exception slot (`thrownResult == nil`
-    /// on a `canThrow` call, or a bare `.rethrow`) so they no longer rely on the
-    /// callee's own function-level auto-propagation (codegen's fallback for
-    /// unrouted throws: store into the *current* function's own out-parameter and
-    /// return early). Once inlined, "the current function" is the caller, so an
-    /// unrouted throw would silently escape the caller instead of reaching its
-    /// enclosing try.
-    ///
-    /// This matters because `appendThrowAwareInstructions` runs on the caller's
-    /// try body *before* inlining, when the call to the (later-inlined) function
-    /// is still a single opaque `.call`. If that call site was itself protected
-    /// by an enclosing try (`callerThrownResult != nil`), any unprotected throw
-    /// newly spliced into the caller by inlining must be redirected here so it
-    /// still reaches the caller's catch dispatch -- the pre-existing instructions
-    /// immediately following this splice point in the caller body.
-    ///
-    /// Instructions already routed to a local slot (the callee's own try/catch,
-    /// or an already-wrapped finally-guard region) are left untouched.
-    private func rerouteUnprotectedThrows(
-        in instructions: [KIRInstruction],
-        callerThrownResult: KIRExprID?,
-        labels: inout InlineLabelAllocator
-    ) -> (instructions: [KIRInstruction], trailingLabel: Int32?) {
-        guard let callerThrownResult else {
-            return (instructions, nil)
-        }
-        let throwLabel = labels.allocateCallerLabel()
-        var result: [KIRInstruction] = []
-        result.reserveCapacity(instructions.count)
-        var finallyGuardDepth = 0
-        // A call's own `canThrow` flag is not a reliable "can the callee ever
-        // throw" predicate for ordinary (non-synthetic) functions -- it
-        // defaults to `false` and is only ever explicitly set to `true` for
-        // synthetic native-bridge stub registrations. A regular Kotlin
-        // function that throws conditionally (e.g. `checkWindowSizeStep`
-        // inside `Sequence.chunked`/`windowed`'s bundled Kotlin-source body,
-        // whose `throw` sits inside a nested `if`) still compiles its call
-        // sites with `canThrow: false, thrownResult: nil`, since that
-        // function has no local try/catch of its own: codegen unconditionally
-        // checks every call's outThrown slot regardless of the KIR-level
-        // `canThrow` flag, and `thrownResult == nil` means "propagate
-        // implicitly via my own outThrown parameter" -- correct as long as
-        // the function compiles standalone. Once auto-inlining
-        // (KIRLoweringDriver's `hasLambdaParam` heuristic) splices this body
-        // into a caller with its own enclosing try/catch, "my own outThrown"
-        // becomes the *caller's* outThrown, silently skipping the caller's
-        // catch block. Rerouting on `thrownResult == nil` alone (regardless
-        // of `canThrow`) catches this; for a call that genuinely cannot
-        // throw, the added check is simply dead code (it never observes a
-        // thrown value), not a correctness risk.
-        for instruction in instructions {
-            if case .beginFinallyGuard = instruction {
-                finallyGuardDepth += 1
-                result.append(instruction)
-                continue
-            }
-            if case .endFinallyGuard = instruction {
-                finallyGuardDepth -= 1
-                result.append(instruction)
-                continue
-            }
-            if finallyGuardDepth > 0 {
-                result.append(instruction)
-                continue
-            }
-            switch instruction {
-            case let .call(symbol, callee, arguments, callResult, _, thrownResult, isSuperCall, qualifiedSuperType)
-                where thrownResult == nil:
-                result.append(.call(
-                    symbol: symbol,
-                    callee: callee,
-                    arguments: arguments,
-                    result: callResult,
-                    canThrow: true,
-                    thrownResult: callerThrownResult,
-                    isSuperCall: isSuperCall,
-                    qualifiedSuperType: qualifiedSuperType
-                ))
-                result.append(.jumpIfNotNull(value: callerThrownResult, target: throwLabel))
-            case let .virtualCall(symbol, callee, receiver, arguments, callResult, _, thrownResult, dispatch)
-                where thrownResult == nil:
-                result.append(.virtualCall(
-                    symbol: symbol,
-                    callee: callee,
-                    receiver: receiver,
-                    arguments: arguments,
-                    result: callResult,
-                    canThrow: true,
-                    thrownResult: callerThrownResult,
-                    dispatch: dispatch
-                ))
-                result.append(.jumpIfNotNull(value: callerThrownResult, target: throwLabel))
-            case let .rethrow(value):
-                result.append(.copy(from: value, to: callerThrownResult))
-                result.append(.jump(throwLabel))
-            default:
-                result.append(instruction)
-            }
-        }
-        return (result, throwLabel)
-    }
-
     /// Upper bound on how many times a function body is re-scanned for inline
     /// calls. Nested expansions terminate well below this; the cap only keeps
     /// mutually recursive inline functions from looping forever.
@@ -381,15 +278,15 @@ final class InlineLoweringPass: LoweringPass {
                     ctx: ctx,
                     labels: &labels
                 ) {
-                    let (reroutedInstructions, trailingThrowLabel) = rerouteUnprotectedThrows(
+                    let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
                         in: labels.relocate(lambdaExpansion.instructions),
                         callerThrownResult: callerThrownResult,
                         labels: &labels
                     )
                     loweredBody.append(contentsOf: reroutedInstructions)
                     didExpand = true
-                    if let trailingThrowLabel {
-                        loweredBody.append(.label(trailingThrowLabel))
+                    if let throwDispatchLabel {
+                        loweredBody.append(.label(throwDispatchLabel))
                     }
                     if let result {
                         // The lambda may return through a non-local return on
@@ -480,9 +377,9 @@ final class InlineLoweringPass: LoweringPass {
 
             // Redirect any throw inside the expansion that isn't already routed to
             // a local exception slot, so it reaches the caller's enclosing try
-            // (see `rerouteUnprotectedThrows`) instead of silently escaping the
+            // (see `InlineThrowRerouting`) instead of silently escaping the
             // caller via codegen's unrouted-throw auto-propagation.
-            let (reroutedInstructions, trailingThrowLabel) = rerouteUnprotectedThrows(
+            let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
                 in: remappedInstructions,
                 callerThrownResult: callerThrownResult,
                 labels: &labels
@@ -571,8 +468,8 @@ final class InlineLoweringPass: LoweringPass {
             // exception slot, land here so the pre-existing caller instructions
             // that follow (from the original call site's throw-aware wrapping)
             // can pick it up and dispatch to the enclosing try's catch/finally.
-            if let trailingThrowLabel {
-                loweredBody.append(.label(trailingThrowLabel))
+            if let throwDispatchLabel {
+                loweredBody.append(.label(throwDispatchLabel))
             }
 
             // Copy the expansion's returned expression into the call result so the
@@ -854,7 +751,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
@@ -912,7 +814,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
@@ -1426,7 +1333,12 @@ final class InlineLoweringPass: LoweringPass {
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        appendInlinedLambdaExpansion(
+                            lambdaExpansion,
+                            callThrownResult: thrownResult,
+                            localExprMap: localExprMap,
+                            into: &lowered
+                        )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
                                 localExprMap[result] = lambdaReturn
@@ -1649,6 +1561,24 @@ final class InlineLoweringPass: LoweringPass {
             return isInlineUnitType(currentType, ctx: ctx) || currentType != inlineReturnType
         }
         return true
+    }
+
+    /// Splice a lambda expansion in place of a call that already owns a local
+    /// exception slot, routing the lambda body's throws into that slot so the
+    /// surrounding inline try/catch can observe them.
+    private func appendInlinedLambdaExpansion(
+        _ lambdaExpansion: InlineExpansion,
+        callThrownResult: KIRExprID?,
+        localExprMap: [KIRExprID: KIRExprID],
+        into lowered: inout KIRLoweringEmitContext
+    ) {
+        let routedSlot = callThrownResult.map {
+            InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap)
+        }
+        lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(
+            in: lambdaExpansion.instructions,
+            thrownSlot: routedSlot
+        ))
     }
 
 }

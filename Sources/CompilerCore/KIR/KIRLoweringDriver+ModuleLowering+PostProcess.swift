@@ -427,6 +427,7 @@ extension KIRLoweringDriver {
         case 2: interner.intern("kk_function_create_2")
         case 3: interner.intern("kk_function_create_3")
         case 4: interner.intern("kk_function_create_4")
+        case 5: interner.intern("kk_function_create_5")
         default: preconditionFailure("Unsupported delegate callback arity: \(paramCount)")
         }
         let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
@@ -552,6 +553,7 @@ extension KIRLoweringDriver {
         case 2: interner.intern("kk_function_create_2")
         case 3: interner.intern("kk_function_create_3")
         case 4: interner.intern("kk_function_create_4")
+        case 5: interner.intern("kk_function_create_5")
         default: preconditionFailure("Unsupported delegate callback arity: \(adapterNumberedParams.count)")
         }
         instructions.append(.call(

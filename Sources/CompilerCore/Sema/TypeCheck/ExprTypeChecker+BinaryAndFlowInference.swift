@@ -263,6 +263,14 @@ extension ExprTypeChecker {
                     if lhs == charType || rhs == charType {
                         sema.bindings.markCharRangeExpr(id)
                     }
+                    if lhs == sema.types.doubleType || rhs == sema.types.doubleType
+                        || lhs == sema.types.floatType || rhs == sema.types.floatType
+                    {
+                        let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
+                            ? sema.types.floatType
+                            : sema.types.doubleType
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                    }
                 } else {
                     sema.bindings.markRangeExpr(id)
                     if lhs == uintType || sema.bindings.isUIntRangeExpr(lhsID) {
@@ -454,7 +462,12 @@ extension ExprTypeChecker {
             }
         case .step:
             // LongRange when the receiver (lhs) is Long; ULongRange when ULong (STDLIB-524);
-            // UIntRange when UInt (STDLIB-523); IntRange otherwise.
+            // UIntRange when UInt (STDLIB-523). An Int range expression uses the
+            // scalar Int type plus a range marker, but `step` returns
+            // IntProgression, not IntRange. Keep that nominal distinction so
+            // source-backed HOF lookup does not bind a positive-step progression
+            // to the IntRange overload and then lower its loop with step 1
+            // (KUU-576).
             if lhs == longType {
                 type = longType
             } else if lhs == ulongType {
@@ -462,6 +475,15 @@ extension ExprTypeChecker {
             } else if lhs == uintType {
                 type = uintType
                 sema.bindings.markUIntRangeExpr(id)
+            } else if sema.bindings.isRangeExpr(lhsID),
+                      !sema.bindings.isCharRangeExpr(lhsID),
+                      let intProgressionType = nominalRangeType(
+                          named: "IntProgression",
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                type = intProgressionType
             } else {
                 type = intType
             }
@@ -482,6 +504,25 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: type)
         return type
+    }
+
+    private func nominalRangeType(
+        named name: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let symbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern(name),
+        ]) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
     }
 
     private func bindComparableUpperBoundOperatorFallback(

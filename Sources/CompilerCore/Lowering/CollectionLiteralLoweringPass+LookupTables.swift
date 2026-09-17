@@ -170,6 +170,7 @@ struct CollectionLiteralLookupTables {
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
     var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
+    var kkLinkedHashMapOfName: InternedString { mapLookup.kkLinkedHashMapOfName }
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
@@ -325,7 +326,6 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
-    var kkULongRangeMapName: InternedString { rangeLookup.kkULongRangeMapName }
 
     // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
 

@@ -1301,7 +1301,8 @@ extension DataFlowSemaPhase {
                         isSuspend: false,
                         canThrow: signature.canThrow,
                         valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
+                        valueParameterIsVararg: signature.valueParameterIsVararg
+                            + Array(repeating: false, count: reifiedCount + 1),
                         typeParameterSymbols: signature.typeParameterSymbols,
                         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
                     ),

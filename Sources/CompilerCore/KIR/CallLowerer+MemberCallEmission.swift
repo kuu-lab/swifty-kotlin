@@ -194,6 +194,32 @@ extension CallLowerer {
         sourceArgLabels: [InternedString?] = []
     ) {
         var finalArguments = arguments
+        // Enum entry implementations are stored as ordinary functions whose
+        // first argument is the ordinal-backed enum value. Route the resolved
+        // enum member through the predeclared ordinal dispatcher before any
+        // runtime-name or virtual-dispatch rewriting can select the abstract
+        // declaration itself.
+        if normalized.defaultMask == 0,
+           !isSuperCall,
+           let chosenCallee,
+           let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
+           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
+           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
+           !dispatchSignature.isSuspend,
+           finalArguments.first == receiver.loweredID
+        {
+            instructions.append(.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: finalArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without
@@ -314,6 +340,43 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        if loweredCallee == interner.intern("__kk_double_range_contains"),
+           sourceArgExprs.count == 1,
+           finalArguments.count >= 2,
+           sema.types.makeNonNullable(
+               sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+           ) == sema.types.floatType
+        {
+            // OpenEndRange<Double>.contains(Float) widens the argument before
+            // reaching the Double range ABI; the raw Float bits are not a valid
+            // Double bit pattern and must not be passed through unchanged.
+            let converted = arena.appendTemporary(type: sema.types.doubleType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_float_to_double_bits"),
+                arguments: [finalArguments[1]],
+                result: converted,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArguments[1] = converted
+        }
+        // KUU-600: Regex.replace's transform uses the runtime callback ABI.
+        // Its Kotlin function-value argument must be split into the raw
+        // function pointer and closure environment expected by the bridge.
+        if loweredCallee == interner.intern("__kk_regex_replace_lambda"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
+        }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
         // reference is finalArguments[1]; inject the lambda's captures after it so the
@@ -333,6 +396,7 @@ extension CallLowerer {
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
             memberName: interner.resolve(calleeName),
             receiverType: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
+            chosenCallee: chosenCallee,
             sema: sema,
             interner: interner
         )

@@ -328,6 +328,74 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-704: make the source-backed set nominals available before collection
+    /// residuals register their Sequence/Iterable/Array overloads. The normal
+    /// header pass later fills these symbols with the complete Kotlin source
+    /// declarations.
+    func predeclareBundledSetHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let kotlinCollectionsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let bundledSetFileNominals = [
+            "Set.kt": "Set",
+            "MutableSet.kt": "MutableSet",
+            "HashSet.kt": "HashSet",
+            "LinkedHashSet.kt": "LinkedHashSet",
+        ]
+
+        for file in ast.sortedFiles where
+            sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+        {
+            let basename = sourceManager.path(of: file.fileID)
+                .split(separator: "/")
+                .last
+                .map(String.init) ?? ""
+            guard let nominalName = bundledSetFileNominals[basename],
+                  file.packageFQName == kotlinCollectionsPackage
+            else {
+                continue
+            }
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            let nominalSymbolName = interner.intern(nominalName)
+            guard file.topLevelDecls.contains(where: { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return classDecl.name == nominalSymbolName
+                case let .interfaceDecl(interfaceDecl):
+                    return interfaceDecl.name == nominalSymbolName
+                default:
+                    return false
+                }
+            }), symbols.lookup(fqName: kotlinCollectionsPackage + [nominalSymbolName]) == nil
+            else {
+                // An imported stdlib artifact already owns this nominal.
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1520: make the source-backed Comparator nominal available to early
     /// synthetic registrations without creating a duplicate declaration.
     func predeclareBundledComparatorHeaders(
@@ -595,6 +663,40 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1472: forward-declare the source-backed `kotlin.time.ExperimentalTime`
+    /// annotation before the experimental-time bootstrap attaches its residual
+    /// constructor and opt-in metadata.
+    func predeclareBundledExperimentalTimeHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("time")]
+        let targetName = interner.intern("ExperimentalTime")
+        for file in ast.sortedFiles
+            where sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+                && sourceManager.path(of: file.fileID) == "__bundled_kotlin/time/ExperimentalTime.kt"
+                && file.packageFQName == packageFQName
+        {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
             )
         }
     }
@@ -1249,6 +1351,23 @@ extension DataFlowSemaPhase {
                     symbols.setPropertyType(classType, for: entrySymbol)
                     classScope.insert(entrySymbol)
                 }
+                collectEnumEntryMemberHeaders(
+                    entries: classDecl.enumEntries,
+                    ownerFQName: fqName,
+                    ownerSymbol: symbol,
+                    enumType: classType,
+                    sourceFileID: file.fileID,
+                    ctx: ctx,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    bindings: bindings,
+                    scope: classScope,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: classTypeParamSymbols,
+                    classLocalTypeParameters: classLocalTypeParameters
+                )
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
@@ -1890,6 +2009,19 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
+            // declared in bundled source while early bootstrap still creates
+            // compatibility shells for their signatures.
+            || resolvedFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "AbstractLongTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "Clock"]
+            || resolvedFQName == ["kotlin", "time", "ComparableTimeMark"]
+            || resolvedFQName == ["kotlin", "time", "ExperimentalTime"]
+            || resolvedFQName == ["kotlin", "time", "Instant"]
+            || resolvedFQName == ["kotlin", "time", "TestTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "TimeMark"]
+            || resolvedFQName == ["kotlin", "time", "TimeSource"]
+            || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]

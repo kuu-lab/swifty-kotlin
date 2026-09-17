@@ -163,6 +163,19 @@ struct BundledDeclarationIndex: Sendable {
             guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
                 continue
             }
+            // Typealias-backed source properties can share the normalized
+            // runtime-owner key with a retained compatibility property while
+            // keeping their declared package FQName distinct. This is an
+            // intentional alias overlap, not a missed synthetic-stub skip.
+            guard !Self.isSyntheticAliasForSourceBackedProperty(
+                symbol,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) else {
+                continue
+            }
             // KSP-1019: MutableCollection keeps its interface members for
             // member-priority dispatch while the same names also have
             // source-backed top-level extensions. The arity-only index cannot
@@ -311,6 +324,38 @@ struct BundledDeclarationIndex: Sendable {
                 return false
             }
             return true
+        }
+    }
+
+    private static func isSyntheticAliasForSourceBackedProperty(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        guard symbol.kind == .property,
+              symbol.flags.contains(.synthetic)
+        else {
+            return false
+        }
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.id != symbol.id,
+                  candidate.kind == .property,
+                  symbols.isSourceBackedSymbol(candidate.id),
+                  candidate.name == symbol.name,
+                  candidate.fqName != symbol.fqName,
+                  let candidateKey = memberKey(
+                      for: candidate,
+                      symbolID: candidate.id,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return candidateKey == key
         }
     }
 
@@ -479,6 +524,14 @@ struct BundledDeclarationIndex: Sendable {
             // still needs it and both share this one arity-only check.
             let name = interner.resolve(key.name)
             return (name == "putAll" || name == "remove") && key.arity == 1
+        }
+        if ownerFQName == ["kotlin", "collections", "MutableSet"] {
+            // MutableSet.addAll(Collection) is now a source-backed default
+            // (KSP-704), while the retained Array/Iterable/Sequence overloads
+            // are registered as hidden runtime bridges. The bundled index is
+            // arity-only, so these distinct overloads intentionally share one
+            // key and must not emit KSWIFTK-SEMA-0102.
+            return interner.resolve(key.name) == "addAll" && key.arity == 1
         }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)

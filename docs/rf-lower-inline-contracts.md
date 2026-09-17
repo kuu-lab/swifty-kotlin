@@ -24,6 +24,7 @@
 | `definedResult` が `.copy` の書き込み先を定義とみなさない | 同ファイルの `testDefinedResultIgnoresACopysDestination`。 |
 | `cloneOrReuseExpr` の初回複製・メモ化再利用・型置換クロージャの委譲・欠落sourceのfallback | `InlineExprCloningTests` 5件。 |
 | imported lambda ABI の erased invoke、primitive / nullable / erased generic の引数・戻り値の box / unbox | `InlineErasedLambdaABITests` と既存の `Inline` / imported-artifact 回帰。 |
+| 展開内の無保護 call / virtualCall / rethrow が caller の catch へ届き、ローカル catch 済み・finally guard 内の経路を二重に書き換えない | `InlineThrowReroutingTests`（手組み KIR で reroute 後の命令列・dispatch label 採番・guard depth を固定）と `CodegenBackendInlineFunctionExceptionPropagationTests` / `FinallyExceptionRouteTests` / fixture `inline/captured_try_finally` の実行回帰。 |
 
 INLINE-001 の修正は、`expandInlineCall` / `expandLambdaBody` が `.call` を複製するときに落としていた `qualifiedSuperType` を引き継ぐもの。
 最小ソースは実行結果だけでは欠落を検出できないため、展開前後のKIRにもassertionを置いている。
@@ -67,5 +68,20 @@ callee 集合、primitive 引数の box / unbox、lambda の引数・戻り値�
 の判定を所有せず、このnamespaceを呼び出すだけにする。`ABILoweringPass` の実装と通常の ABI 規則は変更せず、
 既存の imported lambda ABI 契約（erased slot は boxed、具体的な primitive slot は raw）を
 維持する。
+
+RF-LOWER-INLINE-006 以降、展開後の例外経路補正は
+`Sources/CompilerCore/Lowering/InlineThrowRerouting.swift` の `InlineThrowRerouting` が担う。
+状態を持たない namespace（`InlineExprAliasing` と同じ形）で、caller 側が持つ
+`InlineLabelAllocator` へ `inout` で採番だけを委ねる。4つの責務を型・API で明示した:
+caller の例外スロット（`callerThrownResult`、`nil` なら素通しで採番もしない）、
+ローカル catch 済み命令（`thrownResult != nil` は再書き換えしない）、
+finally guard 領域（`.beginFinallyGuard` / `.endFinallyGuard` の depth 内は素通し）、
+dispatch label（戻り値 tuple の `throwDispatchLabel` -- caller 名前空間で
+`callerThrownResult` 非 nil なら常に eager 採番し、呼び出し側が展開直後に
+`.label` として emit して既存の throw-aware dispatch へ着地させる。NLR 用の
+exit label とは別物で、同一 cursor 由来のため衝突しない）。
+書き換え対象の命令分類（unprotected `.call` / `.virtualCall` / `.rethrow`）は
+`callerRoute(for:thrownSlot:dispatchLabel:)` に集約し、`thrownResult == nil` だけを
+判定根拠にして `canThrow` の意味や例外 ABI は変更しない。
 
 全Swift・Golden・全Kotlin差分の結果はPRの検証欄に記録し、共通RFゲートが未完了ならTODOは `[~]` とする。

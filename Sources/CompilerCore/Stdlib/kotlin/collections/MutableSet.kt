@@ -8,24 +8,79 @@
 
 package kotlin.collections
 
-// KSP-947: the nominal `MutableSet<E>` declaration is source-backed here. The
-// compiler-side shell remains the fallback for contexts without the bundled
-// stdlib, while its runtime-linked mutation members remain as bridges.
+import kotlin.internal.KsSymbolName
+
+@KsSymbolName("__kk_mutable_set_add")
+private external fun <E> __kkMutableSetAdd(set: MutableSet<E>, element: E): Boolean
+
+@KsSymbolName("__kk_mutable_set_remove")
+private external fun <E> __kkMutableSetRemove(set: MutableSet<E>, element: E): Boolean
+
+@KsSymbolName("__kk_mutable_set_clear")
+private external fun <E> __kkMutableSetClear(set: MutableSet<E>)
+
+@KsSymbolName("__kk_mutable_set_addAll")
+private external fun <E> __kkMutableSetAddAll(
+    set: MutableSet<E>,
+    elements: Collection<out E>
+): Boolean
+
+@KsSymbolName("__kk_mutable_set_removeAll")
+private external fun <E> __kkMutableSetRemoveAll(
+    set: MutableSet<E>,
+    elements: Collection<out E>
+): Boolean
+
+@KsSymbolName("__kk_mutable_set_retainAll")
+private external fun <E> __kkMutableSetRetainAll(
+    set: MutableSet<E>,
+    elements: Collection<out E>
+): Boolean
+
+// KSP-704: the nominal declaration and mutation surface are source-backed.
+// The private externals above are the demoted runtime bridges; keeping the
+// bridge call in a default interface body avoids repeating the ABI plumbing in
+// every concrete MutableSet implementation.
 //
 // `MutableCollection` will provide `MutableIterable` transitively when its
 // separate source migration lands. Keep the direct edge here until then so
 // bundled MutableSet values preserve the existing iterable type surface.
-// The abstract mutation surface is inherited from MutableCollection; the
-// compiler-side members retain their runtime links for the shared set box.
-//
-// KSP-704 (tried, reverted): the mutation members are still registered by the
-// Swift-side fallback until their source migration is ready. The compiler now
-// supports body-less `external`/`@KsSymbolName` interface members as runtime
-// bridges, so migrating these declarations no longer requires redundant
-// overrides in concrete implementers that rely on the interface-level bridge.
 
 /**
  * A generic unordered collection of elements that supports adding and removing
  * elements.
  */
-public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E>
+public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E> {
+    public fun add(element: E): Boolean = __kkMutableSetAdd(this, element)
+
+    public fun remove(element: E): Boolean = __kkMutableSetRemove(this, element)
+
+    public fun clear() {
+        __kkMutableSetClear(this)
+    }
+
+    public fun addAll(elements: Collection<out E>): Boolean =
+        __kkMutableSetAddAll(this, elements)
+
+    public operator fun plusAssign(element: E) {
+        __kkMutableSetAdd(this, element)
+    }
+
+    public operator fun plusAssign(elements: Collection<out E>) {
+        __kkMutableSetAddAll(this, elements)
+    }
+
+    public fun removeAll(elements: Collection<out E>): Boolean =
+        __kkMutableSetRemoveAll(this, elements)
+
+    public operator fun minusAssign(element: E) {
+        __kkMutableSetRemove(this, element)
+    }
+
+    public operator fun minusAssign(elements: Collection<out E>) {
+        __kkMutableSetRemoveAll(this, elements)
+    }
+
+    public fun retainAll(elements: Collection<out E>): Boolean =
+        __kkMutableSetRetainAll(this, elements)
+}

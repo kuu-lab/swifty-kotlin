@@ -267,10 +267,10 @@ package struct KnownCompilerNames {
     let className: InternedString
     let isInitialized: InternedString
     // STDLIB-REFLECT-061: KClass member access (remains a compiler special
-    // case — see the NOTE in KClassMemberIntrospection.kt)
+    // case — see the NOTE in KClasses.kt)
     let propertiesName: InternedString
     // STDLIB-REFLECT-065: Annotation reflection (reified-type special cases
-    // that were not migrated to bundled Kotlin — see KClassMemberIntrospection.kt)
+    // that were not migrated to bundled Kotlin — see KClasses.kt)
     let findAnnotationName: InternedString
     let findAssociatedObjectName: InternedString
     let size: InternedString
@@ -327,6 +327,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsMapFQName: [InternedString]
     let kotlinCollectionsMutableMapFQName: [InternedString]
     let kotlinCollectionsHashMapFQName: [InternedString]
+    let kotlinCollectionsLinkedHashMapFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
@@ -497,6 +498,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsMapFQName = [kotlin, kotlinCollections, map]
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
         kotlinCollectionsHashMapFQName = [kotlin, kotlinCollections, interner.intern("HashMap")]
+        kotlinCollectionsLinkedHashMapFQName = [kotlin, kotlinCollections, interner.intern("LinkedHashMap")]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
@@ -718,12 +720,17 @@ package struct KnownCompilerNames {
             || symbolMatches(symbol, fqName: kotlinCollectionsMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
+            // KUU-556: LinkedHashMap is now a real HashMap subclass (its own
+            // symbol), not a MutableMap typealias resolving straight through
+            // to the mutableMap check above.
+            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == mutableMap
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
+            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {

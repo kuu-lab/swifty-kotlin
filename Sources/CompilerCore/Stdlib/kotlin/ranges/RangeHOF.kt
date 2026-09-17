@@ -179,7 +179,7 @@ public fun IntRange.sum(): Int {
 }
 
 @KsSymbolName("__kk_range_reversed")
-public external fun IntRange.reversed(): IntRange
+public external fun IntRange.reversed(): IntProgression
 
 // KSP-1285: Kotlin exposes exact IntRange overloads for the other signed
 // primitive integer types. Long values must be range-checked before narrowing.
@@ -946,6 +946,36 @@ public fun CharRange.toList(): List<Char> {
         }
     }
     return result
+}
+
+// CharRange uses an integer-shaped runtime representation. Append each value
+// as Char here instead of erasing it through the generic Iterable join path.
+public fun CharRange.joinToString(
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): String {
+    val buffer = StringBuilder()
+    buffer.append(prefix)
+    var count = 0
+    var hasMore = false
+    for (element in this) {
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
+        buffer.append(element)
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
+    }
+    buffer.append(postfix)
+    return buffer.toString()
 }
 
 public fun CharRange.take(n: Int): List<Char> {
@@ -1722,6 +1752,41 @@ public fun ULongRange.filter(predicate: (ULong) -> Boolean): List<ULong> {
     return result
 }
 
+public fun ULongRange.filterNot(predicate: (ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    for (element in this) { if (!predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongRange.filterIndexed(predicate: (Int, ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public fun <R> ULongRange.mapIndexed(transform: (Int, ULong) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        result.add(transform(index, element))
+        index++
+    }
+    return result
+}
+
+public fun <R : Any> ULongRange.mapNotNull(transform: (ULong) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val value = transform(element)
+        if (value != null) result.add(value)
+    }
+    return result
+}
+
 public fun ULongRange.toList(): List<ULong> {
     val result = mutableListOf<ULong>()
     if (step > 0) {
@@ -1830,6 +1895,12 @@ public fun ULongProgression.filter(predicate: (ULong) -> Boolean): List<ULong> {
     return result
 }
 
+public fun ULongProgression.filterNot(predicate: (ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    for (element in this) { if (!predicate(element)) result.add(element) }
+    return result
+}
+
 public fun ULongProgression.take(n: Int): List<ULong> {
     require(n >= 0) { "Requested element count $n is less than zero." }
     val result = mutableListOf<ULong>()
@@ -1884,6 +1955,35 @@ public fun ULongProgression.windowed(size: Int, step: Int = 1, partialWindows: B
         }
         result.add(window)
         i += step
+    }
+    return result
+}
+
+public fun ULongProgression.filterIndexed(predicate: (Int, ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public fun <R> ULongProgression.mapIndexed(transform: (Int, ULong) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        result.add(transform(index, element))
+        index++
+    }
+    return result
+}
+
+public fun <R : Any> ULongProgression.mapNotNull(transform: (ULong) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val value = transform(element)
+        if (value != null) result.add(value)
     }
     return result
 }

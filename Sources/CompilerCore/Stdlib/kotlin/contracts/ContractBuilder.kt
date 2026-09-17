@@ -7,6 +7,32 @@
 
 package kotlin.contracts
 
+/** Marker for the experimental contract declaration API. */
+@kotlin.annotation.Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPEALIAS
+)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.SinceKotlin("1.3")
+@kotlin.RequiresOptIn
+@kotlin.annotation.MustBeDocumented
+public annotation class ExperimentalContracts
+
+/** Marker for the experimental extended contract declaration API. */
+@kotlin.annotation.Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPEALIAS
+)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.SinceKotlin("2.2")
+@kotlin.RequiresOptIn
+@kotlin.annotation.MustBeDocumented
+public annotation class ExperimentalExtendedContracts
+
 /** Scope containing the contract declaration DSL. */
 @ExperimentalContracts
 @SinceKotlin("1.3")
@@ -36,6 +62,16 @@ public interface ContractBuilder {
 @ExperimentalExtendedContracts
 public infix fun <R> Boolean.holdsIn(lambda: Function<R>): HoldsIn =
     TODO("Contract effects are compiler-only")
+
+/** Specifies how many times a function invokes a lambda parameter in place. */
+@ExperimentalContracts
+@SinceKotlin("1.3")
+public enum class InvocationKind {
+    AT_MOST_ONCE,
+    AT_LEAST_ONCE,
+    EXACTLY_ONCE,
+    UNKNOWN
+}
 
 /** Declares the contract of a function. */
 @ExperimentalContracts
