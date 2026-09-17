@@ -801,6 +801,9 @@ extension DataFlowSemaPhase {
             let interfaceMethods = symbols.children(ofFQName: interfaceSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { $0.kind == .function }
+                // Extension member aliases (KSP-443) are lookup shims, not
+                // interface members — delegation must not forward to them.
+                .filter { !$0.flags.contains(.extensionMemberAlias) }
 
             for methodSym in interfaceMethods {
                 let key = delegationDispatchKey(for: methodSym.id, symbols: symbols, interner: interner)

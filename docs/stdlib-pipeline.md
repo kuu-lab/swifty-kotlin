@@ -135,6 +135,12 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
   `__` prefix（ユーザー補完・公開 API 面に出さない）
 - パーサは `external` 修飾子を受理済み（`KotlinParser+Utilities.swift`）。Sema は
   `@KsSymbolName` を externalLinkName として記録し、KIR/Codegen は既存の外部呼び出し経路をそのまま使う
+- **インターフェース型レシーバの `external fun` 拡張もそのまま宣言できる**:
+  KSP-443 が owner+name 解決用に生成する合成メンバエイリアスには
+  `.extensionMemberAlias` フラグが立ち、vtable/itable レイアウト
+  （`LayoutSynthesis.orderedOwnMethods`）とクラスデリゲーションの forwarder 合成
+  （`Inheritance.swift`）から除外される。実行時ディスパッチには影響しないため、
+  「通常引数に取るトップレベル関数＋非 external ラッパー」の2段構成は不要（KUU-545）
 - **ABI 突合を機械化する**: 「stdlib ソース中の全 `@KsSymbolName` 値が `RuntimeABISpec` に宣言され、
   型署名が一致する」ことをテストで enforcing にする。これにより
   `runtime-abi-external-link-validation-gaps.md` の検証ギャップは注釈⇔Spec の突合に一本化される
