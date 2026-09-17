@@ -45,6 +45,42 @@ enum InlineThrowRerouting {
             return (instructions, nil)
         }
         let throwLabel = labels.allocateCallerLabel()
+        return (
+            rewriteUnprotectedThrows(
+                in: instructions,
+                thrownSlot: callerThrownResult,
+                emitDispatchJumps: true,
+                dispatchLabel: throwLabel
+            ),
+            throwLabel
+        )
+    }
+
+    /// Routes unprotected throw producers to `thrownSlot` without emitting
+    /// per-instruction dispatch jumps. Use when splicing a lambda in place of
+    /// a call that already has throw-aware follow-up instructions (for example
+    /// `jumpIfNotNull` into the inline function's own catch handler).
+    static func routeUnprotectedThrowsToSlot(
+        in instructions: [KIRInstruction],
+        thrownSlot: KIRExprID?
+    ) -> [KIRInstruction] {
+        guard let thrownSlot else {
+            return instructions
+        }
+        return rewriteUnprotectedThrows(
+            in: instructions,
+            thrownSlot: thrownSlot,
+            emitDispatchJumps: false,
+            dispatchLabel: 0
+        )
+    }
+
+    private static func rewriteUnprotectedThrows(
+        in instructions: [KIRInstruction],
+        thrownSlot: KIRExprID,
+        emitDispatchJumps: Bool,
+        dispatchLabel: Int32
+    ) -> [KIRInstruction] {
         var result: [KIRInstruction] = []
         result.reserveCapacity(instructions.count)
         var finallyGuardDepth = 0
@@ -58,8 +94,9 @@ enum InlineThrowRerouting {
                 if finallyGuardDepth == 0,
                    let rerouted = callerRoute(
                        for: instruction,
-                       thrownSlot: callerThrownResult,
-                       dispatchLabel: throwLabel
+                       thrownSlot: thrownSlot,
+                       dispatchLabel: dispatchLabel,
+                       emitDispatchJumps: emitDispatchJumps
                    )
                 {
                     result.append(contentsOf: rerouted)
@@ -68,7 +105,7 @@ enum InlineThrowRerouting {
             }
             result.append(instruction)
         }
-        return (result, throwLabel)
+        return result
     }
 
     /// The routed replacement for one unrouted throw producer, or `nil` when
@@ -97,12 +134,13 @@ enum InlineThrowRerouting {
     private static func callerRoute(
         for instruction: KIRInstruction,
         thrownSlot: KIRExprID,
-        dispatchLabel: Int32
+        dispatchLabel: Int32,
+        emitDispatchJumps: Bool
     ) -> [KIRInstruction]? {
         switch instruction {
         case let .call(symbol, callee, arguments, callResult, _, thrownResult, isSuperCall, qualifiedSuperType)
             where thrownResult == nil:
-            return [
+            var routed: [KIRInstruction] = [
                 .call(
                     symbol: symbol,
                     callee: callee,
@@ -113,11 +151,14 @@ enum InlineThrowRerouting {
                     isSuperCall: isSuperCall,
                     qualifiedSuperType: qualifiedSuperType
                 ),
-                .jumpIfNotNull(value: thrownSlot, target: dispatchLabel),
             ]
+            if emitDispatchJumps {
+                routed.append(.jumpIfNotNull(value: thrownSlot, target: dispatchLabel))
+            }
+            return routed
         case let .virtualCall(symbol, callee, receiver, arguments, callResult, _, thrownResult, dispatch)
             where thrownResult == nil:
-            return [
+            var routed: [KIRInstruction] = [
                 .virtualCall(
                     symbol: symbol,
                     callee: callee,
@@ -128,13 +169,19 @@ enum InlineThrowRerouting {
                     thrownResult: thrownSlot,
                     dispatch: dispatch
                 ),
-                .jumpIfNotNull(value: thrownSlot, target: dispatchLabel),
             ]
+            if emitDispatchJumps {
+                routed.append(.jumpIfNotNull(value: thrownSlot, target: dispatchLabel))
+            }
+            return routed
         case let .rethrow(value):
-            return [
-                .copy(from: value, to: thrownSlot),
-                .jump(dispatchLabel),
-            ]
+            if emitDispatchJumps {
+                return [
+                    .copy(from: value, to: thrownSlot),
+                    .jump(dispatchLabel),
+                ]
+            }
+            return [.copy(from: value, to: thrownSlot)]
         default:
             return nil
         }
