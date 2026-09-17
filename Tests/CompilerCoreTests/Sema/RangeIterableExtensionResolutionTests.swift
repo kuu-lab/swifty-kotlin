@@ -159,6 +159,66 @@ struct RangeIterableExtensionResolutionTests {
     }
 
     @Test
+    func unrelatedRangeMembersKeepTheirExistingFallbackRouting() throws {
+        let source = """
+        fun probe() {
+            (1..5).first
+            (1..5).last
+            (1..5).count()
+            (1..5).reversed()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected existing range members to keep type-checking")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let expectedNames = Set(["first", "last", "count", "reversed"])
+            var seen = Set<String>()
+            for offset in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(offset))
+                guard let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID)
+                else {
+                    continue
+                }
+                let memberName = ctx.interner.resolve(callee)
+                guard expectedNames.contains(memberName) else {
+                    continue
+                }
+                #expect(
+                    sema.bindings.callBinding(for: exprID) == nil,
+                    "Expected \(memberName) to stay on its pre-KUU-569 fallback route"
+                )
+                seen.insert(memberName)
+            }
+            #expect(seen == expectedNames)
+        }
+    }
+
+    @Test
+    func rangeToPrimitiveArrayRemainsUnsupported() throws {
+        let source = """
+        fun probe() {
+            (1..5).toIntArray()
+            (1..5 step 2).toIntArray()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+                diagnostic.code == "KSWIFTK-SEMA-0024"
+                    && diagnostic.message == "Unresolved member function 'toIntArray'."
+            }
+            #expect(diagnostics.count == 2)
+        }
+    }
+
+    @Test
     func scopedCharRangeJoinExtensionKeepsPriority() throws {
         let source = """
         fun CharRange.joinToString(separator: CharSequence): String = "user:$separator"

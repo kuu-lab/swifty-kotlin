@@ -57,9 +57,11 @@ extension CallTypeChecker {
             || rangeReceiverKind == .intProgression
         let isCharRangeJoinReceiver = rangeReceiverKind == .charRange
             && memberName == "joinToString"
-        let isRangeIterableReceiver = isIntRangeOrProgression && (sourceLevelRangeReceiverType.map {
-            receiverClassifier.isNominalIterableType($0)
-        } ?? false)
+        let isRangeIterableReceiver = isIntRangeOrProgression
+            && isKUU569RangeIterableMember(memberName, argCount: args.count)
+            && (sourceLevelRangeReceiverType.map {
+                receiverClassifier.isNominalIterableType($0)
+            } ?? false)
         let rangeIterableSourceCandidates = isRangeIterableReceiver
             ? rangeIterableSourceExtensionCandidates(
                 named: calleeName,
@@ -636,6 +638,24 @@ extension CallTypeChecker {
             let package = Array(symbol.fqName.dropLast())
             return declaredReceiverSymbol == iterableSymbol
                 && (package == kotlinCollections || package == kotlinSequences)
+        }
+    }
+
+    private func isKUU569RangeIterableMember(_ memberName: String, argCount: Int) -> Bool {
+        switch memberName {
+        case "elementAt", "indexOf", "lastIndexOf", "asIterable", "asSequence",
+             "toSet", "toMutableList", "joinToString", "maxOrNull", "sumOf",
+             "zip", "associateWith", "groupBy", "partition", "takeWhile",
+             "dropWhile", "distinct", "sortedDescending", "flatMap", "intersect",
+             "union", "subtract", "withIndex", "shuffled":
+            return true
+        case "count":
+            // KUU-569 covers the predicate overload. Keep count() on its
+            // existing range-specific route so this fix does not change
+            // already-supported range members or their Golden ownership.
+            return argCount == 1
+        default:
+            return false
         }
     }
 
