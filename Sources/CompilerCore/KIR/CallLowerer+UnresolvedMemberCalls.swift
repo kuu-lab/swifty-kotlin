@@ -28,6 +28,7 @@ extension CallLowerer {
     func runtimeBackedSetMemberCallee(
         memberName: String,
         receiverType: TypeID,
+        chosenCallee: SymbolID? = nil,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
@@ -57,11 +58,56 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_set_remove")
             case "clear":
                 return interner.intern("__kk_mutable_set_clear")
+            case "addAll", "plusAssign", "removeAll", "minusAssign":
+                return mutableSetBulkMutationCallee(
+                    memberName: memberName,
+                    chosenCallee: chosenCallee,
+                    sema: sema,
+                    interner: interner
+                )
+            case "retainAll":
+                return interner.intern("__kk_mutable_set_retainAll")
             default:
                 break
             }
         }
         return nil
+    }
+
+    /// Runtime-backed set boxes cannot provide an itable implementation for
+    /// source-backed MutableSet defaults. Preserve the overload-specific
+    /// residual bridge selected by Sema, while routing migrated Collection
+    /// members to their hidden set ABI entry points.
+    private func mutableSetBulkMutationCallee(
+        memberName: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let parameterType = chosenCallee.flatMap { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        }
+        let parameterName = parameterType.flatMap { type in
+            resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
+                .map { interner.resolve($0.symbol.name) }
+        }
+        let operation = memberName == "addAll" || memberName == "plusAssign" ? "addAll" : "removeAll"
+        switch parameterName {
+        case "Sequence":
+            return interner.intern("__kk_mutable_set_\(operation)_sequence")
+        case "Iterable":
+            return interner.intern("__kk_mutable_set_\(operation)_iterable")
+        case "Array", "Collection", "MutableCollection":
+            return interner.intern("__kk_mutable_set_\(operation)")
+        default:
+            if memberName == "plusAssign" {
+                return interner.intern("__kk_mutable_set_add")
+            }
+            if memberName == "minusAssign" {
+                return interner.intern("__kk_mutable_set_remove")
+            }
+            return nil
+        }
     }
 
     // swiftlint:disable cyclomatic_complexity

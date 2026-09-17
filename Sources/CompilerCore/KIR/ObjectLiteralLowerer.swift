@@ -192,8 +192,23 @@ final class ObjectLiteralLowerer {
 
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+        let savedQualifiedThisReceivers = driver.ctx.saveQualifiedThisReceivers()
+        if let savedReceiverExprID,
+           let receiverType = arena.exprType(savedReceiverExprID),
+           let receiverLabel = RuntimeTypeCheckToken.simpleName(
+               of: receiverType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            driver.ctx.setQualifiedThisReceiver(
+                savedReceiverExprID,
+                for: interner.intern(receiverLabel)
+            )
+        }
         driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
         defer {
+            driver.ctx.restoreQualifiedThisReceivers(savedQualifiedThisReceivers)
             driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
         }
 

@@ -3,7 +3,7 @@
 import Testing
 
 /// KSP-496 moved these to ordinary Kotlin extension properties
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt), so `main`'s
+/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so `main`'s
 /// KIR body now calls the Kotlin getter (e.g. `isData`) directly — the
 /// `__kk_kclass_is_*` runtime call happens one level deeper, inside that
 /// getter's own KIR function body. These tests assert that `main` resolves

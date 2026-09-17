@@ -8,6 +8,30 @@ import Testing
 struct CodegenBackendRangeHOFTests {
 
     @Test
+    func testCodegenIntProgressionPositiveStepHOFs() throws {
+        let source = """
+        fun main() {
+            println((1..10 step 3).map { it })
+            println((1..10 step 3).filter { it > 4 })
+            val progression = 1..10 step 3
+            progression.forEach { print(it) }
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntProgressionPositiveStepHOFs",
+            expected:
+                """
+                [1, 4, 7, 10]
+                [7, 10]
+                14710
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapIndexed() throws {
         let source = """
         fun main() {

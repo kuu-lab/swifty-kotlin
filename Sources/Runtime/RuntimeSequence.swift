@@ -954,7 +954,7 @@ func runtimeTraverseSequenceWithState(
             // which do not fit in a Kotlin Char. We iterate utf16 code units instead to
             // match Kotlin's Char semantics correctly. Supplementary characters are split
             // into two surrogate code units, which is the expected Kotlin behaviour.
-            for codeUnit in source.utf16 {
+            for codeUnit in runtimeKotlinStringUTF16CodeUnits(source) {
                 emit(Int(codeUnit))
                 if state.stop { break }
             }
@@ -1365,7 +1365,7 @@ private func evaluateSequence(
             // Use utf16 code units (not unicodeScalars) so that supplementary characters
             // (emoji, etc. with scalar value > 0xFFFF) are represented as surrogate pairs,
             // matching Kotlin's UTF-16 Char semantics.
-            elements = source.utf16.map { Int($0) }
+            elements = runtimeKotlinStringUTF16CodeUnits(source).map { Int($0) }
             break
         }
         if case let .generator(seed, fnPtr, closureRaw) = step {
@@ -1526,7 +1526,7 @@ private func evaluateSequenceValues(
         case let .valueSource(values):
             return values
         case let .stringSource(source):
-            return source.utf16.map { RuntimeValue(charScalar: Int($0)) }
+            return runtimeKotlinStringUTF16CodeUnits(source).map { RuntimeValue(charScalar: Int($0)) }
         case .generator, .nullableGenerator:
             return evaluateSequence(seq, outThrown: outThrown, markConsumption: false).map { RuntimeValue(raw: $0) }
         default:

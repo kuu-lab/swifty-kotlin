@@ -148,6 +148,23 @@ extension BuildASTPhase {
             }
         }
         if hasAccessorNode {
+            // A semicolon can split accessors asymmetrically: the first inline
+            // accessor remains as direct tokens on the property node while a
+            // following accessor is wrapped in its own `.propertyAccessor`
+            // child. Parse that direct-token prefix as well, otherwise a
+            // `var` with `get() ...; set(...) ...` loses its getter entirely.
+            let directTokens = collectDirectTokens(from: nodeID, in: arena)
+            if let accessorStart = inlineAccessorStartIndex(in: directTokens) {
+                let directAccessorTokens = Array(directTokens[accessorStart...])
+                let directResult = parseInlineAccessors(
+                    from: directAccessorTokens,
+                    nodeRange: arena.node(nodeID).range,
+                    interner: interner,
+                    astArena: astArena
+                )
+                if getter == nil { getter = directResult.getter }
+                if setter == nil { setter = directResult.setter }
+            }
             if !accessorTokens.isEmpty {
                 let inlineResult = parseInlineAccessors(from: accessorTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
                 if getter == nil { getter = inlineResult.getter }

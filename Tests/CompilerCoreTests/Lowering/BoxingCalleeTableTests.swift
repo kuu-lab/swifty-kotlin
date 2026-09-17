@@ -6,9 +6,9 @@ import Testing
 struct BoxingCalleeTableTests {
     private let primitiveExpectations: [(PrimitiveType, String, String)] = [
         (.int, "kk_box_int", "kk_unbox_int"),
-        (.uint, "kk_box_int", "kk_unbox_int"),
-        (.ubyte, "kk_box_int", "kk_unbox_int"),
-        (.ushort, "kk_box_int", "kk_unbox_int"),
+        (.uint, "kk_box_uint", "kk_unbox_int"),
+        (.ubyte, "kk_box_ubyte", "kk_unbox_int"),
+        (.ushort, "kk_box_ushort", "kk_unbox_int"),
         (.long, "kk_box_long", "kk_unbox_long"),
         (.ulong, "kk_box_ulong", "kk_unbox_ulong"),
         (.boolean, "kk_box_bool", "kk_unbox_bool"),

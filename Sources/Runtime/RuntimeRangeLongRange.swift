@@ -216,7 +216,12 @@ public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
 @_cdecl("__kk_range_reversed")
 public func kk_range_reversed(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_reversed") { range in
-        registerRuntimeObject(RuntimeRangeBox(first: range.last, last: range.first, step: 0 &- range.step))
+        registerRuntimeObject(RuntimeRangeBox(
+            first: range.last,
+            last: range.first,
+            step: 0 &- range.step,
+            yieldsChars: range.yieldsChars
+        ))
     }
 }
 

@@ -8,6 +8,18 @@ public struct ASTArenaSnapshot: Codable {
     public let whenSubjectVarNames: [ExprID: InternedString]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
     public let explicitCallExpressions: Set<ExprID>
+    public let incrementDecrementExpressions: Set<ExprID>
+
+    private enum CodingKeys: String, CodingKey {
+        case declarations
+        case expressions
+        case typeRefs
+        case loopLabels
+        case whenSubjectVarNames
+        case lambdaParamTypeRefs
+        case explicitCallExpressions
+        case incrementDecrementExpressions
+    }
 
     public init(
         declarations: [Decl],
@@ -16,7 +28,8 @@ public struct ASTArenaSnapshot: Codable {
         loopLabels: [ExprID: InternedString],
         whenSubjectVarNames: [ExprID: InternedString],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
-        explicitCallExpressions: Set<ExprID> = []
+        explicitCallExpressions: Set<ExprID> = [],
+        incrementDecrementExpressions: Set<ExprID> = []
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -25,6 +38,22 @@ public struct ASTArenaSnapshot: Codable {
         self.whenSubjectVarNames = whenSubjectVarNames
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
         self.explicitCallExpressions = explicitCallExpressions
+        self.incrementDecrementExpressions = incrementDecrementExpressions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        declarations = try container.decode([Decl].self, forKey: .declarations)
+        expressions = try container.decode([Expr].self, forKey: .expressions)
+        typeRefs = try container.decode([TypeRef].self, forKey: .typeRefs)
+        loopLabels = try container.decode([ExprID: InternedString].self, forKey: .loopLabels)
+        whenSubjectVarNames = try container.decode([ExprID: InternedString].self, forKey: .whenSubjectVarNames)
+        lambdaParamTypeRefs = try container.decode([ExprID: [TypeRefID?]].self, forKey: .lambdaParamTypeRefs)
+        explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
+        incrementDecrementExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .incrementDecrementExpressions
+        ) ?? []
     }
 }
 
@@ -95,6 +124,9 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks member-call expressions written with parentheses so zero-argument
     /// function calls remain distinct from bare property access in the AST.
     private var _explicitCallExpressions: Set<ExprID> = []
+    /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
+    /// KIR can apply inc/dec semantics without changing the public AST shape.
+    private var _incrementDecrementExpressions: Set<ExprID> = []
 
     public var decls: [Decl] {
         lock.lock()
@@ -118,6 +150,7 @@ public final class ASTArena: @unchecked Sendable {
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
         _explicitCallExpressions = snapshot.explicitCallExpressions
+        _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -130,7 +163,8 @@ public final class ASTArena: @unchecked Sendable {
             loopLabels: _loopLabels,
             whenSubjectVarNames: _whenSubjectVarNames,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
-            explicitCallExpressions: _explicitCallExpressions
+            explicitCallExpressions: _explicitCallExpressions,
+            incrementDecrementExpressions: _incrementDecrementExpressions
         )
     }
 
@@ -334,6 +368,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _explicitCallExpressions.contains(exprID)
+    }
+
+    public func markIncrementDecrement(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _incrementDecrementExpressions.insert(exprID)
+    }
+
+    public func isIncrementDecrement(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _incrementDecrementExpressions.contains(exprID)
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {
