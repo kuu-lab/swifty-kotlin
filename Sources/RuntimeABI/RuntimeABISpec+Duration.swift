@@ -34,7 +34,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_duration_parseIsoString",
@@ -51,7 +52,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_duration_zero",

@@ -34,6 +34,7 @@ struct NativeEmitter {
     static let functionValueInvokeCallees: Set<String> = [
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
+        "kk_function_invoke_5",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
     ]
 

@@ -1635,6 +1635,11 @@ extension NativeEmitter {
 
             let resolvedParameters: [TypeID]
             let resolvedReturnType: TypeID
+            func isVarargParameter(_ parameterIndex: Int) -> Bool {
+                let valueParameterIndex = parameterIndex - (signature.receiverType == nil ? 0 : 1)
+                return signature.valueParameterIsVararg.indices.contains(valueParameterIndex)
+                    && signature.valueParameterIsVararg[valueParameterIndex]
+            }
             let isRawNumericComparisonHelper = [
                 "kk_min_float", "kk_max_float", "kk_min_double", "kk_max_double",
             ].contains(externalLinkName)
@@ -1646,7 +1651,14 @@ extension NativeEmitter {
                     !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
                 }
                 if abiValueParameters.count == parameters.count {
-                    resolvedParameters = zip(parameters, abiValueParameters).map { kotlinType, abiParam in
+                    resolvedParameters = zip(parameters, abiValueParameters).enumerated().map { index, pair in
+                        let (kotlinType, abiParam) = pair
+                        if isVarargParameter(index) {
+                            // A vararg parameter is passed as one erased array/list
+                            // handle at the compiler ABI boundary, even though the
+                            // metadata type records its element type.
+                            return typeSystem.anyType
+                        }
                         if isRawNumericComparisonHelper, abiParam.type == .intptr {
                             // These helpers consume IEEE bit patterns even though their
                             // bundled Kotlin declarations are Float/Double-typed.
@@ -1658,7 +1670,9 @@ extension NativeEmitter {
                         return kotlinType
                     }
                 } else {
-                    resolvedParameters = parameters
+                    resolvedParameters = parameters.enumerated().map { index, parameter in
+                        isVarargParameter(index) ? typeSystem.anyType : parameter
+                    }
                 }
                 if isRawNumericComparisonHelper, spec.returnType == .intptr {
                     // Keep the raw-bit return type aligned with RuntimeABI when an
@@ -1670,7 +1684,9 @@ extension NativeEmitter {
                     resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
                 }
             } else {
-                resolvedParameters = parameters
+                resolvedParameters = parameters.enumerated().map { index, parameter in
+                    isVarargParameter(index) ? typeSystem.anyType : parameter
+                }
                 resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
             }
             return (resolvedParameters, resolvedReturnType)
@@ -2338,12 +2354,26 @@ extension NativeEmitter {
                 var callArguments = argumentValues
                 let internalSignature = internalSignature(for: effectiveSymbol)
                 let typedSignature = isInternalCall ? internalSignature : sourceExternalCallSignature
+                let callVarargFlags: [Bool] = effectiveSymbol.flatMap {
+                    symbols?.functionSignature(for: $0)?.valueParameterIsVararg
+                } ?? []
+                let callReceiverOffset: Int = effectiveSymbol.flatMap {
+                    symbols?.functionSignature(for: $0)?.receiverType == nil ? 0 : 1
+                } ?? 0
                 let isRuntimeCallbackRawABIInternalCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
                 if let parameterTypes = typedSignature?.parameters {
                     callArguments = zip(argumentValues, parameterTypes).enumerated().map { index, pair in
                         let (argumentValue, parameterType) = pair
                         let argumentType = argumentTypes.indices.contains(index) ? argumentTypes[index] : nil
+                        let varargIndex = index - callReceiverOffset
+                        if callVarargFlags.indices.contains(varargIndex),
+                           callVarargFlags[varargIndex]
+                        {
+                            // A normalized vararg is carried as an erased array/list
+                            // handle even though metadata records its element type.
+                            return argumentValue
+                        }
                         if isRuntimeCallbackRawABIInternalCall {
                             guard isStringAggregateType(argumentType) else {
                                 return argumentValue

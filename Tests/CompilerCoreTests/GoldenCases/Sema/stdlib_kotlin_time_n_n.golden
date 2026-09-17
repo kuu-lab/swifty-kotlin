@@ -1,0 +1,64 @@
+symbol fq=DoubleProbe.<init>[kind=ctor;recv=DoubleProbe;params=] kind=constructor vis=private flags=_ sig=recv=DoubleProbe params=[] ret=DoubleProbe
+symbol fq=DoubleProbe[kind=class] kind=class vis=private flags=_
+symbol fq=LongProbe.<init>[kind=ctor;recv=LongProbe;params=] kind=constructor vis=private flags=_ sig=recv=LongProbe params=[] ret=LongProbe
+symbol fq=LongProbe[kind=class] kind=class vis=private flags=_
+symbol fq=__local_0.clock[kind=local] kind=local vis=private flags=_ type=kotlin.time.Clock
+symbol fq=__local_1.mark[kind=local] kind=local vis=private flags=_ type=kotlin.time.TimeMark
+symbol fq=__local_2.comparable[kind=local] kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
+symbol fq=__local_3.instant[kind=local] kind=local vis=private flags=_ type=kotlin.time.Instant
+symbol fq=__local_4.timed[kind=local] kind=local vis=private flags=_ type=kotlin.time.TimedValue<String>
+symbol fq=__local_5.doubleMark[kind=local] kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_time_n_n package=_ annotations=[@file:Suppress("DEPRECATION","DEPRECATION_ERROR")]
+  decl DoubleProbe[kind=class] class DoubleProbe sym=DoubleProbe[kind=class]
+  decl LongProbe[kind=class] class LongProbe sym=LongProbe[kind=class]
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@17:35 double(1.0) type=Double
+expr e@16:54 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@16:54#1 memberCall recv=e@16:54 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field]
+expr e@22:33 long(1) type=Long
+expr e@21:50 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@21:50#1 memberCall recv=e@21:50 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field]
+expr e@27:24 name(Clock) type=kotlin.time.Clock ref=kotlin.time.Clock[kind=iface]
+expr e@27:24#1 memberCall recv=e@27:24 callee=System args=[] type=kotlin.time.Clock.System ref=kotlin.time.Clock.System[kind=obj]
+expr e@27:5 localDecl clock mutable=0 type=Clock init=e@27:24#1 type=Unit ref=__local_0.clock[kind=local]
+expr e@28:26 name(TimeSource) type=kotlin.time.TimeSource ref=kotlin.time.TimeSource[kind=iface]
+expr e@28:26#1 memberCall recv=e@28:26 callee=Monotonic args=[] type=kotlin.time.TimeSource.Monotonic ref=kotlin.time.TimeSource.Monotonic[kind=obj]
+expr e@28:26#2 memberCall recv=e@28:26#1 callee=markNow args=[] type=kotlin.time.TimeSource.Monotonic.ValueTimeMark call=kotlin.time.TimeSource.Monotonic.markNow[kind=fun;recv=kotlin.time.TimeSource.Monotonic;params=]
+expr e@28:5 localDecl mark mutable=0 type=TimeMark init=e@28:26#2 type=Unit ref=__local_1.mark[kind=local]
+expr e@29:42 call callee=e@29:42#1 args=[] type=LongProbe call=LongProbe.<init>[kind=ctor;recv=LongProbe;params=]
+expr e@29:42#2 memberCall recv=e@29:42 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractLongTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractLongTimeSource;params=]
+expr e@29:5 localDecl comparable mutable=0 type=ComparableTimeMark init=e@29:42#2 type=Unit ref=__local_2.comparable[kind=local]
+expr e@30:28 name(Instant) type=kotlin.time.Instant.Companion ref=kotlin.time.Instant[kind=class]
+expr e@30:58 long(0) type=Long
+expr e@30:28#1 memberCall recv=e@30:28 callee=fromEpochMilliseconds args=[_:e@30:58] type=kotlin.time.Instant call=kotlin.time.fromEpochMilliseconds[kind=fun;recv=kotlin.time.Instant.Companion;params=Long]
+expr e@30:5 localDecl instant mutable=0 type=Instant init=e@30:28#1 type=Unit ref=__local_3.instant[kind=local]
+expr e@31:48 string(value) type=String
+expr e@31:57 name(Duration) type=kotlin.time.Duration.Companion ref=kotlin.time.Duration[kind=class]
+expr e@31:57#1 memberCall recv=e@31:57 callee=ZERO args=[] type=kotlin.time.Duration call=kotlin.time.ZERO.$get[kind=fun;recv=kotlin.time.Duration.Companion;params=]
+expr e@31:37 call callee=e@31:37#1 args=[_:e@31:48,_:e@31:57#1] type=kotlin.time.TimedValue<String> call=kotlin.time.TimedValue.<init>[kind=ctor;recv=kotlin.time.TimedValue<T0>;params=T0,kotlin.time.Duration;gen=1] targs=[String]
+expr e@31:5 localDecl timed mutable=0 type=TimedValue<String> init=e@31:37 type=Unit ref=__local_4.timed[kind=local]
+expr e@32:42 call callee=e@32:42#1 args=[] type=DoubleProbe call=DoubleProbe.<init>[kind=ctor;recv=DoubleProbe;params=]
+expr e@32:42#2 memberCall recv=e@32:42 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractDoubleTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractDoubleTimeSource;params=]
+expr e@32:5 localDecl doubleMark mutable=0 type=ComparableTimeMark init=e@32:42#2 type=Unit ref=__local_5.doubleMark[kind=local]
+expr e@34:13 name(clock) type=kotlin.time.Clock ref=__local_0.clock[kind=local]
+expr e@34:23 name(Clock) type=kotlin.time.Clock ref=kotlin.time.Clock[kind=iface]
+expr e@34:23#1 memberCall recv=e@34:23 callee=System args=[] type=kotlin.time.Clock.System ref=kotlin.time.Clock.System[kind=obj]
+expr e@34:13#1 binary(identityEqual) lhs=e@34:13 rhs=e@34:23#1 type=Boolean
+expr e@34:5 call callee=e@34:5#1 args=[_:e@34:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@35:13 name(mark) type=kotlin.time.TimeMark ref=__local_1.mark[kind=local]
+expr e@35:22 name(comparable) type=kotlin.time.ComparableTimeMark ref=__local_2.comparable[kind=local]
+expr e@35:13#1 binary(notIdentityEqual) lhs=e@35:13 rhs=e@35:22 type=Boolean
+expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@36:13 name(instant) type=kotlin.time.Instant ref=__local_3.instant[kind=local]
+expr e@36:13#1 memberCall recv=e@36:13 callee=epochSeconds args=[] type=Long call=kotlin.time.epochSeconds.$get[kind=fun;recv=kotlin.time.Instant;params=]
+expr e@36:37 long(0) type=Long
+expr e@36:13#2 binary(equal) lhs=e@36:13#1 rhs=e@36:37 type=Boolean
+expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@37:13 name(timed) type=kotlin.time.TimedValue<String> ref=__local_4.timed[kind=local]
+expr e@37:13#1 memberCall recv=e@37:13 callee=value args=[] type=String ref=kotlin.time.TimedValue.value[kind=prop]
+expr e@37:5 call callee=e@37:5#1 args=[_:e@37:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@38:13 name(doubleMark) type=kotlin.time.ComparableTimeMark ref=__local_5.doubleMark[kind=local]
+expr e@38:28 name(comparable) type=kotlin.time.ComparableTimeMark ref=__local_2.comparable[kind=local]
+expr e@38:13#1 binary(notIdentityEqual) lhs=e@38:13 rhs=e@38:28 type=Boolean
+expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

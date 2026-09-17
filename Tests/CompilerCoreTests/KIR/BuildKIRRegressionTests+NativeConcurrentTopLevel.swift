@@ -93,6 +93,11 @@ extension BuildKIRRegressionTests {
                 // BundledStdlibOrderingTests pins the individual filenames.
                 return context.sourceManager.path(of: fileID)
                     .hasPrefix("__bundled_kotlin/native/concurrent/")
+            }.filter { symbol in
+                // `waitForMultipleFutures` also has a deprecated Collection
+                // extension with the same FQName. This loop verifies the
+                // top-level runtime bridge, so select the receiver-less symbol.
+                sema.symbols.functionSignature(for: symbol)?.receiverType == nil
             }
             let symbol = try #require(symbols.first, "Expected source symbol for \(name)")
             let function = try #require(

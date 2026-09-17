@@ -5,6 +5,12 @@ final class RuntimeRangeBox {
     let step: Int
     let kind: RuntimeRangeKind
 
+    // Range handles share one representation, so preserve Char identity for
+    // erased Iterable/Iterator calls that must return a boxed element.
+    var yieldsChars: Bool {
+        kind == .charRange || kind == .charProgression
+    }
+
     init(first: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.first = first
         self.last = last
@@ -17,11 +23,13 @@ final class RuntimeRangeIteratorBox {
     var current: Int
     let last: Int
     var step: Int
+    let yieldsChars: Bool
 
-    init(current: Int, last: Int, step: Int) {
+    init(current: Int, last: Int, step: Int, yieldsChars: Bool = false) {
         self.current = current
         self.last = last
         self.step = step
+        self.yieldsChars = yieldsChars
     }
 }
 
@@ -546,7 +554,7 @@ func runtimeUnsignedRangeRandom(
 public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if value == runtimeNullSentinelInt {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: nil)
         return 0
     }
     return value
@@ -718,7 +726,12 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(
+            current: range.first,
+            last: range.last,
+            step: range.step,
+            yieldsChars: range.yieldsChars
+        )
     )
 }
 
@@ -764,7 +777,12 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(
+            current: range.first,
+            last: range.last,
+            step: range.step,
+            yieldsChars: range.yieldsChars
+        )
     )
 }
 
@@ -879,11 +897,14 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_next(iterRaw)
     }
-    if runtimeRangeIteratorBox(from: iterRaw) != nil {
-        return kk_range_next(iterRaw)
+    if let rangeIterator = runtimeRangeIteratorBox(from: iterRaw) {
+        let value = kk_range_next(iterRaw)
+        // `Iterator<T>.next()` is an erased boundary. Direct range iteration
+        // still uses `kk_range_next` and keeps the primitive representation.
+        return rangeIterator.yieldsChars ? kk_box_char(value) : value
     }
     if runtimeListIteratorBox(from: iterRaw) != nil {
-        return kk_list_iterator_next(iterRaw)
+        return kk_list_iterator_next(iterRaw, outThrown)
     }
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_next(iterRaw)
