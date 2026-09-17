@@ -178,5 +178,17 @@ struct DeclarationBoundaryTests {
         """
         #expect(rootRange(source).end.offset == source.utf8.count)
     }
+
+    @Test
+    func testAnnotationPrefixedEnumEntryIsNotParsedAsADeclaration() {
+        let source = """
+        enum class AnnotationTarget {
+            CLASS,
+            @SinceKotlin("1.1")
+            TYPEALIAS
+        }
+        """
+        #expect(nodeCount(source, kind: .enumEntry) == 2)
+    }
 }
 #endif

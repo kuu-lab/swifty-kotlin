@@ -379,4 +379,11 @@ extension NameMangler {
         let suffix = enumClassNameSuffix(for: classFqName, interner: interner)
         return interner.intern("\(entryName)$enumOrdinal$\(suffix)")
     }
+
+    package static func enumEntryDispatchHelperName(
+        for functionSymbol: SemanticSymbol,
+        interner: StringInterner
+    ) -> InternedString {
+        interner.intern("$enumEntryDispatch$\(functionSymbol.id.rawValue)")
+    }
 }

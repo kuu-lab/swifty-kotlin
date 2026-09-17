@@ -499,6 +499,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        registerAllEnumEntryDispatchFunctions(
+            ast: ast,
+            bindings: bindings,
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
         )
