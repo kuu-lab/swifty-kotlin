@@ -6,6 +6,42 @@
 /// entries to this package.
 extension DataFlowSemaPhase {
 
+    /// Registers the `kotlin.Byte`/`kotlin.Long`/`kotlin.Short` nominal class
+    /// anchors and their synthetic Companion objects. These primitives are
+    /// represented directly by TypeSystem, so they have no source declaration
+    /// from which the Companion nominal can be collected; the anchors exist so
+    /// bundled Companion extensions (`Stdlib/kotlin/{Byte,Long,Short}/Companion/
+    /// Companion.kt`) resolve. The constants themselves are Kotlin source-backed.
+    ///
+    /// Residual (c) language-core surface moved from the deleted
+    /// `HeaderHelpers+SyntheticMathStubs.swift` (KUU-586). The `kotlin.math`
+    /// package ensure that file also carried is intentionally dropped: bundled
+    /// `Math.kt` defines the package via `definePackageSymbol`, and the
+    /// `--no-stdlib` fallback is covered by `registerSyntheticCoercionStubs`.
+    func registerSyntheticPrimitiveCompanionAnchors(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
+        for name in ["Byte", "Long", "Short"] {
+            let primitiveSymbol = ensureClassSymbol(
+                named: name,
+                in: kotlinPkg,
+                symbols: symbols,
+                interner: interner
+            )
+            if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(kotlinPkgSymbol, for: primitiveSymbol)
+            }
+            ensureSyntheticPrimitiveCompanionSymbol(
+                ownerSymbol: primitiveSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
     /// Set up primitive types to implement Comparable<Self>
     func setupPrimitiveComparableImplementations(
         symbols: SymbolTable,

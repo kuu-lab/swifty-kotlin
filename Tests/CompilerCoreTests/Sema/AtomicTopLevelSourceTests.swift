@@ -44,6 +44,9 @@ struct AtomicTopLevelSourceTests {
         let sourceFileIDs = [
             "AtomicLongArray": ctx.sourceManager.fileID(
                 forPath: "__bundled_kotlin/concurrent/AtomicLongArray/AtomicLongArray.kt"
+            ),
+            "AtomicNativePtr": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicNativePtr/Stdlib.kt"
             )
         ]
         let nominalNames = [

@@ -687,7 +687,7 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
         runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no next element."))
         return 0
     }
-    return kk_list_iterator_next(iterRaw)
+    return kk_list_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1167,6 +1167,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+    }
+    if let override = runtimeAnyToStringOverrideText(elem) {
+        return override
     }
     if let throwableString = runtimeThrowableToString(elem) {
         return throwableString

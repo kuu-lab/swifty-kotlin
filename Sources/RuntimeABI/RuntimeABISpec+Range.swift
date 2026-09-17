@@ -194,7 +194,7 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // ULongRange count, iterator, forEach, map (STDLIB-RANGE-037)
+        // ULongRange count, iterator (STDLIB-RANGE-037)
         RuntimeABIFunctionSpec(
             name: "kk_ulong_range_count",
             parameters: [
@@ -230,17 +230,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Range",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_map",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_range_forEach",
@@ -1165,61 +1154,6 @@ public extension RuntimeABISpec {
             name: "kk_ulong_range_isEmpty",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_mapIndexed",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_mapNotNull",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_filter",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_filterIndexed",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_filterNot",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
