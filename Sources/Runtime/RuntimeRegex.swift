@@ -908,6 +908,13 @@ private func matchResultGroup(_ matchRaw: Int, _ index: Int) -> RuntimeMatchGrou
 }
 
 /// MatchResult.next() — returns the next MatchResult in the input, or null.
+///
+/// Continues on the original input from the previous match's exclusive UTF-16
+/// end (one unit later after a zero-length match), including a zero-width
+/// search at end of string so `$` and empty patterns can still match there.
+/// `NSRegularExpression` treats the search-range start as `^` / `$` and hides
+/// lookbehind / `\b` unless `.withoutAnchoringBounds` and `.withTransparentBounds`
+/// are set.
 @_cdecl("__kk_match_result_next")
 public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
@@ -915,98 +922,19 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
           let regexBox = matchResult.regexBox else {
         return runtimeNullSentinelInt
     }
-    let startOffset = matchResult.matchEndOffset
-    let isZeroLengthMatch = matchResult.value.isEmpty
-    let effectiveOffset = isZeroLengthMatch ? startOffset + 1 : startOffset
-    // Convert UTF-16 offset to String.Index
-    guard let utf16StartIdx = inputString.utf16.index(
-        inputString.utf16.startIndex,
-        offsetBy: effectiveOffset,
-        limitedBy: inputString.utf16.endIndex
+    let offset = matchResult.matchEndOffset + (matchResult.value.isEmpty ? 1 : 0)
+    let utf16Count = inputString.utf16.count
+    guard offset <= utf16Count else { return runtimeNullSentinelInt }
+    let range = NSRange(location: offset, length: utf16Count - offset)
+    guard let result = boundedFirstMatch(
+        regexBox.regex,
+        in: inputString,
+        options: [.withoutAnchoringBounds, .withTransparentBounds],
+        range: range
     ) else {
         return runtimeNullSentinelInt
     }
-    guard let startIdx = utf16StartIdx.samePosition(in: inputString),
-          startIdx < inputString.endIndex else {
-        return runtimeNullSentinelInt
-    }
-    let searchStr = String(inputString[startIdx...])
-    let nsRange = NSRange(searchStr.startIndex..., in: searchStr)
-    guard let result = boundedFirstMatch(regexBox.regex, in: searchStr, options: [], range: nsRange) else {
-        return runtimeNullSentinelInt
-    }
-    let nextMatchResult = makeMatchResultWithOffset(
-        from: result,
-        in: searchStr,
-        inputOffset: effectiveOffset,
-        regexBox: regexBox,
-        fullInput: inputString
-    )
-    return registerRuntimeObject(nextMatchResult)
-}
-
-// MARK: - Private helper for next() with offset-adjusted ranges
-
-private func makeMatchResultWithOffset(
-    from result: NSTextCheckingResult,
-    in str: String,
-    inputOffset: Int,
-    regexBox: RuntimeRegexBox?,
-    fullInput: String
-) -> RuntimeMatchResultBox {
-    guard let matchRange = Range(result.range, in: str) else {
-        return RuntimeMatchResultBox(value: "", groupValues: [])
-    }
-    let value = String(str[matchRange])
-
-    var groupValues: [String] = []
-    var groups: [RuntimeMatchGroupBox?] = []
-    for i in 0 ..< result.numberOfRanges {
-        let groupRange = result.range(at: i)
-        if groupRange.location != NSNotFound, let range = Range(groupRange, in: str) {
-            let groupValue = String(str[range])
-            groupValues.append(groupValue)
-            let utf16Start = range.lowerBound.samePosition(in: str.utf16) ?? str.utf16.startIndex
-            let localStart = str.utf16.distance(from: str.utf16.startIndex, to: utf16Start)
-            let startIndex = inputOffset + localStart
-            let endIndex = startIndex + str[range].utf16.count - 1
-            groups.append(RuntimeMatchGroupBox(value: groupValue, rangeStart: startIndex, rangeEnd: endIndex))
-        } else {
-            groupValues.append("")
-            groups.append(nil)
-        }
-    }
-
-    var namedGroups: [String: Int] = [:]
-    var namedGroupNames: Set<String> = []
-    if let regexBox = regexBox {
-        let names = extractNamedGroupNames(from: regexBox.pattern)
-        namedGroupNames = Set(names)
-        for name in names {
-            let namedRange = result.range(withName: name)
-            guard namedRange.location != NSNotFound else { continue }
-            for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
-                namedGroups[name] = groupIndex
-                break
-            }
-        }
-    }
-
-    // Compute match end offset in full input's UTF-16
-    let utf16End = matchRange.upperBound.samePosition(in: str.utf16) ?? str.utf16.endIndex
-    let localEnd = str.utf16.distance(from: str.utf16.startIndex, to: utf16End)
-    let matchEnd = inputOffset + localEnd
-
-    return RuntimeMatchResultBox(
-        value: value,
-        groupValues: groupValues,
-        groups: groups,
-        namedGroups: namedGroups,
-        namedGroupNames: namedGroupNames,
-        inputString: fullInput,
-        matchEndOffset: matchEnd,
-        regexBox: regexBox
-    )
+    return registerRuntimeObject(makeMatchResult(from: result, in: inputString, regexBox: regexBox))
 }
 
 // MARK: - STDLIB-REGEX-094: Regex.fromLiteral / Regex.matches / String.replaceFirst(Regex)
