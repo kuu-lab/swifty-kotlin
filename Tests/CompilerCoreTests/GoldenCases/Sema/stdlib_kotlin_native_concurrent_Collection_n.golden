@@ -1,0 +1,7 @@
+symbol fq=golden.sema.waitForFutureCollection.$0.futures[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.waitForFutureCollection[kind=fun;params=kotlin.collections.Collection<kotlin.native.concurrent.Future<Int>>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Collection<kotlin.native.concurrent.Future<Int>>] ret=kotlin.collections.Set<kotlin.native.concurrent.Future<Int>>
+file fstdlib_kotlin_native_concurrent_Collection_n package=golden.sema annotations=[@file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class),@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.waitForFutureCollection[kind=fun;params=kotlin.collections.Collection<kotlin.native.concurrent.Future<Int>>] fun waitForFutureCollection sym=golden.sema.waitForFutureCollection[kind=fun;params=kotlin.collections.Collection<kotlin.native.concurrent.Future<Int>>]
+expr e@10:23 name(futures) type=kotlin.collections.Collection<kotlin.native.concurrent.Future<Int>> ref=golden.sema.waitForFutureCollection.$0.futures[kind=vparam]
+expr e@10:54 int(0) type=Int
+expr e@10:23#1 memberCall recv=e@10:23 callee=waitForMultipleFutures args=[_:e@10:54] type=kotlin.collections.Set<kotlin.native.concurrent.Future<Int>> call=kotlin.native.concurrent.waitForMultipleFutures[kind=fun;recv=kotlin.collections.Collection<kotlin.native.concurrent.Future<T0>>;params=Int;gen=1] targs=[Int]
