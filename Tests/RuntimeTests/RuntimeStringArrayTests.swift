@@ -1475,6 +1475,51 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatFloatingRoundingMatchesJavaFormatter() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(1.005),
+            boxDouble(0.25),
+            boxDouble(0.35),
+            boxDouble(0.5),
+            boxDouble(2.5),
+            boxDouble(2.675),
+            boxDouble(1.0005),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%.2f %.1f %.1f %.0f %.0f %.2f %.3f",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "1.01 0.3 0.4 1 3 2.68 1.001")
+    }
+
+    @Test
+    func testStringFormatFloatingPrecisionUsesShortestDecimalRepresentation() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(0.1),
+            boxDouble(0.1),
+            boxDouble(1.005),
+            boxDouble(0.0001),
+            boxDouble(0.00001),
+            boxDouble(999999.5),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%.20f %.17g %.2e %.6g %.6g %.6g",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0.10000000000000000000 0.10000000000000000 1.01e+00 0.000100000 1.00000e-05 1.00000e+06")
+    }
+
+    @Test
     func testStringFormatSupportsPositionalArguments() {
         let args = makeRuntimeArray([
             7,

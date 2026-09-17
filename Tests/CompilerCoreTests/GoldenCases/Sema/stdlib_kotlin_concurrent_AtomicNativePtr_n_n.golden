@@ -1,0 +1,6 @@
+symbol fq=golden.sema.construct.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.construct[kind=fun;params=kotlin.native.internal.NativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.internal.NativePtr] ret=kotlin.concurrent.AtomicNativePtr
+file fstdlib_kotlin_concurrent_AtomicNativePtr_n_n package=golden.sema
+  decl golden.sema.construct[kind=fun;params=kotlin.native.internal.NativePtr] fun construct sym=golden.sema.construct[kind=fun;params=kotlin.native.internal.NativePtr]
+expr e@6:68 name(value) type=kotlin.native.internal.NativePtr ref=golden.sema.construct.$0.value[kind=vparam]
+expr e@6:52 call callee=e@6:52#1 args=[_:e@6:68] type=kotlin.concurrent.AtomicNativePtr call=kotlin.concurrent.AtomicNativePtr.<init>[kind=ctor;recv=kotlin.concurrent.AtomicNativePtr;params=kotlin.native.internal.NativePtr]

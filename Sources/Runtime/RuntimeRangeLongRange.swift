@@ -211,14 +211,6 @@ public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
     return current
 }
 
-@_cdecl("kk_ulong_range_map")
-public func kk_ulong_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                         functionName: "kk_ulong_range_map", operation: RuntimeUnsignedRangeHOFKind.map)
-}
-
 // MARK: - IntRange reversed (STDLIB-093)
 
 @_cdecl("__kk_range_reversed")

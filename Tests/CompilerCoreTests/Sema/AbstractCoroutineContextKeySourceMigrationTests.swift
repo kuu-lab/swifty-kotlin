@@ -15,7 +15,7 @@ struct AbstractCoroutineContextKeySourceMigrationTests {
             let errorSummary = errors.map { "\($0.code): \($0.message)" }.joined(separator: "\n")
             #expect(
                 errors.isEmpty,
-                "Expected bundled AbstractCoroutineContextKey.kt to type-check, got: \(errorSummary)"
+                "Expected bundled CoroutineContextImpl.kt to type-check, got: \(errorSummary)"
             )
 
             let sema = try #require(ctx.sema)
