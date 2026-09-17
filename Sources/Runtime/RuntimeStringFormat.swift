@@ -23,11 +23,15 @@ private struct RuntimeFormatSpecifier {
         flags.contains(",")
     }
 
+    var usesParenthesesForNegativeValues: Bool {
+        flags.contains("(")
+    }
+
     var cStyleToken: String {
         let supportedFlags = flags.filter { "-+ #0".contains($0) }
         var token = "%"
         token += supportedFlags
-        if let width, !usesGroupingSeparator {
+        if let width, !usesGroupingSeparator, !usesParenthesesForNegativeValues {
             token += String(width)
         }
         if let precision {
@@ -51,10 +55,10 @@ private enum RuntimeParsedFormatToken {
     case invalid
 }
 
-private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ","]
+private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "("]
 private let runtimeFormatLengthCharacters: Set<Character> = ["h", "l", "L", "z", "j", "t"]
 private let runtimeSupportedFormatConversions: Set<Character> = [
-    "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "c", "C",
+    "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "a", "A", "c", "C",
 ]
 
 private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) -> String {
@@ -185,14 +189,30 @@ private func runtimeRenderFormattedArgument(
     case "d", "i":
         let value = Int64(runtimeFormatIntegerValue(value))
         let rendered = String(format: specifier.cStyleToken, arguments: [value])
-        return runtimeLocalizeFormattedNumber(rendered, specifier: specifier, locale: locale)
+        return runtimeLocalizeFormattedNumber(
+            rendered,
+            specifier: specifier,
+            locale: locale,
+            applyWidth: specifier.usesParenthesesForNegativeValues
+        )
     case "x", "o":
-        let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
+        let value = runtimeFormatIntegerBitPattern(value)
         return String(format: specifier.cStyleToken, arguments: [value])
-    case "f", "e", "g":
+    case "f", "e", "g", "a":
         let value = runtimeFormatDoubleValue(value)
-        let rendered = String(format: specifier.cStyleToken, arguments: [value])
-        return runtimeLocalizeFormattedNumber(rendered, specifier: specifier, locale: locale)
+        let rendered = runtimeRenderFormattedFloatingPoint(value, specifier: specifier)
+        if specifier.normalizedConversion == "a" {
+            return runtimeApplyNumericWidth(
+                runtimeParenthesizeNegativeValue(rendered, specifier: specifier),
+                specifier: specifier
+            )
+        }
+        return runtimeLocalizeFormattedNumber(
+            rendered,
+            specifier: specifier,
+            locale: locale,
+            applyWidth: true
+        )
     case "c":
         let value = runtimeFormatCharacterValue(value)
         let normalized = specifier.conversion.isUppercase
@@ -260,6 +280,32 @@ private func runtimeFormatIntegerValue(_ value: RuntimeValue) -> Int {
     return maybeUnbox(value.payload0)
 }
 
+private func runtimeFormatIntegerBitPattern(_ value: RuntimeValue) -> UInt64 {
+    guard value.tag != RuntimeValue.stringTag else {
+        return UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
+    }
+
+    let argument = value.payload0
+    if let pointer = UnsafeMutableRawPointer(bitPattern: argument),
+       runtimeIsObjectPointer(pointer)
+    {
+        if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+            let intValue = Int32(truncatingIfNeeded: intBox.value)
+            return UInt64(UInt32(bitPattern: intValue))
+        }
+        if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
+            return UInt64(bitPattern: Int64(longBox.value))
+        }
+        if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+            return UInt64(bitPattern: Int64(ulongBox.value))
+        }
+    }
+
+    // Legacy raw callers do not carry a source-width tag. Preserve their
+    // existing 64-bit behavior while boxed Kotlin Int and Long stay distinct.
+    return UInt64(bitPattern: Int64(maybeUnbox(argument)))
+}
+
 private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
     if value.tag == RuntimeValue.stringTag {
         return Double(runtimeElementToString(value)) ?? 0
@@ -302,6 +348,316 @@ private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
     return Double(bitPattern: UInt64(bitPattern: Int64(argument)))
 }
 
+private struct RuntimeDecimalFloatingPoint {
+    let digits: String
+    let scale: Int
+
+    var isZero: Bool {
+        digits == "0"
+    }
+
+    var exponent: Int {
+        guard !isZero else { return 0 }
+        return digits.count - scale - 1
+    }
+}
+
+private func runtimeParseDecimalFloatingPoint(_ rendered: String) -> RuntimeDecimalFloatingPoint {
+    var value = rendered
+    let isNegative = value.hasPrefix("-")
+    if isNegative {
+        value.removeFirst()
+    }
+
+    let exponentIndex = value.firstIndex(of: "E") ?? value.firstIndex(of: "e")
+    let mantissa: String
+    let exponent: Int
+    if let exponentIndex {
+        mantissa = String(value[..<exponentIndex])
+        exponent = Int(value[value.index(after: exponentIndex)...]) ?? 0
+    } else {
+        mantissa = value
+        exponent = 0
+    }
+
+    let parts = mantissa.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+    let integerPart = String(parts.first ?? "")
+    let fractionalPart = parts.count > 1 ? String(parts[1]) : ""
+    let rawDigits = integerPart + fractionalPart
+    let leadingZeros = rawDigits.prefix { $0 == "0" }.count
+    let digits = leadingZeros == rawDigits.count
+        ? "0"
+        : String(rawDigits.dropFirst(leadingZeros))
+
+    // Keep trailing zeroes in the coefficient: they are part of the decimal
+    // scale (for example, 1.0 is 10 * 10^-1, not 1 * 10^-1).
+    return RuntimeDecimalFloatingPoint(
+        digits: digits,
+        scale: fractionalPart.count - exponent
+    )
+}
+
+private func runtimeIncrementDecimalDigits(_ value: String) -> String {
+    var digits = Array(value.utf8)
+    var index = digits.count
+    while index > 0 {
+        index -= 1
+        if digits[index] == 57 { // ASCII '9'
+            digits[index] = 48 // ASCII '0'
+        } else {
+            digits[index] += 1
+            return String(decoding: digits, as: UTF8.self)
+        }
+    }
+    return "1" + String(decoding: digits, as: UTF8.self)
+}
+
+/// Divides a non-negative decimal integer by 10^dropCount using HALF_UP.
+private func runtimeRoundDecimalInteger(_ value: String, dropping dropCount: Int) -> String {
+    guard dropCount > 0 else {
+        return value + String(repeating: "0", count: -dropCount)
+    }
+    if dropCount > value.count {
+        return "0"
+    }
+    if dropCount == value.count {
+        return value.first.map { $0 >= "5" ? "1" : "0" } ?? "0"
+    }
+
+    let keptCount = value.count - dropCount
+    var kept = String(value.prefix(keptCount))
+    if value[value.index(value.startIndex, offsetBy: keptCount)] >= "5" {
+        kept = runtimeIncrementDecimalDigits(kept)
+    }
+    return kept
+}
+
+private func runtimeRoundedSignificantDigits(
+    _ value: RuntimeDecimalFloatingPoint,
+    count: Int
+) -> (digits: String, exponent: Int) {
+    let count = max(1, count)
+    guard !value.isZero else {
+        return (String(repeating: "0", count: count), 0)
+    }
+
+    var exponent = value.exponent
+    var digits: String
+    if value.digits.count > count {
+        digits = runtimeRoundDecimalInteger(value.digits, dropping: value.digits.count - count)
+    } else {
+        digits = value.digits + String(repeating: "0", count: count - value.digits.count)
+    }
+
+    if digits.count > count {
+        exponent += 1
+        digits = "1" + String(repeating: "0", count: count - 1)
+    }
+    return (digits, exponent)
+}
+
+private func runtimeFloatingPointSign(isNegative: Bool, specifier: RuntimeFormatSpecifier) -> String {
+    if isNegative {
+        return "-"
+    }
+    if specifier.flags.contains("+") {
+        return "+"
+    }
+    if specifier.flags.contains(" ") {
+        return " "
+    }
+    return ""
+}
+
+private func runtimeScientificExponent(_ exponent: Int) -> String {
+    let sign = exponent < 0 ? "-" : "+"
+    let magnitude = exponent < 0 ? -exponent : exponent
+    let digits = String(magnitude)
+    return sign + (digits.count < 2 ? "0" + digits : digits)
+}
+
+private func runtimeRenderRoundedFixed(
+    digits: String,
+    decimalPosition: Int,
+    alternateForm: Bool
+) -> String {
+    let body: String
+    if decimalPosition <= 0 {
+        body = "0." + String(repeating: "0", count: -decimalPosition) + digits
+    } else if decimalPosition >= digits.count {
+        body = digits + String(repeating: "0", count: decimalPosition - digits.count)
+    } else {
+        let splitIndex = digits.index(digits.startIndex, offsetBy: decimalPosition)
+        body = String(digits[..<splitIndex]) + "." + String(digits[splitIndex...])
+    }
+
+    if alternateForm, !body.contains(".") {
+        return body + "."
+    }
+    return body
+}
+
+private func runtimeRenderFormattedFloatingPoint(
+    _ value: Double,
+    specifier: RuntimeFormatSpecifier
+) -> String {
+    if value.isNaN {
+        return specifier.conversion.isUppercase ? "NAN" : "NaN"
+    }
+
+    let shortest = runtimeFormatFloatingPoint(value)
+    let isNegative = shortest.hasPrefix("-")
+    let unsignedShortest = isNegative ? String(shortest.dropFirst()) : shortest
+    let sign = runtimeFloatingPointSign(isNegative: isNegative, specifier: specifier)
+    if unsignedShortest == "Infinity" {
+        let infinity = specifier.conversion.isUppercase ? "INFINITY" : unsignedShortest
+        return sign + infinity
+    }
+
+    let decimal = runtimeParseDecimalFloatingPoint(shortest)
+    let alternateForm = specifier.flags.contains("#")
+    switch specifier.normalizedConversion {
+    case "f":
+        let precision = specifier.precision ?? 6
+        let scaledDigits = runtimeRoundDecimalInteger(
+            decimal.digits,
+            dropping: decimal.scale - precision
+        )
+        return sign + runtimeRenderRoundedFixed(
+            digits: scaledDigits,
+            decimalPosition: scaledDigits.count - precision,
+            alternateForm: alternateForm
+        )
+    case "e":
+        let precision = specifier.precision ?? 6
+        let rounded = runtimeRoundedSignificantDigits(decimal, count: precision + 1)
+        let firstDigit = String(rounded.digits.prefix(1))
+        let fractionalDigits = String(rounded.digits.dropFirst())
+        let mantissa: String
+        if precision == 0, !alternateForm {
+            mantissa = firstDigit
+        } else {
+            mantissa = firstDigit + "." + fractionalDigits
+        }
+        let exponent = runtimeScientificExponent(rounded.exponent)
+        let marker = specifier.conversion == "E" ? "E" : "e"
+        return sign + mantissa + marker + exponent
+    case "g":
+        let precision = max(1, specifier.precision ?? 6)
+        let rounded = runtimeRoundedSignificantDigits(decimal, count: precision)
+        let useScientific = rounded.exponent < -4 || rounded.exponent >= precision
+        if useScientific {
+            let firstDigit = String(rounded.digits.prefix(1))
+            let fractionalDigits = String(rounded.digits.dropFirst())
+            let mantissa: String
+            if precision == 1, !alternateForm {
+                mantissa = firstDigit
+            } else {
+                mantissa = firstDigit + "." + fractionalDigits
+            }
+            let marker = specifier.conversion == "G" ? "E" : "e"
+            return sign + mantissa + marker + runtimeScientificExponent(rounded.exponent)
+        }
+
+        return sign + runtimeRenderRoundedFixed(
+            digits: rounded.digits,
+            decimalPosition: rounded.exponent + 1,
+            alternateForm: alternateForm
+        )
+    case "a":
+        return sign + runtimeRenderHexFloatingPoint(value.magnitude, specifier: specifier)
+    default:
+        return sign + unsignedShortest
+    }
+}
+
+private func runtimeRenderHexFloatingPoint(
+    _ value: Double,
+    specifier: RuntimeFormatSpecifier
+) -> String {
+    let bits = value.bitPattern
+    let exponentBits = Int((bits >> 52) & 0x7ff)
+    let fractionBits = bits & 0x000f_ffff_ffff_ffff
+    let uppercase = specifier.conversion == "A"
+
+    let body: String
+    if let requestedPrecision = specifier.precision {
+        let precision = max(1, requestedPrecision)
+        let normalized: (significand: UInt64, exponent: Int)
+        if exponentBits == 0 {
+            if fractionBits == 0 {
+                normalized = (0, 0)
+            } else {
+                let highestBit = 63 - fractionBits.leadingZeroBitCount
+                normalized = (
+                    fractionBits << (52 - highestBit),
+                    -1074 + highestBit
+                )
+            }
+        } else {
+            normalized = ((1 << 52) | fractionBits, exponentBits - 1023)
+        }
+
+        var exponent = normalized.exponent
+        var fractionalDigits: String
+        var leadingDigit: UInt64
+        if precision < 13 {
+            let retainedFractionBitCount = precision * 4
+            let droppedBitCount = 52 - retainedFractionBitCount
+            var retained = normalized.significand >> droppedBitCount
+            let remainderMask = (UInt64(1) << droppedBitCount) - 1
+            let remainder = normalized.significand & remainderMask
+            let halfway = UInt64(1) << (droppedBitCount - 1)
+            if remainder > halfway || (remainder == halfway && !retained.isMultiple(of: 2)) {
+                retained += 1
+            }
+            if retained == UInt64(1) << (retainedFractionBitCount + 1) {
+                retained = UInt64(1) << retainedFractionBitCount
+                exponent += 1
+            }
+            leadingDigit = retained >> retainedFractionBitCount
+            let retainedFractionMask = (UInt64(1) << retainedFractionBitCount) - 1
+            let retainedFraction = retained & retainedFractionMask
+            fractionalDigits = runtimePaddedHexDigits(retainedFraction, count: precision)
+        } else {
+            leadingDigit = normalized.significand >> 52
+            let normalizedFraction = normalized.significand & 0x000f_ffff_ffff_ffff
+            fractionalDigits = runtimePaddedHexDigits(normalizedFraction, count: 13)
+                + String(repeating: "0", count: precision - 13)
+        }
+        body = "0x\(String(leadingDigit, radix: 16)).\(fractionalDigits)p\(exponent)"
+    } else if exponentBits == 0 {
+        if fractionBits == 0 {
+            body = "0x0.0p0"
+        } else {
+            let fraction = runtimeTrimTrailingHexZeros(
+                runtimePaddedHexDigits(fractionBits, count: 13)
+            )
+            body = "0x0.\(fraction)p-1022"
+        }
+    } else {
+        let fraction = runtimeTrimTrailingHexZeros(
+            runtimePaddedHexDigits(fractionBits, count: 13)
+        )
+        body = "0x1.\(fraction.isEmpty ? "0" : fraction)p\(exponentBits - 1023)"
+    }
+
+    return uppercase ? body.uppercased() : body
+}
+
+private func runtimePaddedHexDigits(_ value: UInt64, count: Int) -> String {
+    let digits = String(value, radix: 16)
+    return String(repeating: "0", count: max(0, count - digits.count)) + digits
+}
+
+private func runtimeTrimTrailingHexZeros(_ value: String) -> String {
+    var trimmed = value
+    while trimmed.last == "0" {
+        trimmed.removeLast()
+    }
+    return trimmed
+}
+
 private func runtimeFormatCharacterValue(_ value: RuntimeValue) -> String {
     let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(value))
     guard let scalar = UnicodeScalar(scalarValue) else {
@@ -328,11 +684,16 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 private func runtimeLocalizeFormattedNumber(
     _ rendered: String,
     specifier: RuntimeFormatSpecifier,
-    locale: Locale?
+    locale: Locale?,
+    applyWidth: Bool = false
 ) -> String {
     let decimalSeparator = locale?.decimalSeparator ?? "."
     guard specifier.usesGroupingSeparator else {
-        return rendered.replacingOccurrences(of: ".", with: decimalSeparator)
+        let localized = rendered.replacingOccurrences(of: ".", with: decimalSeparator)
+        let parenthesized = runtimeParenthesizeNegativeValue(localized, specifier: specifier)
+        return applyWidth
+            ? runtimeApplyNumericWidth(parenthesized, specifier: specifier)
+            : parenthesized
     }
     let groupingSeparator = locale?.groupingSeparator ?? ","
 
@@ -356,13 +717,51 @@ private func runtimeLocalizeFormattedNumber(
 
     // `java.util.Formatter` groups the value digits first and zero-pads afterwards,
     // so the padding zeros themselves stay ungrouped.
-    let value = sign + grouped(digits) + remainder
-    let zeroPads = specifier.flags.contains("0") && !specifier.flags.contains("-")
-    if let width = specifier.width, zeroPads, value.count < width {
-        return sign + String(repeating: "0", count: width - value.count)
-            + grouped(digits) + remainder
+    let value = runtimeParenthesizeNegativeValue(
+        sign + grouped(digits) + remainder,
+        specifier: specifier
+    )
+    return runtimeApplyNumericWidth(value, specifier: specifier)
+}
+
+private func runtimeParenthesizeNegativeValue(
+    _ value: String,
+    specifier: RuntimeFormatSpecifier
+) -> String {
+    guard specifier.usesParenthesesForNegativeValues, value.hasPrefix("-") else {
+        return value
     }
-    return runtimeApplyStringWidth(value, specifier: specifier)
+    return "(" + value.dropFirst() + ")"
+}
+
+private func runtimeApplyNumericWidth(_ value: String, specifier: RuntimeFormatSpecifier) -> String {
+    guard let width = specifier.width, value.count < width else {
+        return value
+    }
+    let paddingCount = width - value.count
+    if specifier.flags.contains("-") {
+        return value + String(repeating: " ", count: paddingCount)
+    }
+    if specifier.flags.contains("0"), runtimeNumericValueAllowsZeroPadding(value) {
+        if value.hasPrefix("("), value.hasSuffix(")") {
+            return "(" + String(repeating: "0", count: paddingCount) + value.dropFirst().dropLast() + ")"
+        }
+
+        let sign = String(value.prefix { "-+ ".contains($0) })
+        let unsigned = String(value.dropFirst(sign.count))
+        if unsigned.hasPrefix("0x") || unsigned.hasPrefix("0X") {
+            return sign + unsigned.prefix(2) + String(repeating: "0", count: paddingCount) + unsigned.dropFirst(2)
+        }
+        return sign + String(repeating: "0", count: paddingCount) + unsigned
+    }
+    return String(repeating: " ", count: paddingCount) + value
+}
+
+private func runtimeNumericValueAllowsZeroPadding(_ value: String) -> Bool {
+    let unwrapped = value
+        .trimmingCharacters(in: CharacterSet(charactersIn: "-+ ()"))
+        .lowercased()
+    return unwrapped != "nan" && unwrapped != "infinity"
 }
 
 // MARK: - Public @_cdecl functions: String.format

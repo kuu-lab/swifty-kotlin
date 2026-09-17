@@ -71,6 +71,53 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func durationParsingBridgesMatchThrowingAndReturnContracts() throws {
+        let expected: [(name: String, isThrowing: Bool)] = [
+            ("kk_duration_parse", true),
+            ("kk_duration_parseOrNull", false),
+            ("kk_duration_parseIsoString", true),
+            ("kk_duration_parseIsoStringOrNull", false),
+        ]
+
+        for item in expected {
+            let spec = try requireSpec(item.name)
+            let expectedTypes: [RuntimeABICType] = [.intptr]
+                + (item.isThrowing ? [.nullableIntptrPointer] : [])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == expectedTypes)
+            #expect(spec.isThrowing == item.isThrowing)
+            #expect(
+                RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name) == !item.isThrowing,
+                "Non-throwing set disagrees with \(item.name)"
+            )
+        }
+    }
+
+    @Test
+    func listBoundsSignaturesIncludeThrowingChannel() throws {
+        let expected: [(name: String, parameters: [String])] = [
+            ("__kk_list_get", ["listRaw", "index", "outThrown"]),
+            ("kk_list_iterator_next", ["iterRaw", "outThrown"]),
+            ("__kk_mutable_list_removeAt", ["listRaw", "index", "outThrown"]),
+        ]
+        for item in expected {
+            let spec = try requireSpec(item.name)
+            #expect(spec.parameters.map(\.name) == item.parameters)
+            #expect(spec.parameters.dropLast().allSatisfy { $0.type == .intptr })
+            #expect(spec.parameters.last?.type == .nullableIntptrPointer)
+            #expect(spec.isThrowing)
+            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name))
+
+            let extern = try #require(RuntimeABIExterns.externDecl(named: item.name))
+            #expect(extern.parameterTypes == spec.parameterTypeStrings)
+            #expect(
+                RuntimeABISpec.generateCHeader().contains(spec.cDeclaration),
+                "Generated C header must expose the throwing list bounds ABI for \(item.name)"
+            )
+        }
+    }
+
+    @Test
     func charNumericBridgeABIsRemoved() {
         for name in ["kk_char_to_int", "kk_char_to_long", "kk_char_to_uint", "kk_char_to_ulong"] {
             #expect(

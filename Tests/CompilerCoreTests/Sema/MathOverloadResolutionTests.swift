@@ -115,6 +115,8 @@ struct MathOverloadResolutionTests {
     fun fqnAbsInt(x: Int): Int = kotlin.math.abs(x)
     fun fqnAbsDouble(x: Double): Double = kotlin.math.abs(x)
     fun fqnSqrtDouble(x: Double): Double = kotlin.math.sqrt(x)
+    fun fqnPI(): Double = kotlin.math.PI
+    fun fqnIntMax(): Int = kotlin.Int.MAX_VALUE
     """#
 
     private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
@@ -888,6 +890,43 @@ struct MathOverloadResolutionTests {
             withSource: source
         )
         #expect(link == nil)
+    }
+
+    @Test func testFQNTopLevelPropertyAndCompanionPropertyResolve() throws {
+        let ctx = try sharedCtx()
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        for (functionName, propertyName, expectedType) in [
+            ("fqnPI", "PI", sema.types.doubleType),
+            ("fqnIntMax", "MAX_VALUE", sema.types.intType),
+        ] {
+            let functionRange = try functionBodyRange(
+                named: functionName,
+                in: ast,
+                interner: ctx.interner
+            )
+            let expression = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      let range = ast.arena.exprRange(exprID),
+                      case let .memberCall(_, callee, _, _, _) = expr,
+                      ctx.interner.resolve(callee) == propertyName,
+                      functionRange.contains(range),
+                      isInUserFile(exprID, ast: ast)
+                else {
+                    return nil
+                }
+                return exprID
+            }.first)
+            #expect(sema.bindings.exprType(for: expression) == expectedType)
+            #expect(
+                sema.bindings.identifierSymbol(for: expression) != nil
+                    || sema.bindings.callBinding(for: expression)?.chosenCallee != nil,
+                "Expected \(propertyName) to bind to a property or its getter"
+            )
+        }
     }
 }
 #endif

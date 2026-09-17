@@ -144,7 +144,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // KSP-682: KProperty0/1/2 and KMutableProperty0/1/2 are bundled Kotlin
-        // source (Stdlib/kotlin/reflect/KProperties.kt) when the stdlib is
+        // source (Stdlib/kotlin/reflect/KProperty.kt) when the stdlib is
         // included; register the synthetic fallback shells only when the bundled
         // source is absent (e.g. compilations without the stdlib).
         if !bundledIndex.contains(

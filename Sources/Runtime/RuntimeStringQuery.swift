@@ -52,9 +52,9 @@ public func kk_char_sequence_length(_ raw: Int) -> Int {
     // KSP-817: Match Kotlin's UTF-16 CharSequence.length contract. The receiver
     // may be any CharSequence implementation (String or StringBuilder handles).
     if let text = runtimeCharSequenceText(from: raw) {
-        return text.utf16.count
+        return runtimeKotlinStringUTF16Length(text)
     }
-    return runtimeStringFromRawOrPanic(raw, caller: #function).utf16.count
+    return runtimeKotlinStringUTF16Length(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
 
 // KSP-1374/1384/1399: CharSequence first/last/single (+ OrNull) are
@@ -162,7 +162,7 @@ public func kk_char_sequence_get(
         )
         return 0
     }
-    let codeUnits = Array(text.utf16)
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -188,7 +188,7 @@ public func kk_char_sequence_subSequence(
         )
         return 0
     }
-    let codeUnits = Array(text.utf16)
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -198,7 +198,9 @@ public func kk_char_sequence_subSequence(
         )
         return 0
     }
-    return runtimeMakeStringRaw(String(decoding: codeUnits[startIndex ..< endIndex], as: UTF16.self))
+    return runtimeMakeStringRaw(
+        runtimeKotlinStringFromUTF16CodeUnits(Array(codeUnits[startIndex ..< endIndex]))
+    )
 }
 
 @_cdecl("__kk_string_get_flat")

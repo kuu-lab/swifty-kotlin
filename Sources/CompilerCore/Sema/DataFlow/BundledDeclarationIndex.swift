@@ -525,6 +525,14 @@ struct BundledDeclarationIndex: Sendable {
             let name = interner.resolve(key.name)
             return (name == "putAll" || name == "remove") && key.arity == 1
         }
+        if ownerFQName == ["kotlin", "collections", "MutableSet"] {
+            // MutableSet.addAll(Collection) is now a source-backed default
+            // (KSP-704), while the retained Array/Iterable/Sequence overloads
+            // are registered as hidden runtime bridges. The bundled index is
+            // arity-only, so these distinct overloads intentionally share one
+            // key and must not emit KSWIFTK-SEMA-0102.
+            return interner.resolve(key.name) == "addAll" && key.arity == 1
+        }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }

@@ -117,6 +117,63 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
     }
 
+    /// KSP-697: after List became source-backed, ControlFlowLowerer can emit
+    /// generic Iterator operations for the source declaration. Once the
+    /// iterator itself is proven to be the concrete list bridge, this pass
+    /// must restore the specialized hasNext/next calls.
+    @Test
+    func testConcreteListIteratorOperationsRewriteToSpecializedBridges() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let listSymbol = defineNominalSymbol(name: "List", interner: interner, symbols: symbols)
+        let listType = types.make(.classType(ClassType(classSymbol: listSymbol)))
+
+        let list = arena.appendExpr(.temporary(0), type: listType)
+        let iterator = arena.appendExpr(.temporary(1), type: types.anyType)
+        let hasNext = arena.appendExpr(.temporary(2), type: types.booleanType)
+        let next = arena.appendExpr(.temporary(3), type: types.anyType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_list_iterator"),
+                    arguments: [list],
+                    result: iterator,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterator_hasNext"),
+                    arguments: [iterator],
+                    result: hasNext,
+                    canThrow: true,
+                    thrownResult: arena.appendTemporary(type: types.anyType)
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterator_next"),
+                    arguments: [iterator],
+                    result: next,
+                    canThrow: true,
+                    thrownResult: arena.appendTemporary(type: types.anyType)
+                ),
+            ],
+            interner: interner,
+            arena: arena
+        )
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(callees.contains("kk_list_iterator"), "List iterator acquisition must remain specialized, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_hasNext"), "List hasNext must use the specialized bridge, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_next"), "List next must use the specialized bridge, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_hasNext"), "Proven list iterator must not keep generic hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_next"), "Proven list iterator must not keep generic next, got: \(callees)")
+    }
+
     /// KSP-699: `mutableListOf` declares a `MutableList` result, so it takes the
     /// ArrayList-tagged bridge like `arrayListOf`. `__kk_list_of` tags its box as
     /// the read-only `List`, which made `is MutableList` answer false.

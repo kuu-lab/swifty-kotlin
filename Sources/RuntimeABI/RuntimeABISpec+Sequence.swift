@@ -564,7 +564,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_indexOf",
@@ -625,7 +626,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_elementAt",

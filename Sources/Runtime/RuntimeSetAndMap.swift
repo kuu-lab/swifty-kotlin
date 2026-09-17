@@ -539,13 +539,13 @@ public func kk_map_is_empty(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_entries")
 public func kk_map_entries(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    let entries = zip(map.keyValues, map.entryValues).map { key, value in
-        runtimeMapEntryNew(key: key, value: value)
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: entries))
+    // MutableMap.entries is a mutable view. Keep this set handle connected to
+    // the map so MutableIterable.removeAll/retainAll can remove through its
+    // iterator rather than mutating a detached entry snapshot.
+    return registerRuntimeObject(RuntimeSetBox(mapEntriesOf: mapRaw))
 }
 
 @_cdecl("__kk_map_keys")
@@ -622,10 +622,20 @@ public func kk_mutable_map_iterator_next(_ iterRaw: Int) -> Int {
     let key = iter.keys[iter.index]
     iter.index += 1
     iter.lastKey = key
+    guard let map = runtimeMapBox(from: iter.mapRaw),
+          let storageIndex = map.index(ofRawKey: key),
+          let value = map.runtimeValue(at: storageIndex)
+    else {
+        return runtimeMutableMapEntryNew(
+            mapRaw: iter.mapRaw,
+            key: RuntimeValue(raw: key),
+            value: RuntimeValue(raw: kk_map_get(iter.mapRaw, key))
+        )
+    }
     return runtimeMutableMapEntryNew(
         mapRaw: iter.mapRaw,
-        key: key,
-        value: kk_map_get(iter.mapRaw, key)
+        key: map.keyValues[storageIndex],
+        value: value
     )
 }
 

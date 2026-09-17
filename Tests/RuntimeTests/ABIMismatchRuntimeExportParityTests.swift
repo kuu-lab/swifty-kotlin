@@ -59,6 +59,43 @@ struct ABIMismatchRuntimeExportParityTests {
     }
 
     @Test
+    func testMigratedBridgeExportsPreserveThrowingChannelContract() throws {
+        let expected: [(name: String, isThrowing: Bool)] = [
+            ("kk_duration_parse", true),
+            ("kk_duration_parseOrNull", false),
+            ("kk_duration_parseIsoString", true),
+            ("kk_duration_parseIsoStringOrNull", false),
+            ("kk_sequence_filterNot", false),
+            ("kk_sequence_contains", false),
+            ("kk_sequence_elementAtOrNull", false),
+            ("__kk_mutable_list_add", true),
+            ("__kk_mutable_set_add", true),
+            ("__kk_mutable_map_put", true),
+        ]
+        let exportsByName = Dictionary(grouping: try runtimeExportedABIs(), by: \.name)
+        let specsByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
+
+        for item in expected {
+            let export = try #require(exportsByName[item.name]?.first, "Missing runtime export \(item.name)")
+            let spec = try #require(specsByName[item.name]?.first, "Missing RuntimeABISpec entry \(item.name)")
+            let exportHasThrownChannel = export.parameterTypes.last == RuntimeABICType.nullableIntptrPointer.rawValue
+            #expect(spec.isThrowing == item.isThrowing)
+            #expect(
+                exportHasThrownChannel == item.isThrowing,
+                "Runtime export \(item.name) has the wrong throwing channel"
+            )
+            #expect(
+                spec.parameters.map(\.type.rawValue) == export.parameterTypes,
+                "Runtime export \(item.name) parameter types must match RuntimeABISpec"
+            )
+            #expect(
+                spec.returnType.rawValue == export.returnType,
+                "Runtime export \(item.name) return type must match RuntimeABISpec"
+            )
+        }
+    }
+
+    @Test
     func testSpecOnlyRuntimeABINamesAreExplicitlyAllowed() throws {
         let exportedNames = Set(try runtimeExportedABIs().map { $0.name })
         let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })

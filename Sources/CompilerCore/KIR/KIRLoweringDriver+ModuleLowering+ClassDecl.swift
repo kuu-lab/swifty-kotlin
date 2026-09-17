@@ -15,7 +15,7 @@ extension KIRLoweringDriver {
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        let (directMembers, allDecls) = memberLowerer.lowerMemberDecls(
+        let (directMembers, memberDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: classDecl.memberFunctions,
             memberProperties: classDecl.memberProperties,
             nestedClasses: classDecl.nestedClasses,
@@ -23,6 +23,14 @@ extension KIRLoweringDriver {
             shared: shared,
             compilationCtx: compilationCtx
         )
+        var allDecls = memberDecls
+        if sema.symbols.symbol(symbol)?.kind == .enumClass {
+            allDecls.append(contentsOf: memberLowerer.lowerEnumEntryMemberFunctions(
+                classDecl: classDecl,
+                shared: shared,
+                compilationCtx: compilationCtx
+            ))
+        }
         var finalDirectMembers = directMembers
         let forwardingDeclIDs = synthesizeClassDelegationForwardingMethods(
             classSymbol: symbol,

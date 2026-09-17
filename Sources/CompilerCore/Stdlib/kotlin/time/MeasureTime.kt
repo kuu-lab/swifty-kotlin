@@ -1,5 +1,7 @@
 package kotlin.time
 
+import kotlin.time.nanoseconds
+
 // KSP-472
 // measureTime / measureTimedValue.
 // Migration source: Sources/Runtime/RuntimeDuration.swift

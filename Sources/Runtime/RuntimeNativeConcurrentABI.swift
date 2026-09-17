@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 
-// MARK: - Native Concurrent ABI (STDLIB-NATIVE-CONCURRENT-ABI-001..007)
+// MARK: - Native Concurrent ABI (STDLIB-NATIVE-CONCURRENT-ABI-001..003, 005..006)
 //
 // Implements the runtime entry-points required by the Kotlin/Native
 // concurrent standard library:
@@ -12,7 +12,6 @@ import Foundation
 //                                     kk_future_is_ready / kk_future_getState /
 //                                     kk_future_invoke
 //   ABI-003  TransferMode           — kk_transfer_object  (SAFE freezes; UNSAFE is pass-through)
-//   ABI-004  FreezableAtomicReference<T> — kk_freezable_atomic_ref_create / _load / _store / _is_frozen
 //   ABI-005  Worker.executeAfter    — kk_worker_execute_after
 //   ABI-006  Worker receiver helpers — kk_worker_process_queue / kk_worker_park /
 //                                      kk_worker_platform_thread_id /
@@ -400,130 +399,6 @@ public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     }
     // UNSAFE: pass through — caller is responsible for safety.
     return objectRaw
-}
-
-// MARK: - ABI-004  FreezableAtomicReference<T>
-
-/// Runtime backing for `kotlin.native.concurrent.FreezableAtomicReference<T>`.
-///
-/// A reference cell that may be written at most once after which it is
-/// permanently frozen.  Subsequent stores with a *different* value are
-/// rejected (return 0); stores with the same value are idempotent (return 1).
-final class RuntimeFreezableAtomicRefBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _valueRaw: Int
-    private var _frozen: Bool = false
-
-    init(initial: Int) {
-        _valueRaw = initial
-    }
-
-    var valueRaw: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return _valueRaw
-    }
-
-    var isFrozen: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _frozen
-    }
-
-    /// Store a new value.
-    /// - Returns: 1 on success, 0 if the cell is frozen with a different value.
-    func store(_ newValue: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        if _frozen {
-            // Idempotent if same value; reject otherwise.
-            return _valueRaw == newValue ? 1 : 0
-        }
-        _valueRaw = newValue
-        _frozen = true
-        return 1
-    }
-
-    func compareAndSet(expected: Int, newValue: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard _valueRaw == expected else { return 0 }
-        if _frozen && _valueRaw != newValue {
-            return 0
-        }
-        _valueRaw = newValue
-        _frozen = true
-        return 1
-    }
-
-    func compareAndSwap(expected: Int, newValue: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let oldValue = _valueRaw
-        if oldValue == expected && (!_frozen || oldValue == newValue) {
-            _valueRaw = newValue
-            _frozen = true
-        }
-        return oldValue
-    }
-}
-
-@_cdecl("kk_freezable_atomic_ref_create")
-public func kk_freezable_atomic_ref_create(_ initialRaw: Int) -> Int {
-    return registerRuntimeObject(RuntimeFreezableAtomicRefBox(initial: initialRaw))
-}
-
-@_cdecl("kk_freezable_atomic_ref_load")
-public func kk_freezable_atomic_ref_load(_ refHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: refHandle),
-          let box = tryCast(ptr, to: RuntimeFreezableAtomicRefBox.self)
-    else {
-        return 0
-    }
-    return box.valueRaw
-}
-
-/// Store a value into the freezable reference.
-/// - Returns: 1 on success, 0 if the cell is already frozen with a different value.
-@_cdecl("kk_freezable_atomic_ref_store")
-public func kk_freezable_atomic_ref_store(_ refHandle: Int, _ valueRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: refHandle),
-          let box = tryCast(ptr, to: RuntimeFreezableAtomicRefBox.self)
-    else {
-        return 0
-    }
-    return box.store(valueRaw)
-}
-
-@_cdecl("kk_freezable_atomic_ref_compareAndSet")
-public func kk_freezable_atomic_ref_compareAndSet(_ refHandle: Int, _ expectedRaw: Int, _ newRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: refHandle),
-          let box = tryCast(ptr, to: RuntimeFreezableAtomicRefBox.self)
-    else {
-        return 0
-    }
-    return box.compareAndSet(expected: expectedRaw, newValue: newRaw)
-}
-
-@_cdecl("kk_freezable_atomic_ref_compareAndSwap")
-public func kk_freezable_atomic_ref_compareAndSwap(_ refHandle: Int, _ expectedRaw: Int, _ newRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: refHandle),
-          let box = tryCast(ptr, to: RuntimeFreezableAtomicRefBox.self)
-    else {
-        return 0
-    }
-    return box.compareAndSwap(expected: expectedRaw, newValue: newRaw)
-}
-
-/// Returns 1 if the reference has been frozen (i.e. a value has been published), 0 otherwise.
-@_cdecl("kk_freezable_atomic_ref_is_frozen")
-public func kk_freezable_atomic_ref_is_frozen(_ refHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: refHandle),
-          let box = tryCast(ptr, to: RuntimeFreezableAtomicRefBox.self)
-    else {
-        return 0
-    }
-    return box.isFrozen ? 1 : 0
 }
 
 // MARK: - Worker receiver helpers

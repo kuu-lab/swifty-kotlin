@@ -129,11 +129,21 @@ public func kk_list_size(_ listRaw: Int) -> Int {
 }
 
 @_cdecl("__kk_list_get")
-public func kk_list_get(_ listRaw: Int, _ index: Int) -> Int {
+public func kk_list_get(
+    _ listRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
     guard list.values.indices.contains(index) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIndexOutOfBoundsException(message: "Index: \(index), Size: \(list.values.count)")
+        )
         return 0
     }
     return runtimeCollectionABIValue(list.values[index])
@@ -199,8 +209,9 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
             RuntimeListIteratorBox(
                 values: set.values,
                 removeAction: { index in
-                    guard set.values.indices.contains(index) else { return }
-                    set.values.remove(at: index)
+                    let currentElements = set.elements
+                    guard currentElements.indices.contains(index) else { return }
+                    _ = set.remove(rawValue: currentElements[index])
                 }
             )
         )
@@ -284,12 +295,20 @@ public func kk_list_iterator_hasNext(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("kk_list_iterator_next")
-public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
+public func kk_list_iterator_next(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
         // BUG-231: see kk_list_iterator_hasNext above.
-        return kk_iterator_next(iterRaw)
+        return kk_iterator_next(iterRaw, outThrown)
     }
     guard iter.index < iter.values.count else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateNoSuchElementException(message: "List iterator has no next element.")
+        )
         return 0
     }
     let value = iter.values[iter.index]
@@ -565,11 +584,22 @@ public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
 }
 
 @_cdecl("__kk_mutable_list_removeAt")
-public func kk_mutable_list_removeAt(_ listRaw: Int, _ index: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw),
-          list.values.indices.contains(index)
-    else {
-        return runtimeNullSentinelInt
+public func kk_mutable_list_removeAt(
+    _ listRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
+        return outThrown == nil ? runtimeNullSentinelInt : 0
+    }
+    guard list.values.indices.contains(index) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.values.count)")
+        )
+        return outThrown == nil ? runtimeNullSentinelInt : 0
     }
     var values = list.values
     let removed = values.remove(at: index)

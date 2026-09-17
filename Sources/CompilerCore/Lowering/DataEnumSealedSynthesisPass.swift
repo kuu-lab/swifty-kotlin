@@ -500,6 +500,14 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             existingFunctionSymbols: existingFunctionSymbols,
             interner: ctx.interner
         )
+        appendSyntheticEnumEntryDispatchesIfNeeded(
+            owner: nominalSymbol,
+            entries: entries,
+            module: module,
+            sema: sema,
+            existingFunctionSymbols: existingFunctionSymbols,
+            interner: ctx.interner
+        )
         // valueOf and entries live on the companion (Color.valueOf, Color.entries)
         let valueOfOwner: SemanticSymbol = if let companionSymbol = sema.symbols.companionObjectSymbol(for: nominalSymbol.id),
                                               let companionSym = sema.symbols.symbol(companionSymbol)
