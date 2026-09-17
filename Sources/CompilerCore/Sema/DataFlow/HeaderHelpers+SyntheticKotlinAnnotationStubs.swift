@@ -48,7 +48,7 @@ extension DataFlowSemaPhase {
         )
 
         // kotlin.experimental.ExperimentalTypeInference is now provided by the
-        // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
+        // bundled Kotlin source `Stdlib/kotlin/experimental/inferenceMarker.kt`
         // (KSP-668). No synthetic registration is needed here.
 
         // kotlin.annotation package. KSP-918 owns these six declarations in

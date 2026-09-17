@@ -38,6 +38,16 @@ struct RuntimeHashCollectionTests {
     }
 
     @Test
+    func runtimeMapDoesNotUseCanonicalEquivalenceForStringKeys() {
+        let composed = registerRuntimeObject(RuntimeStringBox("é"))
+        let decomposed = registerRuntimeObject(RuntimeStringBox("e\u{301}"))
+        let map = RuntimeMapBox(keys: [composed], values: [1])
+
+        #expect(!runtimeValuesEqual(composed, decomposed))
+        #expect(map.index(ofRawKey: decomposed) == nil)
+    }
+
+    @Test
     func equalCollectionsHaveEqualRuntimeHashes() {
         let firstKey = registerRuntimeObject(RuntimeStringBox("first"))
         let secondKey = registerRuntimeObject(RuntimeStringBox("second"))

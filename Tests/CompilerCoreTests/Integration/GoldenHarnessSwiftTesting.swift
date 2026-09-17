@@ -61,12 +61,33 @@ private struct GoldenHarnessShard: Equatable {
 private enum GoldenHarnessStaticCases {
     private static let batchSize = 8
 
+    /// Every golden shard performs the same cheap filesystem/ownership
+    /// preflight before selecting its batches. The cross-suite audit is kept
+    /// outside the selected batch so a duplicate target cannot hide in a
+    /// different shard.
+    private static let inventory: GoldenHarnessCaseInventory = {
+        do {
+            let inventory = try GoldenHarnessCaseDiscovery.preflightAllSuites()
+            print(
+                "GoldenHarness inventory: cases=\(inventory.caseCount) "
+                    + "suites=\(inventory.caseCountBySuite) "
+                    + "profiles=\(inventory.caseCountByProfile) "
+                    + "targeted=\(inventory.targetedCaseKeys.count) "
+                    + "target-contracts=\(inventory.targetContracts.count)"
+            )
+            return inventory
+        } catch {
+            preconditionFailure("GoldenHarness inventory preflight failed: \(error)")
+        }
+    }()
+
     static let lexer = batches(suiteName: "Lexer")
     static let parser = batches(suiteName: "Parser")
     static let sema = batches(suiteName: "Sema")
     static let diagnostics = batches(suiteName: "Diagnostics")
 
     private static func batches(suiteName: String) -> [GoldenHarnessCaseBatch] {
+        _ = inventory
         let cases = GoldenHarness.loadCasesOrCrash(suiteName: suiteName)
         let allBatches = stride(from: 0, to: cases.count, by: batchSize).map { startIndex in
             let endIndex = min(startIndex + batchSize, cases.count)

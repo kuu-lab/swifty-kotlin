@@ -2031,6 +2031,7 @@ final class ControlFlowLowerer {
                 switch instr {
                 case .call,
                      .virtualCall,
+                     .nullAssert,
                      .rethrow:
                     return true
                 default:
@@ -2218,6 +2219,47 @@ final class ControlFlowLowerer {
                 continue
             }
             switch instruction {
+            case let .nullAssert(operand, result):
+                // `OperatorLoweringPass` runs after this source-level control-flow
+                // lowering. Lower the assertion here as well so its thrown value
+                // is routed to the enclosing try/catch exception slot.
+                let notNullResult = arena.appendTemporary(type: arena.exprType(result))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_notnull"),
+                    arguments: [operand],
+                    result: notNullResult,
+                    canThrow: true,
+                    thrownResult: exceptionSlot
+                ))
+                let resultType = arena.exprType(result)
+                let unboxCallee: InternedString? = if let resultType,
+                                                       case .primitive(_, .nonNull) = sema.types.kind(of: resultType)
+                {
+                    BoxingCalleeTable(interner: interner).unboxCallee(
+                        for: resultType,
+                        types: sema.types,
+                        requireNonNull: false
+                    )
+                } else {
+                    nil
+                }
+                if let unboxCallee {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: unboxCallee,
+                        arguments: [notNullResult],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else {
+                    instructions.append(.copy(from: notNullResult, to: result))
+                }
+                let unknownTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+                instructions.append(.constValue(result: unknownTypeToken, value: .intLiteral(0)))
+                instructions.append(.copy(from: unknownTypeToken, to: exceptionTypeSlot))
+                instructions.append(.jumpIfNotNull(value: exceptionSlot, target: thrownTarget))
             case let .call(symbol, callee, arguments, result, _, thrownResult, isSuperCall, qualifiedSuperType)
                 where thrownResult == nil:
                 instructions.append(.call(

@@ -98,7 +98,24 @@ extension CallSupportLowerer {
                 return interner.intern("__kk_string_builder_new")
             case 1:
                 if let firstArgumentType = argumentTypes.first,
-                   !types.isSubtype(types.makeNonNullable(firstArgumentType), types.stringType)
+                   types.isSubtype(types.makeNonNullable(firstArgumentType), types.stringType)
+                {
+                    return interner.intern("__kk_string_builder_new_from_string_flat")
+                }
+                if let firstArgumentType = argumentTypes.first,
+                   let charSequenceSymbol = types.charSequenceInterfaceSymbol,
+                   types.isSubtype(
+                       types.makeNonNullable(firstArgumentType),
+                       types.make(.classType(ClassType(
+                           classSymbol: charSequenceSymbol,
+                           args: [],
+                           nullability: .nonNull
+                       )))
+                   )
+                {
+                    return interner.intern("__kk_string_builder_new_from_char_sequence")
+                }
+                if argumentTypes.first != nil
                 {
                     return interner.intern("__kk_string_builder_new_capacity_checked")
                 }

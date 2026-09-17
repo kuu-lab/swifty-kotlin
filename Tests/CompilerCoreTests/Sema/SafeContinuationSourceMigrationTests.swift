@@ -34,7 +34,7 @@ struct SafeContinuationSourceMigrationTests {
             #expect(!safeContinuationInfo.flags.contains(.synthetic))
             #expect(
                 sourcePath(for: safeContinuation, sema: sema, ctx: ctx)?.contains(
-                    "__bundled_kotlin/coroutines/SafeContinuation/Stdlib.kt"
+                    "__bundled_kotlin/coroutines/SafeContinuationNative.kt"
                 ) == true
             )
 

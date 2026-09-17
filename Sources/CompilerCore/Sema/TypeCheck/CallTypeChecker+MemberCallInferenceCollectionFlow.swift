@@ -471,16 +471,19 @@ extension CallTypeChecker {
             enforceTypeParameterCount: Bool = false,
             matchingReceiverElementType: TypeID? = nil,
             allowNominalIterableReceiver: Bool = false,
+            allowCollectionReceiver: Bool = false,
             allowConcreteForEachReceiver: Bool = false,
             receiverElementType: TypeID? = nil
         ) -> Bool {
             // KSP-978: Generic Iterable group-family calls use the bundled
-            // source declarations; concrete collection receivers keep their
-            // owner-specific paths except for the inline forEach family.
+            // source declarations. Concrete List receivers keep the List path
+            // unless an exact specialized Iterable overload opts in below, and
+            // the inline forEach family also routes concrete List/Set receivers.
             guard !isSequenceReceiver,
-                  ((allowNominalIterableReceiver
-                    ? (isIterableReceiver || !isCollectionReceiver)
-                    : (isCollectionReceiver || (isIterableReceiver && (calleeStr == "none"
+                  ((allowCollectionReceiver && isCollectionReceiver)
+                    || (allowNominalIterableReceiver
+                        ? (isIterableReceiver || !isCollectionReceiver)
+                        : (isCollectionReceiver || (isIterableReceiver && (calleeStr == "none"
                         || calleeStr == "drop"
                         || calleeStr == "dropWhile"
                         || calleeStr == "runningReduce"
@@ -1452,7 +1455,8 @@ extension CallTypeChecker {
             return mapIteratorType
         }
 
-        // KSP-432: Set members are source-backed in Stdlib/kotlin/collections/SetHOF.kt.
+        // KSP-432/KSP-704: Set members are source-backed in
+        // Stdlib/kotlin/collections/Set.kt and SetHOF.kt.
         @discardableResult
         func bindBundledSetSourceFunction() -> Bool {
             guard isSetReceiver, !isSequenceReceiver, !isMapReceiver else {
@@ -2075,6 +2079,25 @@ extension CallTypeChecker {
                 return (keyType, valueType)
             }()
 
+            func sequenceSourceReceiverElementMatches(
+                _ signature: FunctionSignature,
+                actualElementType: TypeID
+            ) -> Bool {
+                // Generic Sequence<T> extensions accept every element type. A
+                // monomorphic extension, however, must only be selected when
+                // its concrete receiver element matches the actual receiver.
+                guard signature.typeParameterSymbols.isEmpty,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return true
+                }
+                return extractIterableOrSequenceElementType(
+                    signatureReceiver,
+                    sema: sema,
+                    interner: interner
+                ) == actualElementType
+            }
+
             func bindBundledSequenceAggregateSource(typeArguments: [TypeID]) {
                 guard isSequenceReceiver else {
                     return
@@ -2096,6 +2119,10 @@ extension CallTypeChecker {
                             return false
                         }
                         return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                            && sequenceSourceReceiverElementMatches(
+                                signature,
+                                actualElementType: collectionElementType
+                            )
                     }) {
                         chosenCallee = candidate
                         break
@@ -2169,6 +2196,10 @@ extension CallTypeChecker {
                             return false
                         }
                         return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                            && sequenceSourceReceiverElementMatches(
+                                signature,
+                                actualElementType: collectionElementType
+                            )
                     }) {
                         chosenCallee = candidate
                         break
@@ -2210,6 +2241,7 @@ extension CallTypeChecker {
             var sourceBackedSequenceAggregateTypeArguments: [TypeID]?
             var sourceBackedIterableAggregateTypeArguments: [TypeID]?
             var sourceBackedIterableAggregateMatchingParameterTypes: [TypeID]?
+            var preferFloatingPointIterableMinSource = false
             let resultType: TypeID
             let listResultType: TypeID = if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                 sema.types.make(.classType(ClassType(
@@ -4815,7 +4847,16 @@ extension CallTypeChecker {
                         return failedType
                     }
                 }
-                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                // KUU-553: concrete Float/Double Lists must use the exact
+                // Iterable overloads. The generic List<T> declarations erase
+                // the floating-point specialization before code generation.
+                let isFloatingPointMin = (calleeStr == "min" || calleeStr == "minOrNull")
+                    && (collectionElementType == sema.types.doubleType
+                        || collectionElementType == sema.types.floatType)
+                preferFloatingPointIterableMinSource = isFloatingPointMin
+                if !isFloatingPointMin {
+                    _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                }
                 if calleeStr == "min" || calleeStr == "minOrNull" {
                     sourceBackedIterableAggregateTypeArguments = if collectionElementType == sema.types.doubleType || collectionElementType == sema.types.floatType {
                         []
@@ -5473,7 +5514,8 @@ extension CallTypeChecker {
                    matchingParameterTypes: sourceBackedIterableAggregateMatchingParameterTypes,
                    enforceTypeParameterCount: true,
                    matchingReceiverElementType: collectionElementType,
-                   allowNominalIterableReceiver: true
+                   allowNominalIterableReceiver: true,
+                   allowCollectionReceiver: preferFloatingPointIterableMinSource
                )
             {
                 for argument in args
@@ -5522,6 +5564,25 @@ extension CallTypeChecker {
             // an already-bound CallBinding from a list/aggregate source path.
             if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
+            }
+
+            // Sequence.sum()/average() currently have only the Int source
+            // overloads. Do not let an unsupported concrete element type fall
+            // through to the raw runtime bridge with the wrong ABI shape.
+            if isSequenceReceiver,
+               sema.bindings.callBindings[id] == nil,
+               ["sum", "average"].contains(calleeStr)
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0024",
+                    "No viable overload found for call.",
+                    range: ast.arena.exprRange(id)
+                )
+                let failedType = safeCall
+                    ? sema.types.makeNullable(sema.types.errorType)
+                    : sema.types.errorType
+                sema.bindings.bindExprType(id, type: failedType)
+                return failedType
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

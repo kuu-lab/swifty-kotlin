@@ -388,6 +388,30 @@ enum MemberRuntimeDispatch {
         }
     }
 
+    /// Members with bundled `RangeHOF.kt` definitions on `UIntRange` /
+    /// `ULongRange` — the two types share the same source-backed HOF
+    /// surface (KSP-1525 / KSP-1527 / KSP-1528).
+    private static let unsignedRangeSourceBackedHOFs: Set<String> = [
+        "iterator", "chunked", "windowed", "take", "drop",
+        "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "forEach",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast",
+        "first_predicate", "firstOrNull_predicate",
+        "last_predicate", "lastOrNull_predicate",
+        "any", "all", "none",
+    ]
+
+    /// Members with bundled `RangeHOF.kt` definitions on `UIntProgression` /
+    /// `ULongProgression`.
+    private static let unsignedProgressionSourceBackedHOFs: Set<String> = [
+        "first", "firstOrNull", "last", "lastOrNull",
+        "iterator", "chunked", "windowed", "take", "drop",
+        "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+    ]
+
     private static func rangeRuntimeName(
         kind: MemberDispatchReceiverKind,
         member: String,
@@ -398,43 +422,19 @@ enum MemberRuntimeDispatch {
         if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
             return "kk_char_range_\(charMember)"
         }
-        if kind == .ulongRange {
-            let sourceBacked: Set<String> = [
-                "iterator", "chunked", "windowed", "take", "drop",
-                "forEach",
-                "reduce", "reduceIndexed", "fold", "foldIndexed",
-                "find", "findLast",
-                "first_predicate", "firstOrNull_predicate",
-                "last_predicate", "lastOrNull_predicate",
-                "any", "all", "none",
-            ]
-            if sourceBacked.contains(member) {
-                return nil
-            }
+        if kind == .ulongRange && Self.unsignedRangeSourceBackedHOFs.contains(member) {
+            return nil
         }
-        if kind == .ulongProgression {
-            let sourceBacked: Set<String> = [
-                "first", "firstOrNull", "last", "lastOrNull",
-                "iterator", "chunked", "windowed", "take", "drop",
-            ]
-            if sourceBacked.contains(member) {
-                return nil
-            }
+        if (kind == .ulongProgression || kind == .uintProgression)
+            && Self.unsignedProgressionSourceBackedHOFs.contains(member)
+        {
+            return nil
         }
         if kind.isULongRangeLike {
             return "kk_ulong_range_\(member)"
         }
         if kind == .uintRange {
-            let sourceBacked: Set<String> = [
-                "iterator", "chunked", "windowed", "take", "drop",
-                "map", "mapIndexed", "mapNotNull",
-                "filter", "filterIndexed", "filterNot",
-                "forEach",
-                "reduce", "reduceIndexed", "fold", "foldIndexed",
-                "find", "findLast",
-                "first_predicate", "firstOrNull", "firstOrNull_predicate",
-                "last_predicate", "lastOrNull", "lastOrNull_predicate",
-                "any", "all", "none",
+            let sourceBacked = Self.unsignedRangeSourceBackedHOFs.union([
                 // KSP-1523: none of these should ever reach the interpolated
                 // fallback below — the isSourceBackedSymbol short-circuit in
                 // CallLowerer+MemberCallDefaultsAndResolution.swift always
@@ -448,19 +448,9 @@ enum MemberRuntimeDispatch {
                 // anyway so the interpolated `"kk_uint_range_\(member)"`
                 // below can never reconstruct a name for a symbol that no
                 // longer exists in Runtime, even in that unreachable case.
-                "isEmpty", "count", "toList", "first", "last", "average", "sorted", "reversed",
-            ]
-            if sourceBacked.contains(member) {
-                return nil
-            }
-        }
-        if kind == .uintProgression {
-            let sourceBacked: Set<String> = [
-                "first", "firstOrNull", "last", "lastOrNull",
-                "iterator", "chunked", "windowed", "take", "drop",
-                "map", "mapIndexed", "mapNotNull",
-                "filter", "filterIndexed", "filterNot",
-            ]
+                "first", "last", "firstOrNull", "lastOrNull",
+                "isEmpty", "count", "toList", "average", "sorted", "reversed",
+            ])
             if sourceBacked.contains(member) {
                 return nil
             }

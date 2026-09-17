@@ -92,10 +92,18 @@ extension TypeCheckHelpers {
         } else {
             "<unknown>"
         }
-        let parsed = parseDeprecatedArguments(deprecatedAnnotation.arguments)
+        let stringValue = { (raw: String) in
+            normalizeAnnotationStringArgument(
+                raw,
+                annotatedSymbol: symbolID,
+                sema: sema,
+                interner: interner
+            )
+        }
+        let parsed = parseDeprecatedArguments(deprecatedAnnotation.arguments, stringValue: stringValue)
         let sinceArguments = annotations.first(where: {
             KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
-        }).map { parseDeprecatedSinceKotlinArguments($0.arguments) }
+        }).map { parseDeprecatedSinceKotlinArguments($0.arguments, stringValue: stringValue) }
 
         // An explicit @Deprecated(level = ERROR) remains authoritative.  The
         // SinceKotlin metadata only refines the default warning level used by
@@ -182,7 +190,10 @@ extension TypeCheckHelpers {
         )
     }
 
-    private func parseDeprecatedArguments(_ arguments: [String]) -> DeprecatedArguments {
+    private func parseDeprecatedArguments(
+        _ arguments: [String],
+        stringValue: (String) -> String
+    ) -> DeprecatedArguments {
         var namedArgs: [String: String] = [:]
         var positionalArgs: [String] = []
 
@@ -199,13 +210,13 @@ extension TypeCheckHelpers {
         }
 
         let messageCandidate = namedArgs["message"] ?? positionalArgs.first
-        let message = messageCandidate.map(normalizeAnnotationStringLiteral) ?? ""
+        let message = messageCandidate.map(stringValue) ?? ""
 
         let levelCandidate = namedArgs["level"] ?? positionalArgs.first(where: { parseDeprecatedLevel($0) != nil })
         let level = parseDeprecatedLevel(levelCandidate) ?? .warning
         let replaceWithCandidate = namedArgs["replacewith"]
             ?? positionalArgs.first(where: { isReplaceWithExpression($0) })
-        let replaceWith = parseReplaceWithExpression(replaceWithCandidate)
+        let replaceWith = parseReplaceWithExpression(replaceWithCandidate, stringValue: stringValue)
 
         return DeprecatedArguments(message: message, level: level, replaceWith: replaceWith)
     }
@@ -216,7 +227,10 @@ extension TypeCheckHelpers {
         case error
     }
 
-    private func parseDeprecatedSinceKotlinArguments(_ arguments: [String]) -> DeprecatedSinceKotlinArguments {
+    private func parseDeprecatedSinceKotlinArguments(
+        _ arguments: [String],
+        stringValue: (String) -> String
+    ) -> DeprecatedSinceKotlinArguments {
         var namedArgs: [String: String] = [:]
         var positionalArgs: [String] = []
 
@@ -236,7 +250,7 @@ extension TypeCheckHelpers {
             guard let raw else {
                 return nil
             }
-            let normalized = normalizeAnnotationStringLiteral(raw)
+            let normalized = stringValue(raw)
             guard !normalized.isEmpty else {
                 return nil
             }
@@ -307,7 +321,10 @@ extension TypeCheckHelpers {
             || normalized.hasPrefix(KnownCompilerAnnotation.replaceWith.qualifiedName + "(")
     }
 
-    private func parseReplaceWithExpression(_ raw: String?) -> String? {
+    private func parseReplaceWithExpression(
+        _ raw: String?,
+        stringValue: (String) -> String
+    ) -> String? {
         guard let raw else {
             return nil
         }
@@ -334,7 +351,7 @@ extension TypeCheckHelpers {
         }
 
         let expressionCandidate = namedArgs["expression"] ?? positionalArgs.first
-        let expression = expressionCandidate.map(normalizeAnnotationStringLiteral) ?? ""
+        let expression = expressionCandidate.map(stringValue) ?? ""
         return expression.isEmpty ? nil : expression
     }
 
@@ -452,6 +469,110 @@ extension TypeCheckHelpers {
             }
         }
         return nil
+    }
+
+    /// Resolves a string-valued annotation argument (`message`, the
+    /// `ReplaceWith` expression, `@DeprecatedSinceKotlin` versions, ...).
+    /// Annotation arguments reach here as raw source text, so a `const val`
+    /// reference like `@Deprecated(MSG)` arrives unevaluated as the bare
+    /// identifier; when it resolves to a `const val` holding a string
+    /// literal, the constant's value is used for the diagnostic.
+    private func normalizeAnnotationStringArgument(
+        _ raw: String,
+        annotatedSymbol symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        if let resolved = resolveStringConstantReference(
+            raw,
+            annotatedSymbol: symbolID,
+            sema: sema,
+            interner: interner
+        ) {
+            return resolved
+        }
+        return normalizeAnnotationStringLiteral(raw)
+    }
+
+    /// Resolves an identifier path (`MSG`, `Outer.MSG`, `pkg.Outer.MSG`) to the
+    /// string literal stored by a `const val`. The argument is looked up in the
+    /// lexical scope of the annotated declaration: the declaration's innermost
+    /// container first, then outward through its package to the root.
+    private func resolveStringConstantReference(
+        _ raw: String,
+        annotatedSymbol symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // String literals are handled by normalizeAnnotationStringLiteral.
+        guard extractKotlinStringLiteralContent(value) == nil else {
+            return nil
+        }
+        let components = value.split(separator: ".").map(String.init)
+        guard !components.isEmpty,
+              components.joined(separator: ".") == value,
+              components.allSatisfy(isSimpleKotlinIdentifier),
+              let annotated = sema.symbols.symbol(symbolID)
+        else {
+            return nil
+        }
+
+        let annotatedFileID = sema.symbols.sourceFileID(for: symbolID)
+        let path = components.map { interner.intern($0) }
+        var container = Array(annotated.fqName.dropLast())
+        while true {
+            if let resolved = lookupStringConstant(
+                fqName: container + path,
+                annotatedFileID: annotatedFileID,
+                sema: sema,
+                interner: interner
+            ) {
+                return resolved
+            }
+            if container.isEmpty {
+                return nil
+            }
+            container.removeLast()
+        }
+    }
+
+    private func lookupStringConstant(
+        fqName: [InternedString],
+        annotatedFileID: FileID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        var fallback: String?
+        for candidateID in sema.symbols.lookupAll(fqName: fqName) {
+            guard let candidate = sema.symbols.symbol(candidateID),
+                  case let .stringLiteral(literal)? = sema.symbols.constValueExprKind(for: candidateID)
+            else {
+                continue
+            }
+            // A `private` top-level const is file-scoped, so it can only be
+            // referenced from the same file as the annotated declaration;
+            // same-file candidates are also preferred when the FQName is
+            // shared by declarations in several files.
+            let sameFile = sema.symbols.sourceFileID(for: candidateID) == annotatedFileID
+            if candidate.visibility == .private && !sameFile {
+                continue
+            }
+            if sameFile {
+                return interner.resolve(literal)
+            }
+            if fallback == nil {
+                fallback = interner.resolve(literal)
+            }
+        }
+        return fallback
+    }
+
+    private func isSimpleKotlinIdentifier(_ component: String) -> Bool {
+        guard let first = component.first, first.isLetter || first == "_" else {
+            return false
+        }
+        return component.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
     }
 
     private func normalizeAnnotationStringLiteral(_ raw: String) -> String {

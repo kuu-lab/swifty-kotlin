@@ -7,6 +7,8 @@ extension CollectionLiteralConstructionLoweringPass {
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
+        canThrow: Bool,
+        thrownResult: KIRExprID?,
         module: KIRModule,
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
@@ -238,6 +240,8 @@ extension CollectionLiteralConstructionLoweringPass {
                     callee: lookup.kkListIteratorNextName,
                     arguments: arguments,
                     result: result,
+                    canThrow: canThrow,
+                    thrownResult: thrownResult,
                     module: module,
                     ctx: ctx,
                     loweredBody: &loweredBody
@@ -340,6 +344,8 @@ extension CollectionLiteralConstructionLoweringPass {
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
+        canThrow: Bool,
+        thrownResult: KIRExprID?,
         module: KIRModule,
         ctx: KIRContext,
         loweredBody: inout KIRLoweringEmitContext
@@ -360,8 +366,8 @@ extension CollectionLiteralConstructionLoweringPass {
                 callee: callee,
                 arguments: arguments,
                 result: tempBoxed,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: canThrow,
+                thrownResult: thrownResult
             ))
             emitNonThrowingCall(
                 callee: unboxCallee,
@@ -375,8 +381,8 @@ extension CollectionLiteralConstructionLoweringPass {
                 callee: callee,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: canThrow,
+                thrownResult: thrownResult
             ))
         }
     }

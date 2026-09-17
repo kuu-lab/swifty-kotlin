@@ -624,6 +624,8 @@ final class LambdaLowerer {
             createCallee = interner.intern("kk_function_create_3")
         case 4:
             createCallee = interner.intern("kk_function_create_4")
+        case 5:
+            createCallee = interner.intern("kk_function_create_5")
         default:
             return nil
         }
