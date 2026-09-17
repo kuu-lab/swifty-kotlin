@@ -187,7 +187,7 @@ private func runtimeRenderFormattedArgument(
         let rendered = String(format: specifier.cStyleToken, arguments: [value])
         return runtimeLocalizeFormattedNumber(rendered, specifier: specifier, locale: locale)
     case "x", "o":
-        let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
+        let value = runtimeFormatIntegerBitPattern(value)
         return String(format: specifier.cStyleToken, arguments: [value])
     case "f", "e", "g":
         let value = runtimeFormatDoubleValue(value)
@@ -263,6 +263,32 @@ private func runtimeFormatIntegerValue(_ value: RuntimeValue) -> Int {
         return Int(runtimeElementToString(value)) ?? 0
     }
     return maybeUnbox(value.payload0)
+}
+
+private func runtimeFormatIntegerBitPattern(_ value: RuntimeValue) -> UInt64 {
+    guard value.tag != RuntimeValue.stringTag else {
+        return UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
+    }
+
+    let argument = value.payload0
+    if let pointer = UnsafeMutableRawPointer(bitPattern: argument),
+       runtimeIsObjectPointer(pointer)
+    {
+        if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+            let intValue = Int32(truncatingIfNeeded: intBox.value)
+            return UInt64(UInt32(bitPattern: intValue))
+        }
+        if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
+            return UInt64(bitPattern: Int64(longBox.value))
+        }
+        if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+            return UInt64(bitPattern: Int64(ulongBox.value))
+        }
+    }
+
+    // Legacy raw callers do not carry a source-width tag. Preserve their
+    // existing 64-bit behavior while boxed Kotlin Int and Long stay distinct.
+    return UInt64(bitPattern: Int64(maybeUnbox(argument)))
 }
 
 private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
