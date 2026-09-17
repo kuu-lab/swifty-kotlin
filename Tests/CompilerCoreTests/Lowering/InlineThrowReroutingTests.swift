@@ -188,6 +188,23 @@ struct InlineThrowReroutingTests {
     }
 
     @Test
+    func testRouteToSlotRewritesCallsWithoutEmittingDispatchJumps() {
+        let routed = InlineThrowRerouting.routeUnprotectedThrowsToSlot(
+            in: [makeCall(), .rethrow(value: KIRExprID(rawValue: 5))],
+            thrownSlot: callerSlot
+        )
+
+        guard case let .call(_, _, _, _, canThrow, thrownResult, _, _) = routed.first else {
+            Issue.record("Expected .call")
+            return
+        }
+        #expect(canThrow)
+        #expect(thrownResult == callerSlot)
+        #expect(routed.count == 2)
+        #expect(routed[1] == .copy(from: KIRExprID(rawValue: 5), to: callerSlot))
+    }
+
+    @Test
     func testDispatchLabelComesFromTheCallerNamespace() {
         // The label must sit above every label the caller already references,
         // sharing the cursor with the expansion's relocated labels and the
