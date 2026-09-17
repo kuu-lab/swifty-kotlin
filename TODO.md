@@ -4167,7 +4167,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.tm` — val Typography.tm: Char  -- `final const val tm`
 
-- [ ] KSP-1472: kotlin.time top-level の未実装 stdlib API を実装する（9 件）
+- [~] KSP-1472: kotlin.time top-level の未実装 stdlib API を実装する（9 件）
   - 対象: `kotlin.time` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4184,8 +4184,9 @@
     - `kotlin.time.TestTimeSource` — class kotlin.time.TestTimeSource  -- `final class kotlin.time/TestTimeSource : kotlin.time/AbstractLongTimeSource {`
     - `kotlin.time.TimeMark` — interface kotlin.time.TimeMark  -- `abstract interface kotlin.time/TimeMark {`
     - `kotlin.time.TimedValue` — class kotlin.time.TimedValue  -- `final class <#A: kotlin/Any?> kotlin.time/TimedValue {`
+  - 2026-09-17 KUU-479: KSP-1472/1474/1477/1478/1479/1484/1485/1490 の 8 タスクを実装し、各 Golden artifact・各 diff ケース・関連 focused Sema・Runtime ABI リンク検証を通過。全 Golden / 全 diff_kotlinc は未実行のため、8 項目は `[~]` とする。
 
-- [ ] KSP-1474: kotlin.time.Monotonic の未実装 stdlib API を実装する（2 件）
+- [~] KSP-1474: kotlin.time.Monotonic の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.time` / receiver `Monotonic`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4196,7 +4197,7 @@
     - `kotlin.time.measureTime` — fun Monotonic.measureTime(Function0): Duration  -- `final inline fun (kotlin.time/TimeSource.Monotonic).kotlin.time/measureTime(kotlin/Function0<kotlin/Unit>): kotlin.time/Duration`
     - `kotlin.time.measureTimedValue` — fun Monotonic.measureTimedValue(Function0): TimedValue  -- `final inline fun <#A: kotlin/Any?> (kotlin.time/TimeSource.Monotonic).kotlin.time/measureTimedValue(kotlin/Function0<#A>): kotlin.time/TimedValue<#A>`
 
-- [ ] KSP-1477: kotlin.time.AbstractDoubleTimeSource.AbstractDoubleTimeSource の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1477: kotlin.time.AbstractDoubleTimeSource.AbstractDoubleTimeSource の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.time.AbstractDoubleTimeSource` / receiver `AbstractDoubleTimeSource`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/AbstractDoubleTimeSource/AbstractDoubleTimeSource.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4208,7 +4209,7 @@
     - `kotlin.time.AbstractDoubleTimeSource.read` — fun AbstractDoubleTimeSource.read(): Double  -- `abstract fun read(): kotlin/Double`
     - `kotlin.time.AbstractDoubleTimeSource.unit` — val AbstractDoubleTimeSource.unit: DurationUnit  -- `final val unit`
 
-- [ ] KSP-1478: kotlin.time.AbstractLongTimeSource top-level の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1478: kotlin.time.AbstractLongTimeSource top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.AbstractLongTimeSource` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/AbstractLongTimeSource/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4218,7 +4219,7 @@
   - 未実装シンボル一覧:
     - `kotlin.time.AbstractLongTimeSource.<init>` — constructor (DurationUnit)  -- `constructor <init>(kotlin.time/DurationUnit)`
 
-- [ ] KSP-1479: kotlin.time.AbstractLongTimeSource.AbstractLongTimeSource の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1479: kotlin.time.AbstractLongTimeSource.AbstractLongTimeSource の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.time.AbstractLongTimeSource` / receiver `AbstractLongTimeSource`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/AbstractLongTimeSource/AbstractLongTimeSource.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4230,7 +4231,7 @@
     - `kotlin.time.AbstractLongTimeSource.read` — fun AbstractLongTimeSource.read(): Long  -- `abstract fun read(): kotlin/Long`
     - `kotlin.time.AbstractLongTimeSource.unit` — val AbstractLongTimeSource.unit: DurationUnit  -- `final val unit`
 
-- [ ] KSP-1484: kotlin.time.Duration.Duration の未実装 stdlib API を実装する（14 件）
+- [~] KSP-1484: kotlin.time.Duration.Duration の未実装 stdlib API を実装する（14 件）
   - 対象: `kotlin.time.Duration` / receiver `Duration`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Duration/Duration.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4253,7 +4254,7 @@
     - `kotlin.time.Duration.toLong` — fun Duration.toLong(DurationUnit): Long  -- `final fun toLong(kotlin.time/DurationUnit): kotlin/Long`
     - `kotlin.time.Duration.toString` — fun Duration.toString(DurationUnit, Int): String  -- `final fun toString(kotlin.time/DurationUnit, kotlin/Int = ...): kotlin/String`
 
-- [ ] KSP-1485: kotlin.time.Duration.Companion.Companion の未実装 stdlib API を実装する（22 件）
+- [~] KSP-1485: kotlin.time.Duration.Companion.Companion の未実装 stdlib API を実装する（22 件）
   - 対象: `kotlin.time.Duration.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Duration/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4284,7 +4285,7 @@
     - `kotlin.time.Duration.Companion.seconds` — val Companion.seconds: Duration  -- `final val seconds`
     - `kotlin.time.Duration.Companion.seconds` — val Companion.seconds: Duration  -- `final val seconds`
 
-- [ ] KSP-1490: kotlin.time.Instant.Companion.Companion の未実装 stdlib API を実装する（6 件）
+- [~] KSP-1490: kotlin.time.Instant.Companion.Companion の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.time.Instant.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Instant/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

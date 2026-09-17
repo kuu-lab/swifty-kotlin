@@ -49,10 +49,12 @@ typealias KKFunctionEntryPoint1 = @convention(c) (Int, UnsafeMutablePointer<Int>
 typealias KKFunctionEntryPoint2 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKFunctionEntryPoint3 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKFunctionEntryPoint4 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint5 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint1 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKClosureFunctionEntryPoint5 = @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
 final class RuntimeStringBox {

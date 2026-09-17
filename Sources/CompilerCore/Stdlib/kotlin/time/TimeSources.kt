@@ -80,10 +80,10 @@ private fun timeSourceUnitShortName(unit: DurationUnit): String = when (unit) {
     DurationUnit.DAYS -> "d"
 }
 
-public abstract class AbstractLongTimeSource protected constructor(
-    unit: DurationUnit
+public abstract class AbstractLongTimeSource(
+    sourceUnit: DurationUnit
 ) : TimeSource.WithComparableMarks {
-    protected val unit: DurationUnit = unit
+    protected val unit: DurationUnit = sourceUnit
 
     protected open abstract fun read(): Long
 
@@ -101,13 +101,13 @@ public abstract class AbstractLongTimeSource protected constructor(
 
     internal fun timeSourceUnit(): DurationUnit = unit
 
-    override fun markNow(): ComparableTimeMark = AbstractLongTimeMark(adjustedRead(), this, timeSourceDurationZero())
+    public open override fun markNow(): ComparableTimeMark = AbstractLongTimeMark(adjustedRead(), this, timeSourceDurationZero())
 }
 
 public abstract class AbstractDoubleTimeSource(
-    unit: DurationUnit
+    sourceUnit: DurationUnit
 ) : TimeSource.WithComparableMarks {
-    protected val unit: DurationUnit = unit
+    protected val unit: DurationUnit = sourceUnit
 
     protected open abstract fun read(): Double
 
@@ -115,7 +115,7 @@ public abstract class AbstractDoubleTimeSource(
 
     internal fun timeSourceUnit(): DurationUnit = unit
 
-    override fun markNow(): ComparableTimeMark = AbstractDoubleTimeMark(currentReading(), this, timeSourceDurationZero())
+    public open override fun markNow(): ComparableTimeMark = AbstractDoubleTimeMark(currentReading(), this, timeSourceDurationZero())
 }
 
 internal class AbstractLongTimeMark(

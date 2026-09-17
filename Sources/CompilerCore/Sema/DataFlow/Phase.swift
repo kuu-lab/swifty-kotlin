@@ -122,6 +122,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1472: ExperimentalTime is source-backed, but the opt-in bootstrap
+        // registers its constructor and metadata before ordinary bundled headers.
+        // Claim the real annotation header first so that bootstrap can augment it
+        // instead of creating a second annotation class with the same FQName.
+        predeclareBundledExperimentalTimeHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1337: make the source-backed KVariance enum available before
         // reflection synthetic stubs construct signatures that reference it.
         predeclareBundledKVarianceHeaders(

@@ -10,7 +10,7 @@ expr e@9:17 name(source) type=kotlin.time.TestTimeSource ref=__local_0.source[ki
 expr e@9:17#1 memberCall recv=e@9:17 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractLongTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractLongTimeSource;params=]
 expr e@9:5 localDecl mark1 mutable=0 type=_ init=e@9:17#1 type=Unit ref=__local_1.mark1[kind=local]
 expr e@10:15 int(5) type=Int
-expr e@10:15#1 memberCall recv=e@10:15 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.milliseconds.$get[kind=fun;recv=Int;params=]
+expr e@10:15#1 memberCall recv=e@10:15 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Int;params=]
 expr e@10:5 compoundAssign(plusAssign) name=source value=e@10:15#1 type=Unit ref=__local_0.source[kind=local] call=kotlin.time.TestTimeSource.plusAssign[kind=fun;recv=kotlin.time.TestTimeSource;params=kotlin.time.Duration]
 expr e@11:17 name(source) type=kotlin.time.TestTimeSource ref=__local_0.source[kind=local]
 expr e@11:17#1 memberCall recv=e@11:17 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractLongTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractLongTimeSource;params=]

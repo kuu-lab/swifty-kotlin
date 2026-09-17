@@ -667,6 +667,40 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1472: forward-declare the source-backed `kotlin.time.ExperimentalTime`
+    /// annotation before the experimental-time bootstrap attaches its residual
+    /// constructor and opt-in metadata.
+    func predeclareBundledExperimentalTimeHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("time")]
+        let targetName = interner.intern("ExperimentalTime")
+        for file in ast.sortedFiles
+            where sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+                && sourceManager.path(of: file.fileID) == "__bundled_kotlin/time/ExperimentalTime.kt"
+                && file.packageFQName == packageFQName
+        {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1522: forward-declares the source-backed `kotlin.random.Random` and
     /// `java.util.Random` nominal types before synthetic collection and Sequence
     /// members resolve their parameter types. `PlatformRandom.kt` can also be
@@ -1958,6 +1992,19 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
+            // declared in bundled source while early bootstrap still creates
+            // compatibility shells for their signatures.
+            || resolvedFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "AbstractLongTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "Clock"]
+            || resolvedFQName == ["kotlin", "time", "ComparableTimeMark"]
+            || resolvedFQName == ["kotlin", "time", "ExperimentalTime"]
+            || resolvedFQName == ["kotlin", "time", "Instant"]
+            || resolvedFQName == ["kotlin", "time", "TestTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "TimeMark"]
+            || resolvedFQName == ["kotlin", "time", "TimeSource"]
+            || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
