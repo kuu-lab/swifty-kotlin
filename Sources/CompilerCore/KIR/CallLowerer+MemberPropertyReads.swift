@@ -890,11 +890,10 @@ extension CallLowerer {
     /// implicit path used to always take the field load).
     ///
     /// The `getter.body != .unit` test matches that emitter's own condition
-    /// exactly. Delegated properties are included even though the emitter skips
-    /// them: object-literal property delegation is unimplemented end to end
-    /// (the delegate expression is never stored either), and failing loudly at
-    /// link time is preferable to silently reading an unwritten slot. See the
-    /// KSP-CAP-018 ledger entry.
+    /// exactly. Delegated properties are included because the same emitter
+    /// synthesizes their getValue/setValue-forwarding accessors via
+    /// `MemberLowerer.lowerDelegateAccessor` (BUG-267) — keeping them in this
+    /// predicate is what makes explicit and implicit reads agree.
     func objectLiteralPropertyUsesAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,
