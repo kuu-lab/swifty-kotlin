@@ -380,37 +380,6 @@ extension CallLowerer {
             )
         }()
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-        // `String.equals(String?)` is source-backed, but its public API still
-        // has a flat-string runtime primitive as the implementation bridge.
-        // Keep explicit member calls on that ABI (the same path used by the
-        // binary equality lowerer) instead of emitting a bare `equals` symbol
-        // and relying on a separately generated wrapper body. Restrict this
-        // to the String-parameter overload so inherited `Any.equals(Any?)`
-        // calls on a String receiver retain their normal dispatch semantics.
-        let isStringEqualsCall: Bool = {
-            guard interner.resolve(calleeName) == "equals",
-                  normalizedArgIDs.count == 1,
-                  let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
-                  chosen != .invalid,
-                  let signature = sema.symbols.functionSignature(for: chosen),
-                  signature.parameterTypes.count == 1
-            else {
-                return false
-            }
-            return sema.types.makeNonNullable(signature.parameterTypes[0]) == sema.types.stringType
-        }()
-        if isStringEqualsCall
-        {
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_string_equals_flat"),
-                arguments: [loweredReceiverID, normalizedArgIDs[0]],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
         let chosenBase64Callee: SymbolID? = {
             guard let selected = sema.bindings.callBindings[exprID]?.chosenCallee, selected != .invalid else {
                 return nil
