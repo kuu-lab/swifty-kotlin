@@ -23,58 +23,33 @@ final class InlineLoweringPass: LoweringPass {
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         let unitType = ctx.sema?.types.unitType
-        var inlineFunctionsBySymbol = Dictionary(uniqueKeysWithValues: module.arena.declarations.compactMap { decl -> (SymbolID, KIRFunction)? in
-            guard case let .function(function) = decl, function.isInline else {
-                return nil
-            }
-            return (function.symbol, function)
-        })
-        if let imported = ctx.sema?.importedInlineFunctions {
-            for symbol in imported.keys.sorted(by: { $0.rawValue < $1.rawValue }) where inlineFunctionsBySymbol[symbol] == nil {
-                inlineFunctionsBySymbol[symbol] = imported[symbol]
-            }
-        }
-        // Build a lookup of all KIR functions by symbol so that lambda bodies
-        // can be resolved during inline expansion.
-        var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
-        for decl in module.arena.declarations {
-            if case let .function(function) = decl {
-                allFunctionsBySymbol[function.symbol] = function
-            }
-        }
-
-        // Callees whose body never reaches an object file: auto-inline
-        // (`isInlineOnly`) overloads of this module, and every inline function
-        // imported from a library (the metadata does not carry `isInlineOnly`,
-        // and an artifact omits auto-inline bodies).
-        var bodylessInlineSymbols = Set(inlineFunctionsBySymbol.filter { $0.value.isInlineOnly }.keys)
-        if let imported = ctx.sema?.importedInlineFunctions {
-            bodylessInlineSymbols.formUnion(imported.keys)
-        }
+        // The expansion-target index snapshots every body the pass can
+        // splice: module declarations (regular, `inline`, lambda bodies) and
+        // imported inline metadata, classified per symbol.
+        var index = InlineExpansionIndex(
+            module: module,
+            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? [:]
+        )
 
         // An inline body — or a lambda body that gets spliced into its caller —
-        // can itself call one of those functions. Both snapshots above predate
-        // any expansion, so splicing such a body into a caller would leave a
+        // can itself call a bodyless function. The snapshots predate any
+        // expansion, so splicing such a body into a caller would leave a
         // call to a symbol that no object file defines. Expand those nested
         // calls inside the snapshots first.
         expandNestedBodylessInlineCalls(
-            bodylessInlineSymbols: bodylessInlineSymbols,
-            inlineFunctionsBySymbol: &inlineFunctionsBySymbol,
-            allFunctionsBySymbol: &allFunctionsBySymbol,
+            index: &index,
             module: module,
             ctx: ctx,
             unitType: unitType
         )
 
-        let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
-        let inlineFunctionsByName = Dictionary(grouping: sortedInlineFunctions, by: \.name)
+        let inlineFunctionsByName = index.inlineFunctionsByName
 
         module.arena.transformFunctions { [self] function in
             inlineTransform(
                 function: function,
-                inlineFunctionsBySymbol: inlineFunctionsBySymbol,
+                index: index,
                 inlineFunctionsByName: inlineFunctionsByName,
-                allFunctionsBySymbol: allFunctionsBySymbol,
                 module: module,
                 ctx: ctx,
                 unitType: unitType
@@ -83,144 +58,12 @@ final class InlineLoweringPass: LoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// Rewrite the bodies that later get spliced into callers so they no longer
-    /// call functions whose body never reaches codegen. Every round re-expands
-    /// the *original* body against the improved callee snapshots, so a body is
-    /// never spliced twice. Bounded to keep delegation chains from expanding
-    /// without limit.
-    private func expandNestedBodylessInlineCalls(
-        bodylessInlineSymbols: Set<SymbolID>,
-        inlineFunctionsBySymbol: inout [SymbolID: KIRFunction],
-        allFunctionsBySymbol: inout [SymbolID: KIRFunction],
-        module: KIRModule,
-        ctx: KIRContext,
-        unitType: TypeID?
-    ) {
-        guard !bodylessInlineSymbols.isEmpty else { return }
-        var originals = allFunctionsBySymbol
-        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue })
-            where originals[symbol] == nil
-        {
-            originals[symbol] = function
-        }
-        var expandedBySymbol: [SymbolID: KIRFunction] = [:]
-
-        for _ in 0 ..< 4 {
-            // Expanding a snapshot appends expressions to the module arena. A
-            // Dictionary's per-instance iteration order must not choose IDs.
-            let pending = originals.values
-                .filter { function in
-                    let current = expandedBySymbol[function.symbol] ?? function
-                    return current.body.contains { instruction in
-                        guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
-                              let symbol, symbol != function.symbol
-                        else {
-                            return false
-                        }
-                        return bodylessInlineSymbols.contains(symbol)
-                    }
-                }
-                .sorted(by: { lhs, rhs in
-                    let lhsName = ctx.interner.resolve(lhs.name)
-                    let rhsName = ctx.interner.resolve(rhs.name)
-                    if lhsName != rhsName { return lhsName < rhsName }
-                    if lhs.params.count != rhs.params.count { return lhs.params.count < rhs.params.count }
-                    if let lhsRange = lhs.sourceRange, let rhsRange = rhs.sourceRange {
-                        if lhsRange.start.file.rawValue != rhsRange.start.file.rawValue {
-                            return lhsRange.start.file.rawValue < rhsRange.start.file.rawValue
-                        }
-                        if lhsRange.start.offset != rhsRange.start.offset {
-                            return lhsRange.start.offset < rhsRange.start.offset
-                        }
-                        if lhsRange.end.offset != rhsRange.end.offset {
-                            return lhsRange.end.offset < rhsRange.end.offset
-                        }
-                    } else if lhs.sourceRange != nil {
-                        return false
-                    } else if rhs.sourceRange != nil {
-                        return true
-                    }
-                    return lhs.symbol.rawValue < rhs.symbol.rawValue
-                })
-            guard !pending.isEmpty else { return }
-            let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
-            let byName = Dictionary(grouping: sortedInlineFunctions, by: \.name)
-            for function in pending {
-                let expanded = inlineTransform(
-                    function: function,
-                    inlineFunctionsBySymbol: inlineFunctionsBySymbol,
-                    inlineFunctionsByName: byName,
-                    allFunctionsBySymbol: allFunctionsBySymbol,
-                    module: module,
-                    ctx: ctx,
-                    unitType: unitType
-                )
-                expandedBySymbol[function.symbol] = expanded
-                if inlineFunctionsBySymbol[function.symbol] != nil {
-                    inlineFunctionsBySymbol[function.symbol] = expanded
-                }
-                if allFunctionsBySymbol[function.symbol] != nil {
-                    allFunctionsBySymbol[function.symbol] = expanded
-                }
-            }
-        }
-    }
-
-    /// Upper bound on how many times a function body is re-scanned for inline
-    /// calls. Nested expansions terminate well below this; the cap only keeps
-    /// mutually recursive inline functions from looping forever.
-    private static let maxInlineExpansionRounds = 8
-
-    private func inlineTransform(
-        function: KIRFunction,
-        inlineFunctionsBySymbol: [SymbolID: KIRFunction],
-        inlineFunctionsByName: [InternedString: [KIRFunction]],
-        allFunctionsBySymbol: [SymbolID: KIRFunction],
-        module: KIRModule,
-        ctx: KIRContext,
-        unitType: TypeID?
-    ) -> KIRFunction {
-        var updated = function
-        var body = function.body
-        var locations = function.instructionLocations
-        // An expanded inline body can itself call another inline function
-        // (`Grouping.fold` delegating to `foldTo`). Those calls only become
-        // visible once the outer body is spliced in, and inline functions are
-        // not emitted as standalone symbols, so a call left behind here would
-        // dangle at link time. Re-scan until no inline call remains.
-        for _ in 0 ..< Self.maxInlineExpansionRounds {
-            let expansion = expandInlineCalls(
-                in: body,
-                callerLocations: locations,
-                function: function,
-                inlineFunctionsBySymbol: inlineFunctionsBySymbol,
-                inlineFunctionsByName: inlineFunctionsByName,
-                allFunctionsBySymbol: allFunctionsBySymbol,
-                module: module,
-                ctx: ctx,
-                unitType: unitType
-            )
-            body = expansion.body
-            locations = expansion.locations
-            if !expansion.didExpand {
-                break
-            }
-        }
-
-        updated.replaceBody(body, locations: locations)
-        if updated.body.isEmpty {
-            updated.replaceBody([.returnUnit], locations: [nil])
-        }
-        return updated
-    }
-
-    private func expandInlineCalls(
+    func expandInlineCalls(
         in callerBody: [KIRInstruction],
         callerLocations: [SourceRange?],
         function: KIRFunction,
-        inlineFunctionsBySymbol: [SymbolID: KIRFunction],
+        index: InlineExpansionIndex,
         inlineFunctionsByName: [InternedString: [KIRFunction]],
-        allFunctionsBySymbol: [SymbolID: KIRFunction],
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?
@@ -234,9 +77,9 @@ final class InlineLoweringPass: LoweringPass {
         var aliases: [KIRExprID: KIRExprID] = [:]
         var didExpand = false
 
-        for (index, originalInstruction) in callerBody.enumerated() {
-            loweredBody.currentSourceRange = index < callerLocations.count
-                ? callerLocations[index]
+        for (instructionIndex, originalInstruction) in callerBody.enumerated() {
+            loweredBody.currentSourceRange = instructionIndex < callerLocations.count
+                ? callerLocations[instructionIndex]
                 : nil
             let instruction = InlineExprAliasing.rewriteInstruction(originalInstruction, aliases: aliases)
             if let defined = InlineExprAliasing.definedResult(in: instruction) {
@@ -254,7 +97,7 @@ final class InlineLoweringPass: LoweringPass {
                let lambdaFunction = resolveLambdaFunction(
                    argExpr: callableExpr,
                    arena: module.arena,
-                   allFunctionsBySymbol: allFunctionsBySymbol,
+                   allFunctionsBySymbol: index.allFunctionsBySymbol,
                    callerBody: callerBody
                )
             {
@@ -274,7 +117,7 @@ final class InlineLoweringPass: LoweringPass {
                     lambdaFunction: lambdaFunction,
                     arguments: fullArgs,
                     module: module,
-                    allFunctionsBySymbol: allFunctionsBySymbol,
+                    allFunctionsBySymbol: index.allFunctionsBySymbol,
                     ctx: ctx,
                     labels: &labels
                 ) {
@@ -316,27 +159,15 @@ final class InlineLoweringPass: LoweringPass {
                 }
             }
 
-            // The name fallback only applies to calls whose callee symbol is
-            // unknown here. A call with a *known* callee symbol that isn't a
-            // compiled inline/regular function in this module must not be
-            // redirected to a same-named inline overload from an unrelated
-            // receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`, or a
-            // synthetic/runtime-dispatched member such as the generic
-            // `Iterable<T>.iterator()` used inside `reduce` vs an unrelated
-            // bundled `Map<K, V>.iterator()` -- see KSP-1011). A known symbol
-            // that resolves to neither table is exactly as "not ours to
-            // rename" as one resolving to a known non-inline function: its
-            // own resolution (external link / virtual dispatch) still
-            // applies once this pass is done with it.
-            let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
-                target
-            } else if symbol != nil {
-                nil
-            } else if let byName = inlineFunctionsByName[callee], byName.count == 1 {
-                byName[0]
-            } else {
-                nil
-            }
+            // The index owns the binding rule: a symbol-known call binds
+            // only to its own symbol's snapshot, while a symbol-unknown
+            // call may use the unique by-name candidate (see
+            // `InlineExpansionIndex.inlineTarget`, KSP-1011).
+            let inlineTarget = index.inlineTarget(
+                callSymbol: symbol,
+                callee: callee,
+                inlineFunctionsByName: inlineFunctionsByName
+            )
 
             guard let inlineTarget, inlineTarget.symbol != function.symbol else {
                 loweredBody.append(instruction)
@@ -359,7 +190,7 @@ final class InlineLoweringPass: LoweringPass {
             let expansion = expandInlineCall(
                 inlineTarget: inlineTarget,
                 arguments: expansionArguments,
-                allFunctionsBySymbol: allFunctionsBySymbol,
+                allFunctionsBySymbol: index.allFunctionsBySymbol,
                 module: module,
                 ctx: ctx,
                 callerBody: callerBody,
