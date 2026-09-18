@@ -341,6 +341,63 @@ extension CallLowerer {
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            case let .localValue(localSym) = callableBinding.target,
            let receiverExprType = sema.bindings.exprType(for: receiverExpr) {
+            // Member-property callable invocation: `receiver.prop(args)` where
+            // `prop` is a function-typed member property (KUU-482/BUG-250).
+            // The property symbol is not a local value, so the local-value arm
+            // below cannot resolve it — read `receiver.prop` through the
+            // ordinary member-read path, then invoke the function value
+            // through the runtime kk_function_invoke* ABI.
+            if sema.symbols.symbol(localSym)?.kind == .property,
+               let invokeCallee = runtimeCallableInvokeCallee(
+                   callableValueCallBinding: callableBinding,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                let loweredReceiverID = driver.lowerExpr(
+                    receiverExpr,
+                    shared: shared,
+                    emit: &instructions
+                )
+                if let functionValue = lowerStoredMemberPropertyReadValue(
+                    propertySymbol: localSym,
+                    receiverExpr: receiverExpr,
+                    loweredReceiverID: loweredReceiverID,
+                    resultType: callableBinding.functionType,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions.instructions
+                ) {
+                    let loweredArgIDs = args.map { argument in
+                        driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+                    }
+                    var invokeArgs = normalizedCallableValueArguments(
+                        providedArguments: loweredArgIDs,
+                        callableValueCallBinding: callableBinding,
+                        sema: sema
+                    )
+                    if fnType.receiver != nil {
+                        // `val action: R.() -> T` invoked as `receiver.action(args)`:
+                        // the call-site receiver is the lambda's dispatch receiver,
+                        // passed right after the function value (mirroring the
+                        // local-value arm below).
+                        invokeArgs.insert(loweredReceiverID, at: 0)
+                    }
+                    let boundType = sema.bindings.exprTypes[exprID] ?? fnType.returnType
+                    let result = arena.appendTemporary(type: boundType)
+                    instructions.append(.call(
+                        symbol: localSym,
+                        callee: invokeCallee,
+                        arguments: [functionValue] + invokeArgs,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
             let maybeReceiverFnType: (FunctionType, Bool)
             if fnType.receiver != nil {
                 maybeReceiverFnType = (fnType, fnType.params.count == args.count)
