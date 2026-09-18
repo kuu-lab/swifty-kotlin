@@ -330,7 +330,6 @@ struct RangeSyntheticMemberLinkTests {
         let orNullExpected: [(owner: String, link: String)] = [
             // IntRange.firstOrNull is source-backed now; no runtime link.
             ("LongRange", "kk_long_range_firstOrNull"),
-            ("ULongRange", "kk_ulong_range_firstOrNull"),
         ]
         for expectation in orNullExpected {
             #expect(
@@ -346,7 +345,6 @@ struct RangeSyntheticMemberLinkTests {
         let lastOrNullExpected: [(owner: String, link: String)] = [
             // IntRange.lastOrNull is source-backed now; no runtime link.
             ("LongRange", "kk_long_range_lastOrNull"),
-            ("ULongRange", "kk_ulong_range_lastOrNull"),
         ]
         for expectation in lastOrNullExpected {
             #expect(

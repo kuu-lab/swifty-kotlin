@@ -452,16 +452,22 @@ extension CallTypeChecker {
         if memberName == "first" || memberName == "firstOrNull"
             || memberName == "last" || memberName == "lastOrNull"
         {
-            return argCount == 0
+            return memberName == "first" || memberName == "last"
+                ? argCount == 0
+                : argCount == 0 || argCount == 1
         }
         if memberName == "windowed" {
             return (1...3).contains(argCount)
+        }
+        if ["isEmpty", "toList", "count", "sum", "reversed"].contains(memberName) {
+            return argCount == 0
         }
         guard argCount == 1 else { return false }
         return [
             "map", "mapIndexed", "mapNotNull",
             "filter", "filterIndexed", "filterNot",
             "chunked", "take", "drop",
+            "contains", "isEmpty", "toList", "count", "sum", "reversed",
         ].contains(memberName)
     }
 
@@ -495,7 +501,9 @@ extension CallTypeChecker {
         if memberName == "first" || memberName == "last"
             || memberName == "firstOrNull" || memberName == "lastOrNull"
         {
-            return argCount > 0
+            return memberName == "first" || memberName == "last"
+                ? argCount > 0
+                : argCount == 0 || argCount == 1
         }
         let sourceBacked: Set<String> = [
             "map", "mapIndexed", "mapNotNull",
@@ -506,8 +514,13 @@ extension CallTypeChecker {
             "firstOrNull", "lastOrNull",
             "any", "all", "none",
             "chunked", "windowed", "take", "drop",
+            "isEmpty", "toList", "count", "sum", "reversed",
+            "sorted",
         ]
         if sourceBacked.contains(memberName) {
+            if ["isEmpty", "toList", "count", "sum", "reversed", "sorted"].contains(memberName) {
+                return argCount == 0
+            }
             if memberName == "fold" || memberName == "foldIndexed" {
                 return argCount == 2
             }
@@ -596,7 +609,11 @@ extension CallTypeChecker {
         if let candidate = candidates.first(where: matches) {
             return candidate
         }
-        return sema.symbols.lookupAll(fqName: longRangeFQName + [containsName]).first(where: matches)
+        return sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            containsName,
+        ]).first(where: matches)
     }
 
     func ulongRangeContainsMemberSymbol(
@@ -635,10 +652,14 @@ extension CallTypeChecker {
         if let candidate = candidates.first(where: matches) {
             return candidate
         }
-        return sema.symbols.lookupAll(fqName: ulongRangeFQName + [containsName]).first(where: matches)
+        return sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            containsName,
+        ]).first(where: matches)
     }
 
-    private func bindSourceRangeHOFCall(
+    func bindSourceRangeHOFCall(
         _ id: ExprID,
         memberName: String,
         calleeName: InternedString,
@@ -1222,9 +1243,7 @@ extension CallTypeChecker {
         // type-check and produce correct results with `average` absent from
         // this set. `ULongRange.average()` also still compiles with `average`
         // removed from this set, but only via its own, unrelated Sema
-        // synthetic registration (`kk_ulong_range_average`) — that member
-        // isn't real Kotlin either (same missing-overload shape as
-        // UIntRange's), and KSP-1524 owns verifying and, if so, removing it.
+        // KSP-1524 applies the same rejection rule to ULongRange.average().
         // `toUIntArray` was never valid for any other range type's receiver,
         // and neither are `toIntArray`/`toLongArray`/`toULongArray` for their
         // signed/ULong counterparts (BUG-259/KSP-1524) -- none of the four

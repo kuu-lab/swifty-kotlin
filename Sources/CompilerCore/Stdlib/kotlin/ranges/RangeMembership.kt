@@ -143,8 +143,8 @@ public operator fun UIntRange.contains(value: UInt): Boolean = containsUInt(valu
 @KsSymbolName("__kk_range_contains")
 public operator fun UIntProgression.contains(value: UInt): Boolean = containsUInt(value, first, last, step)
 
-@KsSymbolName("__kk_range_contains")
+// Keep ULong membership on the Kotlin body: the signed runtime bridge cannot
+// compare values whose high bit is set.
 public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step)
 
-@KsSymbolName("__kk_range_contains")
 public operator fun ULongProgression.contains(value: ULong): Boolean = containsULong(value, first, last, step)

@@ -243,25 +243,7 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_toList",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        // ULongRange count, iterator (STDLIB-RANGE-037)
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_count",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
+        // ULong iterator (STDLIB-RANGE-037)
         RuntimeABIFunctionSpec(
             name: "__kk_ulong_range_iterator",
             parameters: [
@@ -796,14 +778,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
         // CharRange (STDLIB-290)
         RuntimeABIFunctionSpec(
             name: "__kk_char_range_step",
@@ -1176,56 +1150,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_contains",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_first",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_last",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_ulong_range_step",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_isEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_firstOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_lastOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],

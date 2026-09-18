@@ -679,7 +679,7 @@ extension DataFlowSemaPhase {
         case "UIntProgression":
             firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         case "ULongProgression":
-            firstLastRuntime = ("kk_ulong_range_first", "kk_ulong_range_last")
+            firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         case "LongProgression":
             firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         default:
@@ -692,13 +692,13 @@ extension DataFlowSemaPhase {
         case "LongProgression": stepRuntime = "kk_long_range_step"
         default: stepRuntime = "kk_range_step"
         }
-        let isEmptyRuntime: String
+        let isEmptyRuntime: String?
         switch name {
         case "UIntProgression": isEmptyRuntime = "__kk_range_isEmpty"
-        case "ULongProgression": isEmptyRuntime = "kk_ulong_range_isEmpty"
+        case "ULongProgression": isEmptyRuntime = nil
         default: isEmptyRuntime = "__kk_range_isEmpty"
         }
-        let reversedRuntime: String
+        let reversedRuntime: String?
         let toListRuntime: String?
         switch name {
         case "UIntProgression":
@@ -711,8 +711,9 @@ extension DataFlowSemaPhase {
             // that instead of dangling on a symbol removed from Runtime.
             toListRuntime = nil
         case "ULongProgression":
-            reversedRuntime = "kk_ulong_range_reversed"
-            toListRuntime = "kk_ulong_range_toList"
+            // KSP-1524: these are bundled Kotlin declarations.
+            reversedRuntime = nil
+            toListRuntime = nil
         case "LongProgression":
             reversedRuntime = "__kk_range_reversed"
             toListRuntime = "kk_long_range_toList"

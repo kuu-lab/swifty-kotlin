@@ -195,6 +195,34 @@ extension CallTypeChecker {
         }
         let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? rangeSourceMemberLookupType ?? lookupReceiverType
 
+        // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
+        // ULongRange expression. Prefer the exact bundled ULongRange source
+        // extension before ordinary member resolution can select that broader
+        // interface helper.
+        if !isSuperCall,
+           interner.resolve(calleeName) == "isEmpty",
+           args.isEmpty,
+           sourceLevelRangeMemberReceiverKind(
+               receiverExpr: receiverID,
+               receiverType: lookupReceiverType,
+               sema: sema,
+               interner: interner,
+               allowSyntacticRangeExpression: true
+           ) == .ulongRange,
+           let sourceType = bindSourceRangeHOFCall(
+               id,
+               memberName: "isEmpty",
+               calleeName: calleeName,
+               receiverID: receiverID,
+               args: args,
+               safeCall: safeCall,
+               ctx: ctx,
+               locals: &locals
+           )
+        {
+            return sourceType
+        }
+
         // Detect class-name receiver: when the receiver is a name reference to
         // a class/interface/enumClass symbol, only companion members should be
         // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
