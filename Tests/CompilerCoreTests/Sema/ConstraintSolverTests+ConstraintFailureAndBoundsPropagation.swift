@@ -3,6 +3,57 @@
 import Testing
 
 extension ConstraintSolverTests {
+    @Test func testSolveUsesCommonComparableSupertypeForMixedLowerBounds() {
+        let (solver, types) = makeDeps()
+        let comparableSymbol = SymbolID(rawValue: 290)
+        types.comparableInterfaceSymbol = comparableSymbol
+        let comparableStar = types.make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: .nonNull
+        )))
+        let t0 = TypeVarID(rawValue: 290)
+
+        let solution = solver.solve(
+            vars: [t0],
+            constraints: [
+                VariableConstraint(kind: .subtype, left: .type(types.intType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.stringType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.doubleType), right: .variable(t0)),
+            ],
+            typeSystem: types
+        )
+
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == comparableStar)
+        #expect(solution.substitution[t0] != types.anyType)
+    }
+
+    @Test func testSolvePreservesNullabilityForCommonComparableSupertype() {
+        let (solver, types) = makeDeps()
+        let comparableSymbol = SymbolID(rawValue: 291)
+        types.comparableInterfaceSymbol = comparableSymbol
+        let comparableNullable = types.make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: .nullable
+        )))
+        let t0 = TypeVarID(rawValue: 291)
+
+        let solution = solver.solve(
+            vars: [t0],
+            constraints: [
+                VariableConstraint(kind: .subtype, left: .type(types.intType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.stringType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.nullableNothingType), right: .variable(t0)),
+            ],
+            typeSystem: types
+        )
+
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == comparableNullable)
+    }
+
     @Test func testSolveHandlesUnregisteredVariablesInConstraints() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
