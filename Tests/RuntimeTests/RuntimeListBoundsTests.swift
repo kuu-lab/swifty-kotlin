@@ -55,5 +55,59 @@ struct RuntimeListBoundsTests {
         let box = try requireThrownBox(thrown)
         #expect(box.exceptionFQName == "kotlin.NoSuchElementException")
     }
+
+    @Test
+    func genericIteratorNextPastEndSetsNoSuchElementException() throws {
+        let iterator = kk_list_iterator(makeList([1]))
+        var thrown = 0
+        #expect(kk_iterator_next(iterator, &thrown) == 1)
+        #expect(thrown == 0)
+
+        #expect(kk_iterator_next(iterator, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.NoSuchElementException")
+    }
+
+    @Test
+    func rangeIteratorNextPastEndSetsNoSuchElementException() throws {
+        let iterator = kk_range_iterator(kk_op_rangeTo(7, 7), nil)
+        var thrown = 0
+        #expect(kk_iterator_next(iterator, &thrown) == 7)
+        #expect(thrown == 0)
+
+        #expect(kk_iterator_next(iterator, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.NoSuchElementException")
+    }
+
+    @Test
+    func rangeIteratorNextZeroElementThenPastEndThrows() throws {
+        let iterator = kk_range_iterator(kk_op_rangeTo(0, 0), nil)
+        var thrown = 0
+        #expect(kk_iterator_next(iterator, &thrown) == 0)
+        #expect(thrown == 0)
+
+        #expect(kk_iterator_next(iterator, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.NoSuchElementException")
+    }
+
+    @Test
+    func mapIteratorNextPastEndSetsNoSuchElementException() throws {
+        let keys = kk_array_new(1)
+        let values = kk_array_new(1)
+        var thrown = 0
+        _ = kk_array_set(keys, 0, 11, &thrown)
+        #expect(thrown == 0)
+        _ = kk_array_set(values, 0, 22, &thrown)
+        #expect(thrown == 0)
+        let iterator = kk_map_iterator(kk_map_of(keys, values, 1))
+        #expect(kk_map_iterator_next(iterator, &thrown) == 11)
+        #expect(thrown == 0)
+
+        #expect(kk_map_iterator_next(iterator, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.NoSuchElementException")
+    }
 }
 #endif

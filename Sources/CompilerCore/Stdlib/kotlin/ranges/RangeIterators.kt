@@ -35,6 +35,7 @@ internal class IntProgressionIterator(first: Int, last: Int, private val step: I
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): Int {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
         hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -51,6 +52,7 @@ internal class LongProgressionIterator(first: Long, last: Long, private val step
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): Long {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
         hasNextValue = if (step > 0L) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -67,6 +69,7 @@ internal class CharProgressionIterator(first: Char, last: Char, private val step
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): Char {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
         hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -91,6 +94,7 @@ internal class UIntProgressionIterator(first: UInt, last: UInt, private val step
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): UInt {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step.toUInt()
         hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -107,6 +111,7 @@ internal class ULongProgressionIterator(first: ULong, last: ULong, private val s
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): ULong {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step.toULong()
         hasNextValue = if (step > 0L) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement

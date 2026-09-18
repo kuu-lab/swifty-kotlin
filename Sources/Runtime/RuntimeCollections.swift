@@ -305,11 +305,10 @@ public func kk_list_iterator_next(
         return kk_iterator_next(iterRaw, outThrown)
     }
     guard iter.index < iter.elements.count else {
-        runtimeSetThrown(
+        return runtimeThrowIteratorExhausted(
             outThrown,
-            runtimeAllocateNoSuchElementException(message: "List iterator has no next element.")
+            message: "List iterator has no next element."
         )
-        return 0
     }
     let value = iter.elements[iter.index]
     iter.lastReturnedIndex = iter.index

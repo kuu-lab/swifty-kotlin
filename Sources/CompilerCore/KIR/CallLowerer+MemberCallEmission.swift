@@ -799,6 +799,8 @@ extension CallLowerer {
         Set([
             interner.intern("kk_list_random"),
             interner.intern("kk_iterable_iterator"),
+            interner.intern("kk_iterator_next"),
+            interner.intern("kk_list_iterator_next"),
             interner.intern("kk_sequence_takeLast"),
             interner.intern("__kk_iterable_firstNotNullOf"),
             interner.intern("__kk_iterable_firstNotNullOfOrNull"),
