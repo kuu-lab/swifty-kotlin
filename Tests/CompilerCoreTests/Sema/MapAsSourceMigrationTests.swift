@@ -106,7 +106,7 @@ struct MapAsSourceMigrationTests {
     }
 
     @Test
-    func testMapAbstractSurfaceUsesBundledSourceAndRuntimeLinks() throws {
+    func testMapSurfaceUsesBundledSourceAndRuntimeLinks() throws {
         let source = """
         fun use(values: Map<String, Int?>): Boolean {
             val entries: Set<Map.Entry<String, Int?>> = values.entries
@@ -125,7 +125,7 @@ struct MapAsSourceMigrationTests {
 
             #expect(
                 !ctx.diagnostics.hasError,
-                "Map's six abstract members must type-check: \(ctx.diagnostics.diagnostics)"
+                "Map's six source-backed members must type-check: \(ctx.diagnostics.diagnostics)"
             )
 
             let sema = try #require(ctx.sema)
