@@ -6,8 +6,9 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
-# Space-separated arguments appended to the candidate compiler invocation.
-# This is used by CI to run the same cases with a different optimization level.
+# Space-separated arguments appended to each candidate compiler invocation.
+# The shared stdlib artifact intentionally remains at the default optimization
+# level so this lane measures optimization of the case under test.
 DIFF_KSWIFTC_FLAGS="${DIFF_KSWIFTC_FLAGS:-}"
 KSWIFTC_ARGS=()
 if [[ -n "$DIFF_KSWIFTC_FLAGS" ]]; then
@@ -768,7 +769,7 @@ build_stdlib_artifact() {
   local stdlib_build_stderr="$ARTIFACT_ROOT/stdlib_build.stderr"
 
   echo "Building stdlib artifact: $STDLIB_ARTIFACT"
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" "${KSWIFTC_ARGS[@]}" --stdlib-only --emit library -o "$STDLIB_ARTIFACT" \
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit library -o "$STDLIB_ARTIFACT" \
     >"$stdlib_build_stdout" 2>"$stdlib_build_stderr" || {
       echo "Failed to build stdlib artifact" >&2
       if [[ -s "$stdlib_build_stderr" ]]; then

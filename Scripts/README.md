@@ -221,10 +221,10 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-Pass additional arguments to the candidate `kswiftc` invocation with
-`DIFF_KSWIFTC_FLAGS`. The flags apply both to the per-shard stdlib artifact and
-to each candidate case; CI uses this to keep the baseline and optimized lanes
-separate:
+Pass additional arguments to each candidate `kswiftc` invocation with
+`DIFF_KSWIFTC_FLAGS`. The per-shard stdlib artifact remains at the default
+optimization level, while the case under test receives these flags; CI uses
+this to keep the baseline and optimized lanes separate:
 
 ```bash
 DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
