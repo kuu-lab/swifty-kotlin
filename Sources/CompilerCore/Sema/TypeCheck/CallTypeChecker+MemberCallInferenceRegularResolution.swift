@@ -1059,7 +1059,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            let arrayConversionSourceCandidates = collectArraySourceConversionCandidates(
+            let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
@@ -1238,7 +1238,7 @@ extension CallTypeChecker {
                         sema: sema,
                         interner: interner
                     )
-                    let arrayConversionSourceCandidates = collectArraySourceConversionCandidates(
+                    let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                         named: calleeName,
                         receiverType: nonNullReceiverForScope,
                         sema: sema,
@@ -1859,8 +1859,17 @@ extension CallTypeChecker {
         // prevents the array resolver from binding the source overload.
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
+            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+            && !collectArraySourceBackedCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            ).isEmpty
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
             || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+            || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
