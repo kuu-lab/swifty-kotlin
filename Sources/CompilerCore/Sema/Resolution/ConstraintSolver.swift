@@ -170,9 +170,9 @@ final class ConstraintSolver {
             if lowers.isEmpty {
                 candidate = typeSystem.glb(uppers)
             } else if uppers.isEmpty {
-                candidate = typeSystem.lub(lowers)
+                candidate = typeSystem.inferenceLub(lowers)
             } else {
-                let lowerCandidate = typeSystem.lub(lowers)
+                let lowerCandidate = typeSystem.inferenceLub(lowers)
                 let upperCandidate = typeSystem.glb(uppers)
                 guard typeSystem.isSubtype(lowerCandidate, upperCandidate) else {
                     let blameRange = firstRelevantBlameRange(for: variable, relations: constraints)
