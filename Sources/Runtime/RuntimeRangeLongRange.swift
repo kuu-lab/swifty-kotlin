@@ -8,7 +8,14 @@
 
 @_cdecl("__kk_long_rangeTo")
 public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .longRange))
+}
+
+@_cdecl("__kk_long_rangeUntil")
+public func __kk_long_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
+    let last = rhs &- 1
+    let step = rhs <= lhs ? 0 : 1
+    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: last, step: step, kind: .longRange))
 }
 
 @_cdecl("__kk_long_range_step")
@@ -220,7 +227,7 @@ public func kk_range_reversed(_ rangeRaw: Int) -> Int {
             first: range.last,
             last: range.first,
             step: 0 &- range.step,
-            yieldsChars: range.yieldsChars
+            kind: range.kind.progressionKind
         ))
     }
 }
