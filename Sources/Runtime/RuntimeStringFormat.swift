@@ -233,8 +233,15 @@ private func runtimeFormatStringValue(
     locale: Locale?
 ) -> String {
     var value = runtimeElementToString(argument)
-    if let precision = specifier.precision, value.count > precision {
-        value = String(value.prefix(precision))
+    if let precision = specifier.precision {
+        // Java/Kotlin Formatter %s precision is a UTF-16 code-unit cap
+        // (`String.substring(0, precision)`), including unpaired surrogates.
+        // Swift `String.count`/`prefix` count grapheme clusters, which would
+        // keep a supplementary character or combining sequence intact.
+        let units = runtimeKotlinStringUTF16CodeUnits(value)
+        if units.count > precision {
+            value = runtimeKotlinStringFromUTF16CodeUnits(Array(units.prefix(precision)))
+        }
     }
     if specifier.conversion.isUppercase {
         value = runtimeFormatUppercase(value, locale: locale)

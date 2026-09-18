@@ -1621,6 +1621,31 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatStringPrecisionUsesUTF16CodeUnits() {
+        func format(_ template: String, _ argument: String) -> String {
+            let args = makeRuntimeArray([rawFromRuntimeString(argument)])
+            return flatStringReturnValueNoThrow(template, intArg: args, using: __kk_string_format_flat)
+        }
+
+        // U+10000 (𐀀) is one grapheme / two UTF-16 units. Precision 3 keeps the
+        // high surrogate; precision 2 stops before the pair; precision 4 keeps it.
+        let supplementary = "ab\u{10000}cd"
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.3s", supplementary)) == [0x61, 0x62, 0xD800])
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.2s", supplementary)) == [0x61, 0x62])
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.4s", supplementary)) == [0x61, 0x62, 0xD800, 0xDC00])
+
+        // NFD "é" is two UTF-16 units (e + combining acute). Precision 3 is e, ◌́, a.
+        let combining = "e\u{0301}abc"
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.3s", combining)) == [0x65, 0x0301, 0x61])
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.1s", combining)) == [0x65])
+
+        #expect(format("%.3s", "hello") == "hel")
+        #expect(format("%.0s", "hello") == "")
+        #expect(format("%.10s", "hi") == "hi")
+        #expect(format("%.2S", "abcd") == "AB")
+    }
+
+    @Test
     func testStringFormatPreservesSixtyFourBitIntegerWidth() {
         let signed = Int(Int64.max)
         let unsigned = Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
