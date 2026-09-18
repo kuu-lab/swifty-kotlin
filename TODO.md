@@ -578,7 +578,7 @@
     - 派生課題（本PRでは対応せず記録のみ）: KSP-1524 に `average`/`toUIntArray` の実在確認を追記。signed 側 `RangeHOF.kt` の `IntRange.toIntArray()`/`IntProgression.toIntArray()` も同型の既存バグ（本 PR 起因ではない）と判明し BUG-259 として起票（レガシーアローリストにまだ `toIntArray` が残っている点も追記済み）。無関係な既存バグ `listOf<UInt>().sum()` のリンク失敗（`average`/`toUIntArray` と同型の裸シンボル未解決）は BUG-256 として起票 + spawn_task で別セッションへの切り出しチップも発行
     - 前提: KSP-451 は解決済み（現 TODO.md に未完了エントリなし）。KSP-709（class shell 全体の Kotlin 化）は未達だが、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` 自体の削除を要求しない本チケットのスコープ（メンバーの実装/リンク名のみ）は独立して完了可能と判断
 
-- [ ] KSP-1524: `ULongRange` の property / membership / aggregate を Kotlin 化する
+- [~] KSP-1524: `ULongRange` の property / membership / aggregate を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_ulong_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
   - 削除/降格 kk_*: `kk_ulong_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`（12件）

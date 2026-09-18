@@ -389,39 +389,6 @@ struct RangeSyntheticMemberLinkTests {
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try sharedSema()
 
-        let orNullExpected: [(owner: String, link: String)] = [
-            // Signed range firstOrNull is source-backed now; only the
-            // unsigned residual range keeps a synthetic runtime link.
-            ("ULongRange", "kk_ulong_range_firstOrNull"),
-        ]
-        for expectation in orNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "firstOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).firstOrNull should link to \(expectation.link)")
-            )
-        }
-        let lastOrNullExpected: [(owner: String, link: String)] = [
-            // Signed range lastOrNull is source-backed now; only the
-            // unsigned residual range keeps a synthetic runtime link.
-            ("ULongRange", "kk_ulong_range_lastOrNull"),
-        ]
-        for expectation in lastOrNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "lastOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).lastOrNull should link to \(expectation.link)")
-            )
-        }
-
         for owner in ["IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange"] {
             for member in ["random", "randomOrNull"] {
                 let fq = ["kotlin", "ranges", owner, member].map { interner.intern($0) }
