@@ -47,6 +47,19 @@ private func runtimeStaticBox<T: AnyObject>(
     if preservesNullSentinel, value == runtimeNullSentinelInt {
         return value
     }
+    // Some runtime values use a primitive ABI type while carrying a registered
+    // object handle at runtime (for example RuntimeRangeBox and coroutine
+    // handles). Preserve those handles exactly as the legacy boxing entry
+    // points do; wrapping them in a primitive box would make the downstream
+    // object-specific runtime entry point reject the value.
+    if let objectPointer = UnsafeMutableRawPointer(bitPattern: value) {
+        let isRegisteredObject = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: objectPointer))
+        }
+        if isRegisteredObject {
+            return value
+        }
+    }
     // A tagged handle is already the result of this fast path. Keeping this
     // check makes the helper idempotent for compiler-generated value flows
     // without reintroducing the object registry lookup used by the legacy ABI.

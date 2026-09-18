@@ -189,5 +189,14 @@ struct RuntimeBoxingTests {
         #expect(kk_unbox_long_static(sentinel) == Int.min)
         #expect(kk_unbox_double_static(sentinel) == 0)
     }
+
+    @Test
+    func testStaticBoxPreservesRegisteredRuntimeObjectHandle() {
+        let range = kk_op_rangeTo(1, 3)
+
+        #expect(kk_box_int_static(range) == range)
+        #expect(kk_range_first(range) == 1)
+        #expect(kk_range_last(range) == 3)
+    }
 }
 #endif
