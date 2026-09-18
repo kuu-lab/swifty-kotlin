@@ -873,6 +873,14 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    let lhsRange = lhsIsObjectPointer ? runtimeRangeBox(from: lhs) : nil
+    let rhsRange = rhsIsObjectPointer ? runtimeRangeBox(from: rhs) : nil
+    if lhsRange != nil || rhsRange != nil {
+        guard let lhsRange, let rhsRange else {
+            return false
+        }
+        return runtimeRangesEqual(lhsRange, rhsRange)
+    }
     if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
         return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
     }
@@ -1143,6 +1151,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     guard isObjectPointer else {
         return "\(elem)"
+    }
+    if let override = runtimeAnyToStringOverride(elem),
+       let pointer = extractString(from: override)
+    {
+        return pointer
     }
     if runtimeIsUnitBox(elem) {
         return "kotlin.Unit"

@@ -78,6 +78,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_value_class_register_any_to_string",
+            parameters: [
+                RuntimeABIParameter(name: "classID", type: .intptr),
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_type_token_simple_name",
             parameters: [
                 RuntimeABIParameter(name: "typeToken", type: .intptr),

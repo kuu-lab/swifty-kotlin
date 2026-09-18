@@ -22,12 +22,17 @@ final class LambdaLowerer {
         instructions: inout [KIRInstruction],
         isRawCallbackParameter: Bool = false
     ) -> KIRExprID {
-        let kind = sema.types.kind(of: type)
+        let rawKind = sema.types.kind(of: type)
+        let kind = resolveValueClassKind(
+            rawKind,
+            types: sema.types,
+            symbols: sema.symbols
+        )
         // String parameters of raw-callback lambdas are bridged from raw handle
         // to flat aggregate by the backend at function entry. Unboxing them here
         // again would pass an already-flat aggregate to kk_string_to_flat and
         // crash, so skip the KIR-level unboxing only for those parameters.
-        if isRawCallbackParameter, isNonNullableStringStruct(kind) {
+        if isRawCallbackParameter, isNonNullableStringStruct(rawKind) {
             return exprID
         }
         let unboxCallee: InternedString? = {
@@ -35,7 +40,7 @@ final class LambdaLowerer {
             // collection HOFs pass elements through Any-erased slots as
             // RuntimeIntBox handles. Normalize both representations before
             // lowering the body (e.g. `entries.find { it.rgb == rgb }`).
-            if case let .classType(classType) = kind,
+            if case let .classType(classType) = rawKind,
                classType.nullability == .nonNull,
                let symbol = sema.symbols.symbol(classType.classSymbol),
                symbol.kind == .enumClass
@@ -677,7 +682,16 @@ final class LambdaLowerer {
         for param in valueParams {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
-            callArguments.append(paramExpr)
+            let normalizedParamExpr = normalizeHOFPrimitiveParameter(
+                paramExpr,
+                type: param.type,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body,
+                isRawCallbackParameter: true
+            )
+            callArguments.append(normalizedParamExpr)
         }
 
         let lambdaCanThrow = adapterRequiresThrownChannel(lambdaSymbol: lambdaSymbol, arena: arena)

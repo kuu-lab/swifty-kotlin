@@ -2,9 +2,12 @@
 // Coercion extension stubs (STDLIB-150) for kotlin.ranges.
 // Int/Long/Double/Float coercion tests: CoercionSyntheticStubTests (TEST-002)
 //
-// KSP-1544 (KUU-588): the remaining registrations are compiler/runtime
-// residuals (c). Range coercion and Float/Double.toByte()/toShort() are
-// declared by bundled Kotlin source.
+// KSP-1544 (KUU-588): the remaining registrations are all bucket (c)
+// compiler/runtime residuals — language-core primitive casts lowered directly
+// to kk_* runtime symbols (see docs/stdlib-pipeline.md §9). The source-backed
+// (b) surface is fully migrated: range coercion lives in
+// Stdlib/kotlin/ranges/RangeCoercion.kt, and Float/Double.toByte()/toShort()
+// live in Stdlib/kotlin/Numbers.kt.
 
 extension DataFlowSemaPhase {
     func registerSyntheticCoercionStubs(
@@ -14,16 +17,6 @@ extension DataFlowSemaPhase {
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         // Unsigned coercion overloads are provided by bundled Kotlin source (RangeCoercion.kt).
-
-        let kotlinMathPkg = kotlinPkg + [interner.intern("math")]
-        if symbols.lookup(fqName: kotlinMathPkg) == nil {
-            let mathName = interner.intern("math")
-            let mathSym = symbols.define(kind: .package, name: mathName, fqName: kotlinMathPkg, declSite: nil, visibility: .public, flags: [.synthetic])
-            if let kotlinSym = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(kotlinSym, for: mathSym)
-            }
-        }
-
 
         // STDLIB-NUM-130: isNaN / isInfinite / isFinite
 
@@ -279,13 +272,11 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // KSP-1544: Float.toByte()/toShort() are source-backed in
-            // Stdlib/kotlin/Numbers.kt and compose through toInt().
+            // KSP-1544: Float.toByte()/toShort() and Double.toByte()/toShort()
+            // are source-backed in Stdlib/kotlin/Numbers.kt (toInt().toX()
+            // composition with error-level deprecation metadata).
 
             // Double conversion functions
-            // KSP-1544: Double.toByte()/toShort() are source-backed in
-            // Stdlib/kotlin/Numbers.kt and compose through toInt().
-
             registerSyntheticCoercionFunction(
                 named: "toFloat",
                 externalLinkName: "kk_double_to_float",
@@ -317,6 +308,7 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+
         // Check if already registered with same signature
         if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
@@ -365,5 +357,4 @@ extension DataFlowSemaPhase {
             for: functionSymbol
         )
     }
-
 }

@@ -17,6 +17,10 @@ struct FloatDoubleNumericConversionSourceTests {
         fun floatToLong(value: Float): Long = value.toLong()
         fun floatToDouble(value: Float): Double = value.toDouble()
         fun floatToChar(value: Float): Char = value.toChar()
+        fun doubleToByte(value: Double): Byte = value.toByte()
+        fun doubleToShort(value: Double): Short = value.toShort()
+        fun floatToByte(value: Float): Byte = value.toByte()
+        fun floatToShort(value: Float): Short = value.toShort()
         """)
 
         try runSema(ctx)
@@ -30,12 +34,12 @@ struct FloatDoubleNumericConversionSourceTests {
             ("toInt", sema.types.doubleType, sema.types.intType),
             ("toLong", sema.types.doubleType, sema.types.longType),
             ("toChar", sema.types.doubleType, sema.types.charType),
-            ("toByte", sema.types.doubleType, sema.types.byteType),
-            ("toShort", sema.types.doubleType, sema.types.shortType),
             ("toInt", sema.types.floatType, sema.types.intType),
             ("toLong", sema.types.floatType, sema.types.longType),
             ("toDouble", sema.types.floatType, sema.types.doubleType),
             ("toChar", sema.types.floatType, sema.types.charType),
+            ("toByte", sema.types.doubleType, sema.types.byteType),
+            ("toShort", sema.types.doubleType, sema.types.shortType),
             ("toByte", sema.types.floatType, sema.types.byteType),
             ("toShort", sema.types.floatType, sema.types.shortType),
         ]
@@ -67,7 +71,8 @@ struct FloatDoubleNumericConversionSourceTests {
 
     // KSP-1544 (KUU-588): Float/Double.toByte()/toShort() are deprecated at
     // error level since Kotlin 1.5. Unsuppressed calls must fail Sema like
-    // kotlinc 2.3.10, and no synthetic fallback may remain for these members.
+    // real kotlinc 2.3.10, and no synthetic stub may remain under kotlin.toByte /
+    // kotlin.toShort for floating-point receivers.
     @Test
     func floatingPointByteShortConversionsAreErrorLevelDeprecated() throws {
         let ctx = makeContextFromSource("""
