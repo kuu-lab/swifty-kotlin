@@ -759,7 +759,7 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     }
     let old = values[index]
     let replacement = runtimeMutableListInsertedValue(for: values, rawValue: element)
-    list[index] = replacement.legacyRawValue
+    list.setValue(replacement, at: index)
     return old.legacyRawValue
 }
 

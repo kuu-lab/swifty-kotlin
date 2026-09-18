@@ -250,6 +250,10 @@ class RuntimeArrayBox {
         storage[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
     }
 
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        storage[index] = value
+    }
+
     var count: Int {
         storage.count
     }
@@ -546,6 +550,19 @@ final class RuntimeListBox {
             case .arrayViewOf(let base):
                 base[index] = newValue
             }
+        }
+    }
+
+    /// Stores an already-tagged value without materializing the surrounding collection.
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        guard !isReadOnly else { return }
+        switch storage {
+        case .direct(let direct):
+            direct.values[index] = value
+        case .reversedViewOf(let base):
+            base.setValue(value, at: base.count - 1 - index)
+        case .arrayViewOf(let base):
+            base.setValue(value, at: index)
         }
     }
 
