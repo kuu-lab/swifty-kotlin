@@ -6,6 +6,8 @@
 /// using Kotlin default-argument calling conventions.
 final class JvmOverloadsLoweringPass: LoweringPass {
     static let name = "JvmOverloadsLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard let sema = ctx.sema else {

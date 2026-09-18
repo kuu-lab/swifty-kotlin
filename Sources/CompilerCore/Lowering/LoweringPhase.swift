@@ -1,5 +1,12 @@
 
 protocol LoweringPass: KIRPass {
+    /// Stage that must hold before this pass is allowed to run.
+    static var requiredStage: KIRStage { get }
+
+    /// Stage established after this pass completes, whether it ran or was
+    /// skipped because its feature gate returned false.
+    static var producedStage: KIRStage { get }
+
     /// Returns `false` when the module contains no instructions that this
     /// pass would rewrite, allowing the driver to skip `run` entirely.
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool
@@ -20,33 +27,43 @@ protocol ParallelLoweringPass: LoweringPass {}
 public final class LoweringPhase: CompilerPhase {
     public static let name = "Lowerings"
 
-    private let passes: [any LoweringPass] = [
-        TailrecLoweringPass(), // Must run before NormalizeBlocksPass (relies on beginBlock)
-        NormalizeBlocksPass(),
-        OperatorLoweringPass(),
-        ForLoweringPass(),
-        CollectionLiteralLoweringPass(),
-        FlowLoweringPass(),
+    static func makeDefaultPasses() -> [any LoweringPass] {
+        [
+            TailrecLoweringPass(), // Must run before NormalizeBlocksPass (relies on beginBlock)
+            NormalizeBlocksPass(),
+            OperatorLoweringPass(),
+            ForLoweringPass(),
+            CollectionLiteralLoweringPass(),
+            FlowLoweringPass(),
 
-        ValueClassUnboxingPass(), // VAL-001: must run before PropertyLowering
-        PropertyLoweringPass(),
-        JvmStaticLoweringPass(),
-        JvmOverloadsLoweringPass(),
-        DataEnumSealedSynthesisPass(),
-        EnumEntriesLoweringPass(),
-        ConsolePrintLoweringPass(),
-        EnumNameAccessLoweringPass(),
-        LambdaClosureConversionPass(),
-        InlineLoweringPass(),
-        CoroutineLoweringPass(),
-        // Must run after every pass that emits integer arithmetic builtins
-        // (Operator/For/Inline/...) and before ABILoweringPass so the inserted
-        // narrowing calls participate in throw-channel resolution.
-        IntegerNarrowingPass(),
-        ABILoweringPass(),
-    ]
+            ValueClassUnboxingPass(), // VAL-001: must run before PropertyLowering
+            PropertyLoweringPass(),
+            JvmStaticLoweringPass(),
+            JvmOverloadsLoweringPass(),
+            DataEnumSealedSynthesisPass(),
+            EnumEntriesLoweringPass(),
+            ConsolePrintLoweringPass(),
+            EnumNameAccessLoweringPass(),
+            LambdaClosureConversionPass(),
+            InlineLoweringPass(),
+            CoroutineLoweringPass(),
+            // Must run after every pass that emits integer arithmetic builtins
+            // (Operator/For/Inline/...) and before ABILoweringPass so the inserted
+            // narrowing calls participate in throw-channel resolution.
+            IntegerNarrowingPass(),
+            ABILoweringPass(),
+        ]
+    }
 
-    public init() {}
+    private let passes: [any LoweringPass]
+
+    public init() {
+        self.passes = Self.makeDefaultPasses()
+    }
+
+    init(passes: [any LoweringPass]) {
+        self.passes = passes
+    }
 
     public func run(_ ctx: CompilationContext) throws {
         guard let module = ctx.kir else {
@@ -73,6 +90,12 @@ public final class LoweringPhase: CompilerPhase {
         // kept for future enablement once per-function expression arenas
         // provide deterministic ID assignment.
         for pass in passes {
+            let passType = type(of: pass)
+            try module.validateLoweringStage(
+                passName: passType.name,
+                required: passType.requiredStage,
+                produced: passType.producedStage
+            )
             if pass.shouldRun(module: module, ctx: kirCtx) {
                 try pass.run(module: module, ctx: kirCtx)
                 // A pass that ran may have synthesized instructions the
@@ -84,6 +107,7 @@ public final class LoweringPhase: CompilerPhase {
             } else {
                 module.recordLowering(type(of: pass).name)
             }
+            module.advanceLoweringStage(to: passType.producedStage)
         }
         if KIRVerifier.isEnabled {
             let failures = KIRVerifier.verify(
