@@ -876,6 +876,84 @@ struct ArraySyntheticMemberLinkTests {
         #expect(!symbol.flags.contains(.synthetic))
     }
 
+    @Test
+    func testArrayIndexAndIterationMembersBindBundledKotlinSource() throws {
+        let ctx = makeContextFromSource(
+            """
+            fun sample(values: Array<String>, ints: IntArray, longs: LongArray) {
+                values.indices
+                values.lastIndex
+                values.iterator()
+                values.withIndex()
+
+                ints.indices
+                ints.lastIndex
+                ints.iterator()
+                ints.withIndex()
+                ints.sort()
+
+                longs.indices
+                longs.lastIndex
+                longs.iterator()
+                longs.withIndex()
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        #expect(
+            ctx.diagnostics.diagnostics.isEmpty,
+            "Expected array index and iteration members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+        )
+
+        let userPath = try #require(
+            ctx.sourceManager.fileIDs()
+                .first { ctx.sourceManager.origin(of: $0) == .user }
+                .map { ctx.sourceManager.path(of: $0) }
+        )
+        let expectedMembers: Set<String> = [
+            "Array.indices", "Array.lastIndex", "Array.iterator", "Array.withIndex",
+            "IntArray.indices", "IntArray.lastIndex", "IntArray.iterator", "IntArray.withIndex", "IntArray.sort",
+            "LongArray.indices", "LongArray.lastIndex", "LongArray.iterator", "LongArray.withIndex",
+        ]
+        var boundMembers = Set<String>()
+
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, args, range) = ast.arena.expr(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == userPath,
+                  args.isEmpty || ctx.interner.resolve(callee) == "sort"
+            else {
+                continue
+            }
+
+            let memberName = ctx.interner.resolve(callee)
+            guard ["indices", "lastIndex", "iterator", "withIndex", "sort"].contains(memberName),
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let signature = sema.symbols.functionSignature(for: chosenCallee),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                  let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
+            else {
+                continue
+            }
+
+            let receiverName = ctx.interner.resolve(receiverSymbol.name)
+            boundMembers.insert("\(receiverName).\(memberName)")
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            if let sourceFileID = sema.symbols.sourceFileID(for: chosenCallee) {
+                #expect(ctx.sourceManager.path(of: sourceFileID).hasPrefix("__bundled_kotlin/collections/"))
+            } else {
+                Issue.record("Expected \(receiverName).\(memberName) to have a bundled source declaration")
+            }
+        }
+
+        #expect(boundMembers == expectedMembers)
+    }
+
 
 }
 #endif

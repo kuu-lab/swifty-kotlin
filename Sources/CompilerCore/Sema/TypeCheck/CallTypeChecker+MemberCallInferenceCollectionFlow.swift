@@ -19,11 +19,11 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
-        // Primitive-array HOFs are bundled Kotlin extensions, not collection or
+        // Primitive-array source members are bundled Kotlin extensions, not collection or
         // sequence operations. Unsigned arrays currently also classify as
         // synthetic sequences, so let exact primitive-array source lookup run
         // before the generic collection-flow fast path.
-        if !collectPrimitiveArraySourceHOFs(
+        if !collectPrimitiveArraySourceMembers(
             named: calleeName,
             receiverType: receiverType,
             sema: sema,
@@ -632,6 +632,21 @@ extension CallTypeChecker {
             ))
             sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
             return true
+        }
+
+        /// KUU-542: true when the argument is typed as `kotlin.Comparator` (or a
+        /// nominal subtype). The bundled `Iterable` `*With`/`sortedWith`
+        /// overloads only take Comparator parameters, so a function-typed
+        /// argument must not bind to them.
+        func isComparatorTypedArgument(_ argExprID: ExprID) -> Bool {
+            let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
+            guard let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName),
+                  let argType = sema.bindings.exprType(for: argExprID),
+                  case let .classType(argClassType) = sema.types.kind(of: sema.types.makeNonNullable(argType))
+            else {
+                return false
+            }
+            return sema.types.isNominalSubtypeSymbol(argClassType.classSymbol, of: comparatorSymbol)
         }
 
         // KSP-969: bind the generic Iterable drop family for a statically
@@ -2228,7 +2243,6 @@ extension CallTypeChecker {
             var sourceBackedSequenceAggregateTypeArguments: [TypeID]?
             var sourceBackedIterableAggregateTypeArguments: [TypeID]?
             var sourceBackedIterableAggregateMatchingParameterTypes: [TypeID]?
-            var preferFloatingPointIterableMinSource = false
             let resultType: TypeID
             let listResultType: TypeID = if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                 sema.types.make(.classType(ClassType(
@@ -4129,6 +4143,9 @@ extension CallTypeChecker {
                 if !isInPlaceMutation, isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType, selectorType]
                 }
+                if !isInPlaceMutation, !isSequenceReceiver {
+                    sourceBackedIterableAggregateTypeArguments = [collectionElementType, selectorType]
+                }
 
             case "sort", "sorted", "sortedDescending":
                 let isInPlaceMutation = calleeStr == "sort"
@@ -4234,6 +4251,22 @@ extension CallTypeChecker {
                             matchingParameterType: comparatorExpectedType ?? sema.types.nothingType
                         )
                     }
+                } else if calleeStr == "sortedWith", !isSequenceReceiver {
+                    // KUU-542: Set/Collection receivers bind the bundled
+                    // Iterable<T>.sortedWith declaration, whose only parameter
+                    // shape is Comparator — a lambda literal must be inferred
+                    // as a Comparator (SAM) for the call to dispatch. A
+                    // function-typed argument cannot take that shape, so it is
+                    // left unbound exactly as before.
+                    let argExpr = ast.arena.expr(args[0].expr)
+                    if argExpr?.isLambdaOrCallableRef == true {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
+                    } else {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
+                    }
+                    if isComparatorTypedArgument(args[0].expr) {
+                        sourceBackedIterableAggregateTypeArguments = [collectionElementType]
+                    }
                 } else {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
                 }
@@ -4279,7 +4312,11 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                if calleeStr == "minWith" || calleeStr == "minWithOrNull" {
+                // KUU-542: the bundled Iterable *With overloads take a
+                // Comparator parameter, so a function-typed comparator (an
+                // invalid Kotlin call shape) must stay unbound rather than
+                // misdispatching through the source declaration.
+                if isComparatorTypedArgument(args[0].expr) {
                     sourceBackedIterableAggregateTypeArguments = [collectionElementType]
                 }
                 resultType = (calleeStr == "maxWithOrNull" || calleeStr == "minWithOrNull")
@@ -4347,7 +4384,8 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                if calleeStr == "minOfWith" || calleeStr == "minOfWithOrNull" {
+                // KUU-542: same Comparator-parameter guard as *With above.
+                if isComparatorTypedArgument(args[0].expr) {
                     sourceBackedIterableAggregateTypeArguments = [collectionElementType, selectorResultType]
                 }
                 resultType = (calleeStr == "maxOfWithOrNull" || calleeStr == "minOfWithOrNull")
@@ -4833,23 +4871,17 @@ extension CallTypeChecker {
                         return failedType
                     }
                 }
-                // KUU-553: concrete Float/Double Lists must use the exact
-                // Iterable overloads. The generic List<T> declarations erase
-                // the floating-point specialization before code generation.
-                let isFloatingPointMin = (calleeStr == "min" || calleeStr == "minOrNull")
-                    && (collectionElementType == sema.types.doubleType
-                        || collectionElementType == sema.types.floatType)
-                preferFloatingPointIterableMinSource = isFloatingPointMin
-                if !isFloatingPointMin {
+                // KUU-553/KUU-542: concrete Float/Double receivers must use the
+                // exact Iterable overloads. The generic List<T> declarations
+                // erase the floating-point specialization before code generation.
+                let isFloatingPointElement = collectionElementType == sema.types.doubleType
+                    || collectionElementType == sema.types.floatType
+                if !isFloatingPointElement {
                     _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 }
-                if calleeStr == "min" || calleeStr == "minOrNull" {
-                    sourceBackedIterableAggregateTypeArguments = if collectionElementType == sema.types.doubleType || collectionElementType == sema.types.floatType {
-                        []
-                    } else {
-                        [collectionElementType]
-                    }
-                }
+                sourceBackedIterableAggregateTypeArguments = isFloatingPointElement
+                    ? []
+                    : [collectionElementType]
                 resultType = (calleeStr == "max" || calleeStr == "min")
                     ? collectionElementType
                     : sema.types.makeNullable(collectionElementType)
@@ -4936,9 +4968,7 @@ extension CallTypeChecker {
                 if isMapReceiver, calleeStr == "maxByOrNull" || calleeStr == "minByOrNull" {
                     _ = bindBundledMapSourceFunction()
                 }
-                if calleeStr == "minBy" || calleeStr == "minByOrNull" {
-                    sourceBackedIterableAggregateTypeArguments = [collectionElementType, selectorType]
-                }
+                sourceBackedIterableAggregateTypeArguments = [collectionElementType, selectorType]
 
             case "maxOf", "minOf":
                 guard args.count == 1 else {
@@ -4973,16 +5003,14 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                if calleeStr == "minOf" {
-                    let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
-                        ? [collectionElementType]
-                        : [collectionElementType, selectorType]
-                    sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
-                    sourceBackedIterableAggregateMatchingParameterTypes = [sema.types.make(.functionType(FunctionType(
-                        params: [collectionElementType],
-                        returnType: selectorType
-                    )))]
-                }
+                let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+                    ? [collectionElementType]
+                    : [collectionElementType, selectorType]
+                sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
+                sourceBackedIterableAggregateMatchingParameterTypes = [sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: selectorType
+                )))]
                 resultType = selectorType
 
             case "maxOfOrNull", "minOfOrNull":
@@ -5062,16 +5090,14 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                if calleeStr == "minOfOrNull" {
-                    let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
-                        ? [collectionElementType]
-                        : [collectionElementType, selectorType]
-                    sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
-                    sourceBackedIterableAggregateMatchingParameterTypes = [sema.types.make(.functionType(FunctionType(
-                        params: [collectionElementType],
-                        returnType: selectorType
-                    )))]
-                }
+                let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+                    ? [collectionElementType]
+                    : [collectionElementType, selectorType]
+                sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
+                sourceBackedIterableAggregateMatchingParameterTypes = [sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: selectorType
+                )))]
 
             case "binarySearch":
                 // STDLIB-547: binarySearch(comparison: (T) -> Int) overload.
@@ -5489,10 +5515,12 @@ extension CallTypeChecker {
                 }
             }
 
-            // KSP-984: bind only the exact source-backed Iterable min-family
-            // declarations after List/Set-specific ownership has had priority.
-            // The selector parameter match keeps minOf/minOfOrNull's
-            // Comparable/Double/Float overloads distinct at the call site.
+            // KSP-984/KUU-542: bind the exact source-backed Iterable extrema and
+            // sorting declarations after List/Set/Map-specific ownership has had
+            // priority. Concrete Set and Collection receivers are admitted too:
+            // the per-candidate Iterable subtype check keeps Map and other
+            // non-Iterable receivers out. The selector parameter match keeps
+            // minOf/minOfOrNull's Comparable/Double/Float overloads distinct.
             if sema.bindings.callBindings[id] == nil,
                let sourceBackedIterableAggregateTypeArguments,
                bindBundledIterableSourceFunction(
@@ -5501,7 +5529,7 @@ extension CallTypeChecker {
                    enforceTypeParameterCount: true,
                    matchingReceiverElementType: collectionElementType,
                    allowNominalIterableReceiver: true,
-                   allowCollectionReceiver: preferFloatingPointIterableMinSource
+                   allowCollectionReceiver: true
                )
             {
                 for argument in args
