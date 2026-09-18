@@ -13,7 +13,10 @@ struct SequenceFirstNotNullOfOrNullSemaTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                allowDefaultStdlibLibrary: false
+            )
             try runSema(ctx)
 
             #expect(
@@ -32,17 +35,18 @@ struct SequenceFirstNotNullOfOrNullSemaTests {
                 sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.stringType)
             )
 
-            let fqName = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("sequences"),
-                ctx.interner.intern("Sequence"),
-                ctx.interner.intern("firstNotNullOfOrNull"),
-            ]
-            let isSourceBacked = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.isSourceBackedSymbol(candidate)
-                    && sema.symbols.externalLinkName(for: candidate) == nil
-            }
-            #expect(isSourceBacked)
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected firstNotNullOfOrNull call binding"
+            )
+            let chosenFQName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
+                .map(ctx.interner.resolve)
+            #expect(
+                chosenFQName == ["kotlin", "sequences", "firstNotNullOfOrNull"],
+                "Expected the Sequence extension declaration, got \(chosenFQName)"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 }

@@ -557,26 +557,26 @@ struct SequenceSyntheticMemberLinkTests {
         }
 
         do {
-            // testSequenceFirstNotNullOfResolvesInCallExpressions -> Sequence.firstNotNullOf
-            let memberFQNameFirstNotNullOf = ["kotlin", "sequences", "Sequence", "firstNotNullOf"].map { ctx.interner.intern($0) }
+            // testSequenceFirstNotNullOfResolvesInCallExpressions -> kotlin.sequences.firstNotNullOf
+            let memberFQNameFirstNotNullOf = ["kotlin", "sequences", "firstNotNullOf"].map { ctx.interner.intern($0) }
             #expect(
                 sema.symbols.lookupAll(fqName: memberFQNameFirstNotNullOf).contains {
                     sema.symbols.isSourceBackedSymbol($0)
                         && sema.symbols.externalLinkName(for: $0) == nil
                 },
-                "Expected Sequence.firstNotNullOf to be backed by bundled Kotlin source"
+                "Expected kotlin.sequences.firstNotNullOf to be backed by bundled Kotlin source"
             )
         }
 
         do {
-            // testSequenceFirstNotNullOfOrNullResolvesInCallExpressions -> Sequence.firstNotNullOfOrNull
-            let memberFQNameFirstNotNullOfOrNull = ["kotlin", "sequences", "Sequence", "firstNotNullOfOrNull"].map { ctx.interner.intern($0) }
+            // testSequenceFirstNotNullOfOrNullResolvesInCallExpressions -> kotlin.sequences.firstNotNullOfOrNull
+            let memberFQNameFirstNotNullOfOrNull = ["kotlin", "sequences", "firstNotNullOfOrNull"].map { ctx.interner.intern($0) }
             #expect(
                 sema.symbols.lookupAll(fqName: memberFQNameFirstNotNullOfOrNull).contains {
                     sema.symbols.isSourceBackedSymbol($0)
                         && sema.symbols.externalLinkName(for: $0) == nil
                 },
-                "Expected Sequence.firstNotNullOfOrNull to be backed by bundled Kotlin source"
+                "Expected kotlin.sequences.firstNotNullOfOrNull to be backed by bundled Kotlin source"
             )
         }
 

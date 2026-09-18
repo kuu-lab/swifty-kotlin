@@ -32,8 +32,6 @@ extension StdlibSurfaceSpec {
         sequence("none", 1, "kk_sequence_none", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         sequence("first", 0, "kk_sequence_first", returnStrategy: .receiverElement, lambdaExpectation: .none),
         sequence("firstOrNull", 0, "kk_sequence_firstOrNull", returnStrategy: .nullableReceiverElement, lambdaExpectation: .none),
-        sequence("firstNotNullOf", 1, "kk_sequence_firstNotNullOf", returnStrategy: .any, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
-        sequence("firstNotNullOfOrNull", 1, "kk_sequence_firstNotNullOfOrNull", returnStrategy: .nullableAny, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         sequence("indexOfLast", 1, "kk_sequence_indexOfLast", returnStrategy: .int, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         sequence("intersect", 1, "kk_sequence_intersect", returnStrategy: .set, lambdaExpectation: .none),
         sequence("indexOfFirst", 1, "kk_sequence_indexOfFirst", returnStrategy: .int, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
