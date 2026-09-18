@@ -188,149 +188,312 @@ private func runtimeDurationNanoseconds(from value: Double, scale: Int64) -> Int
     return Int64(rounded)
 }
 
-private func runtimeDurationParseNumber(_ chars: [Character], index: inout Int) -> Double? {
-    let start = index
-    if index < chars.count, chars[index] == "+" || chars[index] == "-" {
-        index += 1
-    }
-
-    var sawDigit = false
-    while index < chars.count, chars[index].isNumber {
-        sawDigit = true
-        index += 1
-    }
-    if index < chars.count, chars[index] == "." {
-        index += 1
-        while index < chars.count, chars[index].isNumber {
-            sawDigit = true
-            index += 1
-        }
-    }
-
-    guard sawDigit else {
+/// kotlin-stdlib `Duration.parse` / `parseIsoString` grammar (2.3.10).
+/// Decimal components are `[0-9]+` with an optional `.` + `[0-9]+` fraction;
+/// scientific notation, a trailing/leading dot, and surrounding whitespace are rejected.
+private func runtimeDurationAsciiDigit(_ ch: Character) -> Int? {
+    guard let ascii = ch.asciiValue,
+          ascii >= UInt8(ascii: "0"),
+          ascii <= UInt8(ascii: "9")
+    else {
         return nil
     }
-    return Double(String(chars[start..<index]))
+    return Int(ascii - UInt8(ascii: "0"))
 }
 
-private func runtimeDurationParseISO(_ input: String) -> Int64? {
-    var chars = Array(input.trimmingCharacters(in: .whitespacesAndNewlines))
-    guard !chars.isEmpty else { return nil }
-
-    var sign = 1
-    if chars.first == "+" || chars.first == "-" {
-        sign = chars.first == "-" ? -1 : 1
-        chars.removeFirst()
+private func runtimeDurationParseSign(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int
+) -> Int {
+    guard index < end else { return 1 }
+    if chars[index] == "-" {
+        index += 1
+        return -1
     }
-    guard chars.first == "P" else { return nil }
-    var index = 1
+    if chars[index] == "+" {
+        index += 1
+        return 1
+    }
+    return 1
+}
+
+private struct RuntimeDurationParsedNumber {
+    let whole: Int64
+    let fraction: Double
+    let hasFraction: Bool
+    let overflow: Bool
+    let sign: Int
+}
+
+private struct RuntimeDurationParsedUnit {
+    let order: Int
+    let scale: Int64
+}
+
+private func runtimeDurationParseInteger(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int,
+    allowSign: Bool
+) -> (whole: Int64, overflow: Bool, sign: Int)? {
+    let sign = allowSign ? runtimeDurationParseSign(chars, index: &index, end: end) : 1
+    let digitsStart = index
+    // Drop leading zeros so a zero-padded value is not reported as overflow.
+    while index < end, chars[index] == "0" {
+        index += 1
+    }
+
+    var whole: Int64 = 0
+    var overflow = false
+    while index < end {
+        guard let digit = runtimeDurationAsciiDigit(chars[index]) else { break }
+        if !overflow {
+            let (multiplied, mulOverflow) = whole.multipliedReportingOverflow(by: 10)
+            let (added, addOverflow) = multiplied.addingReportingOverflow(Int64(digit))
+            if mulOverflow || addOverflow {
+                overflow = true
+                whole = Int64.max
+            } else {
+                whole = added
+            }
+        }
+        index += 1
+    }
+
+    guard index > digitsStart else { return nil }
+    return (whole, overflow, sign)
+}
+
+private func runtimeDurationParseFraction(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int
+) -> Double? {
+    let start = index
+    var fraction = 0.0
+    var place = 10.0
+    while index < end {
+        guard let digit = runtimeDurationAsciiDigit(chars[index]) else { break }
+        fraction += Double(digit) / place
+        place *= 10
+        index += 1
+    }
+    guard index > start else { return nil }
+    return fraction
+}
+
+private func runtimeDurationParseNumber(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int,
+    allowSign: Bool
+) -> RuntimeDurationParsedNumber? {
+    guard let integer = runtimeDurationParseInteger(
+        chars, index: &index, end: end, allowSign: allowSign
+    ) else {
+        return nil
+    }
+    let fraction: Double
+    let hasFraction: Bool
+    if index < end, chars[index] == "." {
+        index += 1
+        guard let parsed = runtimeDurationParseFraction(chars, index: &index, end: end) else {
+            return nil
+        }
+        fraction = parsed
+        hasFraction = true
+    } else {
+        fraction = 0
+        hasFraction = false
+    }
+    return RuntimeDurationParsedNumber(
+        whole: integer.whole,
+        fraction: fraction,
+        hasFraction: hasFraction,
+        overflow: integer.overflow,
+        sign: integer.sign
+    )
+}
+
+private func runtimeDurationNanoseconds(
+    from number: RuntimeDurationParsedNumber,
+    scale: Int64
+) -> Int64? {
+    guard let unsigned = runtimeDurationNanoseconds(
+        from: Double(number.whole) + number.fraction,
+        scale: scale
+    ) else {
+        return nil
+    }
+    return runtimeDurationApplySign(unsigned, sign: number.sign)
+}
+
+private func runtimeDurationParseDefaultUnit(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int
+) -> RuntimeDurationParsedUnit? {
+    let start = index
+    while index < end {
+        guard let ascii = chars[index].asciiValue,
+              ascii >= UInt8(ascii: "a"),
+              ascii <= UInt8(ascii: "z")
+        else {
+            break
+        }
+        index += 1
+    }
+    guard index > start else { return nil }
+    switch String(chars[start..<index]) {
+    case "d": return RuntimeDurationParsedUnit(order: 6, scale: runtimeDurationNanosPerDay)
+    case "h": return RuntimeDurationParsedUnit(order: 5, scale: runtimeDurationNanosPerHour)
+    case "m": return RuntimeDurationParsedUnit(order: 4, scale: runtimeDurationNanosPerMinute)
+    case "s": return RuntimeDurationParsedUnit(order: 3, scale: runtimeDurationNanosPerSecond)
+    case "ms": return RuntimeDurationParsedUnit(order: 2, scale: runtimeDurationNanosPerMillisecond)
+    case "us": return RuntimeDurationParsedUnit(order: 1, scale: runtimeDurationNanosPerMicrosecond)
+    case "ns": return RuntimeDurationParsedUnit(order: 0, scale: 1)
+    default: return nil
+    }
+}
+
+private func runtimeDurationParseISOUnit(
+    _ designator: Character,
+    inTime: Bool
+) -> RuntimeDurationParsedUnit? {
+    switch (designator, inTime) {
+    case ("D", false): return RuntimeDurationParsedUnit(order: 6, scale: runtimeDurationNanosPerDay)
+    case ("H", true): return RuntimeDurationParsedUnit(order: 5, scale: runtimeDurationNanosPerHour)
+    case ("M", true): return RuntimeDurationParsedUnit(order: 4, scale: runtimeDurationNanosPerMinute)
+    case ("S", true): return RuntimeDurationParsedUnit(order: 3, scale: runtimeDurationNanosPerSecond)
+    default: return nil
+    }
+}
+
+private func runtimeDurationParseISOFormat(_ chars: [Character], startIndex: Int) -> Int64? {
+    var index = startIndex
+    guard index < chars.count else { return nil }
+
     var inTime = false
-    var sawComponent = false
+    var prevOrder: Int?
     var total: Int64 = 0
 
     while index < chars.count {
         if chars[index] == "T" {
-            guard !inTime else { return nil }
-            inTime = true
+            if inTime { return nil }
             index += 1
+            if index == chars.count { return nil }
+            inTime = true
             continue
         }
 
-        guard let number = runtimeDurationParseNumber(chars, index: &index),
-              index < chars.count
-        else {
+        guard let number = runtimeDurationParseNumber(
+            chars, index: &index, end: chars.count, allowSign: true
+        ), index < chars.count else {
             return nil
         }
-
-        let designator = chars[index]
+        if number.hasFraction, chars[index] != "S" {
+            return nil
+        }
+        guard let unit = runtimeDurationParseISOUnit(chars[index], inTime: inTime) else {
+            return nil
+        }
+        if let prevOrder, prevOrder <= unit.order {
+            return nil
+        }
+        prevOrder = unit.order
         index += 1
-        let scale: Int64
-        switch (designator, inTime) {
-        case ("D", false):
-            scale = runtimeDurationNanosPerDay
-        case ("H", true):
-            scale = runtimeDurationNanosPerHour
-        case ("M", true):
-            scale = runtimeDurationNanosPerMinute
-        case ("S", true):
-            scale = runtimeDurationNanosPerSecond
-        default:
-            return nil
-        }
 
-        guard let component = runtimeDurationNanoseconds(from: number, scale: scale) else {
+        guard let component = runtimeDurationNanoseconds(from: number, scale: unit.scale) else {
             return nil
         }
         total = runtimeDurationSaturatingAdd(total, component)
-        sawComponent = true
     }
 
-    guard sawComponent else { return nil }
-    return runtimeDurationApplySign(total, sign: sign)
+    guard prevOrder != nil else { return nil }
+    return total
 }
 
-private func runtimeDurationParseDefaultToken(_ token: String) -> Int64? {
-    let units: [(suffix: String, scale: Int64)] = [
-        ("ms", runtimeDurationNanosPerMillisecond),
-        ("us", runtimeDurationNanosPerMicrosecond),
-        ("µs", runtimeDurationNanosPerMicrosecond),
-        ("ns", 1),
-        ("d", runtimeDurationNanosPerDay),
-        ("h", runtimeDurationNanosPerHour),
-        ("m", runtimeDurationNanosPerMinute),
-        ("s", runtimeDurationNanosPerSecond),
-    ]
-    for unit in units where token.hasSuffix(unit.suffix) {
-        let numberText = String(token.dropLast(unit.suffix.count))
-        guard !numberText.isEmpty,
-              let number = Double(numberText)
-        else {
-            return nil
-        }
-        return runtimeDurationNanoseconds(from: number, scale: unit.scale)
-    }
-    return nil
-}
+private func runtimeDurationParseDefaultFormat(
+    _ chars: [Character],
+    startIndex: Int,
+    hasSign: Bool
+) -> Int64? {
+    var index = startIndex
+    var end = chars.count
+    var allowSpaces = !hasSign
 
-private func runtimeDurationParseDefault(_ input: String) -> Int64? {
-    var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return nil }
-
-    if text == "Infinity" || text == "+Infinity" {
-        return Int64.max
+    if hasSign, index < chars.count, chars[index] == "(", chars.last == ")" {
+        allowSpaces = true
+        index += 1
+        end -= 1
+        guard index < end else { return nil }
     }
-    if text == "-Infinity" {
-        return Int64.min
-    }
-
-    var sign = 1
-    if text.hasPrefix("-("), text.hasSuffix(")") {
-        sign = -1
-        text = String(text.dropFirst(2).dropLast())
-    } else if text.hasPrefix("+") || text.hasPrefix("-") {
-        sign = text.first == "-" ? -1 : 1
-        text = String(text.dropFirst())
-    }
-
-    let parts = text.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r" })
-    guard !parts.isEmpty else { return nil }
 
     var total: Int64 = 0
-    for part in parts {
-        guard let component = runtimeDurationParseDefaultToken(String(part)) else {
+    var prevOrder: Int?
+
+    while index < end {
+        if allowSpaces, prevOrder != nil {
+            while index < end, chars[index] == " " {
+                index += 1
+            }
+        }
+
+        guard let number = runtimeDurationParseNumber(
+            chars, index: &index, end: end, allowSign: false
+        ), !number.overflow, index < end else {
+            return nil
+        }
+        guard let unit = runtimeDurationParseDefaultUnit(chars, index: &index, end: end) else {
+            return nil
+        }
+        if let prevOrder, prevOrder <= unit.order {
+            return nil
+        }
+        prevOrder = unit.order
+
+        if number.hasFraction, index < end {
+            return nil
+        }
+
+        guard let component = runtimeDurationNanoseconds(from: number, scale: unit.scale) else {
             return nil
         }
         total = runtimeDurationSaturatingAdd(total, component)
     }
-    return runtimeDurationApplySign(total, sign: sign)
+
+    return total
+}
+
+private func runtimeDurationParseDuration(_ value: String, strictIso: Bool) -> Int64? {
+    guard !value.isEmpty else { return nil }
+    let chars = Array(value)
+    var index = 0
+    let isNegative = runtimeDurationParseSign(chars, index: &index, end: chars.count) < 0
+    let hasSign = index > 0
+    guard index < chars.count else { return nil }
+
+    let parsed: Int64?
+    if chars[index] == "P" {
+        parsed = runtimeDurationParseISOFormat(chars, startIndex: index + 1)
+    } else if strictIso {
+        return nil
+    } else if String(chars[index...]).lowercased() == "infinity" {
+        parsed = Int64.max
+    } else {
+        parsed = runtimeDurationParseDefaultFormat(chars, startIndex: index, hasSign: hasSign)
+    }
+    guard let result = parsed else { return nil }
+    return isNegative ? runtimeDurationApplySign(result, sign: -1) : result
+}
+
+private func runtimeDurationParseISO(_ input: String) -> Int64? {
+    runtimeDurationParseDuration(input, strictIso: true)
 }
 
 private func runtimeDurationParse(_ input: String) -> Int64? {
-    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let iso = runtimeDurationParseISO(trimmed) {
-        return iso
-    }
-    return runtimeDurationParseDefault(trimmed)
+    runtimeDurationParseDuration(input, strictIso: false)
 }
 
 /// Clamp-safe multiplication: returns `Int64.max` / `Int64.min` on overflow
