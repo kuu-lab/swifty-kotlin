@@ -469,5 +469,38 @@ struct CodegenBackendRangeHOFTests {
                 """ + "\n1 2 3 4 5 \n18446744073709551615\n"
         )
     }
+
+    @Test
+    func testCodegenULongRangeStepNearMaxValueDoesNotWrap() throws {
+        let source = """
+        fun main() {
+            val nearMax = (ULong.MAX_VALUE - 4uL)..ULong.MAX_VALUE step 3
+            println(nearMax.toList())
+            println(((ULong.MAX_VALUE - 1uL)..ULong.MAX_VALUE step 3).toList())
+            println((ULong.MAX_VALUE downTo (ULong.MAX_VALUE - 5uL) step 2).toList())
+            println(nearMax.take(1))
+            println(nearMax.drop(1))
+            println(nearMax.chunked(1))
+            println(nearMax.windowed(2, 1, true))
+            for (value in (ULong.MAX_VALUE - 4uL)..ULong.MAX_VALUE step 3) print("$value ")
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeStepNearMaxValueDoesNotWrap",
+            expected:
+                """
+                [18446744073709551611, 18446744073709551614]
+                [18446744073709551614]
+                [18446744073709551615, 18446744073709551613, 18446744073709551611]
+                [18446744073709551611]
+                [18446744073709551614]
+                [[18446744073709551611], [18446744073709551614]]
+                [[18446744073709551611, 18446744073709551614], [18446744073709551614]]
+                """ + "\n18446744073709551611 18446744073709551614 \n"
+        )
+    }
 }
 #endif

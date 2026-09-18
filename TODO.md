@@ -625,6 +625,19 @@
     - 動作確認は変更箇所に絞ったスコープのみ実施: `swift build`、新規 diff case 1件、関連既存 diff_cases 15件、Golden Sema 92件（すべて green）。全 Swift suite・全 Golden（Lexer/Parser/Diagnostics）・全 `diff_kotlinc.sh` は未実行だったが、PR #6784 の CI（Swift test shards、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc Diff 全 shard）がすべて green となったため完了へ更新した。
     - **2026-09-16 完了追記**: 前提の KSP-700（PR #6837）と KSP-1509（PR #6818）がともに merge 済みであることを再確認した。KSP-1542 の PR #6784 も全必須 CI を通過済み。`Collection`/`Iterable`/`Iterator` 系の nominal 宣言は bundled Kotlin source を正規経路とし、Swift 側は `--no-stdlib`/precompiled metadata 用の fallback と、runtime box の itable 未登録を迂回する (c) bridge 残余だけを保持するため、追加の shell 削除・bridge 改名は行わない。
 
+- [~] KSP-1544: `HeaderHelpers+SyntheticCoercionStubs.swift` の (b) 分を Kotlin 化し (c) 残置分を §9 で確定する（Linear KUU-588）
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（着手時 449 行、§9 記載の 654 行は stale だった）
+  - 再分類結果（着手時 rg で再固定）: 登録は Int×9 / Long×9 / Float.toByte・toShort / Double.toByte・toShort・toFloat の 23 件 + `kotlin.math` package bootstrap。(b) は Float/Double の `toByte()`/`toShort()` 4 件のみ — 本家は `toInt().toX()` 合成で `warningSince="1.3"`/`errorSince="1.5"`（apiVersion 2.2 では error-level deprecated）。残りは (c): Int/Long の primitive cast 全般と `Double.toFloat` は lowering が `kk_*` へ直接写像する言語コア面（KSP-1531 分類表どおり）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記（KSP-1538 ブロック末尾。`toInt().toByte()` / `toInt().toShort()` の実 body + 本家準拠の `@Deprecated`/`@DeprecatedSinceKotlin`/`ReplaceWith`）。range/coercion は `ranges/RangeCoercion.kt` で既に完全に source-backed のため追記なし
+  - 削除/降格 kk_*: なし。4 件の synthetic 登録は `__kk_float_to_int`/`__kk_double_to_int` を指していたが、これらは bundled `Float.toInt`/`Double.toInt` と `kk_number_to_primitive` dispatch が継続利用するため保持。`kk_int_to_int` は identity 登録として (c) 残置
+  - dead code 削除（同ファイル内、(b) 範囲外の付帯整理）: `kotlin.math` package bootstrap（registry 順で Math bucket の `ensureSyntheticPackageHierarchy` が常に先行するため到達不能）と `syntheticDeprecatedAnnotationsForCoercion`（`toChar` 専用だが登録対象 0 件）。Registry の `Coercion` entry は `.sourceBackedMigration` → `.residualCompilerSurface` へ
+  - **(b) stub が実害バグを持っていた点を記録**: 旧登録は `returnType: intType` で `Float.toByte()` が Int を返す誤シグネチャだった（`val b: Byte = 1.5f.toByte()` が型エラー、`300.9f.toByte()` が narrowing 無しの 300 を返す）。source 化で `toInt().toByte()`（44）に一致し、未抑制呼び出しは本家同様 error-level deprecated になった（`Scripts/diff_cases/float_double_to_byte_short.kt` で PASS 確認、`@file:Suppress("DEPRECATION_ERROR")` 下で実行）
+  - 手順: T
+  - diff: `Scripts/diff_cases/float_double_to_byte_short.kt` 新規
+  - 前提: なし
+  - 検証: `swift build` green、新規 diff case PASS、`FloatDoubleNumericConversionSourceTests`（`toByte`/`toShort` の source-backed 化 + error-level deprecated 拒否を追加）、`CoercionSyntheticStubTests`・`IntConversionMemberCallTests`・`LongConversionMemberCallTests`・`FileSuppressAnnotationTests`・Golden Sema 等 focused 実行。全 suite・全 `diff_kotlinc.sh` は CI 待ち（AGENTS.md 最小スコープ方針）
+  - KSP-1541 への影響: ルート `kotlin/` パッケージ rename ブロッカーの片方（`+SyntheticCoercionStubs.swift` の (b) 残）を解消。`+SyntheticArrayStubs.swift` の (b) 残は別タスクで継続
+
 ### CLEANUP-STUB 追補（(a) 削除。2026-07-10 監査。採番は履歴最終 095 の続き。手順は RF-STUB-002 レシピ）
 
 > 「本家で deprecated/obsolete かつ KSwiftK でも未実装」の二重死と fiction。**W6 の移行より先に実施を推奨**（移行対象面積が減る）。
