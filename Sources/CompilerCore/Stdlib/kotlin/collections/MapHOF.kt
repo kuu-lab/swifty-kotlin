@@ -65,7 +65,7 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
  * Returns `true` if map has at least one entry.
  */
 public fun <K, V> Map<out K, V>.any(): Boolean {
-    return size > 0
+    return !__kkMapIsEmpty(this)
 }
 
 /**
