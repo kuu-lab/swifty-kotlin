@@ -1053,7 +1053,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+            let primitiveArraySourceCandidates = collectPrimitiveArraySourceMembers(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
@@ -1131,7 +1131,7 @@ extension CallTypeChecker {
             } else if !mutableMapPutAllSourceCandidates.isEmpty {
                 standardMemberCandidates = mutableMapPutAllSourceCandidates
             } else if !primitiveArraySourceCandidates.isEmpty {
-                // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
+                // Primitive-array source members are bundled Kotlin extensions. Prefer the
                 // exact source receiver over synthetic member stubs, including
                 // joinToString(transform), whose legacy stub shares the same name.
                 standardMemberCandidates = primitiveArraySourceCandidates
@@ -1227,12 +1227,12 @@ extension CallTypeChecker {
                         }
                         return true
                     }
-                    // Primitive-array HOFs are top-level extensions in
+                    // Primitive-array source members are top-level extensions in
                     // kotlin.collections. Default-import lookup may stop at a
                     // same-named Sequence extension first (notably for
                     // UByteArray/UShortArray), so prefer the exact source
                     // receiver overload when one is present.
-                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceMembers(
                         named: calleeName,
                         receiverType: nonNullReceiverForScope,
                         sema: sema,

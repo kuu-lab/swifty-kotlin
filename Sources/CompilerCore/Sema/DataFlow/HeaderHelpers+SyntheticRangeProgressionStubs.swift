@@ -232,30 +232,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticIntRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticLongRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticCharRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerSyntheticClosedRangeStub(
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
@@ -560,7 +536,9 @@ extension DataFlowSemaPhase {
                 fqName: classFQName,
                 declSite: nil,
                 visibility: .public,
-                flags: name == "ULongProgression" ? [.synthetic, .openType] : [.synthetic]
+                flags: (name == "ULongProgression" || name == "CharProgression")
+                    ? [.synthetic, .openType]
+                    : [.synthetic]
             )
             symbols.setParentSymbol(rangesPackageSymbol, for: created)
             classSymbol = created
@@ -669,11 +647,13 @@ extension DataFlowSemaPhase {
         // externalLinkNames registered below — resolution always lands on the
         // shared `__kk_range_*` bridge or the bundled `isEmpty`/`toList`
         // before this registration's link name is read (`step` is the one
-        // exception: it stays on the live, kept `kk_uint_range_step` bridge,
-        // same as UIntRange's own `.step`). Aligning the dead names to the
-        // safe generic bridge so they don't dangle on symbols this ticket
-        // removes; Sema still needs the registration itself so these member
-        // names type-check on UIntProgression.
+        // exception: it stays on the live, kept `kk_uint_range_step` /
+        // `kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
+        // `.step` — the progression box stores the step at runtime and there
+        // is no Kotlin-side field to read it from). Aligning the dead names
+        // to the safe generic bridge so they don't dangle on symbols this
+        // ticket removes; Sema still needs the registration itself so these
+        // member names type-check on UIntProgression.
         let firstLastRuntime: (String, String)
         switch name {
         case "UIntProgression":
@@ -689,7 +669,7 @@ extension DataFlowSemaPhase {
         switch name {
         case "UIntProgression": stepRuntime = "kk_uint_range_step"
         case "ULongProgression": stepRuntime = "kk_ulong_range_step"
-        case "LongProgression": stepRuntime = "kk_long_range_step"
+        case "LongProgression": stepRuntime = "__kk_long_range_step"
         default: stepRuntime = "kk_range_step"
         }
         let isEmptyRuntime: String?
@@ -716,10 +696,10 @@ extension DataFlowSemaPhase {
             toListRuntime = nil
         case "LongProgression":
             reversedRuntime = "__kk_range_reversed"
-            toListRuntime = "kk_long_range_toList"
+            toListRuntime = "__kk_long_range_toList"
         case "CharProgression":
             reversedRuntime = "__kk_range_reversed"
-            toListRuntime = "kk_char_range_toList"
+            toListRuntime = "__kk_char_range_toList"
         default:
             reversedRuntime = "__kk_range_reversed"
             toListRuntime = "kk_range_toList"

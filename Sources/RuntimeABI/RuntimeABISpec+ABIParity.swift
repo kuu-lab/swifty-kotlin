@@ -388,20 +388,20 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_average", parameters: [
+        abiParitySpec("__kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_drop", parameters: [
+        abiParitySpec("__kk_long_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_long_range_sorted", parameters: [
+        abiParitySpec("__kk_long_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_take", parameters: [
+        abiParitySpec("__kk_long_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
