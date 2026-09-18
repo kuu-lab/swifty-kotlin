@@ -772,6 +772,32 @@ struct KotlinIOCommonEdgeCaseTests {
         )
     }
 
+    @Test
+    func testFileUseLinesListResultSupportsMemberAccess() throws {
+        let source = """
+        import java.io.File
+
+        fun main() {
+            val file = File("/dev/null")
+            val collected = file.useLines { it.toList() }
+            println(collected.size)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                emit: .kirDump,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "A List result from File.useLines should keep its member type: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
 
     // MARK: - File.forEachLine
 
