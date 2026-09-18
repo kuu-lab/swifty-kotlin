@@ -116,13 +116,23 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalTimeAnchors") { phase, symbols, types, interner, context in
             phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "TODOAndIO") { phase, symbols, types, interner, context in
-            phase.registerSyntheticTODOAndIOStubs(
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "SequenceResiduals") { phase, symbols, types, interner, _ in
+            phase.registerSyntheticSequenceResidualMembers(
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        },
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativePlatformFallbacks") { phase, symbols, types, interner, context in
+            phase.registerSyntheticNativePlatformStubs(
                 symbols: symbols,
                 types: types,
                 interner: interner,
                 bundledIndex: context.bundledIndex
             )
+        },
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "FunctionTypes") { phase, symbols, types, interner, _ in
+            phase.registerSyntheticFunctionTypes(symbols: symbols, types: types, interner: interner)
         },
         // KSP-682: these patches attach the Function{N} supertypes for the
         // synthetic KProperty fallback shells only. When the bundled Kotlin
