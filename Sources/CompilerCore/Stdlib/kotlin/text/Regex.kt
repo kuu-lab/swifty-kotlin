@@ -120,6 +120,7 @@ public class Regex {
     }
 
     public fun split(input: String, limit: Int = 0): List<String> {
+        require(limit >= 0) { "Limit must be non-negative, but was $limit" }
         if (limit == 0) {
             return __kk_split_regex(input, this)
         }
@@ -128,16 +129,11 @@ public class Regex {
         var count = 0
         val matches = findAll(input)
         for (match in matches) {
-            if (limit > 0 && count >= limit - 1) {
+            if (count >= limit - 1) {
                 break
             }
             val start = match.range.first
             if (start < lastEnd) {
-                continue
-            }
-            if (match.value.isEmpty() && start == lastEnd && lastEnd < input.length) {
-                result.add(input.substring(lastEnd, lastEnd + 1))
-                lastEnd++
                 continue
             }
             result.add(input.substring(lastEnd, start))

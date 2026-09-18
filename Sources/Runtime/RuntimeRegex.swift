@@ -111,6 +111,16 @@ private enum RegexNeverMatch {
     }()
 }
 
+/// NSRegularExpression/ICU rejects the empty pattern, while Kotlin/JVM accepts
+/// `Regex("")` as a valid regex that matches an empty string at every input
+/// position. `(?:)` is an empty non-capturing group with identical matching
+/// semantics, so it is substituted as the compiled form when the effective
+/// pattern is empty. The original pattern is still stored on the box so
+/// `Regex.pattern` reports the user-supplied value.
+private func compilablePattern(_ pattern: String) -> String {
+    pattern.isEmpty ? "(?:)" : pattern
+}
+
 private func regexStringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -361,7 +371,7 @@ public func kk_regex_create_flat(
 
 private func runtimeRegexCreate(pattern: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+    guard let regex = try? NSRegularExpression(pattern: compilablePattern(pattern), options: []) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
             message: "Illegal pattern: \(pattern)"
         )
@@ -653,7 +663,7 @@ private func createRegexBox(
     let canonEq = optionOrdinals.contains(kRegexOptionOrdinalCanonEq)
     let normalizedPattern = canonEq ? pattern.precomposedStringWithCanonicalMapping : pattern
     let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
-    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
+    guard let regex = try? NSRegularExpression(pattern: compilablePattern(effectivePattern), options: options) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
             message: "Illegal pattern: \(pattern)"
         )
@@ -1030,7 +1040,7 @@ public func kk_regex_from_literal_flat(
 
 private func runtimeRegexFromLiteral(_ literal: String) -> Int {
     let escapedPattern = NSRegularExpression.escapedPattern(for: literal)
-    guard let regex = try? NSRegularExpression(pattern: escapedPattern, options: []) else {
+    guard let regex = try? NSRegularExpression(pattern: compilablePattern(escapedPattern), options: []) else {
         return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: literal))
     }
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: escapedPattern))
