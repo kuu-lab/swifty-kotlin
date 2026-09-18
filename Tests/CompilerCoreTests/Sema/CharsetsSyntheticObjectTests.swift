@@ -23,6 +23,7 @@ struct CharsetsSyntheticObjectTests {
         import kotlin.text.Charset
 
         fun utf8(): Charset = Charsets.UTF_8
+        fun qualifiedUtf8(): Charset = kotlin.text.Charsets.UTF_8
         fun iso88591(): Charset = Charsets.ISO_8859_1
         fun usAscii(): Charset = Charsets.US_ASCII
         fun utf16(): Charset = Charsets.UTF_16
