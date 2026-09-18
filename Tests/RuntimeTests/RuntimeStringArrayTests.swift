@@ -1739,6 +1739,68 @@ struct RuntimeStringArrayTests {
         #expect(formatted == "3.5")
     }
 
+    @Test
+    func testStringFormatSupportsHexHashCodeConversion() {
+        let args = makeRuntimeArray([
+            rawFromRuntimeString("abc"),
+            runtimeNullSentinelInt,
+            42,
+        ])
+        let formatted = flatStringReturnValueNoThrow(
+            "%1$h %2$h %3$h %1$H %1$8h",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "17862 null 2a 17862    17862")
+    }
+
+    @Test
+    func testStringFormatSupportsDateTimeEpochConversions() {
+        let millis = 1_700_000_000_123
+        let args = makeRuntimeArray([millis, runtimeNullSentinelInt])
+        let formatted = flatStringReturnValueNoThrow(
+            "%1$tQ %1$ts %2$tQ",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "1700000000123 1700000000 null")
+    }
+
+    @Test
+    func testStringFormatDateTimeUsesLocalCalendarFields() {
+        let millis: Int64 = 1_704_067_200_000
+        let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let year = calendar.component(.year, from: date)
+        let month = calendar.component(.month, from: date)
+        let day = calendar.component(.day, from: date)
+        let args = makeRuntimeArray([Int(millis)])
+        let formatted = flatStringReturnValueNoThrow(
+            "%1$tY %1$tm %1$td %1$tF",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        let expected = String(format: "%04d %02d %02d %04d-%02d-%02d", year, month, day, year, month, day)
+        #expect(formatted == expected)
+    }
+
+    @Test
+    func testStringFormatDateTimeSupportsInstantBox() {
+        let millis = 1_700_000_000_123
+        let instant = kk_instant_from_epoch_millis(millis)
+        let args = makeRuntimeArray([instant])
+        let formatted = flatStringReturnValueNoThrow("%1$tQ %1$ts", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted == "1700000000123 1700000000")
+    }
+
+    @Test
+    func testStringFormatMixedStringAndHashConversions() {
+        let args = makeRuntimeArray([42, 42])
+        let formatted = flatStringReturnValueNoThrow("%s %h", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted == "42 2a")
+    }
+
     // MARK: - __kk_throwable_new
 
     @Test
