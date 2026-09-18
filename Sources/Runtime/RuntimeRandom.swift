@@ -363,7 +363,7 @@ public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ o
     let first = uint32Payload(range.first)
     let last = uint32Payload(range.last)
     guard range.step != 0, first <= last else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Range is empty.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Range is empty.")
         return Int(first)
     }
     let exclusiveUpper = last == UInt64(UInt32.max) ? UInt64(UInt32.max) + 1 : last + 1
