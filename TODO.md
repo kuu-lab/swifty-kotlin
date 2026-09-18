@@ -3523,8 +3523,9 @@
   - 対象: `kotlin.text` / receiver `CharSequence` / family `reversed`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`（#6697/#6714 で追加済み）
 
-- [~] KSP-1397: kotlin.text.CharSequence.running-family の未実装 stdlib API を実装する（4 件）
-  - 実装中: Kotlin source の runningFold / runningFoldIndexed / runningReduce / runningReduceIndexed と generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
+- [x] KSP-1397: kotlin.text.CharSequence.running-family の未実装 stdlib API を実装する（4 件）
+  - 完了確認（2026-09-18）: KSP-1397/1398/1399/1400/1402/1403/1404/1405/1407/1411/1412 は既存の merged PR（#6700、#6708、#6709、#6710、#6716、#6717、#6720、#6721、#6724、#6726）で source-backed 実装・Golden・diff fixture が master に取り込まれており、残る KSP-1401/1406/1408/1409/1410/1413/1414/1431/1433/1436/1439 は PR #6891 で取り込まれた。PR #6891 の全 CI（CompilerCore/Smoke、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc Diff 全 shard）が PASS し、22 タスクの共通 G を確認済み。
+  - 実装済み: Kotlin source の runningFold / runningFoldIndexed / runningReduce / runningReduceIndexed と generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `running`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3537,8 +3538,8 @@
     - `kotlin.text.runningReduce` — fun CharSequence.runningReduce(Function2): List  -- `final inline fun (kotlin/CharSequence).kotlin.text/runningReduce(kotlin/Function2<kotlin/Char, kotlin/Char, kotlin/Char>): kotlin.collections/List<kotlin/Char>`
     - `kotlin.text.runningReduceIndexed` — fun CharSequence.runningReduceIndexed(Function3): List  -- `final inline fun (kotlin/CharSequence).kotlin.text/runningReduceIndexed(kotlin/Function3<kotlin/Int, kotlin/Char, kotlin/Char, kotlin/Char>): kotlin.collections/List<kotlin/Char>`
 
-- [~] KSP-1398: kotlin.text.CharSequence.scan-family の未実装 stdlib API を実装する（2 件）
-  - 実装中: Kotlin source の scan / scanIndexed を runningFold / runningFoldIndexed へ委譲し、generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
+- [x] KSP-1398: kotlin.text.CharSequence.scan-family の未実装 stdlib API を実装する（2 件）
+  - 実装済み: Kotlin source の scan / scanIndexed を runningFold / runningFoldIndexed へ委譲し、generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `scan`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3549,21 +3550,21 @@
     - `kotlin.text.scan` — fun CharSequence.scan(, Function2): List  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/scan(#A, kotlin/Function2<#A, kotlin/Char, #A>): kotlin.collections/List<#A>`
     - `kotlin.text.scanIndexed` — fun CharSequence.scanIndexed(, Function3): List  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/scanIndexed(#A, kotlin/Function3<kotlin/Int, #A, kotlin/Char, #A>): kotlin.collections/List<#A>`
 
-- [~] KSP-1399: kotlin.text.CharSequence.single-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1399: kotlin.text.CharSequence.single-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `single`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringQuery.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_single.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_single.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_single.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 実装状況: `CharSequence.single` / `singleOrNull` の no-argument・predicate overload を `StringQuery.kt` に source-backed 実装し、custom receiver の indexed dispatch、predicate の first/second match early-exit、Kotlin 2.3.10 の例外メッセージを固定。focused Sema/Golden/diff/ABI は完了したが、共通 G は未実行のため完了根拠にしない。
+  - 実装状況: `CharSequence.single` / `singleOrNull` の no-argument・predicate overload を `StringQuery.kt` に source-backed 実装し、custom receiver の indexed dispatch、predicate の first/second match early-exit、Kotlin 2.3.10 の例外メッセージを固定。focused Sema/Golden/diff/ABI と PR #6891 の共通 G は完了。
   - 未実装シンボル一覧:
     - `kotlin.text.single` — fun CharSequence.single(): Char  -- `final fun (kotlin/CharSequence).kotlin.text/single(): kotlin/Char`
     - `kotlin.text.single` — fun CharSequence.single(Function1): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/single(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/Char`
     - `kotlin.text.singleOrNull` — fun CharSequence.singleOrNull(): Char  -- `final fun (kotlin/CharSequence).kotlin.text/singleOrNull(): kotlin/Char?`
     - `kotlin.text.singleOrNull` — fun CharSequence.singleOrNull(Function1): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/singleOrNull(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/Char?`
 
-- [~] KSP-1400: kotlin.text.CharSequence.slice-family の未実装 stdlib API を実装する（2 件、実装済み・共通G待ち）
+- [x] KSP-1400: kotlin.text.CharSequence.slice-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `slice`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringSubstringSlice.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3574,9 +3575,9 @@
     - `kotlin.text.slice` — fun CharSequence.slice(Iterable): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/slice(kotlin.collections/Iterable<kotlin/Int>): kotlin/CharSequence`
     - `kotlin.text.slice` — fun CharSequence.slice(IntRange): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/slice(kotlin.ranges/IntRange): kotlin/CharSequence`
 
-- [~] KSP-1401: kotlin.text.CharSequence.split-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1401: kotlin.text.CharSequence.split-family の未実装 stdlib API を実装する（6 件）
   - 実装 (2026-09-16): `StringSplitJoin.kt` に Regex / String vararg / Char vararg の split・splitToSequence を source-backed で追加。UTF-16 ベースの delimiter scanner、vararg default-stub ABI、spread 引数の配列要素型解決で通常・`*array` 呼び出しを維持。
-  - 検証: stdlib-only artifact 診断なし、`StringSplitFunctionTests` 6件、`CodegenBackendKotlinTextSplittingEdgeCasesTests` 13件 PASS。共通 G / kotlinc 全体差分は未実行。
+  - 検証: stdlib-only artifact 診断なし、`StringSplitFunctionTests` 6件、`CodegenBackendKotlinTextSplittingEdgeCasesTests` 13件 PASS。共通 G / kotlinc 全体差分は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `split`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3591,7 +3592,7 @@
     - `kotlin.text.splitToSequence` — fun CharSequence.splitToSequence(Array, Boolean, Int): Sequence  -- `final fun (kotlin/CharSequence).kotlin.text/splitToSequence(kotlin/Array<out kotlin/String>..., kotlin/Boolean = ..., kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
     - `kotlin.text.splitToSequence` — fun CharSequence.splitToSequence(Array, Boolean, Int): Sequence  -- `final fun (kotlin/CharSequence).kotlin.text/splitToSequence(kotlin/CharArray..., kotlin/Boolean = ..., kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
 
-- [~] KSP-1402: kotlin.text.CharSequence.sub-family の未実装 stdlib API を実装する（実装済み・共通G待ち）
+- [x] KSP-1402: kotlin.text.CharSequence.sub-family の未実装 stdlib API を実装する
   - 対象: `kotlin.text` / receiver `CharSequence` / family `sub`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringSubstringSlice.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3601,7 +3602,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.subSequence` — fun CharSequence.subSequence(IntRange): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/subSequence(kotlin.ranges/IntRange): kotlin/CharSequence`
 
-- [~] KSP-1403: kotlin.text.CharSequence.substring-family の未実装 stdlib API を実装する（2 件）（実装済み・共通G待ち）
+- [x] KSP-1403: kotlin.text.CharSequence.substring-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `substring`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringSubstringSlice.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3612,7 +3613,7 @@
     - `kotlin.text.substring` — fun CharSequence.substring(IntRange): String  -- `final fun (kotlin/CharSequence).kotlin.text/substring(kotlin.ranges/IntRange): kotlin/String`
     - `kotlin.text.substring` — fun CharSequence.substring(Int, Int): String  -- `final inline fun (kotlin/CharSequence).kotlin.text/substring(kotlin/Int, kotlin/Int = ...): kotlin/String`
 
-- [~] KSP-1404: kotlin.text.CharSequence.sum-family の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1404: kotlin.text.CharSequence.sum-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `sum`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3625,10 +3626,10 @@
     - `kotlin.text.sumOf` — fun CharSequence.sumOf(Function1): Long  -- `final inline fun (kotlin/CharSequence).kotlin.text/sumOf(kotlin/Function1<kotlin/Char, kotlin/Long>): kotlin/Long`
     - `kotlin.text.sumOf` — fun CharSequence.sumOf(Function1): UInt  -- `final inline fun (kotlin/CharSequence).kotlin.text/sumOf(kotlin/Function1<kotlin/Char, kotlin/UInt>): kotlin/UInt`
     - `kotlin.text.sumOf` — fun CharSequence.sumOf(Function1): ULong  -- `final inline fun (kotlin/CharSequence).kotlin.text/sumOf(kotlin/Function1<kotlin/Char, kotlin/ULong>): kotlin/ULong`
-  - 実装メモ: StringHOF.kt に Kotlin source-backed の Double/Int/Long/UInt/ULong overload を追加。専用 Sema/Golden/diff を実行中。
-  - 保留ゲート: common head 全体の Golden/diff は未完了のため、完了状態にはしない。
+  - 実装メモ: StringHOF.kt に Kotlin source-backed の Double/Int/Long/UInt/ULong overload を追加。専用 Sema/Golden/diff は PASS。
+  - 完了ゲート: common head 全体の Golden/diff は PR #6891 の CI で PASS。
 
-- [~] KSP-1405: kotlin.text.CharSequence.take-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1405: kotlin.text.CharSequence.take-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `take`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3641,9 +3642,9 @@
     - `kotlin.text.takeLastWhile` — fun CharSequence.takeLastWhile(Function1): CharSequence  -- `final inline fun (kotlin/CharSequence).kotlin.text/takeLastWhile(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/CharSequence`
     - `kotlin.text.takeWhile` — fun CharSequence.takeWhile(Function1): CharSequence  -- `final inline fun (kotlin/CharSequence).kotlin.text/takeWhile(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/CharSequence`
 
-- [~] KSP-1406: kotlin.text.CharSequence.to-family の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1406: kotlin.text.CharSequence.to-family の未実装 stdlib API を実装する（5 件）
   - 実装 (2026-09-16): 既存の `toList` / `toMutableList` / `toCollection` に加えて `toSet` / `toHashSet` の source-backed 実装を `StringCollectionConversions.kt` で確認・追加。
-  - 検証: stdlib-only artifact 診断なし、最小 kswiftc 実行で CharSequence 変換を確認。共通 G / kotlinc 全体差分は未実行。
+  - 検証: stdlib-only artifact 診断なし、最小 kswiftc 実行で CharSequence 変換を確認。共通 G / kotlinc 全体差分は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `to`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3657,7 +3658,7 @@
     - `kotlin.text.toMutableList` — fun CharSequence.toMutableList(): MutableList  -- `final fun (kotlin/CharSequence).kotlin.text/toMutableList(): kotlin.collections/MutableList<kotlin/Char>`
     - `kotlin.text.toSet` — fun CharSequence.toSet(): Set  -- `final fun (kotlin/CharSequence).kotlin.text/toSet(): kotlin.collections/Set<kotlin/Char>`
 
-- [~] KSP-1407: kotlin.text.CharSequence.trim-family の未実装 stdlib API を実装する（9 件）
+- [x] KSP-1407: kotlin.text.CharSequence.trim-family の未実装 stdlib API を実装する（9 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `trim`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3675,9 +3676,9 @@
     - `kotlin.text.trimStart` — fun CharSequence.trimStart(Array): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/trimStart(kotlin/CharArray...): kotlin/CharSequence`
     - `kotlin.text.trimStart` — fun CharSequence.trimStart(Function1): CharSequence  -- `final inline fun (kotlin/CharSequence).kotlin.text/trimStart(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/CharSequence`
 
-- [~] KSP-1408: kotlin.text.CharSequence.windowed-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1408: kotlin.text.CharSequence.windowed-family の未実装 stdlib API を実装する（1 件）
   - 実装 (2026-09-16): `StringWindowChunkTransform.kt` に List-returning transform overload を追加し、size / step 検証と partial window の挙動を既存 no-transform path と統一。
-  - 検証: `CodegenBackendKotlinTextSplittingEdgeCasesTests` 13件 PASS。共通 G / kotlinc 全体差分は未実行。
+  - 検証: `CodegenBackendKotlinTextSplittingEdgeCasesTests` 13件 PASS。共通 G / kotlinc 全体差分は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `windowed`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringWindowChunkTransform.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3687,8 +3688,8 @@
   - 未実装シンボル一覧:
     - `kotlin.text.windowed` — fun CharSequence.windowed(Int, Int, Boolean, Function1): List  -- `final fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/windowed(kotlin/Int, kotlin/Int = ..., kotlin/Boolean = ..., kotlin/Function1<kotlin/CharSequence, #A>): kotlin.collections/List<#A>`
 
-- [~] KSP-1409: kotlin.text.CharSequence.with-family の未実装 stdlib API を実装する（1 件）
-  - 監査 (2026-09-16): `StringCollectionConversions.kt` の `CharSequence.withIndex()` source-backed 実装が存在することを確認。共通 G 待ち。
+- [x] KSP-1409: kotlin.text.CharSequence.with-family の未実装 stdlib API を実装する（1 件）
+  - 監査 (2026-09-16): `StringCollectionConversions.kt` の `CharSequence.withIndex()` source-backed 実装が存在することを確認。共通 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `with`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3698,8 +3699,8 @@
   - 未実装シンボル一覧:
     - `kotlin.text.withIndex` — fun CharSequence.withIndex(): Iterable  -- `final fun (kotlin/CharSequence).kotlin.text/withIndex(): kotlin.collections/Iterable<kotlin.collections/IndexedValue<kotlin/Char>>`
 
-- [~] KSP-1410: kotlin.text.Companion の未実装 stdlib API を実装する（1 件）
-  - 監査 (2026-09-16): 正式 API は `String.Companion.CASE_INSENSITIVE_ORDER` で、`HeaderHelpers+SyntheticStringFormatStubs.swift` の synthetic companion property と runtime link を確認。誤った top-level `kotlin.text.CASE_INSENSITIVE_ORDER` は追加しない。共通 G 待ち。
+- [x] KSP-1410: kotlin.text.Companion の未実装 stdlib API を実装する（1 件）
+  - 監査 (2026-09-16): 正式 API は `String.Companion.CASE_INSENSITIVE_ORDER` で、`HeaderHelpers+SyntheticStringFormatStubs.swift` の synthetic companion property と runtime link を確認。誤った top-level `kotlin.text.CASE_INSENSITIVE_ORDER` は追加しない。共通 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/CharSurrogate.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3709,9 +3710,9 @@
   - 未実装シンボル一覧:
     - `kotlin.text.CASE_INSENSITIVE_ORDER` — val Companion.CASE_INSENSITIVE_ORDER  -- `final val kotlin.text/CASE_INSENSITIVE_ORDER`
 
-- [~] KSP-1411: kotlin.text.StringBuilder.append-family の未実装 stdlib API を実装する（16 件）
+- [x] KSP-1411: kotlin.text.StringBuilder.append-family の未実装 stdlib API を実装する（16 件）
   - 実装 (2026-09-08): 不足していた typed appendLine 11件と CharArray offset/len append を Kotlin source へ追加。既存4件も検証。Any? append の独自 toString 無視と private IndexedValue による bundled constructor 解決の混線を最小回帰とともに修正。
-  - 検証: focused Swift 18件、全 Golden（28 tests / 10 suites）、Kotlin 2.3.10 / OpenJDK 26 差分7件、ABI4件 PASS。親 #6697 の UTF-16 getter 回数差は同一親出力で再現し記録。全 Swift・全 diff の共通G未完のため [~]。
+  - 検証: focused Swift 18件、全 Golden（28 tests / 10 suites）、Kotlin 2.3.10 / OpenJDK 26 差分7件、ABI4件 PASS。親 #6697 の UTF-16 getter 回数差は同一親出力で再現し記録。共通 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `StringBuilder` / family `append`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBuilder.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3736,8 +3737,8 @@
     - `kotlin.text.appendLine` — fun StringBuilder.appendLine(String): StringBuilder  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/appendLine(kotlin/String?): kotlin.text/StringBuilder`
     - `kotlin.text.appendRange` — fun StringBuilder.appendRange(CharArray, Int, Int): StringBuilder  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/appendRange(kotlin/CharArray, kotlin/Int, kotlin/Int): kotlin.text/StringBuilder`
 
-- [~] KSP-1412: kotlin.text.StringBuilder.appendln-family の未実装 stdlib API を実装する（10 件）
-  - 実装中 (2026-09-08): Kotlin 2.3.10 の deprecated appendln 10 overloads を StringBuilder source に追加。#6710 head を基点とし、全体 G はこの PR head で未完了。
+- [x] KSP-1412: kotlin.text.StringBuilder.appendln-family の未実装 stdlib API を実装する（10 件）
+  - 実装済み (2026-09-08): Kotlin 2.3.10 の deprecated appendln 10 overloads を StringBuilder source に追加。全体 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `StringBuilder` / family `appendln`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBuilder.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3756,9 +3757,9 @@
     - `kotlin.text.appendln` — fun StringBuilder.appendln(Short): StringBuilder  -- `final fun (kotlin.text/StringBuilder).kotlin.text/appendln(kotlin/Short): kotlin.text/StringBuilder`
     - `kotlin.text.appendln` — fun StringBuilder.appendln(String): StringBuilder  -- `final fun (kotlin.text/StringBuilder).kotlin.text/appendln(kotlin/String): kotlin.text/StringBuilder`
 
-- [~] KSP-1413: kotlin.text.StringBuilder.insert-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1413: kotlin.text.StringBuilder.insert-family の未実装 stdlib API を実装する（4 件）
   - 実装 (2026-09-16): Byte / Short / CharSequence range / CharArray range の source-backed overload を確認し、CharSequence range は custom receiver を indexed access でコピーするよう修正。
-  - 検証: `CodegenBackendStringBuilderEdgeCasesTests` 13件 PASS。共通 G / kotlinc 全体差分は未実行。
+  - 検証: `CodegenBackendStringBuilderEdgeCasesTests` 13件 PASS。共通 G / kotlinc 全体差分は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `StringBuilder` / family `insert`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBuilder.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3771,8 +3772,8 @@
     - `kotlin.text.insert` — fun StringBuilder.insert(Int, CharSequence, Int, Int): StringBuilder  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/insert(kotlin/Int, kotlin/CharSequence?, kotlin/Int, kotlin/Int): kotlin.text/StringBuilder`
     - `kotlin.text.insertRange` — fun StringBuilder.insertRange(Int, CharArray, Int, Int): StringBuilder  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/insertRange(kotlin/Int, kotlin/CharArray, kotlin/Int, kotlin/Int): kotlin.text/StringBuilder`
 
-- [~] KSP-1414: kotlin.text.StringBuilder.to-family の未実装 stdlib API を実装する（1 件）
-  - 監査 (2026-09-16): `StringBuilder.toCharArray(destination, offset, start, end)` source-backed 実装と既存 runtime bridge を確認。共通 G 待ち。
+- [x] KSP-1414: kotlin.text.StringBuilder.to-family の未実装 stdlib API を実装する（1 件）
+  - 監査 (2026-09-16): `StringBuilder.toCharArray(destination, offset, start, end)` source-backed 実装と既存 runtime bridge を確認。共通 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text` / receiver `StringBuilder` / family `to`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBuilder.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3901,8 +3902,8 @@
     - `kotlin.text.HexFormat.NumberHexFormat.Builder.removeLeadingZeros` — val Builder.removeLeadingZeros: Boolean  -- `final var removeLeadingZeros`
     - `kotlin.text.HexFormat.NumberHexFormat.Builder.suffix` — val Builder.suffix: String  -- `final var suffix`
 
-- [~] KSP-1431: kotlin.text.MatchGroup.MatchGroup の未実装 stdlib API を実装する（8 件）
-  - 監査 (2026-09-16): `MatchResult.kt` の `data class MatchGroup(value, range)` が constructor / component / copy / equals / hashCode / properties / toString の 8 API を source-backed で提供し、既存 Sema / backend テストで確認済み。共通 G 待ち。
+- [x] KSP-1431: kotlin.text.MatchGroup.MatchGroup の未実装 stdlib API を実装する（8 件）
+  - 監査 (2026-09-16): `MatchResult.kt` の `data class MatchGroup(value, range)` が constructor / component / copy / equals / hashCode / properties / toString の 8 API を source-backed で提供し、既存 Sema / backend テストで確認済み。共通 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text.MatchGroup` / receiver `MatchGroup`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/MatchGroup/MatchGroup.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3919,8 +3920,8 @@
     - `kotlin.text.MatchGroup.toString` — fun MatchGroup.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.text.MatchGroup.value` — val MatchGroup.value: String  -- `final val value`
 
-- [~] KSP-1433: kotlin.text.MatchResult top-level の未実装 stdlib API を実装する（1 件）
-  - 監査 (2026-09-16): `MatchResult.kt` の nested `MatchResult.Destructured` source-backed class と destructuring bridges を確認。共通 G 待ち。
+- [x] KSP-1433: kotlin.text.MatchResult top-level の未実装 stdlib API を実装する（1 件）
+  - 監査 (2026-09-16): `MatchResult.kt` の nested `MatchResult.Destructured` source-backed class と destructuring bridges を確認。共通 G は PR #6891 の CI で PASS。
   - 対象: `kotlin.text.MatchResult` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3930,9 +3931,9 @@
   - 未実装シンボル一覧:
     - `kotlin.text.MatchResult.Destructured` — class kotlin.text.MatchResult.Destructured  -- `final class Destructured {`
 
-- [~] KSP-1436: kotlin.text.Regex.Regex の未実装 stdlib API を実装する（13 件）
+- [x] KSP-1436: kotlin.text.Regex.Regex の未実装 stdlib API を実装する（13 件）
   - 実装 (2026-09-16): `Regex.kt` に CharSequence overload 群、startIndex / matchAt / matchesAt、replace / split / splitToSequence、toString を追加。Regex の String fast path は維持し、CharSequence は source-backed materialization を経由。
-  - 検証: `RegexAPISurfaceInventoryTests` 30件、stdlib-only artifact 診断なし、最小 kswiftc 実行 PASS。共通 G / kotlinc 全体差分は未実行。
+  - 検証: `RegexAPISurfaceInventoryTests` 30件、stdlib-only artifact 診断なし、最小 kswiftc 実行 PASS。共通 G / kotlinc 全体差分は PR #6891 の CI で PASS。
   - 対象: `kotlin.text.Regex` / receiver `Regex`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Regex/Regex.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3954,9 +3955,9 @@
     - `kotlin.text.Regex.splitToSequence` — fun Regex.splitToSequence(CharSequence, Int): Sequence  -- `final fun splitToSequence(kotlin/CharSequence, kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
     - `kotlin.text.Regex.toString` — fun Regex.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [~] KSP-1439: kotlin.text.StringBuilder top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1439: kotlin.text.StringBuilder top-level の未実装 stdlib API を実装する（4 件）
   - 実装 (2026-09-16): `StringBuilder.kt` に CharSequence constructor を追加し、lowerer / runtime / RuntimeABISpec の専用 bridge で StringBuilder・custom CharSequence の初期値を扱う。
-  - 検証: `CodegenBackendStringBuilderEdgeCasesTests` 13件、最小 kswiftc 実行 PASS。共通 G / kotlinc 全体差分は未実行。
+  - 検証: `CodegenBackendStringBuilderEdgeCasesTests` 13件、最小 kswiftc 実行 PASS。共通 G / kotlinc 全体差分は PR #6891 の CI で PASS。
   - 対象: `kotlin.text.StringBuilder` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBuilder/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
