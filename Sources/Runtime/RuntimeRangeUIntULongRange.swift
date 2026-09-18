@@ -137,6 +137,28 @@ public func kk_uint_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: 
                                functionName: "kk_uint_range_findLast", orNull: true)
 }
 
+@_cdecl("kk_uint_range_first_orThrow")
+public func kk_uint_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "kk_uint_range_first_orThrow"
+    )
+}
+
+@_cdecl("kk_uint_range_last_orThrow")
+public func kk_uint_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "kk_uint_range_last_orThrow"
+    )
+}
+
 @_cdecl("kk_uint_range_first_predicate")
 public func kk_uint_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int

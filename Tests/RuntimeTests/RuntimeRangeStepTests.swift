@@ -420,4 +420,27 @@ struct RuntimeRangeStepTests {
         _ = __kk_op_step(range, 3, &thrown)
         #expect(thrown == 0, "downTo with positive step must not throw")
     }
+
+    @Test func testEmptyRangeFirstLastOrThrow() {
+        let empty = kk_op_rangeTo(1, 0)
+        var thrown = 0
+        _ = kk_range_first_orThrow(empty, &thrown)
+        #expect(thrown != 0, "empty first() must throw NoSuchElementException")
+
+        thrown = 0
+        _ = kk_range_last_orThrow(empty, &thrown)
+        #expect(thrown != 0, "empty last() must throw NoSuchElementException")
+
+        let nonempty = kk_op_rangeTo(1, 4)
+        thrown = 0
+        #expect(kk_range_first_orThrow(nonempty, &thrown) == 1)
+        #expect(thrown == 0)
+        thrown = 0
+        #expect(kk_range_last_orThrow(nonempty, &thrown) == 4)
+        #expect(thrown == 0)
+
+        // Properties still return endpoints on empty ranges.
+        #expect(kk_range_first(empty) == 1)
+        #expect(kk_range_last(empty) == 0)
+    }
 }

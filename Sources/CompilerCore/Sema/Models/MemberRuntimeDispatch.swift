@@ -280,7 +280,7 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "first_predicate")
             }
-            return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
+            return rangeFirstLastOrThrowLinkName(kind: kind, wantLast: false)
         case "start":
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
         case "firstOrNull":
@@ -292,7 +292,7 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "last_predicate")
             }
-            return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
+            return rangeFirstLastOrThrowLinkName(kind: kind, wantLast: true)
         case "end":
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
         case "lastOrNull":
@@ -411,6 +411,33 @@ enum MemberRuntimeDispatch {
         "map", "mapIndexed", "mapNotNull",
         "filter", "filterIndexed", "filterNot",
     ]
+
+    /// `Progression.first` / `last` properties (never throw).
+    static func rangeFirstLastPropertyLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
+        rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: false)
+    }
+
+    /// `Progression.first()` / `last()` (0-arg functions). Distinct from the
+    /// `first`/`last` properties, which keep the non-throwing getters.
+    static func rangeFirstLastOrThrowLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
+        rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: true)
+    }
+
+    private static func rangeFirstLastLinkName(
+        kind: MemberDispatchReceiverKind,
+        wantLast: Bool,
+        orThrow: Bool
+    ) -> String {
+        let member = wantLast ? "last" : "first"
+        let suffix = orThrow ? "_orThrow" : ""
+        if kind.isULongRangeLike {
+            return "kk_ulong_range_\(member)\(suffix)"
+        }
+        if kind.isUIntRangeLike {
+            return "kk_uint_range_\(member)\(suffix)"
+        }
+        return "__kk_range_\(member)\(suffix)"
+    }
 
     private static func rangeRuntimeName(
         kind: MemberDispatchReceiverKind,
