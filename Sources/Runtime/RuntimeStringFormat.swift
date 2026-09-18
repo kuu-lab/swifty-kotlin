@@ -251,7 +251,7 @@ private func runtimeFormatUppercase(_ value: String, locale: Locale?) -> String 
 
 private func runtimeFormatBooleanValue(_ value: RuntimeValue) -> String {
     if value.tag == RuntimeValue.stringTag {
-        return runtimeElementToString(value).isEmpty ? "false" : "true"
+        return "true"
     }
     let argument = value.payload0
     if argument == runtimeNullSentinelInt {
@@ -263,14 +263,7 @@ private func runtimeFormatBooleanValue(_ value: RuntimeValue) -> String {
     {
         return boolBox.value ? "true" : "false"
     }
-    return switch argument {
-    case 0:
-        "false"
-    case 1:
-        "true"
-    default:
-        "true"
-    }
+    return "true"
 }
 
 private func runtimeFormatIntegerValue(_ value: RuntimeValue) -> Int {
