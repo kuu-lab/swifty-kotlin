@@ -2909,7 +2909,17 @@ extension CallTypeChecker {
                     default: resultType = sema.types.anyType
                     }
                     if ["any", "none", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
-                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        let didBindListSource = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType]
+                        )
+                        if !didBindListSource, ["first", "last"].contains(calleeStr) {
+                            // Collection<T> and map.values use the generic
+                            // Iterable<T> source implementation when no
+                            // List-specific overload is applicable.
+                            _ = bindBundledIterableSourceFunction(
+                                typeArguments: [collectionElementType]
+                            )
+                        }
                     }
                     if isMapReceiver, calleeStr == "none" {
                         // KSP-1016: bind the zero-argument Map overload to its
@@ -3434,7 +3444,15 @@ extension CallTypeChecker {
                     }
 
                     if ["any", "none", "all", "count", "find", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
-                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                        let didBindListSource = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType]
+                        )
+                        let didBindIterableSource = !didBindListSource
+                            && ["first", "last"].contains(calleeStr)
+                            && bindBundledIterableSourceFunction(
+                                typeArguments: [collectionElementType]
+                            )
+                        if didBindListSource || didBindIterableSource {
                             if args.count == 1, let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                             }
