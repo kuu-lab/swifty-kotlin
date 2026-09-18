@@ -91,9 +91,6 @@ public func kk_pair_first(_ pairRaw: Int) -> Int {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_pair_first")
     }
-    if pairBox.mutableMapRaw != 0 {
-        return pairBox.mutableMapKey
-    }
     return pairBox.first
 }
 
