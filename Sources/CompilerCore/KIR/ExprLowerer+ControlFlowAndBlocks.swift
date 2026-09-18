@@ -160,6 +160,18 @@ extension ExprLowerer {
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
                let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
+                // KSP-CAP-001: an enclosing immutable property captured by an
+                // object-literal member function is restored as a local value.
+                // It must take precedence over the implicit receiver member
+                // path, which would otherwise apply the enclosing property's
+                // field offset to the object literal receiver.
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   sema.symbols.symbol(symbol)?.kind == .property,
+                   !driver.ctx.isMutableCaptureBoxed(symbol),
+                   let localValue = driver.ctx.localValue(for: symbol)
+                {
+                    return localValue
+                }
                 let receiverType = arena.exprType(receiverExprID) ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
                 let memberStr = interner.resolve(memberName)
