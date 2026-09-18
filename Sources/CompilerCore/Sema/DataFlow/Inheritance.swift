@@ -642,7 +642,13 @@ extension DataFlowSemaPhase {
             symbols: symbols
         ).isEmpty
 
-        if !hasAbstractMember {
+        // KUU-584: Set's body-less @KsSymbolName members are concrete runtime
+        // bridges. AbstractSet and its subclasses remain intentionally abstract
+        // skeletal collection types even when those bridges cover every
+        // inherited member in the compiler's abstract-member set.
+        if !hasAbstractMember,
+           !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
+        {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
             let declRange: SourceRange? = switch decl {
             case let .classDecl(cd): cd.range
@@ -654,6 +660,28 @@ extension DataFlowSemaPhase {
                 range: declRange
             )
         }
+    }
+
+    private func inheritsFromAbstractSet(
+        _ symbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        let abstractSetFQName = ["kotlin", "collections", "AbstractSet"].map(interner.intern)
+        guard let abstractSetSymbol = symbols.lookup(fqName: abstractSetFQName) else {
+            return false
+        }
+
+        var visited: Set<SymbolID> = []
+        var queue = [symbol]
+        while let current = queue.popLast() {
+            guard visited.insert(current).inserted else { continue }
+            if current == abstractSetSymbol {
+                return true
+            }
+            queue.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+        return false
     }
 
     /// CLASS-008: Validate class delegation (`: Interface by expr`).
