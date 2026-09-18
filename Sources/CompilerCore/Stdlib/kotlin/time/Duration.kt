@@ -3,6 +3,8 @@ package kotlin.time
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 // KSP-683
 // Duration's public representation and pure operations are Kotlin source. The
