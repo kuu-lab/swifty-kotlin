@@ -458,12 +458,12 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
     semaphore.wait()
 
     if let responseError = result.error {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(responseError.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: responseError.localizedDescription)
         return 0
     }
 
     guard let httpResponse = result.response as? HTTPURLResponse else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Missing HTTP response")
+        outThrown?.pointee = runtimeAllocateIOException(message: "Missing HTTP response")
         return 0
     }
 

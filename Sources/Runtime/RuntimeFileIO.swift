@@ -302,13 +302,13 @@ public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePo
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
     }
     guard let url = existingResourceURL(named: name) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Resource not found: \(name)")
+        outThrown?.pointee = runtimeAllocateIOException(message: "Resource not found: \(name)")
         return fileMakeStringRaw("")
     }
     do {
         return fileMakeStringRaw(try String(contentsOf: url, encoding: .utf8))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
         return fileMakeStringRaw("")
     }
 }
@@ -540,7 +540,7 @@ public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outTh
     do {
         try writer.write(text)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -554,7 +554,7 @@ public func __kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeM
     do {
         try writer.newLine()
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -568,7 +568,7 @@ public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMuta
     do {
         try writer.flush()
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -782,7 +782,7 @@ public func __kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutable
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reset received invalid InputStream handle")
     }
     if !stream.reset() {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: mark/reset not supported")
+        outThrown?.pointee = runtimeAllocateIOException(message: "mark/reset not supported")
     }
     return 0
 }
@@ -840,9 +840,7 @@ public func __kk_input_stream_copyTo(
         do {
             try outputStream.writeBytes(chunk)
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
-            )
+            outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
             return kk_box_long(totalBytesCopied)
         }
         totalBytesCopied += bytesRead
@@ -948,7 +946,7 @@ public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ o
     do {
         try stream.writeByte(valueRaw)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -966,7 +964,7 @@ public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ 
     do {
         try stream.writeBytes(list.elements)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -980,7 +978,7 @@ public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutabl
     do {
         try stream.flush()
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -1117,8 +1115,8 @@ public func __kk_reader_copyTo(
         guard let scalar = Unicode.Scalar(UInt32(charCode)) else {
             // Invalid scalar — surface as IOException to match JVM-style
             // surface for malformed character data.
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: invalid Unicode scalar in Reader stream (code point \(charCode))"
+            outThrown?.pointee = runtimeAllocateIOException(
+                message: "invalid Unicode scalar in Reader stream (code point \(charCode))"
             )
             return kk_box_long(copied)
         }
@@ -1129,9 +1127,7 @@ public func __kk_reader_copyTo(
             do {
                 try writer.write(String(pending))
             } catch {
-                outThrown?.pointee = runtimeAllocateThrowable(
-                    message: "IOException: \(error.localizedDescription)"
-                )
+                outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
                 return kk_box_long(copied)
             }
             pending.removeAll(keepingCapacity: true)
@@ -1142,9 +1138,7 @@ public func __kk_reader_copyTo(
         do {
             try writer.write(String(pending))
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
-            )
+            outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
             return kk_box_long(copied)
         }
     }
