@@ -607,6 +607,15 @@
 
 - [x] ~~KSP-1535: `UShort` の数値変換メンバを Kotlin 化する~~ **前提が誤りと判明、close**（2026-09-13）。KSP-1534 と同じ根本原因（BUG-251）で `someUShort.toChar()` が誤って `Number.toChar()` に解決されていた。BUG-251 の修正で `kk_ushort_to_char` も到達不能になり、dead code として削除。詳細: `docs/stdlib-pipeline.md` の「KSP-1534 correction」節、BUG-251 本体。
 
+- [~] KSP-1544: `HeaderHelpers+SyntheticCoercionStubs.swift` の (b) 分を Kotlin 化し、残置分を (c) と確定する（Linear KUU-588）
+  - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（着手時 449 行。`docs/stdlib-pipeline.md` の 654 行は stale）と registry の `Coercion` bucket
+  - 分類: `(b)` は Float/Double の `toByte()`/`toShort()` 4 件。`Int`×9 / `Long`×9 / `Double.toFloat()` は KSP-1531 の compiler/runtime residual `(c)`。KSP-1532〜1535 は unsigned `toChar()` 誤分類の修正で close 済み
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt`（`toInt().toByte()`/`toInt().toShort()`、`@Deprecated`/`@DeprecatedSinceKotlin(warningSince = "1.3", errorSince = "1.5")`/`ReplaceWith`）。`RangeCoercion.kt` は既に source-backed のため変更不要
+  - 整理: `Coercion` registry を `.residualCompilerSurface` へ変更。旧 Float/Double stub の誤った Int return signature と未使用の synthetic toChar deprecation helper を削除。`kotlin.math` package bootstrap は `--no-stdlib` fallback のため維持。ABI の削除・改名なし
+  - 手順: T
+  - diff: `Scripts/diff_cases/float_double_to_byte_short.kt` 新規
+  - 検証: `swift build`、`FloatDoubleNumericConversionSourceTests`（2件）、`CoercionSyntheticStubTests`（22件）、`IntConversionMemberCallTests`（2件）、`LongConversionMemberCallTests`（1件）、`FileSuppressAnnotationTests`（1件）、`RuntimeABIExternalLinkValidationTests`（5件）、新規 diff case（1/1）が PASS。全 Swift suite / 全 Golden / 全 diff は未実行のため CI に委ね、完了化しない
+
 - [x] KSP-1542: `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の Collection/MutableCollection/Iterable 型シェルとメンバ登録を整理する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`（現在1061行。KSP-701/KSP-665 の分離先で、現行の主な呼び出し元は `HeaderHelpers+SyntheticCollectionResiduals.swift` の `registerSyntheticCollectionStubs`）。対象は `registerSyntheticCollectionStub`/`registerSyntheticMutableCollectionStub`/`registerSyntheticIterableStub`（`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` の fallback 型シェルと `isEmpty`/`contains`/`random`/`randomOrNull`/`add`/`addAll`/`clear`/`remove`/`removeAll`/`retainAll`/`iterator`/`hasNext`/`next` の残余登録）。`registerSyntheticAbstractCollectionStub`/`registerSyntheticAbstractMutableCollectionStub`/`registerSyntheticMutableIterableStub` は bundled Kotlin source を再利用する fallback 専用であり、`MutableIterable.iterator()` の covariant override は BUG-200（library metadata が再型付けを表現できない）のため compiler 残置とする。
   - 実装先: KSP-700 などが提供する `Sources/CompilerCore/Stdlib/kotlin/collections/Collection.kt`/`MutableCollection.kt`/`Iterable.kt`/`MutableIterator.kt`。bundled source の nominal 宣言は正規経路とし、Swift 側は source header collection が既存 symbol と型パラメータを再利用できる fallback および runtime bridge の残余登録に限定する。

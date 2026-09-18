@@ -9,6 +9,7 @@ struct FloatDoubleNumericConversionSourceTests {
     @Test
     func floatingPointConversionsResolveToBundledKotlin() throws {
         let ctx = makeContextFromSource("""
+        @file:Suppress("DEPRECATION_ERROR")
         fun doubleToInt(value: Double): Int = value.toInt()
         fun doubleToLong(value: Double): Long = value.toLong()
         fun doubleToChar(value: Double): Char = value.toChar()
@@ -29,10 +30,14 @@ struct FloatDoubleNumericConversionSourceTests {
             ("toInt", sema.types.doubleType, sema.types.intType),
             ("toLong", sema.types.doubleType, sema.types.longType),
             ("toChar", sema.types.doubleType, sema.types.charType),
+            ("toByte", sema.types.doubleType, sema.types.byteType),
+            ("toShort", sema.types.doubleType, sema.types.shortType),
             ("toInt", sema.types.floatType, sema.types.intType),
             ("toLong", sema.types.floatType, sema.types.longType),
             ("toDouble", sema.types.floatType, sema.types.doubleType),
             ("toChar", sema.types.floatType, sema.types.charType),
+            ("toByte", sema.types.floatType, sema.types.byteType),
+            ("toShort", sema.types.floatType, sema.types.shortType),
         ]
 
         for conversion in expectedConversions {
@@ -57,6 +62,45 @@ struct FloatDoubleNumericConversionSourceTests {
                 #expect(sema.symbols.isSourceBackedSymbol(sourceSymbol))
                 #expect(sema.symbols.externalLinkName(for: sourceSymbol) == nil)
             }
+        }
+    }
+
+    // KSP-1544 (KUU-588): Float/Double.toByte()/toShort() are deprecated at
+    // error level since Kotlin 1.5. Unsuppressed calls must fail Sema like
+    // kotlinc 2.3.10, and no synthetic fallback may remain for these members.
+    @Test
+    func floatingPointByteShortConversionsAreErrorLevelDeprecated() throws {
+        let ctx = makeContextFromSource("""
+        fun doubleToByte(value: Double): Byte = value.toByte()
+        fun doubleToShort(value: Double): Short = value.toShort()
+        fun floatToByte(value: Float): Byte = value.toByte()
+        fun floatToShort(value: Float): Short = value.toShort()
+        """)
+
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.hasError,
+            "Expected floating-point Byte/Short conversions to be rejected as error-level deprecated"
+        )
+
+        let sema = try #require(ctx.sema)
+        let fpReceivers = [sema.types.doubleType, sema.types.floatType]
+        for name in ["toByte", "toShort"] {
+            let candidates = sema.symbols.lookupAll(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern(name),
+            ])
+            let staleStub = candidates.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiver = signature.receiverType
+                else {
+                    return false
+                }
+                return fpReceivers.contains(receiver)
+                    && signature.parameterTypes.isEmpty
+                    && !sema.symbols.isSourceBackedSymbol(symbolID)
+            }
+            #expect(staleStub == nil, "Expected no synthetic kotlin.\(name) stub for Float/Double")
         }
     }
 }

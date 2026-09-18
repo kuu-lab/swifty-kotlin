@@ -159,7 +159,10 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "JavaIOStream") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJavaIOStreamStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Coercion") { phase, symbols, types, interner, _ in
+        // KSP-1544 (KUU-588): range coercion and floating-point narrowing are
+        // source-backed; the remaining primitive casts are compiler/runtime
+        // residuals (c) per the KSP-1531 classification.
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coercion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExtendedStdlibBuckets") { phase, symbols, types, interner, _ in

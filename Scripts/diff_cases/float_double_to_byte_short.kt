@@ -1,0 +1,17 @@
+@file:Suppress("DEPRECATION_ERROR")
+
+fun main() {
+    println(300.9f.toByte())
+    println(300.9f.toShort())
+    println(1e30.toByte())
+    println(1e30.toShort())
+    println((-1e30).toByte())
+    println((-1e30).toShort())
+    println(2.5f.toByte())
+    println(2.5f.toShort())
+
+    val b: Byte = 1.5f.toByte()
+    println(b)
+    val s: Short = 1.5.toShort()
+    println(s)
+}

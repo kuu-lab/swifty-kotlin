@@ -1,6 +1,10 @@
 
 // Coercion extension stubs (STDLIB-150) for kotlin.ranges.
 // Int/Long/Double/Float coercion tests: CoercionSyntheticStubTests (TEST-002)
+//
+// KSP-1544 (KUU-588): the remaining registrations are compiler/runtime
+// residuals (c). Range coercion and Float/Double.toByte()/toShort() are
+// declared by bundled Kotlin source.
 
 extension DataFlowSemaPhase {
     func registerSyntheticCoercionStubs(
@@ -275,59 +279,12 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // Float conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "__kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "__kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
+            // KSP-1544: Float.toByte()/toShort() are source-backed in
+            // Stdlib/kotlin/Numbers.kt and compose through toInt().
 
             // Double conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "__kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "__kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
+            // KSP-1544: Double.toByte()/toShort() are source-backed in
+            // Stdlib/kotlin/Numbers.kt and compose through toInt().
 
             registerSyntheticCoercionFunction(
                 named: "toFloat",
@@ -360,22 +317,13 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
-        let deprecatedAnnotations = syntheticDeprecatedAnnotationsForCoercion(
-            name: name,
-            receiverType: receiverType,
-            types: types
-        )
-
         // Check if already registered with same signature
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == receiverType
                 && signature.parameterTypes == parameters.map(\.type)
                 && signature.returnType == returnType
         }) {
-            if !deprecatedAnnotations.isEmpty {
-                symbols.setAnnotations(deprecatedAnnotations, for: existing)
-            }
             return
         }
         let functionSymbol = symbols.define(
@@ -388,9 +336,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        if !deprecatedAnnotations.isEmpty {
-            symbols.setAnnotations(deprecatedAnnotations, for: functionSymbol)
-        }
 
         var valueParameterSymbols: [SymbolID] = []
         for param in parameters {
@@ -421,29 +366,4 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func syntheticDeprecatedAnnotationsForCoercion(
-        name: String,
-        receiverType: TypeID,
-        types: TypeSystem
-    ) -> [MetadataAnnotationRecord] {
-        guard name == "toChar" else {
-            return []
-        }
-        // Int.toChar() is not deprecated in Kotlin 2.3.10; all other primitive
-        // toChar() conversions (Long/Float/Double/Byte/Short) are deprecated.
-        guard receiverType != types.intType else {
-            return []
-        }
-        let deprecatedMessage = "Use toInt().toChar() or Char(code) instead."
-        let deprecatedArguments = [
-            "message = \"\(deprecatedMessage)\"",
-            "replaceWith = ReplaceWith(\"toInt().toChar()\")",
-        ]
-        return [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: deprecatedArguments
-            ),
-        ]
-    }
 }
