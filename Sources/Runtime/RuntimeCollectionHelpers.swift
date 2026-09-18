@@ -1622,7 +1622,10 @@ private enum RuntimeComparableScalarValue {
     case floating(Double)
 }
 
-private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
+/// Kotlin `Double.compare` / `Float.compare` total order: NaN is greater than
+/// every non-NaN, and `-0.0` sorts before `0.0`. Shared by collection
+/// comparisons and `kk_compare_any` (generic `Comparable` `minOf`/`maxOf`).
+func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
     if lhs.isNaN {
         return rhs.isNaN ? 0 : 1
     }

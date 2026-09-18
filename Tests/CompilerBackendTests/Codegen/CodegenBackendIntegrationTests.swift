@@ -1214,6 +1214,30 @@ import Testing
 
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
     }
+
+    // KUU-637: generic Comparable minOf/maxOf must distinguish signed zeros.
+    @Test
+    func testCodegenGenericMinOfMaxOfSignedZeroTotalOrder() throws {
+        let source = """
+        fun <T : Comparable<T>> maxOf2(a: T, b: T): T = maxOf(a, b)
+        fun <T : Comparable<T>> minOf2(a: T, b: T): T = minOf(a, b)
+
+        fun main() {
+            println(maxOf2(-0.0, 0.0))
+            println(maxOf2(0.0, -0.0))
+            println(minOf2(0.0, -0.0))
+            println(minOf2(-0.0, 0.0))
+            println(maxOf2(-0.0f, 0.0f))
+            println(minOf2(0.0f, -0.0f))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericMinOfMaxOfSignedZero",
+            expected: "0.0\n0.0\n-0.0\n-0.0\n0.0\n-0.0\n"
+        )
+    }
     // MARK: - Private Helpers
 
     private func assertKotlinOutput(
