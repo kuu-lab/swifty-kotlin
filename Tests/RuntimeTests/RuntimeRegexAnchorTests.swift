@@ -31,6 +31,12 @@ struct RuntimeRegexAnchorTests {
         }
     }
 
+    private func stringMatches(regexRaw: Int, input: String) -> Bool {
+        withFlatString(input) { data, length, byteCount, hash in
+            kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)) == 1
+        }
+    }
+
     private func runtimeString(_ raw: Int) -> String {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let box = tryCast(ptr, to: RuntimeStringBox.self) else {
@@ -51,6 +57,22 @@ struct RuntimeRegexAnchorTests {
 
         #expect(full != runtimeNullSentinelInt)
         #expect(partial == runtimeNullSentinelInt)
+    }
+
+    @Test
+    func testEntireStringAlternativesBacktrackToWholeInput() {
+        let firstShortRegex = makeRegex("a|ab")
+        let secondShortRegex = makeRegex("ab|abc")
+
+        let firstMatch = matchEntire(regexRaw: firstShortRegex, input: "ab")
+        let secondMatch = matchEntire(regexRaw: secondShortRegex, input: "abc")
+
+        #expect(firstMatch != runtimeNullSentinelInt)
+        #expect(group0(firstMatch) == "ab")
+        #expect(secondMatch != runtimeNullSentinelInt)
+        #expect(group0(secondMatch) == "abc")
+        #expect(stringMatches(regexRaw: firstShortRegex, input: "ab"))
+        #expect(stringMatches(regexRaw: secondShortRegex, input: "abc"))
     }
 
     @Test
