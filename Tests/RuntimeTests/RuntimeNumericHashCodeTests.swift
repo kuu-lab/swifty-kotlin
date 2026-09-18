@@ -192,6 +192,12 @@ struct RuntimeNumericHashCodeTests {
     func testStringHashCodeUsesUTF16CodeUnits() {
         let emoji = registerRuntimeObject(RuntimeStringBox("😀"))
         #expect(kk_any_hashCode(emoji, 0) == 1_772_899)
+
+        // The fold wraps at Int32 like Kotlin Int arithmetic: a BMP string
+        // long enough to overflow must not leak the untruncated 64-bit
+        // running total (kotlinc: "abcdef".hashCode() == -1424385949).
+        let wrapped = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        #expect(kk_any_hashCode(wrapped, 0) == -1_424_385_949)
     }
 }
 #endif

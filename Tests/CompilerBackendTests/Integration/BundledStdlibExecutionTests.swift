@@ -261,6 +261,46 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KUU-642: callRecursive must trampoline through the runtime rather than
+    // consuming a native stack frame per step, and block exceptions must
+    // propagate to the invoke caller instead of fatalError.
+    @Test
+    func testDeepRecursiveFunctionTrampolineAndExceptionPropagation() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val sumTo = DeepRecursiveFunction<Int, Int> {
+                    if (it <= 0) 0 else it + callRecursive(it - 1)
+                }
+                println(sumTo(20_000))
+
+                val boom = DeepRecursiveFunction<Int, Int> { throw RuntimeException("boom") }
+                try {
+                    boom(0)
+                } catch (e: RuntimeException) {
+                    println("caught")
+                }
+
+                val deepBoom = DeepRecursiveFunction<Int, Int> { n ->
+                    if (n <= 0) throw RuntimeException("deep") else callRecursive(n - 1) + 1
+                }
+                try {
+                    deepBoom(64)
+                } catch (e: RuntimeException) {
+                    println("deep-caught")
+                }
+
+                val identity = DeepRecursiveFunction<Int, Int> { it }
+                val hop = DeepRecursiveFunction<Int, Int> { n ->
+                    if (n <= 0) 0 else identity.callRecursive(n - 1) + 1
+                }
+                println(hop(8))
+            }
+            """,
+            expectedOutput: "200010000\ncaught\ndeep-caught\n8\n"
+        )
+    }
+
     // KSP-661: Char 判定系は bundled Kotlin (kotlin.text.CharPredicates) で実装され、
     // Unicode テーブル参照だけを __kk_char_* ブリッジ経由で行う。移行後の述語が
     // 実際にコンパイル・実行され正しい結果を返すことを end-to-end で検証する。
