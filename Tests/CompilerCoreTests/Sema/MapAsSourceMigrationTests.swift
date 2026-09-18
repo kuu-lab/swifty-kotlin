@@ -125,7 +125,7 @@ struct MapAsSourceMigrationTests {
 
             #expect(
                 !ctx.diagnostics.hasError,
-                "Map's six abstract members must type-check: \(ctx.diagnostics.diagnostics)"
+                "Map's source-backed members must type-check: \(ctx.diagnostics.diagnostics)"
             )
 
             let sema = try #require(ctx.sema)
@@ -192,7 +192,9 @@ struct MapAsSourceMigrationTests {
                       let signature = sema.symbols.functionSignature(for: functionSymbol)
                 else { continue }
                 #expect(!functionInfo.flags.contains(.synthetic))
-                #expect(functionInfo.flags.contains(.abstractType))
+                // Body-less @KsSymbolName functions are runtime bridge defaults,
+                // not abstract interface contracts.
+                #expect(!functionInfo.flags.contains(.abstractType))
                 #expect(sema.symbols.externalLinkName(for: functionSymbol) == testCase.link)
                 #expect(signature.receiverType != nil)
                 #expect(
