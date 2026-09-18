@@ -1980,6 +1980,9 @@ public final class SemaModule {
     /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
     /// CallLowerer+MemberCalls.swift).
     var bundledIndex: BundledDeclarationIndex
+    /// ARCH-021: compiler-owned well-known declarations resolved by exact
+    /// SymbolID after header collection.
+    var wellKnownSymbols: WellKnownSymbols
 
     public init(
         symbols: SymbolTable,
@@ -1996,6 +1999,7 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
+        self.wellKnownSymbols = .empty
     }
 
     /// Module-internal overload that also accepts the bundled declaration
@@ -2019,5 +2023,6 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex
+        self.wellKnownSymbols = .empty
     }
 }

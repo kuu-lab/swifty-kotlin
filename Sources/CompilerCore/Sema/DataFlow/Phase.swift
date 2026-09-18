@@ -318,6 +318,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // ARCH-021: body type checking and later KIR lowering must use the
+        // same exact compiler-owned SymbolIDs. Resolve after all headers and
+        // validation-created symbols are present, but before body analysis.
+        sema.wellKnownSymbols = WellKnownSymbols(
+            symbols: symbols,
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager
+        )
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)

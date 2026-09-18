@@ -681,7 +681,6 @@ final class CallLowerer {
             return loweredToList
         }
         if let loweredCollectionFactory = tryLowerCollectionFactoryCall(
-            sourceCalleeName: sourceCalleeName,
             args: args,
             loweredArgIDs: loweredArgIDs,
             chosenCallee: chosen,
