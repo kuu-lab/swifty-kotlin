@@ -559,24 +559,24 @@ struct SequenceSyntheticMemberLinkTests {
         do {
             // testSequenceFirstNotNullOfResolvesInCallExpressions -> Sequence.firstNotNullOf
             let memberFQNameFirstNotNullOf = ["kotlin", "sequences", "Sequence", "firstNotNullOf"].map { ctx.interner.intern($0) }
-            let linksFirstNotNullOf = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameFirstNotNullOf).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
             #expect(
-                linksFirstNotNullOf.contains("kk_sequence_firstNotNullOf"),
-                "Expected Sequence.firstNotNullOf to link to kk_sequence_firstNotNullOf, got \(linksFirstNotNullOf.sorted())"
+                sema.symbols.lookupAll(fqName: memberFQNameFirstNotNullOf).contains {
+                    sema.symbols.isSourceBackedSymbol($0)
+                        && sema.symbols.externalLinkName(for: $0) == nil
+                },
+                "Expected Sequence.firstNotNullOf to be backed by bundled Kotlin source"
             )
         }
 
         do {
             // testSequenceFirstNotNullOfOrNullResolvesInCallExpressions -> Sequence.firstNotNullOfOrNull
             let memberFQNameFirstNotNullOfOrNull = ["kotlin", "sequences", "Sequence", "firstNotNullOfOrNull"].map { ctx.interner.intern($0) }
-            let linksFirstNotNullOfOrNull = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameFirstNotNullOfOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
             #expect(
-                linksFirstNotNullOfOrNull.contains("kk_sequence_firstNotNullOfOrNull"),
-                "Expected Sequence.firstNotNullOfOrNull to link to kk_sequence_firstNotNullOfOrNull, got \(linksFirstNotNullOfOrNull.sorted())"
+                sema.symbols.lookupAll(fqName: memberFQNameFirstNotNullOfOrNull).contains {
+                    sema.symbols.isSourceBackedSymbol($0)
+                        && sema.symbols.externalLinkName(for: $0) == nil
+                },
+                "Expected Sequence.firstNotNullOfOrNull to be backed by bundled Kotlin source"
             )
         }
 

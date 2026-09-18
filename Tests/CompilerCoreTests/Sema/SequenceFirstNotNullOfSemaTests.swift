@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct SequenceFirstNotNullOfSemaTests {
-    @Test func testSequenceFirstNotNullOfResolvesToRuntimeABIAndNonNullResult() throws {
+    @Test func testSequenceFirstNotNullOfResolvesToBundledSourceAndNonNullResult() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val result: String = values.firstNotNullOf { if (it > 1) "hit" else null }
@@ -33,8 +33,11 @@ struct SequenceFirstNotNullOfSemaTests {
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
 
             #expect(
-                sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_firstNotNullOf" },
-                "Expected Sequence.firstNotNullOf synthetic member to link to kk_sequence_firstNotNullOf"
+                sequenceMembers.contains {
+                    sema.symbols.isSourceBackedSymbol($0)
+                        && sema.symbols.externalLinkName(for: $0) == nil
+                },
+                "Expected Sequence.firstNotNullOf to be backed by bundled Kotlin source"
             )
             #expect(sema.bindings.exprType(for: callExpr) == sema.types.stringType)
         }

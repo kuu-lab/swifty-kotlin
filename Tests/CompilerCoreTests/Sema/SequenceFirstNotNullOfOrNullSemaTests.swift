@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct SequenceFirstNotNullOfOrNullSemaTests {
-    @Test func testSequenceFirstNotNullOfOrNullInfersNullableTransformResult() throws {
+    @Test func testSequenceFirstNotNullOfOrNullResolvesToBundledSourceAndInfersNullableTransformResult() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val result: String? = values.firstNotNullOfOrNull { if (it > 1) "hit" else null }
@@ -38,10 +38,11 @@ struct SequenceFirstNotNullOfOrNullSemaTests {
                 ctx.interner.intern("Sequence"),
                 ctx.interner.intern("firstNotNullOfOrNull"),
             ]
-            let v = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_sequence_firstNotNullOfOrNull"
+            let isSourceBacked = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+                sema.symbols.isSourceBackedSymbol(candidate)
+                    && sema.symbols.externalLinkName(for: candidate) == nil
             }
-            #expect(v)
+            #expect(isSourceBacked)
         }
     }
 }
