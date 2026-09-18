@@ -1653,7 +1653,7 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
 
 // MARK: - Char operations
 
-@_cdecl("kk_char_rangeTo")
+@_cdecl("__kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)

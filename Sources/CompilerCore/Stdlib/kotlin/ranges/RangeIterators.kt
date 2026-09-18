@@ -6,7 +6,7 @@ package kotlin.ranges
 // ULongProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (kk_range_iterator, kk_range_hasNext, kk_range_next)
-//   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator,
+//   Sources/Runtime/RuntimeRangeLongRange.swift (__kk_long_range_iterator,
 //   __kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 //   Sources/Runtime/RuntimeRangeUIntULongRange.swift
 //   (__kk_uint_range_iterator, __kk_uint_range_hasNext, __kk_uint_range_next)
@@ -79,8 +79,9 @@ internal class CharProgressionIterator(first: Char, last: Char, private val step
 
 public operator fun IntRange.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
 public operator fun IntProgression.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
-public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step)
-// LongProgression.step is modelled as Int (LongRange.step is Long); widen it here.
+public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step.toLong())
+// The Kotlin LongRange contract uses Long for step while this compiler's
+// residual LongProgression.step property is modelled as Int, so widen it here.
 public operator fun LongProgression.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step.toLong())
 public operator fun CharRange.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
 public operator fun CharProgression.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)

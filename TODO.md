@@ -451,13 +451,14 @@
   - diff: `mutable_list_addAll.kt` 新規 + 既存 `list_*.kt`
   - 前提: KSP-700, KSP-701, KSP-703, KSP-704
 
-- [ ] KSP-708: TypedRange (`IntRange`/`LongRange`/`CharRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticTypedRangeStubs.swift` を削除する
+- [x] KSP-708: TypedRange (`IntRange`/`LongRange`/`CharRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticTypedRangeStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTypedRangeStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/` 新設 `IntRange.kt`/`LongRange.kt`/`CharRange.kt`（`Ranges.kt` 既存インターフェース活用）
   - 削除/降格 kk_*: `kk_int_range_*`, `kk_long_range_*`, `kk_char_range_*` 等 public ブリッジを `__kk_` 降格 or 削除（`RuntimeRange*.swift`。着手時 `rg -o '@_cdecl\("kk_(int|long|char)_range[a-zA-Z0-9_]*"\)' Sources/Runtime` 全層で再固定）
   - 手順: T
   - diff: `range_basic.kt` 等既存 + 新規 TypedRange 単独ケース
   - 前提: KSP-451, KSP-456, KSP-700（Comparable）
+  - 完了: `IntRange.kt`/`LongRange.kt`/`CharRange.kt` を追加し、typed synthetic stub を削除。typed range の public `kk_*` cdecl は 0 件、残存 bridge は `__kk_*` に降格。`swift build`、関連 Sema/ABI テスト、`range_basic.kt`/`typed_range.kt` の kotlinc diff を確認済み（全体 suite / 全 diff は未実行）。
 
 - [ ] KSP-709: UnsignedRange (`UIntRange`/`ULongRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticUnsignedRangeStubs.swift`
