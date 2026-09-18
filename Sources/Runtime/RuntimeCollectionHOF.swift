@@ -355,22 +355,50 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
+private func validateListWindowedArguments(
+    size: Int,
+    step: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Bool {
+    outThrown?.pointee = 0
+    if size <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return false
+    }
+    if step <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "step must be positive, but was \(step)"
+        )
+        return false
+    }
+    return true
+}
+
 @_cdecl("__kk_list_windowed")
-public func kk_list_bridge_windowed(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+public func kk_list_bridge_windowed(
+    _ listRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
     let partial = partialWindows != 0
     var windows: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        if !partial && end - i < clampedSize { break }
+        let end = min(i + size, elements.count)
+        if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        i += clampedStep
+        i += step
     }
     return registerRuntimeObject(RuntimeListBox(elements: windows))
 }
@@ -385,17 +413,18 @@ public func kk_list_bridge_windowed_transform(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
     let partial = partialWindows != 0
     var result: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        if !partial && end - i < clampedSize { break }
+        let end = min(i + size, elements.count)
+        if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
         var thrown = 0
@@ -407,7 +436,7 @@ public func kk_list_bridge_windowed_transform(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
-        i += clampedStep
+        i += step
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
