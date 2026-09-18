@@ -38,6 +38,43 @@ private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32) -> Int {
     return Int(bitPattern: opaque)
 }
 
+@inline(__always)
+private func runtimeStaticBox<T: AnyObject>(
+    _ value: Int,
+    preservesNullSentinel: Bool,
+    makeBox: () -> T
+) -> Int {
+    if preservesNullSentinel, value == runtimeNullSentinelInt {
+        return value
+    }
+    // A tagged handle is already the result of this fast path. Keeping this
+    // check makes the helper idempotent for compiler-generated value flows
+    // without reintroducing the object registry lookup used by the legacy ABI.
+    if runtimePrimitiveBoxBasePointer(from: value) != nil {
+        return value
+    }
+    return registerTaggedPrimitiveBox(makeBox())
+}
+
+@inline(__always)
+private func runtimeStaticUnbox<T: AnyObject>(
+    _ value: Int,
+    fallback: () -> Int,
+    as type: T.Type,
+    extract: (T) -> Int
+) -> Int {
+    guard let pointer = runtimePrimitiveBoxBasePointer(from: value) else {
+        return fallback()
+    }
+    // The tag is emitted only for a statically-known primitive box. If a
+    // malformed or mismatched handle reaches this helper, retain the legacy
+    // registry-checked behavior as a safe fallback.
+    guard let box = tryCast(pointer, to: type) else {
+        return fallback()
+    }
+    return extract(box)
+}
+
 @_cdecl("kk_box_int")
 public func kk_box_int(_ value: Int) -> Int {
     runtimeBoxInt(value, anyFallbackTag: 1)
@@ -425,6 +462,150 @@ public func kk_unbox_char(_ obj: Int) -> Int {
     print("KSwiftK warning [\(runtimePanicDiagnosticCode)]: kk_unbox_char called on non-CharBox object (0x\(String(obj, radix: 16)))")
     #endif
     return obj
+}
+
+// MARK: - Statically-known primitive ABI fast paths
+//
+// These entry points are selected by ABILoweringPass only when the source or
+// target primitive type is known at compile time. They preserve the canonical
+// Swift ARC box and objectPointers registration from ARCH-015, but tag the
+// handle so the paired unbox can avoid the registry lock. The legacy entry
+// points above remain the compatibility path for ambiguous runtime values.
+
+@_cdecl("kk_box_int_static")
+public func kk_box_int_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, anyFallbackTag: 1)
+    }
+}
+
+@_cdecl("kk_box_uint_static")
+public func kk_box_uint_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, anyFallbackTag: 9)
+    }
+}
+
+@_cdecl("kk_box_ubyte_static")
+public func kk_box_ubyte_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, anyFallbackTag: 10)
+    }
+}
+
+@_cdecl("kk_box_ushort_static")
+public func kk_box_ushort_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, anyFallbackTag: 11)
+    }
+}
+
+@_cdecl("kk_box_bool_static")
+public func kk_box_bool_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeBoolBox(value != 0)
+    }
+}
+
+@_cdecl("kk_box_long_static")
+public func kk_box_long_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeLongBox(value)
+    }
+}
+
+@_cdecl("kk_box_long_nonnull_static")
+public func kk_box_long_nonnull_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: false) {
+        RuntimeLongBox(value)
+    }
+}
+
+@_cdecl("kk_box_ulong_static")
+public func kk_box_ulong_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeULongBox(value)
+    }
+}
+
+@_cdecl("kk_box_ulong_nonnull_static")
+public func kk_box_ulong_nonnull_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: false) {
+        RuntimeULongBox(value)
+    }
+}
+
+@_cdecl("kk_box_float_static")
+public func kk_box_float_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeFloatBox(Float(bitPattern: UInt32(truncatingIfNeeded: value)))
+    }
+}
+
+@_cdecl("kk_box_double_static")
+public func kk_box_double_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeDoubleBox(Double(bitPattern: UInt64(bitPattern: Int64(value))))
+    }
+}
+
+@_cdecl("kk_box_double_nonnull_static")
+public func kk_box_double_nonnull_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: false) {
+        RuntimeDoubleBox(Double(bitPattern: UInt64(bitPattern: Int64(value))))
+    }
+}
+
+@_cdecl("kk_box_char_static")
+public func kk_box_char_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeCharBox(value)
+    }
+}
+
+@_cdecl("kk_unbox_int_static")
+public func kk_unbox_int_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(value, fallback: { kk_unbox_int(value) }, as: RuntimeIntBox.self, extract: \.value)
+}
+
+@_cdecl("kk_unbox_bool_static")
+public func kk_unbox_bool_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(value, fallback: { kk_unbox_bool(value) }, as: RuntimeBoolBox.self) { $0.value ? 1 : 0 }
+}
+
+@_cdecl("kk_unbox_long_static")
+public func kk_unbox_long_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(value, fallback: { kk_unbox_long(value) }, as: RuntimeLongBox.self, extract: \.value)
+}
+
+@_cdecl("kk_unbox_ulong_static")
+public func kk_unbox_ulong_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(value, fallback: { kk_unbox_ulong(value) }, as: RuntimeULongBox.self, extract: \.value)
+}
+
+@_cdecl("kk_unbox_float_static")
+public func kk_unbox_float_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(
+        value,
+        fallback: { kk_unbox_float(value) },
+        as: RuntimeFloatBox.self,
+        extract: { Int($0.value.bitPattern) }
+    )
+}
+
+@_cdecl("kk_unbox_double_static")
+public func kk_unbox_double_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(
+        value,
+        fallback: { kk_unbox_double(value) },
+        as: RuntimeDoubleBox.self,
+        extract: { Int(bitPattern: UInt(truncatingIfNeeded: $0.value.bitPattern)) }
+    )
+}
+
+@_cdecl("kk_unbox_char_static")
+public func kk_unbox_char_static(_ value: Int) -> Int {
+    runtimeStaticUnbox(value, fallback: { kk_unbox_char(value) }, as: RuntimeCharBox.self, extract: \.value)
 }
 
 /// Tags a primitive box (produced by kk_box_int/kk_box_long/kk_box_bool/
