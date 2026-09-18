@@ -541,11 +541,11 @@ final class RuntimeListBox {
         get {
             switch storage {
             case .direct(let direct):
-                return direct.values[index].legacyRawValue
+                return runtimeCollectionABIValue(direct.values[index])
             case .reversedViewOf(let base):
                 return base[base.count - 1 - index]
             case .arrayViewOf(let base):
-                return base[index]
+                return runtimeCollectionABIValue(base.values[index])
             }
         }
         set {
