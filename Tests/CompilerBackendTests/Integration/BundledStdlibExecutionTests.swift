@@ -9,6 +9,20 @@ import Testing
 @Suite
 struct BundledStdlibExecutionTests {
     @Test
+    func testAnyIntArrayCastPreservesRuntimeArrayType() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val value: Any = intArrayOf(1, 2)
+                println((value as IntArray).size)
+            }
+            """,
+            expectedOutput: "2\n",
+            moduleName: "KUU463AnyIntArrayCast"
+        )
+    }
+
+    @Test
     func testHelloWorldPrintsExpectedOutput() throws {
         try compileAndRunKotlin(
             """

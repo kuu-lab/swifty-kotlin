@@ -1320,6 +1320,16 @@ final class CallLowerer {
                 ? arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 : nil
+            let arrayResultTypeID = runtimeArrayNominalTypeID(
+                boundType ?? arena.exprType(result),
+                sema: sema,
+                interner: interner
+            )
+            let callResult: KIRExprID = if arrayResultTypeID != nil {
+                arena.appendTemporary(type: boundType ?? arena.exprType(result))
+            } else {
+                result
+            }
             // When calling a callable value (function-type local/parameter),
             // use its symbol so InlineLoweringPass can match it against lambda
             // parameter symbols and expand the lambda body in place.
@@ -1339,7 +1349,7 @@ final class CallLowerer {
                     callee: loweredCalleeName,
                     receiver: implicitReceiverDispatch.receiver,
                     arguments: Array(finalArgIDs.dropFirst()),
-                    result: result,
+                    result: callResult,
                     canThrow: callCanThrow,
                     thrownResult: thrownResult,
                     dispatch: implicitReceiverDispatch.kind
@@ -1349,10 +1359,30 @@ final class CallLowerer {
                     symbol: callSymbol,
                     callee: loweredCalleeName,
                     arguments: finalArgIDs,
-                    result: result,
+                    result: callResult,
                     canThrow: callCanThrow,
                     thrownResult: thrownResult
                 ))
+            }
+            if let arrayResultTypeID {
+                let typeIDExpr = arena.appendExpr(
+                    .intLiteral(arrayResultTypeID),
+                    type: sema.types.intType
+                )
+                instructions.append(.constValue(
+                    result: typeIDExpr,
+                    value: .intLiteral(arrayResultTypeID)
+                ))
+                let taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_tag_type"),
+                    arguments: [callResult, typeIDExpr],
+                    result: taggedResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                instructions.append(.copy(from: taggedResult, to: result))
             }
             if let thrownResult,
                shouldRethrowThrownChannelResult(calleeName: loweredCalleeName, interner: interner)
