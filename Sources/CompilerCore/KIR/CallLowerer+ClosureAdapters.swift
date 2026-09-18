@@ -1038,20 +1038,31 @@ extension CallLowerer {
             )
         }
 
-        // kotlin.DeepRecursiveFunction { block } — expand the callable argument
-        // to (fnPtr, closureRaw) so runtime can retain both the entry point and
-        // the captured environment. Multi-capture lambdas are packed into a
-        // closure object, reusing the same adapter strategy as collection HOFs.
-        if externalLinkName == "__kk_deep_recursive_function_new", loweredArguments.count == 1 {
-            return makeCollectionHOFExpandedArguments(
-                loweredArgID: loweredArguments[0],
-                argExprID: originalArgs[0].expr,
-                adaptOnlyWhenCapturing: true,
+        // DeepRecursiveFunction keeps the original suspend lambda so coroutine
+        // rewrite can find loweredBySymbol. Captures travel as closureRaw.
+        if externalLinkName == "__kk_deep_recursive_function_new",
+           let loweredArgID = loweredArguments.last
+        {
+            var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+            if callableInfo == nil,
+               case let .symbolRef(symbol)? = arena.expr(loweredArgID),
+               let function = arena.function(for: symbol)
+            {
+                callableInfo = KIRCallableValueInfo(
+                    symbol: function.symbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
+                    hasClosureParam: function.params.count >= 3
+                )
+            }
+            let closureRaw = makeClosureRawOrBoxedArgument(
+                callableInfo: callableInfo,
                 sema: sema,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
+            return Array(loweredArguments.dropLast()) + [loweredArgID, closureRaw]
         }
 
         return loweredArguments
