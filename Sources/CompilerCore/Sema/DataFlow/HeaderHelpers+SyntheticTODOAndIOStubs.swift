@@ -90,15 +90,17 @@ extension DataFlowSemaPhase {
             enumType: cpuArchitectureType,
             symbols: symbols
         )
-        let memoryModelSymbol = ensureSyntheticPlatformEnumClass(
-            named: "MemoryModel",
-            entries: [
-                "STRICT", "RELAXED", "EXPERIMENTAL",
-            ],
-            in: kotlinNativePkg,
-            symbols: symbols,
-            interner: interner
-        )
+        let memoryModelFQName = kotlinNativePkg + [interner.intern("MemoryModel")]
+        let memoryModelSymbol = symbols.lookup(fqName: memoryModelFQName)
+            ?? ensureSyntheticPlatformEnumClass(
+                named: "MemoryModel",
+                entries: [
+                    "STRICT", "RELAXED", "EXPERIMENTAL",
+                ],
+                in: kotlinNativePkg,
+                symbols: symbols,
+                interner: interner
+            )
         let memoryModelType = types.make(.classType(ClassType(
             classSymbol: memoryModelSymbol,
             args: [],
@@ -449,6 +451,13 @@ extension DataFlowSemaPhase {
             interner.intern("native"),
             interner.intern("MemoryModel"),
         ]
+        // KSP-1191: Platform.kt owns the enum declaration and the compiler's
+        // normal enum header pass synthesizes its generated members.
+        guard !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: memoryModelFQName
+        ) else {
+            return
+        }
         guard let enumSymbol = symbols.lookup(fqName: memoryModelFQName),
               let enumInfo = symbols.symbol(enumSymbol)
         else {

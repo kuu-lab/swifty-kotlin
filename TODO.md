@@ -1908,7 +1908,7 @@
     - `kotlin.coroutines.intrinsics.CoroutineSingletons.valueOf` — fun CoroutineSingletons.valueOf(String): CoroutineSingletons  -- `final fun valueOf(kotlin/String): kotlin.coroutines.intrinsics/CoroutineSingletons`
     - `kotlin.coroutines.intrinsics.CoroutineSingletons.values` — fun CoroutineSingletons.values(): Array  -- `final fun values(): kotlin/Array<kotlin.coroutines.intrinsics/CoroutineSingletons>`
 
-- [ ] KSP-1191: kotlin.native top-level の未実装 stdlib API を実装する（27 件）
+- [x] KSP-1191: kotlin.native top-level の未実装 stdlib API を実装する（27 件）
   - 対象: `kotlin.native` / top-level
   - 実装先 .kt: 宣言ごとに本家 kotlin-native のオーナーファイルへ追加する（`Annotations.kt`: CName/EagerInitialization/NoInline/SymbolName/ObjCName/HiddenFromObjC/HidesFromObjC/RefinesInSwift/ShouldRefineInSwift、`BitSet.kt`: BitSet、`Blob.kt`: ImmutableBlob/immutableBlobOf、`ObsoleteNativeApi.kt`: ObsoleteNativeApi、`Platform.kt`: OsFamily/CpuArchitecture/MemoryModel/Platform/isExperimentalMM、`Runtime.kt`: IncorrectDereferenceException/initRuntimeIfNeeded/{get,set}UnhandledExceptionHook/processUnhandledException/terminateWithUnhandledException、`simd.kt`: vectorOf。いずれも `Sources/CompilerCore/Stdlib/kotlin/native/` 直下。KSP-1541 で旧 `native/Stdlib.kt` 等の per-type ディレクトリ名は廃止済み）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1943,6 +1943,8 @@
     - `kotlin.native.terminateWithUnhandledException` — fun terminateWithUnhandledException(Throwable): Nothing  -- `final fun kotlin.native/terminateWithUnhandledException(kotlin/Throwable): kotlin/Nothing`
     - `kotlin.native.vectorOf` — fun vectorOf(Float, Float, Float, Float): Vector128  -- `final fun kotlin.native/vectorOf(kotlin/Float, kotlin/Float, kotlin/Float, kotlin/Float): kotlinx.cinterop/Vector128`
     - `kotlin.native.vectorOf` — fun vectorOf(Int, Int, Int, Int): Vector128  -- `final fun kotlin.native/vectorOf(kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int): kotlinx.cinterop/Vector128`
+  - 実装済み（2026-09-18）: `Platform.kt` の `MemoryModel`/`isExperimentalMM`、`Runtime.kt` の runtime hook 一式、`Blob.kt` の `ImmutableBlob`/`immutableBlobOf`、`simd.kt` の `vectorOf` を追加。source-backed 宣言を優先するよう合成 Sema 登録を整理し、`Vector128` の cinterop shell と `Nothing`/`_Noreturn void` ABI 契約も追加・整合させた。既存 source-backed 宣言（Annotations/BitSet/ObsoleteNativeApi/Platform 等）は重複追加せず維持。
+  - 検証: `swift build`、Sema Golden shard 73/98（8 cases）、Native unhandled-exception surface/KIR/Runtime focused tests、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` は pass。diff case は `kotlin.native.*` のため既存 `SKIP-DIFF`（DEBT-DIFF-001）。全 Golden / 全 diff_cases は未実行。
 
 - [ ] KSP-1192: kotlin.native.ImmutableBlob の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native` / receiver `ImmutableBlob`

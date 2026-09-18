@@ -231,6 +231,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        patchSourceBackedNativeUnhandledExceptionHookContract(
+            symbols: symbols,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
         // KSP-704: the Set/MutableSet nominal headers are only predeclared
         // before residual registration; their type parameters become available
         // when the complete bundled headers are collected. Register the
