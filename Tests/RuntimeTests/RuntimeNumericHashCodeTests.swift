@@ -193,5 +193,50 @@ struct RuntimeNumericHashCodeTests {
         let emoji = registerRuntimeObject(RuntimeStringBox("😀"))
         #expect(kk_any_hashCode(emoji, 0) == 1_772_899)
     }
+
+    // MARK: - Pair/Triple/object structural hash (Int32-wrapped accumulation)
+
+    // KUU-632: these branches combine element hashCodes with 31*acc+h. The
+    // combine must wrap as Kotlin Int (Int32) at every step — the same
+    // contract the List/Set/Map branches above already follow. Expected
+    // values below are cross-checked against real kotlinc/JVM output; the
+    // element hashCodes are large enough that the combine overflows Int32
+    // mid-computation.
+    @Test
+    func testPairHashCodeWrapsAtInt32() {
+        // Pair("abcdef", "ghijkl") — kotlinc prints 1841790624.
+        let first = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        let second = registerRuntimeObject(RuntimeStringBox("ghijkl"))
+        let pair = kk_pair_new(first, second)
+        #expect(kk_any_hashCode(pair, 0) == 1_841_790_624)
+
+        // Raw Int elements hash as themselves; 31 * 2_000_000_000 overflows
+        // Int32 on the very first combine.
+        let intPair = kk_pair_new(2_000_000_000, 1_500_000_000)
+        #expect(kk_any_hashCode(intPair, 0) == -924_509_440)
+    }
+
+    @Test
+    func testTripleHashCodeWrapsAtInt32() {
+        // Triple("abcdef", "ghijkl", "mnopqr") = 31*(31*h1 + h2) + h3 with
+        // a wrap at each step — kotlinc prints 191550019.
+        let first = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        let second = registerRuntimeObject(RuntimeStringBox("ghijkl"))
+        let third = registerRuntimeObject(RuntimeStringBox("mnopqr"))
+        let triple = kk_triple_new(first, second, third)
+        #expect(kk_any_hashCode(triple, 0) == 191_550_019)
+    }
+
+    @Test
+    func testObjectFallbackHashCodeWrapsAtInt32() {
+        // Non-data-class RuntimeObjectBox: hash starts at classID, then
+        // folds each slot as 31*hash + element. These elements overflow
+        // Int32 mid-fold.
+        let object = kk_object_new(3, 12_345)
+        _ = kk_array_set(object, 0, 2_000_000_000, nil)
+        _ = kk_array_set(object, 1, 1_900_000_000, nil)
+        _ = kk_array_set(object, 2, 1_800_000_000, nil)
+        #expect(kk_any_hashCode(object, 0) == -1_207_120_857)
+    }
 }
 #endif

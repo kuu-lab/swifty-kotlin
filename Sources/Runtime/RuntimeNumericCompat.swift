@@ -358,28 +358,25 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         }
         return Int(hash)
     }
-    // Kotlin Set.hashCode() is the order-independent sum of element hashes.
-    // RuntimeSetBox is shared by Set, MutableSet, LinkedHashSet, and HashSet,
-    // so keep equal set instances consistent across all of those surfaces.
-    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
-        return setBox.elements.reduce(0) { partial, element in
-            partial &+ kk_any_hashCode(element, 0)
-        }
-    }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
     // RuntimePairBox is internal runtime state and keeps the pointer hash.
+    // Like the List/Set/Map branches above, every combine step wraps as
+    // Kotlin Int (Int32), not the host's 64-bit Int width.
     if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
        let pairBox = tryCast(pointer, to: RuntimePairBox.self)
     {
-        return 31 &* kk_any_hashCode(pairBox.first, 0) &+ kk_any_hashCode(pairBox.second, 0)
+        let firstHash = Int32(truncatingIfNeeded: kk_any_hashCode(pairBox.first, 0))
+        let secondHash = Int32(truncatingIfNeeded: kk_any_hashCode(pairBox.second, 0))
+        return Int(31 &* firstHash &+ secondHash)
     }
     if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
        let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
     {
-        var hash = kk_any_hashCode(tripleBox.first, 0)
-        hash = 31 &* hash &+ kk_any_hashCode(tripleBox.second, 0)
-        return 31 &* hash &+ kk_any_hashCode(tripleBox.third, 0)
+        var hash = Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.first, 0))
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.second, 0))
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.third, 0))
+        return Int(hash)
     }
     // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
     // and other user-defined objects reached via Any.hashCode() — must stay
@@ -392,9 +389,11 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             // Some mutable set implementations use a RuntimeObjectBox shell
             // with a RuntimeSetBox backing store; preserve the same Set hash
             // contract for that representation.
-            return setBox.values.reduce(0) { hash, element in
-                hash &+ kk_any_hashCode(element.legacyRawValue, 0)
+            var hash: Int32 = 0
+            for element in setBox.values {
+                hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
             }
+            return Int(hash)
         }
         if runtimeIsDataClass(classID: objBox.classID) {
             // The first two slots are the runtime object header. Data-class
@@ -412,11 +411,11 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             return Int(hash)
         }
 
-        var hash = Int(truncatingIfNeeded: objBox.classID)
+        var hash = Int32(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
-            hash = 31 &* hash &+ kk_any_hashCode(element, 0)
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element, 0))
         }
-        return hash
+        return Int(hash)
     }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
 }
