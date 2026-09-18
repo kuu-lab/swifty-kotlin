@@ -88,6 +88,33 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
 }
 
+func runtimeRegisterArrayType(rawValue: Int, typeID: Int64) {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
+        return
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr), default: []].insert(typeID)
+    }
+}
+
+func runtimeArrayHasType(rawValue: Int, typeID: Int64) -> Bool {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
+        return false
+    }
+    return runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)]?.contains(typeID) == true
+    }
+}
+
+func runtimeArrayTypeIDs(rawValue: Int) -> Set<Int64> {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return []
+    }
+    return runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)] ?? []
+    }
+}
+
 func runtimeRegisterDataClass(classID: Int64) {
     guard classID != 0 else { return }
     runtimeStorage.withMetadataLock { state in

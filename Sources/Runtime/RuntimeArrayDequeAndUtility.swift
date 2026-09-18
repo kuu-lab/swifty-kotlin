@@ -105,7 +105,11 @@ public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     for (i, elem) in array.elements.enumerated() {
         box.elements[i] = elem
     }
-    return registerRuntimeObject(box)
+    let copiedRaw = registerRuntimeObject(box)
+    for typeID in runtimeArrayTypeIDs(rawValue: arrayRaw) {
+        runtimeRegisterArrayType(rawValue: copiedRaw, typeID: typeID)
+    }
+    return copiedRaw
 }
 
 @_cdecl("kk_array_fill")
