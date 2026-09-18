@@ -63,7 +63,7 @@ expr e@20:24#1 memberCall recv=e@20:24 callee=contains args=[value:e@20:47] type
 expr e@20:5 localDecl directUShort mutable=0 type=_ init=e@20:24#1 type=Unit ref=__local_9.directUShort[kind=local]
 expr e@21:25 name(range) type=kotlin.ranges.ULongRange ref=golden.sema.ulongRangeCrossContains.$1.range[kind=vparam]
 expr e@21:48 name(explicitULong) type=ULong ref=__local_2.explicitULong[kind=local]
-expr e@21:25#1 memberCall recv=e@21:25 callee=contains args=[value:e@21:48] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.ULongRange;params=ULong]
+expr e@21:25#1 memberCall recv=e@21:25 callee=contains args=[value:e@21:48] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[ULong]
 expr e@21:5 localDecl ordinaryULong mutable=0 type=_ init=e@21:25#1 type=Unit ref=__local_10.ordinaryULong[kind=local]
 expr e@22:22 name(byteValue) type=UByte ref=golden.sema.ulongRangeCrossContains.$1.byteValue[kind=vparam]
 expr e@22:35 name(range) type=kotlin.ranges.ULongRange ref=golden.sema.ulongRangeCrossContains.$1.range[kind=vparam]
