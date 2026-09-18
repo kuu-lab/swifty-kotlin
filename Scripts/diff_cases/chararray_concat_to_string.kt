@@ -33,4 +33,19 @@ fun main() {
     val greeting = charArrayOf('H', 'i')
     println(greeting.concatToString() + " there")
     println(greeting.concatToString().length)
+
+    // Surrogate pair combines into the supplementary plane char (KUU-634)
+    val supplementary = charArrayOf('\uD800', '\uDC00')
+    println(supplementary.concatToString())
+    println(supplementary.concatToString().length)
+
+    // String -> CharArray -> String round-trip keeps supplementary chars
+    val astral = "𐀀"
+    println(astral.toCharArray().concatToString() == astral)
+    println(astral.toCharArray().concatToString().length)
+
+    // Isolated surrogate keeps its UTF-16 code unit
+    val lone = charArrayOf('x', '\uD800', 'y')
+    println(lone.concatToString().length)
+    println(lone.concatToString()[1].code)
 }

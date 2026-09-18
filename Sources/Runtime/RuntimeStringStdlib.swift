@@ -436,19 +436,16 @@ public func __kk_string_codePointCount_range(
     )
 }
 
+// Kotlin Char is a UTF-16 code unit, so the array must be decoded as UTF-16:
+// surrogate pairs combine into supplementary scalars and isolated surrogates
+// survive through the marker encoding (same path as stringBuilderCharArrayUnits).
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {
         return runtimeMakeStringRaw("")
     }
-    var scalars = String.UnicodeScalarView()
-    for i in 0..<box.elements.count {
-        let charValue = kk_unbox_char(box.elements[i])
-        if let scalar = UnicodeScalar(charValue) {
-            scalars.append(scalar)
-        }
-    }
-    return runtimeMakeStringRaw(String(scalars))
+    let units = box.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(units))
 }
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source

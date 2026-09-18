@@ -2023,6 +2023,53 @@ struct RuntimeStringArrayTests {
         #expect(output.contains("some error"))
     }
 
+    // MARK: - kk_chararray_concatToString
+
+    @Test
+    func testCharArrayConcatToStringCombinesSurrogatePair() {
+        // KUU-634: Kotlin Char is a UTF-16 code unit, so a surrogate pair in the
+        // array must combine into the supplementary scalar (U+10000) rather
+        // than being dropped as a non-scalar value.
+        let array = makeRuntimeArray([kk_box_char(0xD800), kk_box_char(0xDC00)])
+
+        let result = kk_chararray_concatToString(array)
+
+        #expect(runtimeStringUTF16CodeUnits(result) == [0xD800, 0xDC00])
+        #expect(runtimeStringValue(result) == "\u{10000}")
+    }
+
+    @Test
+    func testCharArrayConcatToStringPreservesIsolatedSurrogate() {
+        // A lone surrogate Char must keep its UTF-16 code unit (length 1)
+        // through the surrogate-marker encoding instead of being dropped.
+        let array = makeRuntimeArray([kk_box_char(0xD800)])
+
+        let result = kk_chararray_concatToString(array)
+
+        #expect(runtimeStringUTF16CodeUnits(result) == [0xD800])
+    }
+
+    @Test
+    func testCharArrayConcatToStringMixedBMPAndSurrogates() {
+        let array = makeRuntimeArray([
+            kk_box_char(0x41),
+            kk_box_char(0xD83D), kk_box_char(0xDE00),
+            kk_box_char(0x42),
+        ])
+
+        let result = kk_chararray_concatToString(array)
+
+        #expect(runtimeStringUTF16CodeUnits(result) == [0x41, 0xD83D, 0xDE00, 0x42])
+        #expect(runtimeStringValue(result) == "A\u{1F600}B")
+    }
+
+    @Test
+    func testCharArrayConcatToStringEmptyAndInvalidHandle() {
+        let empty = makeRuntimeArray([])
+        #expect(runtimeStringValue(kk_chararray_concatToString(empty)) == "")
+        #expect(runtimeStringValue(kk_chararray_concatToString(0)) == "")
+    }
+
     // MARK: - STDLIB-TEXT-FN-115: String.withIndex()
 
 
