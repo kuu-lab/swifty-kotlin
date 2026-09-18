@@ -1031,7 +1031,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            let arrayConversionSourceCandidates = collectArraySourceConversionCandidates(
+            let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
@@ -1210,7 +1210,7 @@ extension CallTypeChecker {
                         sema: sema,
                         interner: interner
                     )
-                    let arrayConversionSourceCandidates = collectArraySourceConversionCandidates(
+                    let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                         named: calleeName,
                         receiverType: nonNullReceiverForScope,
                         sema: sema,
@@ -1816,7 +1816,7 @@ extension CallTypeChecker {
         // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear"]
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "asIterable", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach"]
         let memberNameText = interner.resolve(calleeName)
         let isMutableMapIteratorSource = memberNameText == "iterator"
@@ -1831,8 +1831,17 @@ extension CallTypeChecker {
         // prevents the array resolver from binding the source overload.
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
+            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+            && !collectArraySourceBackedCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            ).isEmpty
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
             || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+            || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
