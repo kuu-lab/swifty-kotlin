@@ -72,7 +72,9 @@ extension BuildASTPhase {
         guard !exprTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: exprTokens[...], interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: exprTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 
@@ -362,7 +364,10 @@ extension BuildASTPhase {
                 }
                 let exprTokens = remaining[exprStart ..< exprEnd].filter { $0.kind != .symbol(.semicolon) }
                 if !exprTokens.isEmpty {
-                    let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+                    let parser = ExpressionParser(
+                        tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena,
+                        diagnostics: diagnostics
+                    )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
                     {
@@ -389,7 +394,8 @@ extension BuildASTPhase {
                     .filter { $0.kind != .symbol(.semicolon) }
                 if !bodyTokens.isEmpty {
                     let parser = ExpressionParser(
-                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena
+                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena,
+                        diagnostics: diagnostics
                     )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
@@ -571,7 +577,9 @@ extension BuildASTPhase {
         guard !exprTokens.isEmpty else {
             return .unit
         }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let exprID = parser.parse(),
               let range = astArena.exprRange(exprID)
         else {
@@ -666,7 +674,9 @@ extension BuildASTPhase {
         // Parse initializer expression
         let exprTokens = tokens[index...].filter { $0.kind != .symbol(.semicolon) }
         guard !exprTokens.isEmpty else { return nil }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let initExpr = parser.parse() else { return nil }
 
         return ExplicitBackingField(type: fieldType, initializer: initExpr)
