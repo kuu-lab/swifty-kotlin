@@ -38,6 +38,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
         sema.importedInlineFunctions = importedInlineFunctions
+        importDeferredWork.lazyLoaderState?.inlineFunctionSink = { [weak sema] symbol, function in
+            sema?.importedInlineFunctions[symbol] = function
+        }
 
         // KSP-706: when compiling against bundled stdlib source rather than a
         // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`
@@ -367,6 +370,12 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
+        if symbols.hasLazyImportedMetadataLoader {
+            // Resolving every imported signature here would turn the indexed
+            // metadata path back into an eager full-body decode. The artifact
+            // path has no bundled source declarations requiring this merge.
+            return bundledIndex
+        }
         var importedStdlibKeys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
             guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
