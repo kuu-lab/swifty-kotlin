@@ -385,7 +385,7 @@
     - (4) 2026-09-16: (b) 0 件の残りモジュールを一括処理。`coroutines/`: `Stdlib.kt` を `Continuation.kt`/`CoroutineContext.kt`/`SuspendFunction.kt` に分割、`SafeContinuation/Stdlib.kt`→`SafeContinuationNative.kt`（kotlin-native 実装ファイル名）、`ContinuationInterceptor/`→`ContinuationInterceptor.kt`、`AbstractCoroutineContextElement/`+`AbstractCoroutineContextKey/`+`EmptyCoroutineContext/`→`CoroutineContextImpl.kt`、`cancellation/CancellationException/`→`CancellationExceptionH.kt`、`intrinsics/Stdlib.kt`→`intrinsics/IntrinsicsNative.kt`。`reflect/`: `KCallable/`/`KClass/`/`KType/`/`KTypeProjection/`/`KVariance/` の per-type ディレクトリを解体し本家フラット名へ、`KProperties.kt`→`KProperty.kt`、`KClassBasicAPI.kt`+`KClassMemberIntrospection.kt`→`KClasses.kt` に統合。`contracts/`: `Contracts.kt`→`ContractBuilder.kt` に統合（本家は同ファイルが `ExperimentalContracts`/`InvocationKind` 等のオーナー）、`InvocationKind/`→`InvocationKind.kt`。`enums/Stdlib.kt`→`enums/EnumEntries.kt`、`annotation/Stdlib.kt`→`annotation/Annotations.kt`。`experimental/`: `TypeInference.kt`→`inferenceMarker.kt`、`NativeExperimentalAnnotations.kt`→`ExperimentalNativeApi.kt`/`ExperimentalObjCName.kt`/`ExperimentalObjCRefinement.kt`/`ExperimentalObjCEnum.kt`（本家がアノテーションごとに1ファイル持つ構成に一致。`ExperimentalObjCEnum` は v2.3.10 タグに専用ファイルが無いため新設、post-2.3.10 の本家 `kotlin.experimental` 宣言と同名）。enforcing: `BundledStdlibOrderingTests.testMigratedBundledFilenamesFollowUpstreamLayout` が 6 パッケージ配下の `Stdlib.kt` 名と eponymous ディレクトリを拒否。挙動変更ゼロ（全宣言の FQ 名・内容不変、パスのみ移動）
   - native 残件: **解消（#6840）**。参考: `native/internal/NativeConcurrentBridges.kt` は `__kk_*` ブリッジ専用の KSwiftK 独自ファイルで本家対応物なし（リネーム対象外、変更なし）
     - `[x]` 済みタスクの完了メモは旧ファイル名のまま残している（#6745 の完了エントリ削除と衝突させないため）。未完了タスクの「実装先 .kt」は #6780 で本家オーナーへ読み替え済み
-  - 他モジュールの残件: ルート `kotlin/` パッケージに帰属ヘッダ由来の不一致と per-type ディレクトリ artifact（`Array/Stdlib.kt`、`Pair/`、`Result/Stdlib.kt` 等 30 件超）があるが、`HeaderHelpers+SyntheticArrayStubs.swift` / `+SyntheticCoercionStubs.swift` / `+SyntheticTODOAndIOStubs.swift` の (b) 残があるため着手条件未達（`+SyntheticCoercionStubs` の (b) 分は KUU-588 で追跡）。`collections` / `text` / `sequences` / `ranges` / `time` / `io` / `concurrent`(atomics) / `math` も (b) 残ありで対象外。`uuid` / `io/encoding` / `comparisons` / `properties` は (b) 0 かつ既に本家名で対象外
+  - 他モジュールの残件: ルート `kotlin/` パッケージに帰属ヘッダ由来の不一致と per-type ディレクトリ artifact（`Array/Stdlib.kt`、`Pair/`、`Result/Stdlib.kt` 等 30 件超）があるが、`HeaderHelpers+SyntheticArrayStubs.swift` / `+SyntheticCoercionStubs.swift` の (b) 残があるため着手条件未達（`+SyntheticCoercionStubs` の (b) 分は KUU-588 で追跡）。`collections` / `text` / `sequences` / `ranges` / `time` / `io` / `concurrent`(atomics) / `math` も (b) 残ありで対象外。`uuid` / `io/encoding` / `comparisons` / `properties` は (b) 0 かつ既に本家名で対象外
 
 ### KSP-W6: 追補モジュール移行（ギャップ監査 2026-07-10。手順は全て T。粒度ルール適用済み = 1タスク1PR）
 
@@ -450,13 +450,14 @@
   - diff: `mutable_list_addAll.kt` 新規 + 既存 `list_*.kt`
   - 前提: KSP-700, KSP-701, KSP-703, KSP-704
 
-- [ ] KSP-708: TypedRange (`IntRange`/`LongRange`/`CharRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticTypedRangeStubs.swift` を削除する
+- [x] KSP-708: TypedRange (`IntRange`/`LongRange`/`CharRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticTypedRangeStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTypedRangeStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/` 新設 `IntRange.kt`/`LongRange.kt`/`CharRange.kt`（`Ranges.kt` 既存インターフェース活用）
   - 削除/降格 kk_*: `kk_int_range_*`, `kk_long_range_*`, `kk_char_range_*` 等 public ブリッジを `__kk_` 降格 or 削除（`RuntimeRange*.swift`。着手時 `rg -o '@_cdecl\("kk_(int|long|char)_range[a-zA-Z0-9_]*"\)' Sources/Runtime` 全層で再固定）
   - 手順: T
   - diff: `range_basic.kt` 等既存 + 新規 TypedRange 単独ケース
   - 前提: KSP-451, KSP-456, KSP-700（Comparable）
+  - 完了: `IntRange.kt`/`LongRange.kt`/`CharRange.kt` を追加し、typed synthetic stub を削除。typed range の public `kk_*` cdecl は 0 件、残存 bridge は `__kk_*` に降格。`swift build`、関連 Sema/ABI テスト、`range_basic.kt`/`typed_range.kt` の kotlinc diff を確認済み（全体 suite / 全 diff は未実行）。
 
 - [ ] KSP-709: UnsignedRange (`UIntRange`/`ULongRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticUnsignedRangeStubs.swift`
@@ -623,6 +624,19 @@
     - **残**: `Collection.kt` 等 KSP-700 の型宣言が揃うまで、この shell の「重複登録除去」自体は着手不可（前提未達）。揃った時点でも本ファイル側の追加変更は不要（Collection の shell は既に「既存シンボル再利用」パターンに揃っている）。
     - 動作確認は変更箇所に絞ったスコープのみ実施: `swift build`、新規 diff case 1件、関連既存 diff_cases 15件、Golden Sema 92件（すべて green）。全 Swift suite・全 Golden（Lexer/Parser/Diagnostics）・全 `diff_kotlinc.sh` は未実行だったが、PR #6784 の CI（Swift test shards、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc Diff 全 shard）がすべて green となったため完了へ更新した。
     - **2026-09-16 完了追記**: 前提の KSP-700（PR #6837）と KSP-1509（PR #6818）がともに merge 済みであることを再確認した。KSP-1542 の PR #6784 も全必須 CI を通過済み。`Collection`/`Iterable`/`Iterator` 系の nominal 宣言は bundled Kotlin source を正規経路とし、Swift 側は `--no-stdlib`/precompiled metadata 用の fallback と、runtime box の itable 未登録を迂回する (c) bridge 残余だけを保持するため、追加の shell 削除・bridge 改名は行わない。
+
+- [~] KSP-1544: `HeaderHelpers+SyntheticCoercionStubs.swift` の (b) 分を Kotlin 化し (c) 残置分を §9 で確定する（Linear KUU-588）
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（着手時 449 行、§9 記載の 654 行は stale だった）
+  - 再分類結果（着手時 rg で再固定）: 登録は Int×9 / Long×9 / Float.toByte・toShort / Double.toByte・toShort・toFloat の 23 件 + `kotlin.math` package bootstrap。(b) は Float/Double の `toByte()`/`toShort()` 4 件のみ — 本家は `toInt().toX()` 合成で `warningSince="1.3"`/`errorSince="1.5"`（apiVersion 2.2 では error-level deprecated）。残りは (c): Int/Long の primitive cast 全般と `Double.toFloat` は lowering が `kk_*` へ直接写像する言語コア面（KSP-1531 分類表どおり）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記（KSP-1538 ブロック末尾。`toInt().toByte()` / `toInt().toShort()` の実 body + 本家準拠の `@Deprecated`/`@DeprecatedSinceKotlin`/`ReplaceWith`）。range/coercion は `ranges/RangeCoercion.kt` で既に完全に source-backed のため追記なし
+  - 削除/降格 kk_*: なし。4 件の synthetic 登録は `__kk_float_to_int`/`__kk_double_to_int` を指していたが、これらは bundled `Float.toInt`/`Double.toInt` と `kk_number_to_primitive` dispatch が継続利用するため保持。`kk_int_to_int` は identity 登録として (c) 残置
+  - dead code 削除（同ファイル内、(b) 範囲外の付帯整理）: `kotlin.math` package bootstrap（registry 順で Math bucket の `ensureSyntheticPackageHierarchy` が常に先行するため到達不能）と `syntheticDeprecatedAnnotationsForCoercion`（`toChar` 専用だが登録対象 0 件）。Registry の `Coercion` entry は `.sourceBackedMigration` → `.residualCompilerSurface` へ
+  - **(b) stub が実害バグを持っていた点を記録**: 旧登録は `returnType: intType` で `Float.toByte()` が Int を返す誤シグネチャだった（`val b: Byte = 1.5f.toByte()` が型エラー、`300.9f.toByte()` が narrowing 無しの 300 を返す）。source 化で `toInt().toByte()`（44）に一致し、未抑制呼び出しは本家同様 error-level deprecated になった（`Scripts/diff_cases/float_double_to_byte_short.kt` で PASS 確認、`@file:Suppress("DEPRECATION_ERROR")` 下で実行）
+  - 手順: T
+  - diff: `Scripts/diff_cases/float_double_to_byte_short.kt` 新規
+  - 前提: なし
+  - 検証: `swift build` green、新規 diff case PASS、`FloatDoubleNumericConversionSourceTests`（`toByte`/`toShort` の source-backed 化 + error-level deprecated 拒否を追加）、`CoercionSyntheticStubTests`・`IntConversionMemberCallTests`・`LongConversionMemberCallTests`・`FileSuppressAnnotationTests`・Golden Sema 等 focused 実行。全 suite・全 `diff_kotlinc.sh` は CI 待ち（AGENTS.md 最小スコープ方針）
+  - KSP-1541 への影響: ルート `kotlin/` パッケージ rename ブロッカーの片方（`+SyntheticCoercionStubs.swift` の (b) 残）を解消。`+SyntheticArrayStubs.swift` の (b) 残は別タスクで継続
 
 ### CLEANUP-STUB 追補（(a) 削除。2026-07-10 監査。採番は履歴最終 095 の続き。手順は RF-STUB-002 レシピ）
 

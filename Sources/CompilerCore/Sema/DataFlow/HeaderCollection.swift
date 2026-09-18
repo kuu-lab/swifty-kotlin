@@ -1827,6 +1827,7 @@ extension DataFlowSemaPhase {
                     if !alreadyExists {
                         var aliasFlags = semanticSymbol.flags
                         aliasFlags.insert(.synthetic)
+                        aliasFlags.insert(.extensionMemberAlias)
                         let aliasSymbol = symbols.define(
                             kind: .function,
                             name: semanticSymbol.name,

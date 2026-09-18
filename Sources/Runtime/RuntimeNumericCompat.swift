@@ -11,6 +11,9 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     if runtimeIsUnitBox(value) {
         return runtimeMakeStringPointer("kotlin.Unit")
     }
+    if let override = runtimeAnyToStringOverride(value) {
+        return override
+    }
     // Float/Double/ULong MUST be decoded before the null-sentinel check:
     // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
     // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
@@ -27,11 +30,6 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
-    }
-    if tag == 1,
-       let override = runtimeAnyToStringOverride(value)
-    {
-        return override
     }
     if tag == 2 {
         return runtimeMakeStringPointer(value != 0 ? "true" : "false")
@@ -56,6 +54,7 @@ private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
     let objectKey = UInt(bitPattern: objectPtr)
     guard let functionRaw = runtimeStorage.withMetadataLock({ state in
         state.objectAnyToStringMethods[objectKey]
+            ?? state.objectTypeByPointer[objectKey].flatMap { state.valueClassAnyToStringMethods[$0] }
     }) else {
         return nil
     }
@@ -69,7 +68,7 @@ private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
     return result
 }
 
-private func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
+func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
     guard let result = runtimeAnyToStringOverrideRaw(raw) else {
         return nil
     }
@@ -273,6 +272,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     guard isObjectPointer else {
         return runtimeUnboxedAnyHashCode(value, tag)
     }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        return runtimeRangeHashCode(range)
+    }
     if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
         return runtimeStringHashCode(stringBox.value)
     }
@@ -358,28 +360,25 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         }
         return Int(hash)
     }
-    // Kotlin Set.hashCode() is the order-independent sum of element hashes.
-    // RuntimeSetBox is shared by Set, MutableSet, LinkedHashSet, and HashSet,
-    // so keep equal set instances consistent across all of those surfaces.
-    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
-        return setBox.elements.reduce(0) { partial, element in
-            partial &+ kk_any_hashCode(element, 0)
-        }
-    }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
     // RuntimePairBox is internal runtime state and keeps the pointer hash.
+    // Like the List/Set/Map branches above, every combine step wraps as
+    // Kotlin Int (Int32), not the host's 64-bit Int width.
     if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
        let pairBox = tryCast(pointer, to: RuntimePairBox.self)
     {
-        return 31 &* kk_any_hashCode(pairBox.first, 0) &+ kk_any_hashCode(pairBox.second, 0)
+        let firstHash = Int32(truncatingIfNeeded: kk_any_hashCode(pairBox.first, 0))
+        let secondHash = Int32(truncatingIfNeeded: kk_any_hashCode(pairBox.second, 0))
+        return Int(31 &* firstHash &+ secondHash)
     }
     if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
        let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
     {
-        var hash = kk_any_hashCode(tripleBox.first, 0)
-        hash = 31 &* hash &+ kk_any_hashCode(tripleBox.second, 0)
-        return 31 &* hash &+ kk_any_hashCode(tripleBox.third, 0)
+        var hash = Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.first, 0))
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.second, 0))
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.third, 0))
+        return Int(hash)
     }
     // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
     // and other user-defined objects reached via Any.hashCode() — must stay
@@ -392,9 +391,11 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             // Some mutable set implementations use a RuntimeObjectBox shell
             // with a RuntimeSetBox backing store; preserve the same Set hash
             // contract for that representation.
-            return setBox.values.reduce(0) { hash, element in
-                hash &+ kk_any_hashCode(element.legacyRawValue, 0)
+            var hash: Int32 = 0
+            for element in setBox.values {
+                hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
             }
+            return Int(hash)
         }
         if runtimeIsDataClass(classID: objBox.classID) {
             // The first two slots are the runtime object header. Data-class
@@ -412,11 +413,11 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             return Int(hash)
         }
 
-        var hash = Int(truncatingIfNeeded: objBox.classID)
+        var hash = Int32(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
-            hash = 31 &* hash &+ kk_any_hashCode(element, 0)
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element, 0))
         }
-        return hash
+        return Int(hash)
     }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
 }
@@ -433,6 +434,12 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     guard isObjectPointer else {
         return tag == 2 ? 2 : 1
+    }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        // Keep each nominal range type distinct from scalar Any values and
+        // from the other range classes, while retaining value equality for
+        // separately allocated instances of the same class.
+        return 200 &+ range.kind.rawValue
     }
     if tryCast(pointer, to: RuntimeBoolBox.self) != nil {
         return 2
@@ -1654,14 +1661,18 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
 
 // MARK: - Char operations
 
-@_cdecl("kk_char_rangeTo")
+@_cdecl("__kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: startChar,
-        last: endChar,
-        step: 1,
-        yieldsChars: true
-    ))
+    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: endChar, step: 1, kind: .charRange))
+}
+
+@_cdecl("__kk_char_rangeUntil")
+public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
+    let startChar = kk_unbox_char(startValue)
+    let endChar = kk_unbox_char(endValue)
+    let last = endChar &- 1
+    let step = endChar <= startChar ? 0 : 1
+    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: last, step: step, kind: .charRange))
 }
