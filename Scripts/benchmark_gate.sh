@@ -198,8 +198,16 @@ measure_compile_case() {
 
     done
 
-    mapfile -t phases < <(awk '$0 !~ /^[[:space:]]/ && $2 ~ /^[0-9]+([.][0-9]+)?$/ { print $1 }' "$case_dir/stderr-1")
-    phases+=(TOTAL)
+    local -a phases=()
+    local -A phase_seen=()
+    while IFS= read -r phase; do
+        [[ -n "$phase" && -z "${phase_seen[$phase]+seen}" ]] || continue
+        phase_seen["$phase"]=1
+        phases+=("$phase")
+    done < <(awk '$0 !~ /^[[:space:]]/ && $2 ~ /^[0-9]+([.][0-9]+)?$/ { print $1 }' "$case_dir/stderr-1")
+    if [[ -z "${phase_seen[TOTAL]+seen}" ]]; then
+        phases+=(TOTAL)
+    fi
     for phase in "${phases[@]}"; do
         for ((run = 1; run <= COMPILE_RUNS; run++)); do
             value="$(extract_phase "$phase" "$case_dir/stderr-$run")"
