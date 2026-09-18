@@ -198,7 +198,8 @@ extension BuildASTPhase.ExpressionParser {
         let parser = BuildASTPhase.ExpressionParser(
             tokens: branchTokens,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
         let body: ExprID?
         if branchTokens.first?.kind == .symbol(.lBrace) {
@@ -545,7 +546,8 @@ extension BuildASTPhase.ExpressionParser {
         // are preserved for intra-block statement splitting.
         if let first = bodyTokens.first, first.kind == .symbol(.lBrace) {
             return BuildASTPhase.ExpressionParser(
-                tokens: bodyTokens, interner: interner, astArena: astArena
+                tokens: bodyTokens, interner: interner, astArena: astArena,
+                diagnostics: diagnostics
             ).parseBlockExpression()
         }
         let sanitized = bodyTokens.filter { $0.kind != .symbol(.semicolon) }
@@ -558,7 +560,10 @@ extension BuildASTPhase.ExpressionParser {
         if let localAssign = parseLocalAssignFromSlice(sanitized[...]) {
             return localAssign
         }
-        return BuildASTPhase.ExpressionParser(tokens: sanitized[...], interner: interner, astArena: astArena).parse()
+        return BuildASTPhase.ExpressionParser(
+            tokens: sanitized[...], interner: interner, astArena: astArena,
+            diagnostics: diagnostics
+        ).parse()
     }
 
     /// Finds the top-level `while` keyword that starts the condition part of
