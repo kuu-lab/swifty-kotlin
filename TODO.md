@@ -892,11 +892,13 @@
   - ビルド・CI 接続も確認する。`Package.swift` の GoldenHarnessSupport は sources 明示列挙なので、新規 Swift helper は列挙に追加する。`.github/workflows/ci.yml` の Golden / method shard の選択条件を確認し、新 suite・新 profile が未実行にも重複実行にもならないよう実行件数を照合する。既存の検証や対象除外を緩めて通さない。
   - 完了条件: shard をまたぐ重複・指定削除・孤立ファイル・不正 schema を負のケースで検出でき、通常実行と更新モードの両方でゲートが有効。更新前後の担当数 / case・profile 数を提示し、実行時間・メモリの増加も確認する。
   - 2026-09-16 実装: 全 suite の discovery / expected golden / profile / 対象契約を事前検査し、専用 inventory suite と CI shard 0 の必須ゲート、更新前検査、孤立・改名残り・shard 横断重複の負のテストを追加。focused gates は成功（全 Swift / 全 Golden / 全 diff / 指標は未実行）。
-- [ ] RF-GOLDEN-003: stdlib メタデータを対象指定の専用 Golden へ移管し、由来検証を補完する（前提: 001・011・013）
+- [~] RF-GOLDEN-003: stdlib メタデータを対象指定の専用 Golden へ移管し、由来検証を補完する（前提: 001・011・013）
   - 対象: 既存 `stdlib_kotlin_*` 入力と期待値、`PairTripleNominalAnchorTests` / `BundledDeclarationIndexTests` / `ListSyntheticMemberLinkTests` 等。まず List / Iterable / MutableCollection、Pair / Triple、member alias のメタデータ契約を担当ケースへ割り当て、011の対象指定を追加する。新規ケースは不足する契約だけに限定する。
   - API 群ごとに001の「削るメタデータ → 担当する専用節 / assertion」を対応付ける。Collection API を呼ぶケースへ List の flags が現れる、といった依存型の重複を残さない。既存289ケースが対象指定なしで自動的にメタデータを担うとはせず、必要な契約の担当と API 呼び出しの型検証のみを行うものを区別する。
   - `synthetic` がないだけで source 所有と断定せず、AST / import との対応や残存 stub / alias の許可を既存 Sema テストで検証する。専用メタデータ抽出の分類結果をそのまま唯一の正解として使わない。既存の重要 lowering・ABI assertion は004・005で維持する。
   - 完了条件: 対象の誤った所有・重要 flags / signature / type の変更を専用側が検出し、001の移管項目に未対応がないこと。担当契約の重複検査が green で、通常 Golden に依存しない検証先を示せること。件数が大きければ API 群別の新IDへ分け、全件の大規模再編や通常出力の削減をこのタスクへ混ぜない。
+  - 2026-09-18 実施: List / Iterable / MutableCollection、Triple の nominal metadata を artifact profile の対象指定へ移管し、Sequence.shuffled の source-backed member alias を source profile の対象指定へ移管。既存 Pair の対象指定と合わせ、flags / signature / variance / supertypes / constructor annotation / alias origin を専用節で固定した。Inventory は 872 cases（artifact 6、source 1、implicit 865）、targeted 7、contracts 10 を全量検査する。
+  - focused 検証: `swift build --build-tests` PASS、専用 Inventory 9件 PASS、TargetedGolden 16件 PASS、SymbolOrigin 9件 PASS、PairTriple 2件 PASS、BundledDeclarationIndex 8件 PASS、List/Iterable/MutableCollection の代表5件 PASS、4件のartifact Goldenとsource alias Goldenの直接再生成比較 PASS。全 Swift / 全 Golden / 全 diff / 全 RF 指標は未実行。
 - [~] RF-GOLDEN-004: フラグ変更が iterator / lowering に与える影響を既存回帰 suite で担保する（前提: 001）
   - 対象: `ControlFlowLowerer.swift` に対する `CodegenBackendInterfaceIterableForLoopTests`、`StdlibArtifactRegressionTests`、対応する Core KIR / Lowering suites。`testConcreteListForLoopStillUsesListIterator`、`testIterableInterfaceForLoopLowersToIteratorNotRangeIntrinsics`、BUG-231 の手書き List / Set / Mutable 系実装の実行テストを移管先として明示し、足りない source 注入 / artifact 経路だけを補う。
   - KSP-697 の非 synthetic List でも専用の iterator 呼び出しが残り、interface 経由やユーザー実装の override は適切な経路を使うことを確認する。artifact の型代入テストだけを iterator の経路・実行検証の代わりにしない。001で重要と判定した data / enum 合成や inline 等も既存の対応 lowering テストへ紐付ける。
