@@ -119,6 +119,24 @@ import Testing
     }
 
     @Test
+    func testCodegenRawStringSimpleNameTemplatesInterpolate() throws {
+        let source = #"""
+        fun main() {
+            val x = 5
+            println("""$x""")
+            println("""a$x b""")
+            println("""${x}""")
+        }
+        """#
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RawStringSimpleNameTemplates",
+            expected: "5\na5 b\n5\n"
+        )
+    }
+
+    @Test
     func testCodegenProducesDeterministicKirOutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
