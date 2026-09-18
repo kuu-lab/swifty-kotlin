@@ -120,6 +120,11 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // KUU-642: DeepRecursive callRecursive parks the caller continuation
+            // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
+            // start the next recursive step without growing the native stack.
+            ctx.interner.intern("__kk_deep_recursive_scope_callRecursive"),
+            ctx.interner.intern("__kk_deep_recursive_function_callRecursive"),
             // CORO-004: withContext suspends the caller while the dispatched block
             // runs on another dispatcher; the runtime resumes via callerState.resume.
             kxMiniWithContextCallee,
