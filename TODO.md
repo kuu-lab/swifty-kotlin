@@ -946,7 +946,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Pair.<init>` — constructor (, )  -- `constructor <init>(#A, #B)`
-  - 実装済み（ゲート保留）: `Sources/CompilerCore/Stdlib/kotlin/Pair/Stdlib.kt` に constructor の source owner を追加。`__kk_pair_new` は collection/sequence が共有する Pair box allocation bridge のため残置。Pair 単体 diff、TODO ID、Runtime ABI link は pass 済みだが、全 Golden / 全 diff_cases は共有実行環境の timeout/SIGTERM で未完了。
+  - 実装済み・focused確認（2026-09-18、KUU-426）: PR #5983 で `Sources/CompilerCore/Stdlib/kotlin/Pair/Stdlib.kt` に constructor の source owner と専用 Sema Golden / diff fixture を追加済み。`__kk_pair_new` は collection/sequence が共有する Pair box allocation bridge のため残置する。現行 master で `swift build`、`PairTripleNominalAnchorTests`（2件）、Pair の最小 Sema render（非 nullable / nullable の `kotlin.Pair.<init>` binding）、`stdlib_kotlin_Pair_n_n.kt` の kotlinc 2.3.10 参照出力生成、TODO ID、Runtime ABI link（5件）を確認済み。Pair-only diff の PASS は PR #5983 の検証記録を再確認した。全 Golden / 全 diff_cases は共通ゲート G としてローカルでは実行せず、PR CI に委ねるため `[~]` を維持する。
 
 - [ ] KSP-927: kotlin.collections.AbstractList-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `AbstractList`
