@@ -438,8 +438,16 @@ final class RuntimeFunctionValueBox {
 /// Runtime box for `listOf(...)` / `mutableListOf(...)`.
 /// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
+    private final class DirectStorage {
+        var values: [RuntimeValue]
+
+        init(values: [RuntimeValue]) {
+            self.values = values
+        }
+    }
+
     private enum Storage {
-        case direct([RuntimeValue])
+        case direct(DirectStorage)
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
     }
@@ -448,17 +456,17 @@ final class RuntimeListBox {
     private(set) var isReadOnly = false
 
     init(elements: [Int]) {
-        storage = .direct(elements.map { RuntimeValue(raw: $0) })
+        storage = .direct(DirectStorage(values: elements.map { RuntimeValue(raw: $0) }))
     }
 
     init(values: [RuntimeValue]) {
-        storage = .direct(values)
+        storage = .direct(DirectStorage(values: values))
     }
 
     init(capacity: Int) {
         var values: [RuntimeValue] = []
         values.reserveCapacity(max(0, capacity))
-        storage = .direct(values)
+        storage = .direct(DirectStorage(values: values))
     }
 
     init(reversedViewOf base: RuntimeListBox) {
@@ -472,8 +480,8 @@ final class RuntimeListBox {
     var values: [RuntimeValue] {
         get {
             switch storage {
-            case .direct(let values):
-                return values
+            case .direct(let direct):
+                return direct.values
             case .reversedViewOf(let base):
                 return Array(base.values.reversed())
             case .arrayViewOf(let base):
@@ -483,8 +491,8 @@ final class RuntimeListBox {
         set {
             guard !isReadOnly else { return }
             switch storage {
-            case .direct:
-                storage = .direct(newValue)
+            case .direct(let direct):
+                direct.values = newValue
             case .reversedViewOf(let base):
                 base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
@@ -495,6 +503,50 @@ final class RuntimeListBox {
 
     func freeze() {
         isReadOnly = true
+    }
+
+    var count: Int {
+        switch storage {
+        case .direct(let direct):
+            return direct.values.count
+        case .reversedViewOf(let base):
+            return base.count
+        case .arrayViewOf(let base):
+            return base.count
+        }
+    }
+
+    var indices: Range<Int> {
+        0..<count
+    }
+
+    /// O(1) single-element access. Prefer this over `elements[index]` because
+    /// `elements` materializes the whole list on every get/set.
+    subscript(index: Int) -> Int {
+        get {
+            switch storage {
+            case .direct(let direct):
+                return direct.values[index].legacyRawValue
+            case .reversedViewOf(let base):
+                return base[base.count - 1 - index]
+            case .arrayViewOf(let base):
+                return base[index]
+            }
+        }
+        set {
+            guard !isReadOnly else { return }
+            switch storage {
+            case .direct(let direct):
+                direct.values[index] = RuntimeValue(
+                    raw: newValue,
+                    anyFallbackTag: direct.values[index].anyFallbackTag
+                )
+            case .reversedViewOf(let base):
+                base[base.count - 1 - index] = newValue
+            case .arrayViewOf(let base):
+                base[index] = newValue
+            }
+        }
     }
 
     var elements: [Int] {
@@ -584,6 +636,38 @@ final class RuntimeSetBox {
             return map.isEmpty
         }
         return storage.isEmpty
+    }
+
+    var indices: Range<Int> {
+        0..<count
+    }
+
+    /// O(1) indexed access for the insertion-ordered set storage.
+    subscript(index: Int) -> Int {
+        guard let value = rawValue(at: index) else {
+            preconditionFailure("RuntimeSetBox index out of bounds: \(index)")
+        }
+        return value
+    }
+
+    /// Returns an element in insertion order without materializing the set.
+    /// Map-entry views retain their existing materialized entry representation.
+    func rawValue(at index: Int) -> Int? {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            guard map.keys.indices.contains(index), map.values.indices.contains(index) else {
+                return nil
+            }
+            return runtimeMutableMapEntryNew(
+                mapRaw: backingMapRaw,
+                key: map.keys[index],
+                value: map.values[index]
+            )
+        }
+        guard storage.indices.contains(index) else {
+            return nil
+        }
+        return storage[index].legacyRawValue
     }
 
     func contains(rawValue: Int) -> Bool {
@@ -2476,13 +2560,11 @@ final class RuntimeInputStreamBox {
 
     func read(into list: RuntimeListBox) -> Int {
         guard !closed else { return -1 }
-        let writableCount = min(list.elements.count, available())
+        let writableCount = min(list.count, available())
         guard writableCount > 0 else { return -1 }
-        var newElements = list.elements
         for index in 0 ..< writableCount {
-            newElements[index] = Int(Int8(bitPattern: data[offset + index]))
+            list[index] = Int(Int8(bitPattern: data[offset + index]))
         }
-        list.elements = newElements
         offset += writableCount
         return writableCount
     }
