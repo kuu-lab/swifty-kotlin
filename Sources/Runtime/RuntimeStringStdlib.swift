@@ -257,9 +257,6 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
@@ -294,9 +291,6 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     let ignoreCase = ignoreCaseRaw != 0
     let limit = limitRaw
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
