@@ -1236,8 +1236,34 @@ extension CallTypeChecker {
                             // Include bundled/user Kotlin source extensions, not only
                             // synthetic stubs, so source-backed Sequence transforms
                             // (map, filter, etc.) are visible as member-call candidates.
+                            let kotlinMathPackage = [
+                                interner.intern("kotlin"),
+                                interner.intern("math"),
+                            ]
+                            let isExplicitlyImportedKotlinMath = {
+                                guard Array(symbol.fqName.dropLast()) == kotlinMathPackage,
+                                      let sourceFile = ctx.currentASTFile
+                                else {
+                                    return false
+                                }
+                                if sourceFile.packageFQName == kotlinMathPackage {
+                                    return true
+                                }
+                                return sourceFile.imports.contains { importDecl in
+                                    importDecl.path == kotlinMathPackage
+                                        || importDecl.path == symbol.fqName
+                                }
+                            }()
                             let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
                             guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                                return false
+                            }
+                            // kotlin.math is not a Kotlin default import. Do not let this
+                            // member fallback bypass an explicit import for either the
+                            // bundled source declarations or their imported-library forms.
+                            guard Array(symbol.fqName.dropLast()) != kotlinMathPackage
+                                || isExplicitlyImportedKotlinMath
+                            else {
                                 return false
                             }
                             // Exclude property accessor functions (getter/setter)
