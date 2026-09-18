@@ -1428,6 +1428,7 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
+            "__kk_list_get",
             "__kk_mutable_set_add",
             "__kk_mutable_map_put",
             "__kk_enum_entries_get",
@@ -1450,6 +1451,7 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_list_get",
         ].contains(interner.resolve(calleeName))
     }
 
