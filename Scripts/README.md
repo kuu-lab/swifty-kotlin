@@ -9,6 +9,8 @@
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
+| `benchmark_gate.sh` | ✓ | Compare runtime and compiler-phase benchmark TSVs with a checked-in baseline |
+| `test_benchmark_gate.sh` | ✓ | Regression test for benchmark tolerance and summary reporting |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
@@ -80,6 +82,37 @@ Validate compiler runtime link names against `RuntimeABISpec`:
 
 ```bash
 bash Scripts/validate_runtime_abi_links.sh
+```
+
+## Benchmark regression gate
+
+`benchmark_gate.sh` runs the runtime micro-benchmarks from
+`benchmark_stdlib_hof.sh` and compiler-phase measurements for `hello`, a
+medium synthetic Kotlin case, and `stdlib-only`. The compiler-phase cases use
+`-Xfrontend time-phases`; the measured medians and baseline comparison are
+written as TSV.
+
+The checked-in reference is `Scripts/benchmark_baseline.tsv`. The CI gate uses
+a ±10% tolerance by default and writes a rustc-perf-style compact Markdown
+table to the GitHub step summary. `TOTAL` rows are the enforced metrics;
+individual `time-phases` rows are included as diagnostic `UNBASELINED` rows so
+phase composition is visible without making the gate sensitive to phase
+partitioning changes:
+
+```bash
+KSWIFTC=.build/release/kswiftc \
+  bash Scripts/benchmark_gate.sh \
+    --output /tmp/kswiftk-benchmark-report.tsv \
+    --summary /tmp/kswiftk-benchmark-summary.md
+```
+
+Before committing an intentional compiler, toolchain, or fixture change,
+capture new raw measurements with `--measure-only`, review the complete TSV
+diff, and update the baseline deliberately. The tolerance contract itself is
+covered by:
+
+```bash
+bash Scripts/test_benchmark_gate.sh
 ```
 
 ## TODO hygiene

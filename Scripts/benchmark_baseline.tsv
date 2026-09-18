@@ -1,0 +1,11 @@
+# KUU-516 benchmark baseline. Values are milliseconds; compare with ±10%.
+# Refresh this file with benchmark_gate.sh --measure-only after an intentional
+# compiler/toolchain or benchmark-fixture change, then review the full diff.
+kind	case	metric	value_ms
+execution	filter	runtime_ms	63
+execution	map	runtime_ms	111
+execution	sort	runtime_ms	94
+execution	for_in_range	runtime_ms	1236
+compile	hello	TOTAL	3472.27
+compile	medium	TOTAL	3674.87
+compile	stdlib-only	TOTAL	5000

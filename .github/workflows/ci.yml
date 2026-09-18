@@ -356,6 +356,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/refactoring-metrics"
           bash Scripts/loc_report.sh | tee "$RUNNER_TEMP/refactoring-metrics/loc_report.tsv"
+      - name: Test benchmark regression gate
+        run: bash Scripts/test_benchmark_gate.sh
       - name: Summarize loc report
         run: |
           {
@@ -486,6 +488,76 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+  benchmark-gate:
+    name: Verification (Benchmark Gate)
+    needs: build-release-kswiftc
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Fail when the release compiler build failed
+        if: needs.build-release-kswiftc.result != 'success'
+        run: |
+          echo "Release compiler build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
+          exit 1
+      - uses: actions/checkout@v7
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup LLVM
+        uses: ./.github/actions/setup-llvm
+      - name: Download release compiler artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/kswiftc-release-artifact
+      - name: Verify and extract release compiler artifact
+        run: |
+          artifact_dir="$RUNNER_TEMP/kswiftc-release-artifact"
+          install_dir="$RUNNER_TEMP/kswiftc-release"
+          (
+            cd "$artifact_dir"
+            sha256sum --check kswiftc-release.tar.zst.sha256
+          )
+          rm -rf "$install_dir"
+          mkdir -p "$install_dir"
+          tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
+          test -x "$install_dir/kswiftc"
+          echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
+      - name: Run benchmark regression gate
+        env:
+          BENCHMARK_BASELINE: ${{ github.workspace }}/Scripts/benchmark_baseline.tsv
+          BENCHMARK_OUTPUT: ${{ runner.temp }}/benchmark-gate/benchmark-report.tsv
+          BENCHMARK_SUMMARY: ${{ runner.temp }}/benchmark-gate/summary.md
+          BENCHMARK_TOLERANCE_PERCENT: "10"
+          BENCH_EXECUTION_RUNS: "5"
+          BENCH_COMPILE_RUNS: "3"
+        run: |
+          mkdir -p "$RUNNER_TEMP/benchmark-gate"
+          bash Scripts/benchmark_gate.sh \
+            --baseline "$BENCHMARK_BASELINE" \
+            --output "$BENCHMARK_OUTPUT" \
+            --summary "$BENCHMARK_SUMMARY" \
+            --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
+            --execution-runs "$BENCH_EXECUTION_RUNS" \
+            --compile-runs "$BENCH_COMPILE_RUNS"
+      - name: Add benchmark summary
+        if: always()
+        run: |
+          summary="$RUNNER_TEMP/benchmark-gate/summary.md"
+          if [[ -f "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Benchmark summary was not produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-gate-${{ github.run_id }}
+          path: ${{ runner.temp }}/benchmark-gate
+          if-no-files-found: error
+          retention-days: 30
 
   verify-diff:
     name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/4)

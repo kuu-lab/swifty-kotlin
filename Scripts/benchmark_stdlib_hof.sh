@@ -10,13 +10,18 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNS="${BENCH_RUNS:-7}"
 RELEASE="${BENCH_RELEASE:-0}"
 BENCH_CASE="${BENCH_CASE:-}"
+BENCH_OUTPUT_TSV="${BENCH_OUTPUT_TSV:-}"
 
 if [[ "$RELEASE" == "1" ]]; then
     BUILD_CONFIG="release"
 else
     BUILD_CONFIG="debug"
 fi
-KSWIFTC="${KSWIFTKC:-$ROOT_DIR/.build/$BUILD_CONFIG/kswiftc}"
+KSWIFTC="${KSWIFTC:-${KSWIFTKC:-$ROOT_DIR/.build/$BUILD_CONFIG/kswiftc}}"
+STDLIB_ARGS=()
+if [[ "${BENCH_STDLIB_FROM_SOURCE:-0}" == "1" ]]; then
+    STDLIB_ARGS+=(--stdlib-from-source)
+fi
 
 if [[ ! -x "$KSWIFTC" ]]; then
     echo "kswiftc not found at $KSWIFTC; building $BUILD_CONFIG..." >&2
@@ -52,6 +57,11 @@ echo ""
 printf "%-20s %10s\n" "Case" "Median (ms)"
 printf "%-20s %10s\n" "----" "-----------"
 
+if [[ -n "$BENCH_OUTPUT_TSV" ]]; then
+    mkdir -p "$(dirname "$BENCH_OUTPUT_TSV")"
+    printf 'kind\tcase\tmetric\tvalue_ms\n' >"$BENCH_OUTPUT_TSV"
+fi
+
 tmp_out=""
 trap 'rm -f "$tmp_out"' EXIT
 for kt in "$CASES_DIR"/*.kt; do
@@ -61,7 +71,7 @@ for kt in "$CASES_DIR"/*.kt; do
     fi
     tmp_out="$(mktemp "${TMPDIR:-/tmp}/kswiftk_bench_${name}.XXXXXX")"
 
-    "$KSWIFTC" --emit executable -o "$tmp_out" "$kt" >/dev/null
+    "$KSWIFTC" "${STDLIB_ARGS[@]}" --emit executable -o "$tmp_out" "$kt" >/dev/null
 
     times=()
     for ((i = 1; i <= RUNS; i++)); do
@@ -78,4 +88,7 @@ for kt in "$CASES_DIR"/*.kt; do
     median="$(printf '%s\n' "${times[@]}" | sort -n | awk '{ a[NR] = $1 } END { if (NR % 2) { print a[(NR + 1) / 2] } else { print (a[NR / 2] + a[NR / 2 + 1]) / 2 } }')"
 
     printf "%-20s %10s\n" "$name" "$median"
+    if [[ -n "$BENCH_OUTPUT_TSV" ]]; then
+        printf 'execution\t%s\truntime_ms\t%s\n' "$name" "$median" >>"$BENCH_OUTPUT_TSV"
+    fi
 done
