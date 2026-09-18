@@ -316,15 +316,21 @@ public func kk_list_bridge_zip_transform(
 }
 
 @_cdecl("__kk_list_chunked")
-public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int) -> Int {
+public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return runtimeExceptionCaughtSentinel
+    }
     var chunks: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = min(i + size, elements.count)
         let chunk = Array(elements[i ..< end])
         chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
         i = end
@@ -337,13 +343,19 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + clampedSize - 1) / clampedSize
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return runtimeExceptionCaughtSentinel
+    }
+    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + size - 1) / size
     var result: [Int] = []
     result.reserveCapacity(estimatedChunks)
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = min(i + size, elements.count)
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0

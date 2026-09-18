@@ -172,6 +172,31 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    @Test
+    func testBuildKIRMarksListChunkedBridgesAsThrowing() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.chunked(2)
+            values.chunked(2) { chunk -> chunk.sum() }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+
+            #expect(callNames.contains("__kk_list_chunked"))
+            #expect(callNames.contains("__kk_list_chunked_transform"))
+            #expect(throwFlags["__kk_list_chunked"]?.allSatisfy { $0 } == true)
+            #expect(throwFlags["__kk_list_chunked_transform"]?.allSatisfy { $0 } == true)
+        }
+    }
+
     /// KSP-626: `withIndex`/`forEachIndexed` are bundled Kotlin source, so they
     /// must lower to the source-backed declaration instead of a runtime bridge.
     @Test
