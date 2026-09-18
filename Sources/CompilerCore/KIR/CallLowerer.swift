@@ -207,7 +207,7 @@ final class CallLowerer {
     /// allocates and returns an object handle (e.g. built-in exception
     /// `kk_*_exception_new_message`). Such constructors must not receive an
     /// implicit `this` allocated by `kk_object_new`.
-    private func isRuntimeFactoryConstructor(
+    func isRuntimeFactoryConstructor(
         _ symbolID: SymbolID,
         sema: SemaModule
     ) -> Bool {
