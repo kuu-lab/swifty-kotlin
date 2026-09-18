@@ -467,7 +467,11 @@ extension DeclTypeChecker {
             symbol,
             ctx: ctx.with(currentDeclSymbol: symbol)
         )
-        if function.modifiers.contains(.external), function.body == .unit {
+        let hasRuntimeBridge = function.modifiers.contains(.external)
+            || function.annotations.contains {
+                KnownCompilerAnnotation.ksSymbolName.matches($0.name)
+            }
+        if hasRuntimeBridge, function.body == .unit {
             return
         }
 
@@ -526,14 +530,14 @@ extension DeclTypeChecker {
         )
 
         // Bodyless declarations use .unit as their sentinel. Abstract and expect
-        // functions declare a contract only, while external functions lower to a
-        // runtime symbol via their header metadata.
+        // functions declare a contract only, while runtime bridges lower to a
+        // symbol outside the Kotlin body via their header metadata.
         let symbolFlags = sema.symbols.symbol(symbol)?.flags ?? []
         let isAbstract = function.body == .unit
             && symbolFlags.contains(.abstractType)
         if isAbstract { return }
         if function.body == .unit {
-            if function.modifiers.contains(.external) || symbolFlags.contains(.expectDeclaration) {
+            if hasRuntimeBridge || symbolFlags.contains(.expectDeclaration) {
                 return
             }
             diagnostics.error(

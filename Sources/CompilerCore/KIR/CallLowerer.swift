@@ -221,7 +221,12 @@ final class CallLowerer {
         let abiValueParameters = spec.parameters.filter { parameter in
             !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
         }
-        guard abiParametersMatchFactorySignature(abiValueParameters, signature, sema: sema) else {
+        // Coroutine rewrite adds functionID / launcherArgCount after CallLowerer
+        // expands the suspend block to (fnPtr, closureRaw), so the Kotlin
+        // constructor signature no longer matches the ABI parameter list.
+        if !abiParametersMatchFactorySignature(abiValueParameters, signature, sema: sema),
+           externalLinkName != "__kk_deep_recursive_function_new"
+        {
             return false
         }
         switch spec.returnType {
