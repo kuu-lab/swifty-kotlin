@@ -645,8 +645,8 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_box_int"))
-            #expect(callNames.contains("kk_box_bool"))
+            #expect(callNames.contains("kk_box_int_static"))
+            #expect(callNames.contains("kk_box_bool_static"))
         }
     }
 
@@ -668,7 +668,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let boxingThrowFlags = ["kk_box_int", "kk_box_bool", "kk_unbox_int", "kk_unbox_bool"]
+            let boxingThrowFlags = ["kk_box_int_static", "kk_box_bool_static", "kk_unbox_int_static", "kk_unbox_bool_static"]
                 .flatMap { throwFlags[$0] ?? [] }
             #expect(!(boxingThrowFlags.isEmpty))
             #expect(boxingThrowFlags.allSatisfy { $0 == false })
