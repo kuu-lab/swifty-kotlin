@@ -20,7 +20,10 @@ public value class Duration internal constructor(internal val rawValue: Long) {
         return rawValue == that.rawValue
     }
 
-    public override fun hashCode(): Int = rawValue.toInt()
+    // Long.hashCode() of the nanosecond payload. `toInt()` only keeps the low
+    // 32 bits, so a typed call disagreed with the boxed/Any path and broke the
+    // equals/hashCode contract (KUU-645).
+    public override fun hashCode(): Int = rawValue.hashCode()
 
     public override fun toString(): String = durationToString(rawValue)
 

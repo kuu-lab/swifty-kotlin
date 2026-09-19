@@ -436,9 +436,9 @@ public func __kk_string_codePointCount_range(
     )
 }
 
-// Kotlin Char is a UTF-16 code unit, so the array must be decoded as UTF-16:
-// surrogate pairs combine into supplementary scalars and isolated surrogates
-// survive through the marker encoding (same path as stringBuilderCharArrayUnits).
+// KUU-634: CharArray elements are UTF-16 code units, so decode them through
+// the UTF-16 helper — surrogate pairs recombine and isolated surrogates
+// survive via the marker representation (the old scalar loop dropped them).
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {

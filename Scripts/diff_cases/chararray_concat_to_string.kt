@@ -34,10 +34,11 @@ fun main() {
     println(greeting.concatToString() + " there")
     println(greeting.concatToString().length)
 
-    // Surrogate pair combines into the supplementary plane char (KUU-634)
-    val supplementary = charArrayOf('\uD800', '\uDC00')
-    println(supplementary.concatToString())
-    println(supplementary.concatToString().length)
+    // Surrogate pairs: CharArray holds UTF-16 code units, so a pair must
+    // recombine into one supplementary-plane character (KUU-634).
+    val surrogate = charArrayOf('\uD800', '\uDC00')
+    println(surrogate.concatToString())
+    println(surrogate.concatToString().length)
 
     // String -> CharArray -> String round-trip keeps supplementary chars
     val astral = "𐀀"
