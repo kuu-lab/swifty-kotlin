@@ -393,8 +393,8 @@ public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     }
     // Fill each element with a random byte in [-128, 127] (Kotlin's Byte range).
     var filled: [Int] = []
-    filled.reserveCapacity(list.elements.count)
-    for _ in list.elements {
+    filled.reserveCapacity(list.count)
+    for _ in 0..<list.count {
         filled.append(runtimeRandomByte(receiver: receiver))
     }
     return registerRuntimeObject(RuntimeListBox(elements: filled))
@@ -421,17 +421,15 @@ public func kk_random_nextBytes_range(
 ) -> Int {
     outThrown?.pointee = 0
     if let list = runtimeListBox(from: arrayRaw) {
-        var elements = list.elements
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= elements.count else {
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= list.count else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(elements.count)."
+                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(list.count)."
             )
             return arrayRaw
         }
         for index in fromIndex..<toIndex {
-            elements[index] = runtimeRandomByte(receiver: receiver)
+            list[index] = runtimeRandomByte(receiver: receiver)
         }
-        list.elements = elements
         return arrayRaw
     }
     if let array = runtimeArrayBox(from: arrayRaw) {
