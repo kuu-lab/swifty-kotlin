@@ -112,6 +112,8 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
     ("kotlin.NotImplementedError", "NotImplementedError"),
     ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
+    ("java.nio.charset.MalformedInputException", "MalformedInputException"),
+    ("java.nio.charset.CharacterCodingException", "CharacterCodingException"),
     ("kotlin.io.FileSystemException", "FileSystemException"),
     ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
     ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
