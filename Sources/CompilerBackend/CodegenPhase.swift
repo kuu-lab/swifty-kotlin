@@ -521,7 +521,7 @@ public final class CodegenPhase: CompilerPhase {
             companionInitializerLinkNames: companionInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
-        return encoder.serialize(records)
+        return encoder.serializeIndexed(records)
     }
 
     // MARK: - REFL-004: Runtime Reflection Metadata

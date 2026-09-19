@@ -5,6 +5,84 @@ import Testing
 
 @Suite
 struct LibMetadataSerializationTests {
+    @Test func testIndexedMetadataRoundTripUsesByteOffsets() throws {
+        let records = [
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_first",
+                fqName: "demo.first",
+                arity: 1,
+                typeSignature: "F1<I,I>",
+                externalLinkName: "_kk_first"
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_kk_日本語",
+                fqName: "demo.日本語",
+                typeSignature: "I"
+            ),
+        ]
+
+        let serialized = MetadataEncoder().serializeIndexed(records)
+        #expect(serialized.hasPrefix("kklib-metadata-v2\n"))
+        let file = try #require(IndexedMetadataFile(data: Data(serialized.utf8)))
+        #expect(file.entries.count == records.count)
+        #expect(file.entries[0].offset < file.entries[1].offset)
+        #expect(file.entries.allSatisfy { $0.length > 0 })
+        #expect(file.entries.compactMap { file.record(for: $0).map(\.fqName) } == records.map(\.fqName))
+        #expect(MetadataDecoder().decode(serialized).map(\.fqName) == records.map(\.fqName))
+    }
+
+    @Test func testIndexedLibraryImportDefersBodyUntilSignatureQuery() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        try """
+        {
+          "formatVersion": 1,
+          "moduleName": "LazyMetadata",
+          "metadata": "metadata.bin"
+        }
+        """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let records = [
+            MetadataRecord(kind: .function, mangledName: "_kk_used", fqName: "lazy.used", arity: 1, typeSignature: "F1<I,I>"),
+            MetadataRecord(kind: .function, mangledName: "_kk_unused", fqName: "lazy.unused", arity: 1, typeSignature: "F1<I,I>"),
+        ]
+        try MetadataEncoder().serializeIndexed(records)
+            .write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyConsumer",
+            emit: .kirDump,
+            searchPaths: [libDir.path]
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: &importedInlineFunctions
+        )
+
+        let used = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "used" })
+        let unused = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "unused" })
+        #expect(work.lazyLoaderState != nil)
+        #expect(!used.isMaterialized)
+        #expect(!unused.isMaterialized)
+        #expect(symbols.functionSignature(for: used.symbol)?.parameterTypes.count == 1)
+        #expect(used.isMaterialized)
+        #expect(!unused.isMaterialized)
+        #expect(!diagnostics.hasError)
+    }
+
     // MARK: - MetadataSerializer Round-Trip Tests
 
     @Test func testMetadataEncoderDecoderRoundTripForFunctionRecord() {

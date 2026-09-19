@@ -66,6 +66,13 @@ final class LibraryMetadataCache {
     /// the old entry is replaced — preventing unbounded growth.
     private var metadataCache: [String: MetadataCacheEntry] = [:]
 
+    private struct IndexedMetadataCacheEntry {
+        let mtimeNanos: Int64
+        let file: IndexedMetadataFile
+    }
+
+    private var indexedMetadataCache: [String: IndexedMetadataCacheEntry] = [:]
+
     /// Returns cached metadata records if the metadata file has not been modified
     /// since the last parse and the same `StringInterner` is in use, or `nil` on cache miss.
     func cachedMetadataRecords(metadataPath: String, interner: StringInterner) -> [DataFlowSemaPhase.ImportedLibrarySymbolRecord]? {
@@ -97,6 +104,21 @@ final class LibraryMetadataCache {
         }
         let mtime = Self.fileMtimeNanos(path: metadataPath)
         metadataCache[metadataPath] = MetadataCacheEntry(mtimeNanos: mtime, records: records)
+    }
+
+    /// Returns the indexed metadata file when the v2 metadata file is unchanged.
+    func cachedIndexedMetadataFile(metadataPath: String) -> IndexedMetadataFile? {
+        let mtime = Self.fileMtimeNanos(path: metadataPath)
+        guard let entry = indexedMetadataCache[metadataPath], entry.mtimeNanos == mtime else {
+            return nil
+        }
+        return entry.file
+    }
+
+    /// Stores an indexed v2 metadata file without decoding its body records.
+    func cacheIndexedMetadataFile(_ file: IndexedMetadataFile, metadataPath: String) {
+        let mtime = Self.fileMtimeNanos(path: metadataPath)
+        indexedMetadataCache[metadataPath] = IndexedMetadataCacheEntry(mtimeNanos: mtime, file: file)
     }
 
     // MARK: - Type signature memoization (signature string + TypeSystem identity)
@@ -155,6 +177,10 @@ final class LibraryMetadataCache {
     /// Number of metadata record cache entries.
     var metadataCacheCount: Int {
         metadataCache.count
+    }
+
+    var indexedMetadataCacheCount: Int {
+        indexedMetadataCache.count
     }
 
     /// Number of cached type signature entries.
