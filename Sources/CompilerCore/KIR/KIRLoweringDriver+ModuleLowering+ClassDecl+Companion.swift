@@ -1,5 +1,16 @@
 
 extension KIRLoweringDriver {
+    /// BUG-274: Kotlin runs a companion object's body lazily, on first
+    /// access, not eagerly at program start. This keeps the eager half --
+    /// the companion's dispatch-object allocation (when it has virtual
+    /// methods) and its type-edge/vtable registrations -- running
+    /// unconditionally during module initialization (registered via
+    /// `registerCompanionInitializer`, unchanged from before). The implicit
+    /// super-constructor call, property initializers, and `init` blocks move
+    /// into a separate function guarded by a `$initialized` flag
+    /// (`synthesizeCompanionLazyInit` below), registered via
+    /// `ctx.registerObjectLazyInit` instead so call sites that touch the
+    /// companion's state trigger it on demand rather than at module start.
     func synthesizeCompanionInitializerIfNeeded(
         companionDeclID: DeclID?,
         ownerSymbol: SymbolID,
@@ -13,7 +24,6 @@ extension KIRLoweringDriver {
             return []
         }
 
-        let ast = shared.ast
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
@@ -29,11 +39,9 @@ extension KIRLoweringDriver {
             args: [],
             nullability: .nonNull
         )))
-        let companionReceiverExpr = arena.appendExpr(.symbolRef(companionSymbol), type: companionType)
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         let needsDispatchObject = sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
-        let companionObjectValue: KIRExprID
         if needsDispatchObject {
             let layout = sema.symbols.nominalLayout(for: companionSymbol)
             let slotCount = Int64(max(layout?.instanceSizeWords ?? 1, 1))
@@ -92,12 +100,94 @@ extension KIRLoweringDriver {
                 interner: interner,
                 instructions: &body.instructions
             )
-            companionObjectValue = allocatedObject
+        }
+
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let initDeclID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: initializerSymbol,
+                    name: initializerName,
+                    params: [],
+                    returnType: sema.types.unitType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false,
+                    sourceRange: companionDecl.range
+                )
+            )
+        )
+        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+
+        var declIDs: [KIRDeclID] = [initDeclID]
+        declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
+        ctx.clearImplicitReceiver()
+
+        declIDs.append(contentsOf: synthesizeCompanionLazyInit(
+            companionDecl,
+            companionSymbol: companionSymbol,
+            companionType: companionType,
+            needsDispatchObject: needsDispatchObject,
+            shared: shared
+        ))
+        return declIDs
+    }
+
+    /// BUG-274: the lazy half of `synthesizeCompanionInitializerIfNeeded` --
+    /// the implicit super-constructor call, property initializers, and
+    /// `init` blocks in declaration order -- guarded by a `$initialized`
+    /// flag so it runs at most once, on whichever access to the companion's
+    /// state comes first. When the companion has a dispatch object, its
+    /// handle already exists (allocated eagerly by
+    /// `synthesizeCompanionInitializerIfNeeded`), so this function only
+    /// needs to `loadGlobal` it; otherwise it re-derives the same bare
+    /// `symbolRef` value the eager function used transiently for its own
+    /// (now-removed) super-constructor-call argument.
+    private func synthesizeCompanionLazyInit(
+        _ companionDecl: ObjectDecl,
+        companionSymbol: SymbolID,
+        companionType: TypeID,
+        needsDispatchObject: Bool,
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        let ast = shared.ast
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+
+        let (flagSymbol, flagGlobalDeclID) = makeObjectLazyInitFlag(
+            for: companionSymbol, declSite: companionDecl.range, shared: shared
+        )
+
+        let ensureInitSymbol = ctx.allocateSyntheticGeneratedSymbol()
+        let ensureInitName = interner.intern("__companion_lazy_init_\(companionSymbol.rawValue)")
+
+        ctx.resetScopeForFunction()
+        ctx.beginCallableLoweringScope()
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        let companionObjectValue: KIRExprID
+        if needsDispatchObject {
+            let handleExpr = arena.appendExpr(.symbolRef(companionSymbol), type: companionType)
+            body.append(.loadGlobal(result: handleExpr, symbol: companionSymbol))
+            companionObjectValue = handleExpr
         } else {
-            body.append(.constValue(result: companionReceiverExpr, value: .symbolRef(companionSymbol)))
-            companionObjectValue = companionReceiverExpr
+            let receiverExpr = arena.appendExpr(.symbolRef(companionSymbol), type: companionType)
+            body.append(.constValue(result: receiverExpr, value: .symbolRef(companionSymbol)))
+            companionObjectValue = receiverExpr
         }
         ctx.setImplicitReceiver(symbol: companionSymbol, exprID: companionObjectValue)
+
+        let boolType = sema.types.booleanType
+        let trueExpr = arena.appendExpr(.boolLiteral(true), type: boolType)
+        body.append(.constValue(result: trueExpr, value: .boolLiteral(true)))
+        let flagLoadExpr = arena.appendExpr(.symbolRef(flagSymbol), type: boolType)
+        body.append(.loadGlobal(result: flagLoadExpr, symbol: flagSymbol))
+        let alreadyInitializedLabel = ctx.makeLoopLabel()
+        body.append(.jumpIfEqual(lhs: flagLoadExpr, rhs: trueExpr, target: alreadyInitializedLabel))
+        body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
         emitNamedObjectSuperConstructorCall(
             companionDecl,
@@ -159,14 +249,15 @@ extension KIRLoweringDriver {
             }
         }
 
+        body.append(.label(alreadyInitializedLabel))
         body.append(.returnUnit)
         body.append(.endBlock)
 
-        let initDeclID = arena.appendDecl(
+        let ensureInitDeclID = arena.appendDecl(
             .function(
                 KIRFunction(
-                    symbol: initializerSymbol,
-                    name: initializerName,
+                    symbol: ensureInitSymbol,
+                    name: ensureInitName,
                     params: [],
                     returnType: sema.types.unitType,
                     body: body,
@@ -176,9 +267,14 @@ extension KIRLoweringDriver {
                 )
             )
         )
-        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+        ctx.registerObjectLazyInit(
+            for: companionSymbol,
+            ensureInitSymbol: ensureInitSymbol,
+            ensureInitName: ensureInitName,
+            flagSymbol: flagSymbol
+        )
 
-        var declIDs: [KIRDeclID] = [initDeclID]
+        var declIDs: [KIRDeclID] = [flagGlobalDeclID, ensureInitDeclID]
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
         return declIDs

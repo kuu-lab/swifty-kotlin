@@ -951,6 +951,18 @@ public func kk_illegal_state_exception_new() -> Int {
     runtimeAllocateIllegalStateException(message: nil)
 }
 
+/// BUG-B: allocates a message-less `NullPointerException`. Used by the
+/// backend when a String-struct field accessor (currently `.length`)
+/// observes an actually-null value at runtime -- e.g. an overridden
+/// non-null `String` property read during superclass construction, before
+/// the subclass has run its own initializer -- so the call throws exactly
+/// like calling any method on a null reference, regardless of the
+/// statically-declared non-null type.
+@_cdecl("__kk_null_pointer_exception_new")
+public func kk_null_pointer_exception_new() -> Int {
+    runtimeAllocateNullPointerException(message: nil)
+}
+
 @_cdecl("__kk_illegal_state_exception_new_message")
 public func kk_illegal_state_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateIllegalStateException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
