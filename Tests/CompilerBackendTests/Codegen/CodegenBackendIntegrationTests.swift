@@ -703,6 +703,27 @@ import Testing
     }
 
     @Test
+    func testCodegenMutableMapEntrySetValueWritesThroughToMap() throws {
+        let source = """
+        fun main() {
+            val map = mutableMapOf("a" to 1, "b" to 2)
+            val entry = map.entries.first()
+            entry.setValue(99)
+            println(map)
+            println(map.values)
+            println(map.entries)
+            println(entry.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableMapEntrySetValueRuntime",
+            expected: "{a=99, b=2}\n[99, 2]\n[a=99, b=2]\n99\n"
+        )
+    }
+
+    @Test
     func testCodegenLinkedMapOfFactoryUsesMutableRuntimeMap() throws {
         let source = """
         fun main() {
