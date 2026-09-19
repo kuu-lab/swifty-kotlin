@@ -77,12 +77,15 @@ struct FloatDoubleNumericConversionSourceTests {
     func floatingPointByteShortConversionsAreErrorLevelDeprecated() throws {
         let ctx = makeContextFromSource("""
         fun doubleToByte(value: Double): Byte = value.toByte()
+        fun doubleToShort(value: Double): Short = value.toShort()
+        fun floatToByte(value: Float): Byte = value.toByte()
+        fun floatToShort(value: Float): Short = value.toShort()
         """)
 
         try runSema(ctx)
         #expect(
             ctx.diagnostics.hasError,
-            "Expected Double.toByte() to be rejected as error-level deprecated"
+            "Expected floating-point Byte/Short conversions to be rejected as error-level deprecated"
         )
 
         let sema = try #require(ctx.sema)

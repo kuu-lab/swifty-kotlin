@@ -1223,29 +1223,8 @@ final class CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArgIDs
             )
-            let shouldUseULongRangeContainsRuntime: Bool = {
-                guard sourceCalleeName == interner.intern("contains"),
-                      let chosen,
-                      let signature = sema.symbols.functionSignature(for: chosen),
-                      signature.parameterTypes.count == 1,
-                      sema.types.makeNonNullable(signature.parameterTypes[0]) == sema.types.ulongType,
-                      let declaredReceiver = signature.receiverType,
-                      let (_, receiverSymbol) = resolveClassTypeSymbol(
-                          sema.types.makeNonNullable(declaredReceiver), sema: sema
-                      )
-                else {
-                    return false
-                }
-                return interner.resolve(receiverSymbol.name) == "ULongRange"
-            }()
             let loweredCalleeName: InternedString = if let callableInvokeCallee {
                 callableInvokeCallee
-            } else if shouldUseULongRangeContainsRuntime {
-                // KSP-1292: source-backed ULongRange.contains(UByte/UInt/UShort)
-                // widens into the existing ULong overload. That overload's
-                // source declaration has a generic __kk_range_contains link,
-                // so keep the widened call on the unsigned runtime ABI.
-                interner.intern("kk_ulong_range_contains")
             } else if let chosen,
                       let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
                           chosenCallee: chosen,
@@ -1323,9 +1302,7 @@ final class CallLowerer {
             // When calling a callable value (function-type local/parameter),
             // use its symbol so InlineLoweringPass can match it against lambda
             // parameter symbols and expand the lambda body in place.
-            let callSymbol: SymbolID? = shouldUseULongRangeContainsRuntime
-                ? nil
-                : (chosen ?? loweredCallable?.symbol ?? {
+            let callSymbol: SymbolID? = (chosen ?? loweredCallable?.symbol ?? {
                 if let binding = callableValueCallBinding,
                    case let .localValue(sym) = binding.target
                 {
@@ -1433,6 +1410,7 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
+            "__kk_list_get",
             "__kk_mutable_set_add",
             "__kk_mutable_map_put",
             "__kk_enum_entries_get",
@@ -1466,6 +1444,7 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_list_get",
             "kk_iterator_next",
             "kk_list_iterator_next",
         ].contains(interner.resolve(calleeName))
@@ -1501,7 +1480,9 @@ final class CallLowerer {
             case interner.intern("LongRange"):
                 interner.intern("__kk_long_range_toList")
             case interner.intern("ULongRange"):
-                interner.intern("kk_ulong_range_toList")
+                // KSP-1524: ULongRange.toList() is bundled source; preserve
+                // the selected Kotlin declaration instead of a removed bridge.
+                nil
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("__kk_char_range_toList")
             default:

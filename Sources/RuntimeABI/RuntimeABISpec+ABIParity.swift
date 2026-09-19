@@ -587,19 +587,11 @@ public extension RuntimeABISpec {
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_ulong_range_average", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_ulong_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_ulong_range_sorted", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_ulong_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
