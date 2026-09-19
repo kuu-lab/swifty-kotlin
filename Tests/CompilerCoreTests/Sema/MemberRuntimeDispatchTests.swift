@@ -152,7 +152,7 @@ struct MemberRuntimeDispatchTests {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),
             (.list, "forEach", 1, "kk_list_forEach"),
-            (.sequence, "firstNotNullOf", 1, "kk_sequence_firstNotNullOf"),
+            (.sequence, "firstOrNull", 0, "kk_sequence_firstOrNull"),
         ]
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
@@ -170,6 +170,9 @@ struct MemberRuntimeDispatchTests {
             (.map, "getValue", 1),
             (.sequence, "toList", 0),
             (.intRange, "map", 1),
+            // KSP-1344: Sequence firstNotNullOf family migrated to bundled Kotlin source.
+            (.sequence, "firstNotNullOf", 1),
+            (.sequence, "firstNotNullOfOrNull", 1),
         ]
 
         for (receiverKind, memberName, arity) in cases {
