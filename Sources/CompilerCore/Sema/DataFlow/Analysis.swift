@@ -618,6 +618,26 @@ final class DataFlowAnalyzer {
         }
     }
 
+    /// Whether a non-exhaustive `when` over `subjectType` is an error even when
+    /// the `when` is used as a statement (its value discarded). Kotlin only
+    /// enforces exhaustiveness unconditionally — regardless of expression vs.
+    /// statement position — for `Boolean` and sealed/enum subjects; any other
+    /// subject type (`Byte`, `Int`, `String`, a non-sealed class, ...) is only
+    /// required to be exhaustive when the `when`'s value is actually used.
+    func subjectRequiresStatementExhaustiveness(subjectType: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: subjectType) {
+        case .primitive(.boolean, _):
+            return true
+        case let .classType(classType):
+            guard let classSymbol = sema.symbols.symbol(classType.classSymbol) else {
+                return false
+            }
+            return classSymbol.kind == .enumClass || classSymbol.flags.contains(.sealedType)
+        default:
+            return false
+        }
+    }
+
     /// P5-78: Returns the set of missing sealed subtype InternedString names for diagnostic purposes.
     /// Returns nil if the type is not a sealed type or if all branches are covered.
     func missingSealedBranches(

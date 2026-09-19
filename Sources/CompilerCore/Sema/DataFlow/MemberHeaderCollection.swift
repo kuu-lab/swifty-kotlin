@@ -542,7 +542,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                interner: interner
             )
 
             // Materialize a backing field symbol for properties with custom accessors

@@ -1920,7 +1920,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                interner: interner
             )
 
         case let .typeAliasDecl(typeAliasDecl):
