@@ -5,13 +5,19 @@ import Foundation
 // ARC/object model, but use a reserved handle marker plus the low alignment
 // bits as a fast-path tag. The underlying Swift object remains registered in
 // `objectPointers`; only the handle is tagged. This avoids changing the
-// representation used by the rest of the runtime while allowing the matching
-// unbox path to skip the registry lock. The high marker also keeps ordinary
-// small raw integers from being mistaken for tagged handles when an existing
-// lowering path emits a redundant unbox.
+// representation used by the rest of the runtime.
 let runtimePrimitiveBoxTag: UInt = 0xA500_0000_0000_0005
 let runtimePrimitiveBoxTagMask: UInt = 0xFF00_0000_0000_0007
 
+// This is a pure bit-pattern check with no registry lookup: `tryCast` calls
+// it while sometimes already holding `withGCLock` (e.g. `runtimeKClassBox`),
+// and `NSLock` is not reentrant, so acquiring the GC lock here would
+// deadlock those callers. The tag pattern alone is not collision-proof — an
+// unrelated Int (a hash code, uninitialized memory, ...) can coincidentally
+// match it — so a call site that receives an unverified raw handle straight
+// from the ABI boundary (`runtimeStaticUnbox`, not any of `tryCast`'s
+// existing callers, which already confirm registry membership themselves
+// before calling it) must additionally check `objectPointers` itself.
 @inline(__always)
 func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPointer? {
     let bits = UInt(bitPattern: rawValue)

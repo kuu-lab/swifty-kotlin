@@ -198,5 +198,27 @@ struct RuntimeBoxingTests {
         #expect(kk_range_first(range) == 1)
         #expect(kk_range_last(range) == 3)
     }
+
+    /// An Int that never went through `kk_box_*_static` can still match the
+    /// tagged-handle bit pattern (a hash code, uninitialized memory, or any
+    /// other value flowing through a static unbox call site) — the pattern
+    /// alone is not collision-proof, so `runtimePrimitiveBoxBasePointer`
+    /// returns a non-nil pointer for it. `kk_unbox_*_static` must still
+    /// reject it via the registry check rather than treat it as a live
+    /// handle: doing otherwise reinterprets unrelated bits as an
+    /// `Unmanaged<AnyObject>` and crashes (observed as `swift_retain`
+    /// faulting on a bogus pointer during a stdlib companion's static init
+    /// in CI). Without the registry check, this test crashes the process
+    /// rather than failing an expectation — `fakeBaseBits` is deliberately an
+    /// unmapped address, not an arbitrary choice.
+    @Test
+    func testUnboxStaticRejectsUnregisteredTagCollision() {
+        let fakeBaseBits: UInt = 0x0000_1234_5678_0000
+        let fakeTagged = Int(bitPattern: fakeBaseBits | runtimePrimitiveBoxTag)
+
+        #expect(runtimePrimitiveBoxBasePointer(from: fakeTagged) != nil)
+        #expect(kk_unbox_int_static(fakeTagged) == fakeTagged)
+        #expect(kk_unbox_double_static(fakeTagged) == fakeTagged)
+    }
 }
 #endif

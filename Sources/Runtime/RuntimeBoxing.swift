@@ -79,6 +79,19 @@ private func runtimeStaticUnbox<T: AnyObject>(
     guard let pointer = runtimePrimitiveBoxBasePointer(from: value) else {
         return fallback()
     }
+    // `runtimePrimitiveBoxBasePointer` only checks the tag bit pattern, which
+    // an unrelated Int (a hash code, uninitialized memory, ...) can
+    // coincidentally match. Unlike `tryCast`'s other callers, this entry
+    // point receives a raw handle straight from the ABI boundary with no
+    // prior verification, so it must confirm registry membership itself
+    // before treating `pointer` as a live object — otherwise a collision
+    // reinterprets unrelated bits as an `Unmanaged<AnyObject>` and crashes.
+    let isRegisteredHandle = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: value))
+    }
+    guard isRegisteredHandle else {
+        return fallback()
+    }
     // The tag is emitted only for a statically-known primitive box. If a
     // malformed or mismatched handle reaches this helper, retain the legacy
     // registry-checked behavior as a safe fallback.
