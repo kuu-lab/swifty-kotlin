@@ -275,6 +275,15 @@ extension KIRLoweringDriver {
         if let companionDeclID = interfaceDecl.companionObject {
             ifaceNestedObjects.append(companionDeclID)
         }
+        // BUG-274: register the companion's lazy-init entry before lowering
+        // this interface's own (default-body) member functions, which can
+        // reference the companion -- see the matching comment in
+        // `lowerTopLevelClassDecl`.
+        var declIDs = synthesizeCompanionInitializerIfNeeded(
+            companionDeclID: interfaceDecl.companionObject,
+            ownerSymbol: symbol,
+            shared: shared
+        )
         let (directMembers, allDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: interfaceDecl.memberFunctions,
             memberProperties: interfaceDecl.memberProperties,
@@ -285,13 +294,8 @@ extension KIRLoweringDriver {
             isInterfaceContext: true
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
-        var declIDs = [kirID]
+        declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
-        declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
-            companionDeclID: interfaceDecl.companionObject,
-            ownerSymbol: symbol,
-            shared: shared
-        ))
         return declIDs
     }
 

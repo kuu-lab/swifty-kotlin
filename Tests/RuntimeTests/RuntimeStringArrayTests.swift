@@ -485,19 +485,27 @@ struct RuntimeStringArrayTests {
         #expect(concatFlatValue("Hello, ", "World!") == "Hello, World!")
     }
 
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil buffer. String templates and `+`/`String?.plus` must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type, instead of silently treating it as "" (which hid an
+    // uninitialized-field bug behind output that merely looked wrong
+    // instead of null -- see superclass_init_uninitialized_string.kt).
+
     @Test
-    func testStringConcatFlatWithNilDataLeftReturnsRightOnly() {
-        #expect(concatFlatValue(nil, "World") == "World")
+    func testStringConcatFlatWithNilDataLeftRendersNullPrefix() {
+        #expect(concatFlatValue(nil, "World") == "nullWorld")
     }
 
     @Test
-    func testStringConcatFlatWithNilDataRightReturnsLeftOnly() {
-        #expect(concatFlatValue("Hello", nil) == "Hello")
+    func testStringConcatFlatWithNilDataRightRendersNullSuffix() {
+        #expect(concatFlatValue("Hello", nil) == "Hellonull")
     }
 
     @Test
-    func testStringConcatFlatBothNilDataReturnsEmptyString() {
-        #expect(concatFlatValue(nil, nil) == "")
+    func testStringConcatFlatBothNilDataReturnsNullNull() {
+        #expect(concatFlatValue(nil, nil) == "nullnull")
     }
 
     // MARK: - kk_string_compareTo_flat

@@ -665,13 +665,24 @@ public func __kk_string_concat_flat(
     _ outByteCount: UnsafeMutablePointer<Int>?,
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    let lhs = runtimeStringFromFlatFields(
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil (zero-length) buffer, both for literals (LLVM never returns a
+    // null pointer for a global string constant) and at runtime
+    // (`RuntimeFlatStringStorage.init` always allocates at least 1 byte).
+    // String templates and the `+`/`String?.plus` operators must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type -- silently treating it as "" (as
+    // `runtimeStringFromFlatFields` does for every *other* caller that
+    // really does mean "absent data") hid an uninitialized-field bug behind
+    // output that merely looked wrong instead of null.
+    let lhs = lhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: lhsData,
         length: lhsLength,
         byteCount: lhsByteCount,
         hash: lhsHash
     )
-    let rhs = runtimeStringFromFlatFields(
+    let rhs = rhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: rhsData,
         length: rhsLength,
         byteCount: rhsByteCount,

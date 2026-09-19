@@ -234,17 +234,21 @@ extension CompanionObjectTests {
             )
 
             let module = try #require(ctx.kir)
-            let expectedInitName = try companionInitializerName(forOwnerNamed: "Config", in: ctx)
+            // BUG-274: property initializers now live in the *lazy* companion
+            // init function (guarded by a `$initialized` flag, run on first
+            // access) rather than the eager one (which only allocates the
+            // dispatch object and registers type edges/vtable slots).
+            let expectedInitName = try companionLazyInitializerName(forOwnerNamed: "Config", in: ctx)
             let companionInitFn = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 let name = ctx.interner.resolve(function.name)
                 return name == expectedInitName ? function : nil
             }.first
-            let initBody = try #require(companionInitFn, "Expected companion init function").body
+            let initBody = try #require(companionInitFn, "Expected companion lazy init function").body
             let hasCopy = initBody.contains { instruction in
                 if case .copy = instruction { return true }
                 return false
             }
-            #expect(hasCopy, "Expected copy instruction in companion init body for property initialization")
+            #expect(hasCopy, "Expected copy instruction in companion lazy init body for property initialization")
         }
     }
 
@@ -256,6 +260,19 @@ extension CompanionObjectTests {
         let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(ownerName)]))
         let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
         return "__companion_init_\(ownerSymbol.rawValue)_\(companionSymbol.rawValue)"
+    }
+
+    /// BUG-274: name of the lazy companion initializer synthesized by
+    /// `synthesizeCompanionLazyInit` -- guarded by a `$initialized` flag and
+    /// run on first access, rather than unconditionally at module start.
+    private func companionLazyInitializerName(
+        forOwnerNamed ownerName: String,
+        in ctx: CompilationContext
+    ) throws -> String {
+        let sema = try #require(ctx.sema)
+        let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(ownerName)]))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
+        return "__companion_lazy_init_\(companionSymbol.rawValue)"
     }
 
 }
