@@ -15,15 +15,15 @@ struct MemberRuntimeDispatchTests {
             (.uintRange, "randomOrNull", 0, nil),
             (.ulongRange, "randomOrNull", 1, nil),
             (.charRange, "randomOrNull", 0, nil),
-            (.longRange, "firstOrNull", 0, "kk_long_range_firstOrNull"),
+            (.longRange, "firstOrNull", 0, "__kk_long_range_firstOrNull"),
             (.longRange, "firstOrNull", 2, "kk_range_firstOrNull_predicate"),
-            (.longRange, "lastOrNull", 0, "kk_long_range_lastOrNull"),
+            (.longRange, "lastOrNull", 0, "__kk_long_range_lastOrNull"),
             (.longRange, "lastOrNull", 2, "kk_range_lastOrNull_predicate"),
-            (.charProgression, "toList", 0, "kk_char_range_toList"),
+            (.charProgression, "toList", 0, "__kk_char_range_toList"),
             (.charProgression, "step", 1, "__kk_char_range_step"),
-            (.longProgression, "step", 0, "kk_long_range_step"),
+            (.longProgression, "step", 0, "__kk_long_range_step"),
             (.uintProgression, "step", 2, nil),
-            (.ulongProgression, "contains", 1, "kk_ulong_range_contains"),
+            (.ulongProgression, "contains", 1, nil),
             // step(n) as a dot call (arity 1) must resolve to the progression-
             // constructing runtime function, not the step-property getter
             // (KSWIFTK-RUNTIME-0001: (1L..10L).step(2L) used to alias the getter
@@ -115,6 +115,8 @@ struct MemberRuntimeDispatchTests {
             ("any", 1), ("all", 1), ("none", 1),
             ("iterator", 0), ("step", 1),
             ("take", 1), ("drop", 1), ("chunked", 1), ("windowed", 1),
+            ("contains", 1), ("isEmpty", 0), ("firstOrNull", 0), ("lastOrNull", 0),
+            ("count", 0), ("sum", 0), ("reversed", 0), ("sorted", 0), ("toList", 0),
         ]
         for member in sourceBackedMembers {
             let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
@@ -146,6 +148,22 @@ struct MemberRuntimeDispatchTests {
         // KSP-1524 retains the constant-time step property bridge (arity 0).
         let ulongStepPropertyKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "step", arity: 0)
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == "kk_ulong_range_step")
+    }
+
+    @Test func testULongRangeKSP1524MembersNeverResolveToDeletedRuntimeNames() {
+        let members: [(String, Int)] = [
+            ("contains", 1), ("isEmpty", 0), ("first", 0), ("last", 0),
+            ("firstOrNull", 0), ("lastOrNull", 0), ("count", 0), ("sum", 0),
+            ("average", 0), ("reversed", 0), ("sorted", 0), ("toList", 0),
+        ]
+        for member in members {
+            let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
+            let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
+            #expect(
+                resolved?.hasPrefix("kk_ulong_range_") != true,
+                "ULongRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
+            )
+        }
     }
 
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {

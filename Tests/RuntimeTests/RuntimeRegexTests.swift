@@ -287,4 +287,22 @@ struct RuntimeRegexTests {
         #expect(lhsIndex == 1)
         #expect(runtimeString(__kk_match_result_group_value(namedMatch, lhsIndex)) == "ab")
     }
+
+    // KUU-648: fromLiteral keeps the original literal as `.pattern`, not the escaped matcher.
+    @Test
+    func fromLiteralPreservesOriginalPatternAndLiteralOption() {
+        let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
+            kk_regex_from_literal_flat(0, data, length, byteCount, hash)
+        }
+        #expect(runtimeString(__kk_regex_pattern(literalRegex)) == "a.b")
+        // ordinal 2 = RegexOption.LITERAL; Kotlin fromLiteral is Regex(literal, LITERAL).
+        #expect(__kk_regex_option_mask(literalRegex) & (1 << 2) != 0)
+
+        withFlatString("a.b") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 1)
+        }
+        withFlatString("axb") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 0)
+        }
+    }
 }

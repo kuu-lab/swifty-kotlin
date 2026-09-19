@@ -2656,7 +2656,6 @@ extension ExprLowerer {
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
             let result = arena.appendTemporary(type: boundType ?? boolType)
-            let rhsType = sema.bindings.exprTypes[rhsExpr]
             // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
             // gated on `rhsType == uintType` — but `rhsType` is the range's own type
             // (e.g. UIntRange), never its element type, so that comparison was always
@@ -2686,16 +2685,6 @@ extension ExprLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-            } else if let rhsType = rhsType,
-               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_ulong_range_contains"),
-                    arguments: [rhsID, lhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             } else {
                 appendContainsCall(
                     exprID: exprID,
@@ -2718,7 +2707,6 @@ extension ExprLowerer {
                 rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
-            let notInRhsType = sema.bindings.exprTypes[rhsExpr]
             let notInContainsCallee: String
             // KSP-1523: see the `inExpr` case above — the analogous UInt branch here
             // was gated on the same always-false `rhsType == uintType` check and has
@@ -2731,15 +2719,11 @@ extension ExprLowerer {
             )
             if let floatingPointContainsCallee {
                 notInContainsCallee = interner.resolve(floatingPointContainsCallee)
-            } else if let notInRhsType = notInRhsType,
-               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
-                notInContainsCallee = "kk_ulong_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_ulong_range_contains"
-                || notInContainsCallee.hasPrefix("__kk_")
+            if notInContainsCallee.hasPrefix("__kk_")
             {
                 let floatingPointValueID: KIRExprID = if let floatingPointContainsCallee {
                     floatingPointRangeContainsValueID(

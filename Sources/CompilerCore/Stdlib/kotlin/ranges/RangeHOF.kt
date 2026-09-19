@@ -11,7 +11,7 @@ import kotlin.random.Random
 // Migration source:
 //   Sources/Runtime/RuntimeRangeAndDispatch.swift, RuntimeRangeIntRangeHOF.swift,
 //   RuntimeRangeLongRange.swift, RuntimeRangeSharedHOF.swift (kk_range_forEach,
-//   kk_range_map, kk_range_filter, kk_range_toList; kk_long_range_* / kk_char_range_*
+//   kk_range_map, kk_range_filter, kk_range_toList; __kk_long_range_* / __kk_char_range_*
 //   equivalents)
 //
 // NOTE: Range/Progression members that still use the hardcoded range dispatch remain
@@ -1807,6 +1807,12 @@ public fun ULongRange.toList(): List<ULong> {
     return result
 }
 
+public fun ULongRange.firstOrNull(): ULong? = if (isEmpty()) null else first
+
+public fun ULongRange.lastOrNull(): ULong? = if (isEmpty()) null else last
+
+public fun ULongRange.sorted(): List<ULong> = toList().sorted()
+
 // KSP-1292: Kotlin 2.3.10 widens unsigned values before using the native
 // ULong overload, preserving the exact range membership and boundary rules.
 @SinceKotlin("1.5")
@@ -1824,7 +1830,6 @@ public operator fun ULongRange.contains(value: UShort): Boolean {
     return contains(value.toULong())
 }
 
-@KsSymbolName("__kk_range_count")
 public fun ULongRange.count(): Int {
     val count: ULong = if (step > 0) {
         if (first > last) 0uL else (last - first) / step.toULong() + 1uL
@@ -1836,7 +1841,6 @@ public fun ULongRange.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("__kk_range_sum")
 public fun ULongRange.sum(): ULong {
     var sum = 0uL
     for (element in this) {
@@ -1845,8 +1849,7 @@ public fun ULongRange.sum(): ULong {
     return sum
 }
 
-@KsSymbolName("__kk_range_reversed")
-public external fun ULongRange.reversed(): ULongProgression
+public fun ULongRange.reversed(): ULongProgression = ULongProgression.fromClosedRange(last, first, -step)
 
 // MARK: - ULongProgression
 
@@ -2008,7 +2011,6 @@ public fun ULongProgression.toList(): List<ULong> {
     return result
 }
 
-@KsSymbolName("__kk_range_count")
 public fun ULongProgression.count(): Int {
     val count: ULong = if (step > 0) {
         if (first > last) 0uL else (last - first) / step.toULong() + 1uL
@@ -2020,7 +2022,6 @@ public fun ULongProgression.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("__kk_range_sum")
 public fun ULongProgression.sum(): ULong {
     var sum = 0uL
     for (element in this) {
@@ -2029,5 +2030,4 @@ public fun ULongProgression.sum(): ULong {
     return sum
 }
 
-@KsSymbolName("__kk_range_reversed")
-public external fun ULongProgression.reversed(): ULongProgression
+public fun ULongProgression.reversed(): ULongProgression = ULongProgression.fromClosedRange(last, first, -step)
