@@ -716,6 +716,8 @@ extension CallLowerer {
                 rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 rangeToCallee = interner.intern("__kk_uint_rangeTo")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else {
                 rangeToCallee = interner.intern("kk_op_rangeTo")
             }

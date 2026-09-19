@@ -13,7 +13,7 @@ private const val TO_STRING_RADIX_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz
 
 private fun checkToStringRadix(radix: Int) {
     if (radix < 2 || radix > 36) {
-        throw IllegalArgumentException("radix $radix is out of the valid range 2..36")
+        throw IllegalArgumentException("radix $radix was not in valid range 2..36")
     }
 }
 

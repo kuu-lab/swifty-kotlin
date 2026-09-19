@@ -435,14 +435,14 @@ public func kk_random_nextBytes_range(
         return arrayRaw
     }
     if let array = runtimeArrayBox(from: arrayRaw) {
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.elements.count else {
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.elements.count)."
+                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
             )
             return arrayRaw
         }
         for index in fromIndex..<toIndex {
-            array.elements[index] = runtimeRandomByte(receiver: receiver)
+            array[index] = runtimeRandomByte(receiver: receiver)
         }
         return arrayRaw
     }
@@ -462,7 +462,7 @@ public func kk_random_nextUBytes_size(_ receiver: Int, _ size: Int, _ outThrown:
     }
     let array = RuntimeArrayBox(length: size)
     for index in 0..<size {
-        array.elements[index] = runtimeRandomUByte(receiver: receiver)
+        array[index] = runtimeRandomUByte(receiver: receiver)
     }
     return registerRuntimeObject(array)
 }
@@ -471,8 +471,8 @@ public func kk_random_nextUBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    for index in array.elements.indices {
-        array.elements[index] = runtimeRandomUByte(receiver: receiver)
+    for index in 0 ..< array.count {
+        array[index] = runtimeRandomUByte(receiver: receiver)
     }
     return arrayRaw
 }
@@ -491,14 +491,14 @@ public func kk_random_nextUBytes_range(
         )
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.elements.count else {
+    guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random.nextUBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.elements.count)."
+            message: "Random.nextUBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
         )
         return arrayRaw
     }
     for index in fromIndex..<toIndex {
-        array.elements[index] = runtimeRandomUByte(receiver: receiver)
+        array[index] = runtimeRandomUByte(receiver: receiver)
     }
     return arrayRaw
 }
