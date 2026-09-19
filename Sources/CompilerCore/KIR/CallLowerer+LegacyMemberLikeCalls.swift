@@ -1930,7 +1930,11 @@ extension CallLowerer {
 
                 switch interner.resolve(calleeName) {
                 case "chunked" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
-                    return appendBridgeCall("__kk_list_chunked", [loweredReceiverID, normalizedArgIDs[0]])
+                    return appendBridgeCall(
+                        "__kk_list_chunked",
+                        [loweredReceiverID, normalizedArgIDs[0]],
+                        canThrow: true
+                    )
                 case "chunked" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
                     let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
                         normalizedArgIDs[1],
