@@ -1374,6 +1374,30 @@ extension ExprLowerer {
             } else if let symbol = sema.bindings.identifierSymbols[exprID] {
                 let declaredType = driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                 driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
+                if isMutable, isCapturedByLambda(symbol, sema: sema) {
+                    // Deferred init (no initializer here): a lambda captures this
+                    // local before any real value exists (STDLIB-592 definite
+                    // assignment lets the lambda's own body be that local's first
+                    // write). The cell must still exist by the time the closure is
+                    // constructed, or the write inside the lambda and the read
+                    // after the call both silently fall through to an unboxed,
+                    // never-set slot (see deferredLocalCaptureCellSeedValue).
+                    let seedValue = deferredLocalCaptureCellSeedValue(
+                        for: declaredType,
+                        sema: sema,
+                        arena: arena,
+                        instructions: &instructions
+                    )
+                    _ = emitMutableCaptureCellInitialization(
+                        driver: driver,
+                        symbol: symbol,
+                        currentValue: seedValue,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
             }
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))

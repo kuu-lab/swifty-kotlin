@@ -563,6 +563,32 @@ extension LambdaLowerer {
                     instructions: &instructions
                 )
             }
+            // STDLIB-592 definite assignment: a `var` declared without an
+            // initializer has no `localValue` yet if this closure's own body is
+            // that local's first-ever write (e.g. `var r: Int; once { r = 3 }`
+            // under a `callsInPlace(EXACTLY_ONCE/AT_LEAST_ONCE)` contract, which
+            // lets definite assignment treat that write as guaranteed). The cell
+            // must still exist for the closure to capture, or the write inside
+            // it and the read after the call both silently fall through to an
+            // unboxed, never-set slot -- seed it with a placeholder the same way
+            // `deferredLocalCaptureCellSeedValue`'s doc comment explains.
+            let declaredType = driver.ctx.localDeclaredType(for: symbol)
+                ?? typeForSymbolReference(symbol, sema: sema)
+            let seedValue = deferredLocalCaptureCellSeedValue(
+                for: declaredType,
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
+            return emitMutableCaptureCellInitialization(
+                driver: driver,
+                symbol: symbol,
+                currentValue: seedValue,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         if let localValue = driver.ctx.localValue(for: symbol) {
             return boxRawSuspendFunctionValue(localValue)
