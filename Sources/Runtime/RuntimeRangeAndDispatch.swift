@@ -973,6 +973,31 @@ public func kk_range_last(_ rangeRaw: Int) -> Int {
     return range.last
 }
 
+/// `IntProgression`/`LongProgression`/`CharProgression.first()` — throws on empty.
+@_cdecl("__kk_range_first_orThrow")
+public func kk_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "__kk_range_first_orThrow"
+    )
+}
+
+/// `IntProgression`/`LongProgression`/`CharProgression.last()` — throws on empty.
+@_cdecl("__kk_range_last_orThrow")
+public func kk_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "__kk_range_last_orThrow"
+    )
+}
+
+
 @_cdecl("__kk_range_count")
 public func kk_range_count(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
@@ -1596,6 +1621,29 @@ public func kk_ulong_range_last(_ rangeRaw: Int) -> Int {
     }
     return range.last
 }
+
+@_cdecl("kk_ulong_range_first_orThrow")
+public func kk_ulong_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "kk_ulong_range_first_orThrow"
+    )
+}
+
+@_cdecl("kk_ulong_range_last_orThrow")
+public func kk_ulong_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "kk_ulong_range_last_orThrow"
+    )
+}
+
 
 @_cdecl("kk_ulong_range_step")
 public func kk_ulong_range_step(_ rangeRaw: Int) -> Int {
