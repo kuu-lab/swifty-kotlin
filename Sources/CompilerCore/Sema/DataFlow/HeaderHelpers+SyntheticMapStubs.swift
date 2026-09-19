@@ -604,7 +604,7 @@ extension DataFlowSemaPhase {
         // source-backed in MapLookupAndTransform.kt.
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
             ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic, .throwingFunction]),
-            ("putAll", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic]),
+            ("putAll", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic, .throwingFunction]),
         ]
 
         for member in members {

@@ -147,6 +147,8 @@ extension CallLowerer {
                 return result
             }
             return emitMapFactoryCall(
+                runtimeCallee: "__kk_map_of",
+                spreadCallee: "__kk_map_of_pairs",
                 loweredArgIDs: loweredArgIDs,
                 args: args,
                 spreadFlags: args.map(\.isSpread),
@@ -158,9 +160,24 @@ extension CallLowerer {
             )
 
         case "mutableMapOf", "hashMapOf", "linkedMapOf":
+            // KUU-646: `__kk_map_of` is the read-only `Map` tag shared with `mapOf`.
+            // Mutable factories need their own nominal identity the way
+            // `mutableListOf` uses `__kk_array_list_of` and `mutableSetOf` uses
+            // `__kk_linked_hash_set_of`. Kotlin's `mutableMapOf` returns
+            // LinkedHashMap, `hashMapOf` returns HashMap.
+            let runtimeCallee: String
+            let spreadCallee: String
+            switch name {
+            case "hashMapOf":
+                runtimeCallee = "__kk_hash_map_of"
+                spreadCallee = "__kk_hash_map_of_pairs"
+            default:
+                runtimeCallee = "__kk_linked_hash_map_of"
+                spreadCallee = "__kk_linked_hash_map_of_pairs"
+            }
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
-                    "__kk_map_of",
+                    runtimeCallee,
                     arity: 2,
                     result: result,
                     sema: sema,
@@ -171,6 +188,8 @@ extension CallLowerer {
                 return result
             }
             return emitMapFactoryCall(
+                runtimeCallee: runtimeCallee,
+                spreadCallee: spreadCallee,
                 loweredArgIDs: loweredArgIDs,
                 args: args,
                 spreadFlags: args.map(\.isSpread),
@@ -379,6 +398,8 @@ extension CallLowerer {
     }
 
     private func emitMapFactoryCall(
+        runtimeCallee: String,
+        spreadCallee: String,
         loweredArgIDs: [KIRExprID],
         args: [CallArgument],
         spreadFlags: [Bool],
@@ -398,7 +419,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                "__kk_map_of_pairs",
+                spreadCallee,
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -467,7 +488,7 @@ extension CallLowerer {
 
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("__kk_map_of"),
+            callee: interner.intern(runtimeCallee),
             arguments: [keysArray, valuesArray, count],
             result: result,
             canThrow: false,
