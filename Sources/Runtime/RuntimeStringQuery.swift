@@ -52,76 +52,16 @@ public func kk_char_sequence_length(_ raw: Int) -> Int {
     // KSP-817: Match Kotlin's UTF-16 CharSequence.length contract. The receiver
     // may be any CharSequence implementation (String or StringBuilder handles).
     if let text = runtimeCharSequenceText(from: raw) {
-        return text.utf16.count
+        return runtimeKotlinStringUTF16Length(text)
     }
-    return runtimeStringFromRawOrPanic(raw, caller: #function).utf16.count
+    return runtimeKotlinStringUTF16Length(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
 
-// MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
-
-@_cdecl("kk_string_first")
-public func kk_string_first(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard let first = codeUnits.first else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        return 0
-    }
-    return kk_box_char(Int(first))
-}
-
-@_cdecl("kk_string_last")
-public func kk_string_last(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard let last = codeUnits.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        return 0
-    }
-    return kk_box_char(Int(last))
-}
-
-@_cdecl("kk_string_single")
-public func kk_string_single(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard codeUnits.count == 1 else {
-        if codeUnits.isEmpty {
-            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        } else {
-            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
-        }
-        return 0
-    }
-    return kk_box_char(Int(codeUnits[0]))
-}
-
-@_cdecl("kk_string_firstOrNull")
-public func kk_string_firstOrNull(_ strRaw: Int) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard let first = codeUnits.first else {
-        return runtimeNullSentinelInt
-    }
-    return kk_box_char(Int(first))
-}
-
-@_cdecl("kk_string_lastOrNull")
-public func kk_string_lastOrNull(_ strRaw: Int) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard let last = codeUnits.last else {
-        return runtimeNullSentinelInt
-    }
-    return kk_box_char(Int(last))
-}
-
-@_cdecl("kk_string_singleOrNull")
-public func kk_string_singleOrNull(_ strRaw: Int) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard codeUnits.count == 1 else {
-        return runtimeNullSentinelInt
-    }
-    return kk_box_char(Int(codeUnits[0]))
-}
+// KSP-1374/1384/1399: CharSequence first/last/single (+ OrNull) are
+// source-backed via the __kk_string_*_flat bridges in RuntimeStringFlat.swift.
+// The boxed (non-flat, Int-handle) kk_string_first/last/single/firstOrNull/
+// lastOrNull/singleOrNull functions that used to live here were superseded
+// and unreachable from any CompilerCore call site; removed.
 
 @_cdecl("kk_string_getOrNull")
 public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
@@ -222,7 +162,7 @@ public func kk_char_sequence_get(
         )
         return 0
     }
-    let codeUnits = Array(text.utf16)
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -248,7 +188,7 @@ public func kk_char_sequence_subSequence(
         )
         return 0
     }
-    let codeUnits = Array(text.utf16)
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -258,11 +198,13 @@ public func kk_char_sequence_subSequence(
         )
         return 0
     }
-    return runtimeMakeStringRaw(String(decoding: codeUnits[startIndex ..< endIndex], as: UTF16.self))
+    return runtimeMakeStringRaw(
+        runtimeKotlinStringFromUTF16CodeUnits(Array(codeUnits[startIndex ..< endIndex]))
+    )
 }
 
-@_cdecl("kk_string_get_flat")
-public func kk_string_get_flat(
+@_cdecl("__kk_string_get_flat")
+public func __kk_string_get_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -282,8 +224,8 @@ public func kk_string_get_flat(
     return Int(codeUnits[indexRaw])
 }
 
-@_cdecl("kk_string_getOrNull_flat")
-public func kk_string_getOrNull_flat(
+@_cdecl("__kk_string_getOrNull_flat")
+public func __kk_string_getOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -297,8 +239,8 @@ public func kk_string_getOrNull_flat(
     return Int(codeUnits[indexRaw])
 }
 
-@_cdecl("kk_string_compareTo_member")
-public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_string_compareTo_member")
+public func __kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
     return runtimeCompareStrings(lhs, rhs)

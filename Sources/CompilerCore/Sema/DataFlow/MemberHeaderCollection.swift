@@ -93,7 +93,16 @@ extension DataFlowSemaPhase {
                 newFlags: memberFlags
             )
             // Kotlin: interface functions without a body are implicitly abstract.
-            if symbols.symbol(ownerSymbol)?.kind == .interface, funDecl.body == .unit {
+            // Bundled stdlib interfaces also use body-less functions as runtime
+            // bridge declarations. An external function or a function carrying
+            // @KsSymbolName has an implementation outside the Kotlin body, so it
+            // must remain available as the interface's default implementation.
+            let hasRuntimeBridge = funDecl.modifiers.contains(.external)
+                || hasCompilerAnnotation(.ksSymbolName, on: funDecl.annotations)
+            if symbols.symbol(ownerSymbol)?.kind == .interface,
+               funDecl.body == .unit,
+               !hasRuntimeBridge
+            {
                 memberFlags.insert(.abstractType)
             }
 
@@ -291,6 +300,7 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [propertyDecl.name]
             var propertyFlags = flags(from: propertyDecl.modifiers)
+            let isExtensionProperty = propertyDecl.receiverType != nil
             let reusableSyntheticProperty = reusableSyntheticMemberPropertySymbol(
                 fqName: memberFQName,
                 ownerSymbol: ownerSymbol,
@@ -308,7 +318,8 @@ extension DataFlowSemaPhase {
                     range: propertyDecl.range,
                     symbols: symbols,
                     diagnostics: diagnostics,
-                    newFlags: propertyFlags
+                    newFlags: propertyFlags,
+                    newIsExtensionProperty: isExtensionProperty
                 )
             }
 
@@ -407,7 +418,8 @@ extension DataFlowSemaPhase {
                     fqName: memberFQName,
                     declSite: propertyDecl.range,
                     visibility: visibility(from: propertyDecl.modifiers),
-                    flags: propertyFlags
+                    flags: propertyFlags,
+                    isExtensionProperty: isExtensionProperty
                 )
             }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
@@ -457,6 +469,67 @@ extension DataFlowSemaPhase {
                 usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: memberSymbol)
+
+            // Kotlin permits extension properties inside a companion object,
+            // such as `val Int.seconds` in `Duration.Companion`. Keep these
+            // declarations in the owner scope, but model their receiver and
+            // synthetic accessors exactly like top-level extension properties
+            // so imports and member-style reads use the normal resolver path.
+            if let receiverType = resolveTypeRef(
+                propertyDecl.receiverType,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: classLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                usageRange: propertyDecl.range
+            ) {
+                symbols.setExtensionPropertyReceiverType(receiverType, for: memberSymbol)
+
+                let getterSymbol = symbols.define(
+                    kind: .function,
+                    name: interner.intern("get"),
+                    fqName: memberFQName + [interner.intern("$get")],
+                    declSite: propertyDecl.range,
+                    visibility: visibility(from: propertyDecl.modifiers),
+                    flags: [.synthetic]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [],
+                        returnType: resolvedType
+                    ),
+                    for: getterSymbol
+                )
+                symbols.setParentSymbol(memberSymbol, for: getterSymbol)
+                symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: memberSymbol)
+
+                if propertyDecl.isVar {
+                    let setterSymbol = symbols.define(
+                        kind: .function,
+                        name: interner.intern("set"),
+                        fqName: memberFQName + [interner.intern("$set")],
+                        declSite: propertyDecl.range,
+                        visibility: visibility(from: propertyDecl.modifiers),
+                        flags: [.synthetic]
+                    )
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            receiverType: receiverType,
+                            parameterTypes: [resolvedType],
+                            returnType: unitType
+                        ),
+                        for: setterSymbol
+                    )
+                    symbols.setParentSymbol(memberSymbol, for: setterSymbol)
+                    symbols.setExtensionPropertySetterAccessor(setterSymbol, for: memberSymbol)
+                }
+            }
 
             if let getter = propertyDecl.getter, getter.body != .unit {
                 symbols.setPropertyHasCustomGetter(true, for: memberSymbol)
@@ -900,6 +973,23 @@ extension DataFlowSemaPhase {
                     symbols.setPropertyType(nestedType, for: entrySymbol)
                     nestedScope.insert(entrySymbol)
                 }
+                collectEnumEntryMemberHeaders(
+                    entries: nestedClass.enumEntries,
+                    ownerFQName: nestedFQName,
+                    ownerSymbol: nestedSymbol,
+                    enumType: nestedType,
+                    sourceFileID: sourceFileID,
+                    ctx: ctx,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    bindings: bindings,
+                    scope: nestedScope,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: nestedTypeParamSymbols,
+                    classLocalTypeParameters: nestedLocalTypeParameters
+                )
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: nestedSymbol,
                     ownerFQName: nestedFQName,

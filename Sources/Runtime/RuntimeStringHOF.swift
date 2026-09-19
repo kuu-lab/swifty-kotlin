@@ -58,11 +58,11 @@ public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
     if otherRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)
     }
-    return kk_box_bool(kk_string_compareTo_member(strRaw, otherRaw) == 0 ? 1 : 0)
+    return kk_box_bool(__kk_string_compareTo_member(strRaw, otherRaw) == 0 ? 1 : 0)
 }
 
-@_cdecl("kk_string_equals_flat")
-public func kk_string_equals_flat(
+@_cdecl("__kk_string_equals_flat")
+public func __kk_string_equals_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -77,7 +77,7 @@ public func kk_string_equals_flat(
     }
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
-    return source == other ? 1 : 0
+    return runtimeStringsEqual(source, other) ? 1 : 0
 }
 
 // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
@@ -87,12 +87,6 @@ public func kk_string_equals_flat(
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
-
-    if delimiter.isEmpty {
-        let singleElement = runtimeMakeStringRaw(source)
-        let seq = RuntimeSequenceBox(steps: [.source(elements: [singleElement])])
-        return registerRuntimeObject(seq)
-    }
 
     let splitStrings = runtimeSplitString(source, delimiter: delimiter).map { runtimeMakeStringRaw($0) }
     let seq = RuntimeSequenceBox(steps: [.source(elements: splitStrings)])

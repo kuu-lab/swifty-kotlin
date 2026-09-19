@@ -5,7 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
-parallel_mode="${SWIFT_TEST_PARALLEL:-}"
 workers_override="${SWIFT_TEST_WORKERS:-}"
 build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
 
@@ -37,14 +36,19 @@ fi
 xctest_available="$tests_use_xctest"
 
 has_parallel_flag=false
+has_no_parallel_flag=false
 has_workers_flag=false
 has_jobs_flag=false
 has_swift_testing_width_flag=false
 supports_parallel_flags=true
 for arg in "$@"; do
     case "$arg" in
-        --parallel|--no-parallel)
+        --parallel)
             has_parallel_flag=true
+            ;;
+        --no-parallel)
+            has_parallel_flag=true
+            has_no_parallel_flag=true
             ;;
         --num-workers|--num-workers=*)
             has_workers_flag=true
@@ -126,20 +130,14 @@ if [[ "$supports_parallel_flags" == true ]]; then
         export SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH="$workers_override"
     fi
 
-    if [[ "$parallel_mode" == "0" || "$parallel_mode" == "false" ]]; then
-        if [[ "$has_parallel_flag" == false ]]; then
-            command+=(--no-parallel)
-        fi
-    else
-        if [[ "$has_parallel_flag" == false ]]; then
-            command+=(--parallel)
-        fi
+    if [[ "$has_parallel_flag" == false ]]; then
+        command+=(--parallel)
+    fi
 
-        if [[ "$has_workers_flag" == false && "$xctest_available" == true ]]; then
-            resolve_worker_count workers "$workers_override"
-            if [[ -n "$workers" ]]; then
-                command+=(--num-workers "$workers")
-            fi
+    if [[ "$has_no_parallel_flag" == false && "$has_workers_flag" == false && "$xctest_available" == true ]]; then
+        resolve_worker_count workers "$workers_override"
+        if [[ -n "$workers" ]]; then
+            command+=(--num-workers "$workers")
         fi
     fi
 fi

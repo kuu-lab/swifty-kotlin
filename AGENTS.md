@@ -23,7 +23,7 @@ bash Scripts/swift_test.sh --filter CompilerBackendTests                        
 .build/debug/kswiftc path/to/file.kt -o out  # コンパイラを直接実行
 ```
 
-- テストは全 target が Swift Testing（XCTest は全廃済み、`import XCTest` を新規に追加しない）。並列実行だとスイート単位の実行件数サマリが出ず 0 tests に見えることがある。実行確認には `SWIFT_TEST_PARALLEL=0` を付ける。
+- テストは全 target が Swift Testing（XCTest は全廃済み、`import XCTest` を新規に追加しない）。並列実行だとスイート単位の実行件数サマリが出ず 0 tests に見えることがある。実行確認には `--no-parallel` を付ける。
 - ワーカー数などの環境変数、Runtime ABI リンク検証（`validate_runtime_abi_links.sh`）、TODO ID 重複検出（`check_todo_ids.sh`）等の補助スクリプトは [`Scripts/README.md`](Scripts/README.md) を参照。
 
 ### 動作確認の最小スコープ
@@ -85,6 +85,8 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ## バグ修正ルール
 
 作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
+
+同じPRのスコープや安全な修正方針を超えて修正できない場合は、**Linear**（team `Kuu` / project「バグバックログ (BUG)」/ label `Bug`）に症状・最小再現・調査結果・修正しない理由を添えて起票し、issue リンクを PR description に記載する。**TODO.md には追加しない**（複数セッションが同じ挿入位置に書き込み、マージコンフリクトの最大要因になっていたため 2026-09-14 に廃止）。
 
 ## スタック PR
 
@@ -179,7 +181,7 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 ```
 
 - **スモーク**: `SmokeTests` はドライバ・KIR・LLVM オブジェクト生成まで（約 3 分、初回はテスト用バイナリのビルド込み）。
-- **全テスト**: `bash Scripts/swift_test.sh` は長時間。並列は `SWIFT_TEST_PARALLEL` / `SWIFT_TEST_WORKERS`（[`Scripts/README.md`](Scripts/README.md)）。
+- **全テスト**: `bash Scripts/swift_test.sh` は長時間。既定で並列実行、無効化は `--no-parallel`、ワーカー数調整は `SWIFT_TEST_WORKERS`（[`Scripts/README.md`](Scripts/README.md)）。
 - **kotlinc 差分**（任意）: JDK 21 + Kotlin 2.3.10 + `Scripts/diff_kotlinc.sh`。CI の diff ジョブ専用で、通常の `swift test` には不要。
 
 ### リント / フォーマット

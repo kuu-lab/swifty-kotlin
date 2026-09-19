@@ -16,17 +16,27 @@ extension CollectionVirtualCallRewriteLoweringPass {
         lookup: CollectionLiteralLookupTables,
         sema: SemaModule?,
         interner: StringInterner,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        listExprIDs: inout Set<Int32>,
+        state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        guard rangeExprIDs.contains(receiver.rawValue) else { return false }
-        let isCharRange = charRangeExprIDs.contains(receiver.rawValue)
-        let isULongRange = ulongRangeExprIDs.contains(receiver.rawValue)
+        guard state.contains(.range, receiver) else { return false }
+        let isCharRange = state.contains(.charRange, receiver)
+        let isULongRange = state.contains(.ulongRange, receiver)
         let isUIntRange = sema.map { module.arena.exprType(receiver) == $0.types.uintType } ?? false
         let isLongRange = sema.map { module.arena.exprType(receiver) == $0.types.longType } ?? false
+        // Source-backed ULong members must remain ordinary Kotlin calls. This
+        // pass only handles the residual ULong range construction helpers.
+        if isULongRange && [
+            lookup.containsName, lookup.isEmptyName, lookup.countName,
+            lookup.sumName, lookup.toListName, lookup.firstOrNullName,
+            lookup.lastOrNullName, lookup.averageName, lookup.sortedName,
+            lookup.reversedName,
+        ].contains(callee) {
+            return false
+        }
+        // KSP-1525/1527: map/filter-family HOFs are source-backed for both
+        // unsigned range types, so their rewrite arms are skipped below.
+        let isUnsignedRange = isUIntRange || isULongRange
         // step — simple property access (STDLIB-RANGE-037)
         if callee == lookup.stepName, arguments.isEmpty {
             let stepName = isULongRange ? lookup.kkULongRangeStepName : (isUIntRange ? interner.intern("kk_uint_range_step") : lookup.kkRangeStepName)
@@ -47,7 +57,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // here was unreachable independent of `isUIntRange`'s own
             // always-false type check. Confirmed by nm on a comprehensive
             // real-kklib probe covering all 13 KSP-1523 members.
-            let firstName = isULongRange ? lookup.kkULongRangeFirstName : lookup.kkRangeFirstName
+            let firstName = lookup.kkRangeFirstName
             loweredBody.append(.call(
                 symbol: nil, callee: firstName,
                 arguments: [receiver], result: result,
@@ -57,7 +67,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         if callee == lookup.lastName || callee == lookup.endInclusiveName, arguments.isEmpty {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
-            let lastName = isULongRange ? lookup.kkULongRangeLastName : lookup.kkRangeLastName
+            let lastName = lookup.kkRangeLastName
             loweredBody.append(.call(
                 symbol: nil, callee: lastName,
                 arguments: [receiver], result: result,
@@ -85,7 +95,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // STDLIB-637: isEmpty / sum
         if callee == lookup.isEmptyName, arguments.isEmpty {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
-            let isEmptyName = isULongRange ? lookup.kkULongRangeIsEmptyName : lookup.kkRangeIsEmptyName
+            let isEmptyName = lookup.kkRangeIsEmptyName
             loweredBody.append(.call(
                 symbol: nil, callee: isEmptyName,
                 arguments: [receiver], result: result,
@@ -106,7 +116,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // contains — signed and UInt ranges share the bundled __kk_range_contains; ULong keeps its own helper
         if callee == lookup.containsName, arguments.count == 1 {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
-            let containsName = isULongRange ? lookup.kkULongRangeContainsName : interner.intern("__kk_range_contains")
+            let containsName = interner.intern("__kk_range_contains")
             loweredBody.append(.call(
                 symbol: nil, callee: containsName,
                 arguments: [receiver, arguments[0]], result: result,
@@ -122,8 +132,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let toListCallee: InternedString
             if isCharRange {
                 toListCallee = lookup.kkCharRangeToListName
-            } else if isULongRange {
-                toListCallee = lookup.kkULongRangeToListName
             } else {
                 toListCallee = lookup.kkRangeToListName
             }
@@ -132,7 +140,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
 
@@ -162,96 +170,96 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         // map — HOF returning List (STDLIB-091)
-        if callee == lookup.mapName, arguments.count == 1, !isUIntRange {
+        if callee == lookup.mapName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_map") : lookup.kkRangeMapName,
+                kkName: lookup.kkRangeMapName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
 
         // Additional range HOFs.
-        if callee == lookup.mapIndexedName, arguments.count == 1, !isUIntRange {
+        if callee == lookup.mapIndexedName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_mapIndexed") : lookup.kkRangeMapIndexedName,
+                kkName: lookup.kkRangeMapIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
-        if callee == lookup.mapNotNullName, arguments.count == 1, !isUIntRange {
+        if callee == lookup.mapNotNullName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_mapNotNull") : lookup.kkRangeMapNotNullName,
+                kkName: lookup.kkRangeMapNotNullName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
-        if callee == lookup.filterName, arguments.count == 1, !isUIntRange {
+        if callee == lookup.filterName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_filter") : lookup.kkRangeFilterName,
+                kkName: lookup.kkRangeFilterName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
-        if callee == lookup.filterIndexedName, arguments.count == 1, !isUIntRange {
+        if callee == lookup.filterIndexedName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_filterIndexed") : lookup.kkRangeFilterIndexedName,
+                kkName: lookup.kkRangeFilterIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
-        if callee == lookup.filterNotName, arguments.count == 1, !isUIntRange {
+        if callee == lookup.filterNotName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_filterNot") : lookup.kkRangeFilterNotName,
+                kkName: lookup.kkRangeFilterNotName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.reduceName, arguments.count == 1 {
@@ -348,8 +356,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.firstOrNullName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
-            let firstOrNullName = isULongRange ? interner.intern("kk_ulong_range_firstOrNull")
-                : interner.intern("kk_range_firstOrNull")
+            let firstOrNullName = interner.intern("kk_range_firstOrNull")
             loweredBody.append(.call(
                 symbol: nil, callee: firstOrNullName,
                 arguments: [receiver], result: result,
@@ -386,8 +393,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.lastOrNullName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
-            let lastOrNullName = isULongRange ? interner.intern("kk_ulong_range_lastOrNull")
-                : interner.intern("kk_range_lastOrNull")
+            let lastOrNullName = interner.intern("kk_range_lastOrNull")
             loweredBody.append(.call(
                 symbol: nil, callee: lastOrNullName,
                 arguments: [receiver], result: result,
@@ -426,22 +432,22 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         if callee == lookup.chunkedName, arguments.count == 1 {
             loweredBody.append(.call(
-                symbol: nil, callee: isULongRange ? interner.intern("kk_ulong_range_chunked")
+                symbol: nil, callee: isULongRange ? interner.intern("__kk_ulong_range_chunked")
                     : (isUIntRange ? interner.intern("__kk_uint_range_chunked") : lookup.kkRangeChunkedName),
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
             ))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.windowedName, arguments.count == 3 {
             loweredBody.append(.call(
-                symbol: nil, callee: isULongRange ? interner.intern("kk_ulong_range_windowed")
+                symbol: nil, callee: isULongRange ? interner.intern("__kk_ulong_range_windowed")
                     : (isUIntRange ? interner.intern("__kk_uint_range_windowed") : lookup.kkRangeWindowedName),
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
             ))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
 
@@ -449,47 +455,45 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.takeName, arguments.count == 1 {
             let takeName: InternedString
             if isULongRange {
-                takeName = interner.intern("kk_ulong_range_take")
+                takeName = interner.intern("__kk_ulong_range_take")
             } else if isUIntRange {
                 takeName = interner.intern("__kk_uint_range_take")
             } else if isLongRange {
-                takeName = interner.intern("kk_long_range_take")
+                takeName = interner.intern("__kk_long_range_take")
             } else if isCharRange {
-                takeName = interner.intern("kk_char_range_take")
+                takeName = interner.intern("__kk_char_range_take")
             } else {
                 takeName = lookup.kkRangeTakeName
             }
             loweredBody.append(.call(symbol: nil, callee: takeName,
                 arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.dropName, arguments.count == 1 {
             let dropName: InternedString
             if isULongRange {
-                dropName = interner.intern("kk_ulong_range_drop")
+                dropName = interner.intern("__kk_ulong_range_drop")
             } else if isUIntRange {
                 dropName = interner.intern("__kk_uint_range_drop")
             } else if isLongRange {
-                dropName = interner.intern("kk_long_range_drop")
+                dropName = interner.intern("__kk_long_range_drop")
             } else if isCharRange {
-                dropName = interner.intern("kk_char_range_drop")
+                dropName = interner.intern("__kk_char_range_drop")
             } else {
                 dropName = lookup.kkRangeDropName
             }
             loweredBody.append(.call(symbol: nil, callee: dropName,
                 arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.averageName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
             let averageName: InternedString
-            if isULongRange {
-                averageName = interner.intern("kk_ulong_range_average")
-            } else if isLongRange {
-                averageName = interner.intern("kk_long_range_average")
+            if isLongRange {
+                averageName = interner.intern("__kk_long_range_average")
             } else {
                 averageName = lookup.kkRangeAverageName
             }
@@ -501,18 +505,16 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
             let sortedName: InternedString
-            if isULongRange {
-                sortedName = interner.intern("kk_ulong_range_sorted")
-            } else if isLongRange {
-                sortedName = interner.intern("kk_long_range_sorted")
+            if isLongRange {
+                sortedName = interner.intern("__kk_long_range_sorted")
             } else if isCharRange {
-                sortedName = interner.intern("kk_char_range_sorted")
+                sortedName = interner.intern("__kk_char_range_sorted")
             } else {
                 sortedName = lookup.kkRangeSortedName
             }
             loweredBody.append(.call(symbol: nil, callee: sortedName,
                 arguments: [receiver], result: result, canThrow: false, thrownResult: nil))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
 
@@ -520,18 +522,18 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.reversedName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
-            let reversedName = isULongRange ? lookup.kkULongRangeReversedName : lookup.kkRangeReversedName
+            let reversedName = lookup.kkRangeReversedName
             loweredBody.append(.call(
                 symbol: nil, callee: reversedName,
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
             if let result {
-                rangeExprIDs.insert(result.rawValue)
+                state.insert(.range, result)
                 // Propagate char range through reversed() (STDLIB-290)
-                if isCharRange { charRangeExprIDs.insert(result.rawValue) }
+                if isCharRange { state.insert(.charRange, result) }
                 // Propagate ULong range through reversed() (STDLIB-524)
-                if isULongRange { ulongRangeExprIDs.insert(result.rawValue) }
+                if isULongRange { state.insert(.ulongRange, result) }
             }
             return true
         }

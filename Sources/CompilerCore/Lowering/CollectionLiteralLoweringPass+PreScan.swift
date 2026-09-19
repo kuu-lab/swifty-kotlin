@@ -1,33 +1,5 @@
 
 extension CollectionLiteralLoweringSupport {
-    func isStdlibBuilderDSLCall(
-        symbol: SymbolID?,
-        callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> Bool {
-        guard lookup.builderDSLNames.contains(callee) else {
-            return false
-        }
-        guard let symbol else {
-            return true
-        }
-        guard let sema = ctx.sema,
-              let semanticSymbol = sema.symbols.symbol(symbol)
-        else {
-            return false
-        }
-        if semanticSymbol.flags.contains(.synthetic) {
-            return true
-        }
-        if sema.symbols.externalLinkName(for: symbol)?.hasPrefix("kk_build_") == true {
-            return true
-        }
-        // Source-backed builders resolve to CollectionBuilders.kt
-        // (KSP-622, KSP-623), so the legacy rewrite never applies.
-        return false
-    }
-
     func collectInitialCollectionExprIDs(
         function: KIRFunction,
         lookup: CollectionLiteralLookupTables,
@@ -95,11 +67,16 @@ extension CollectionLiteralLoweringSupport {
             case let .virtualCall(symbol, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
                     symbol: symbol, callee: callee, receiver: receiver, result: result,
-                    lookup: lookup, sema: sema,
+                    lookup: lookup, sema: sema, interner: interner,
                     state: &state
                 )
             case let .copy(from, to):
                 state.seedCopy(from: from, to: to)
+                // Branches of an `if`/`when` that reuse the same expression
+                // slot can each seed a different, mutually exclusive
+                // Sequence provenance; the union above cannot tell that
+                // apart from agreeing evidence (RF-LOWER-STATE-009).
+                state.resolveSequenceProvenanceConflicts(at: to)
             case let .constValue(result, .stringLiteral):
                 state.stringExprIDs.insert(result.rawValue)
             default:
@@ -239,10 +216,7 @@ extension CollectionLiteralLoweringSupport {
         } else if callee == lookup.takeName || callee == lookup.dropName
             || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
             || callee == lookup.shuffledName
-            || callee == lookup.scanName || callee == lookup.runningFoldName
-            || callee == lookup.kkListSortedName
-            || callee == lookup.kkListShuffledName
-            || callee == lookup.kkListShuffledRandomName,
+            || callee == lookup.scanName || callee == lookup.runningFoldName,
             state.listExprIDs.contains(src)
         {
             state.listExprIDs.insert(result.rawValue)
@@ -257,6 +231,7 @@ extension CollectionLiteralLoweringSupport {
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
         sema: SemaModule?,
+        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         if callee == lookup.asSequenceName
@@ -268,6 +243,17 @@ extension CollectionLiteralLoweringSupport {
                 }()
                 if !isSourceBacked {
                     state.sequenceExprIDs.insert(result.rawValue)
+                } else if let sema, let symbol,
+                          isKnownSourceObjectConstructingAsSequenceReceiver(
+                              symbol: symbol, sema: sema, interner: interner
+                          )
+                {
+                    // Confirmed by reading the resolved overload's body
+                    // (Iterable/Iterator/CharSequence/Map.asSequence): it
+                    // constructs a fresh source `object : Sequence<T>`.
+                    // Array's overload and the Sequence identity overload
+                    // are deliberately excluded — see the helper's doc.
+                    state.sequenceSourceObjectExprIDs.insert(result.rawValue)
                 }
             }
             return
@@ -313,9 +299,6 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
                 || callee == lookup.shuffledName
                 || callee == lookup.scanName || callee == lookup.runningFoldName
-                || callee == lookup.kkListSortedName
-                || callee == lookup.kkListShuffledName
-                || callee == lookup.kkListShuffledRandomName
             {
                 if let result { state.listExprIDs.insert(result.rawValue) }
             }
@@ -408,6 +391,7 @@ extension CollectionLiteralLoweringSupport {
             if state.listExprIDs.contains(rawID) || state.setExprIDs.contains(rawID)
                 || state.mapExprIDs.contains(rawID) || state.arrayExprIDs.contains(rawID)
                 || state.sequenceExprIDs.contains(rawID) || state.stringExprIDs.contains(rawID)
+                || state.sequenceTypeExprIDs.contains(rawID)
             {
                 continue
             }

@@ -41,6 +41,14 @@ struct RuntimeNumericHashCodeTests {
         #expect(kk_any_hashCode(Int(bitPattern: UInt.max), 7) == 0) // ULong.MAX_VALUE
     }
 
+    @Test
+    func testUnboxedUnsignedHashCodeUsesSignedStorageRepresentation() {
+        #expect(kk_any_hashCode(Int(UInt32.max), 9) == -1)
+        #expect(kk_any_hashCode(2_147_483_648, 9) == -2_147_483_648)
+        #expect(kk_any_hashCode(200, 10) == -56)
+        #expect(kk_any_hashCode(40_000, 11) == -25_536)
+    }
+
     // MARK: - Boxed (Any-erased receiver) dispatch
 
     @Test
@@ -65,6 +73,20 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
+    func testBoxedUnsignedHashCodePreservesStaticStorageType() {
+        let uint = kk_box_uint(Int(UInt32.max))
+        let ubyte = kk_box_ubyte(200)
+        let ushort = kk_box_ushort(40_000)
+
+        #expect(kk_unbox_int(uint) == Int(UInt32.max))
+        #expect(kk_unbox_int(ubyte) == 200)
+        #expect(kk_unbox_int(ushort) == 40_000)
+        #expect(kk_any_hashCode(uint, 0) == -1)
+        #expect(kk_any_hashCode(ubyte, 0) == -56)
+        #expect(kk_any_hashCode(ushort, 0) == -25_536)
+    }
+
+    @Test
     func testBoxedFloatHashCode() {
         let negative = registerRuntimeObject(RuntimeFloatBox(-2.5))
         #expect(kk_any_hashCode(negative, 0) == -1_071_644_672)
@@ -83,6 +105,48 @@ struct RuntimeNumericHashCodeTests {
         let negativeZero = registerRuntimeObject(RuntimeDoubleBox(-0.0))
         #expect(negativeZero != runtimeNullSentinelInt)
         #expect(kk_any_hashCode(negativeZero, 0) == -2_147_483_648)
+    }
+
+    @Test
+    func testBoxedDurationHashCodeMatchesLongXorFold() {
+        // 5 seconds = 5_000_000_000 ns. `toInt()` is 705_032_704; Long.hashCode
+        // xor-fold is 705_032_705. Duration.hashCode() and the boxed/Any path
+        // must agree on the xor-fold (KUU-645).
+        let fiveSeconds = 5_000_000_000
+        let boxed = registerRuntimeObject(RuntimeDurationBox(nanoseconds: Int64(fiveSeconds)))
+        #expect(kk_any_hashCode(boxed, 0) == kk_any_hashCode(fiveSeconds, 8))
+        #expect(kk_any_hashCode(boxed, 0) == 705_032_705)
+
+        let zero = registerRuntimeObject(RuntimeDurationBox(nanoseconds: 0))
+        #expect(kk_any_hashCode(zero, 0) == kk_any_hashCode(0, 8))
+
+        let infinite = registerRuntimeObject(RuntimeDurationBox(nanoseconds: Int64.max))
+        #expect(kk_any_hashCode(infinite, 0) == kk_any_hashCode(Int(Int64.max), 8))
+    }
+
+    @Test
+    func testResultHashCodeUsesWrappedValue() {
+        let intResult = runtimeResultSuccess(registerRuntimeObject(RuntimeIntBox(1)))
+        let stringResult = runtimeResultSuccess(registerRuntimeObject(RuntimeStringBox("abc")))
+        let nullResult = runtimeResultSuccess(runtimeNullSentinelInt)
+
+        #expect(kk_any_hashCode(intResult, 0) == 1)
+        #expect(kk_any_hashCode(stringResult, 0) == 96_354)
+        #expect(kk_any_hashCode(nullResult, 0) == 0)
+
+        let exception = runtimeAllocateThrowable(message: "boom")
+        let failure = runtimeResultFailure(exception)
+        #expect(kk_any_hashCode(failure, 0) == kk_any_hashCode(exception, 0))
+    }
+
+    @Test
+    func testObjectHashCodeIsNormalizedToKotlinIntWidth() {
+        let array = kk_array_new(0)
+        #expect(kk_any_hashCode(array, 0) == Int(Int32(truncatingIfNeeded: array)))
+
+        let classID = 5_000_000_000
+        let object = kk_object_new(0, classID)
+        #expect(kk_any_hashCode(object, 0) == Int(Int32(truncatingIfNeeded: classID)))
     }
 
     @Test
@@ -139,6 +203,63 @@ struct RuntimeNumericHashCodeTests {
         let value = registerRuntimeObject(RuntimeLongBox(1_099_511_627_776)) // 1L shl 40
         let map = registerRuntimeObject(RuntimeMapBox(keys: [key], values: [value]))
         #expect(kk_any_hashCode(map, 0) == 363) // "k".hashCode() (107) xor 256
+    }
+
+    @Test
+    func testStringHashCodeUsesUTF16CodeUnits() {
+        let emoji = registerRuntimeObject(RuntimeStringBox("😀"))
+        #expect(kk_any_hashCode(emoji, 0) == 1_772_899)
+
+        // The fold wraps at Int32 like Kotlin Int arithmetic: a BMP string
+        // long enough to overflow must not leak the untruncated 64-bit
+        // running total (kotlinc: "abcdef".hashCode() == -1424385949).
+        let wrapped = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        #expect(kk_any_hashCode(wrapped, 0) == -1_424_385_949)
+    }
+
+    // MARK: - Pair/Triple/object structural hash (Int32-wrapped accumulation)
+
+    // KUU-632: these branches combine element hashCodes with 31*acc+h. The
+    // combine must wrap as Kotlin Int (Int32) at every step — the same
+    // contract the List/Set/Map branches above already follow. Expected
+    // values below are cross-checked against real kotlinc/JVM output; the
+    // element hashCodes are large enough that the combine overflows Int32
+    // mid-computation.
+    @Test
+    func testPairHashCodeWrapsAtInt32() {
+        // Pair("abcdef", "ghijkl") — kotlinc prints 1841790624.
+        let first = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        let second = registerRuntimeObject(RuntimeStringBox("ghijkl"))
+        let pair = kk_pair_new(first, second)
+        #expect(kk_any_hashCode(pair, 0) == 1_841_790_624)
+
+        // Raw Int elements hash as themselves; 31 * 2_000_000_000 overflows
+        // Int32 on the very first combine.
+        let intPair = kk_pair_new(2_000_000_000, 1_500_000_000)
+        #expect(kk_any_hashCode(intPair, 0) == -924_509_440)
+    }
+
+    @Test
+    func testTripleHashCodeWrapsAtInt32() {
+        // Triple("abcdef", "ghijkl", "mnopqr") = 31*(31*h1 + h2) + h3 with
+        // a wrap at each step — kotlinc prints 191550019.
+        let first = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        let second = registerRuntimeObject(RuntimeStringBox("ghijkl"))
+        let third = registerRuntimeObject(RuntimeStringBox("mnopqr"))
+        let triple = kk_triple_new(first, second, third)
+        #expect(kk_any_hashCode(triple, 0) == 191_550_019)
+    }
+
+    @Test
+    func testObjectFallbackHashCodeWrapsAtInt32() {
+        // Non-data-class RuntimeObjectBox: hash starts at classID, then
+        // folds each slot as 31*hash + element. These elements overflow
+        // Int32 mid-fold.
+        let object = kk_object_new(3, 12_345)
+        _ = kk_array_set(object, 0, 2_000_000_000, nil)
+        _ = kk_array_set(object, 1, 1_900_000_000, nil)
+        _ = kk_array_set(object, 2, 1_800_000_000, nil)
+        #expect(kk_any_hashCode(object, 0) == -1_207_120_857)
     }
 }
 #endif

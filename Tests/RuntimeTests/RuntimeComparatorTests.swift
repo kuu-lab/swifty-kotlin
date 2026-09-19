@@ -180,6 +180,20 @@ struct RuntimeComparatorTests {
         )
     }
 
+    // KUU-626: Kotlin compares strings by UTF-16 code units. The high
+    // surrogate of a supplementary character therefore sorts before a BMP
+    // character at U+E000, even though the Unicode scalar value is larger.
+    @Test
+    func testStringCompareToOrdersSupplementaryCharacterBeforePrivateUseBMP() {
+        let supplementary = makeRuntimeString("𐀀")
+        let bmp = makeRuntimeString("")
+
+        #expect(__kk_string_compareTo_member(supplementary, bmp) == -2048)
+        #expect(__kk_string_compareTo_member(bmp, supplementary) == 2048)
+        #expect(__kk_comparable_compareTo(supplementary, bmp) == -2048)
+        #expect(__kk_comparable_compareTo(bmp, supplementary) == 2048)
+    }
+
     // Regression (KSP-659): only the null sentinel counts as `null`, so a real
     // null orders strictly below a boxed zero (previously they compared equal).
     @Test
@@ -214,7 +228,7 @@ struct RuntimeComparatorTests {
 
     @Test
     func testCaseInsensitiveOrderComparatorObjectDispatchesThroughITable() {
-        let comparatorRaw = kk_string_case_insensitive_order()
+        let comparatorRaw = __kk_string_case_insensitive_order()
         let compareFnPtr = kk_itable_lookup(comparatorRaw, 0, 0)
         #expect(compareFnPtr != 0)
 
@@ -238,7 +252,7 @@ struct RuntimeComparatorTests {
             makeRuntimeString("c"),
             makeRuntimeString("a"),
         ])
-        let comparatorRaw = kk_string_case_insensitive_order()
+        let comparatorRaw = __kk_string_case_insensitive_order()
 
         let sorted = kk_list_sortedWith(source, comparatorRaw, 0, nil)
         #expect(listElements(sorted).map(runtimeStringValue) == ["A", "a", "b", "c"])

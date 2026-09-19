@@ -1,20 +1,6 @@
 package kotlin.collections
 
-/**
- * A read-only collection of unique elements.
- *
- * The compiler reuses the compatibility shell for the runtime-backed storage
- * operations while this declaration owns Set's nominal source surface.
- */
-public interface Set<out E> : Collection<E> {
-    public override val size: Int
-
-    public override fun isEmpty(): Boolean
-
-    public override operator fun contains(element: @UnsafeVariance E): Boolean
-
-    public override fun iterator(): Iterator<E>
-}
+// KSP-704: the `Set<out E>` interface declaration moved to Set.kt.
 
 // Set HOF implementations migrated from Swift Runtime
 // MIGRATION-COL-013
@@ -59,7 +45,7 @@ fun <T, R> Set<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
 /**
  * Performs the given [action] on each element.
  */
-fun <T> Set<T>.forEach(action: (T) -> Unit) {
+inline fun <T> Set<T>.forEach(action: (T) -> Unit) {
     for (element in this) {
         action(element)
     }

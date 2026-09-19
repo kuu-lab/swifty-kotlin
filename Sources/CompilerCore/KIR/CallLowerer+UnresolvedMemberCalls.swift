@@ -28,6 +28,7 @@ extension CallLowerer {
     func runtimeBackedSetMemberCallee(
         memberName: String,
         receiverType: TypeID,
+        chosenCallee: SymbolID? = nil,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
@@ -57,11 +58,56 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_set_remove")
             case "clear":
                 return interner.intern("__kk_mutable_set_clear")
+            case "addAll", "plusAssign", "removeAll", "minusAssign":
+                return mutableSetBulkMutationCallee(
+                    memberName: memberName,
+                    chosenCallee: chosenCallee,
+                    sema: sema,
+                    interner: interner
+                )
+            case "retainAll":
+                return interner.intern("__kk_mutable_set_retainAll")
             default:
                 break
             }
         }
         return nil
+    }
+
+    /// Runtime-backed set boxes cannot provide an itable implementation for
+    /// source-backed MutableSet defaults. Preserve the overload-specific
+    /// residual bridge selected by Sema, while routing migrated Collection
+    /// members to their hidden set ABI entry points.
+    private func mutableSetBulkMutationCallee(
+        memberName: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let parameterType = chosenCallee.flatMap { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        }
+        let parameterName = parameterType.flatMap { type in
+            resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
+                .map { interner.resolve($0.symbol.name) }
+        }
+        let operation = memberName == "addAll" || memberName == "plusAssign" ? "addAll" : "removeAll"
+        switch parameterName {
+        case "Sequence":
+            return interner.intern("__kk_mutable_set_\(operation)_sequence")
+        case "Iterable":
+            return interner.intern("__kk_mutable_set_\(operation)_iterable")
+        case "Array", "Collection", "MutableCollection":
+            return interner.intern("__kk_mutable_set_\(operation)")
+        default:
+            if memberName == "plusAssign" {
+                return interner.intern("__kk_mutable_set_add")
+            }
+            if memberName == "minusAssign" {
+                return interner.intern("__kk_mutable_set_remove")
+            }
+            return nil
+        }
     }
 
     // swiftlint:disable cyclomatic_complexity
@@ -159,7 +205,7 @@ extension CallLowerer {
             case "compareTo":
                 return interner.intern("kk_string_compareTo_flat")
             case "get":
-                return interner.intern("kk_string_get_flat")
+                return interner.intern("__kk_string_get_flat")
             case "toRegex":
                 return argumentCount == 0
                     ? interner.intern("__kk_string_toRegex_flat")
@@ -617,7 +663,7 @@ extension CallLowerer {
             var visitedTypeParams = Set<SymbolID>()
             switch (memberName, collectionKind(for: receiverType, visitedTypeParams: &visitedTypeParams)) {
             case ("size", .map?):
-                return interner.intern("kk_map_size")
+                return interner.intern("__kk_map_size")
             case ("size", .set?):
                 return interner.intern("__kk_set_size")
             case ("size", .array?):
@@ -627,7 +673,7 @@ extension CallLowerer {
             case ("size", .collection?):
                 return interner.intern("__kk_collection_size")
             case ("isEmpty", .map?):
-                return interner.intern("kk_map_is_empty")
+                return interner.intern("__kk_map_is_empty")
             case ("isEmpty", .set?):
                 return interner.intern("__kk_set_is_empty")
             case ("isEmpty", .array?):
@@ -646,36 +692,6 @@ extension CallLowerer {
         }
 
         switch memberName {
-        case "size":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .map?:
-                return interner.intern("kk_map_size")
-            case .set?:
-                return interner.intern("__kk_set_size")
-            case .array?:
-                return interner.intern("__kk_array_size")
-            case .list?:
-                return interner.intern("__kk_list_size")
-            case .collection?:
-                // A bare `Collection<T>` receiver can be backed by either a list
-                // or a set box, so it needs the type-tag dispatching bridge.
-                return interner.intern("__kk_collection_size")
-            default:
-                break
-            }
-        case "isEmpty":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .map?:
-                return interner.intern("kk_map_is_empty")
-            case .set?:
-                return interner.intern("__kk_set_is_empty")
-            case .array?:
-                return interner.intern("kk_array_is_empty")
-            case .list?, .collection?:
-                return interner.intern("kk_list_is_empty")
-            default:
-                break
-            }
         case "iterator":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
@@ -816,7 +832,7 @@ extension CallLowerer {
         }
         switch memberName {
         case "count":
-            return argumentCount == 0 ? interner.intern("kk_map_size") : nil
+            return argumentCount == 0 ? interner.intern("__kk_map_size") : nil
         case "putAll":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil
@@ -839,13 +855,15 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
         case .map?:
-            return interner.intern("kk_map_is_empty")
+            return interner.intern("__kk_map_is_empty")
         case .set?:
             return interner.intern("__kk_set_is_empty")
         case .array?:
             return interner.intern("kk_array_is_empty")
-        case .list?, .collection?:
+        case .list?:
             return interner.intern("kk_list_is_empty")
+        case .collection?:
+            return interner.intern("__kk_collection_isEmpty")
         case .sequence?, nil:
             return nil
         }

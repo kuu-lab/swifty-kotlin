@@ -2,18 +2,32 @@ import RuntimeABI
 
 /// Synthetic stubs for residual `Sequence` member operations (`random`, `randomOrNull`,
 /// `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`,
-/// `takeLastWhile`, `shuffled`, and `reversed`) that are not yet migrated
+/// `takeLastWhile`, and `reversed`) that are not yet migrated
 /// to bundled Kotlin source.
 ///
 /// KSP-694: Consolidated residual Sequence stubs after KSP-441..446 and KSP-308
 /// migrations of terminal/HOF Sequence APIs to bundled Kotlin source.
+/// KSP-1356: `shuffled`/`shuffled(random)` migrated out of this file onto
+/// bundled Kotlin source (`SequenceConversionsAndSetOps.kt`); the
+/// `kk_sequence_shuffled`/`kk_sequence_shuffled_random` runtime bridges stay,
+/// now referenced via `@KsSymbolName` instead of a synthetic registration.
 extension DataFlowSemaPhase {
     func registerSyntheticSequenceResidualMembers(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner,
-        kotlinSequencesPkg: [InternedString]
+        interner: StringInterner
     ) {
+        let kotlinSequencesPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("sequences")],
+            symbols: symbols
+        )
+        _ = registerSyntheticSequenceStub(
+            packageFQName: kotlinSequencesPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
         let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
@@ -246,85 +260,6 @@ extension DataFlowSemaPhase {
             canThrow: true
         )
 
-        // shuffled() / shuffled(random): Sequence<T> (STDLIB-SEQ-019)
-        do {
-            let shuffledName = interner.intern("shuffled")
-            let shuffledFQName = sequenceFQName + [shuffledName]
-
-            func registerShuffledOverload(
-                parameters: [(name: String, type: TypeID)],
-                externalLinkName: String
-            ) {
-                let alreadyRegistered = symbols.lookupAll(fqName: shuffledFQName).contains { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                    return signature.parameterTypes.count == parameters.count
-                        && symbols.externalLinkName(for: symbolID) == externalLinkName
-                }
-                guard !alreadyRegistered else { return }
-
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: shuffledName,
-                    fqName: shuffledFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .operatorFunction]
-                )
-                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-                var parameterTypes: [TypeID] = []
-                var parameterSymbols: [SymbolID] = []
-                for parameter in parameters {
-                    let parameterName = interner.intern(parameter.name)
-                    let parameterSymbol = symbols.define(
-                        kind: .valueParameter,
-                        name: parameterName,
-                        fqName: shuffledFQName + [parameterName],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-                    parameterTypes.append(parameter.type)
-                    parameterSymbols.append(parameterSymbol)
-                }
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: parameterTypes,
-                        returnType: receiverType,
-                        valueParameterSymbols: parameterSymbols,
-                        valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
-                        valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                        typeParameterSymbols: [typeParamSymbol],
-                        typeParameterUpperBoundsList: [[]],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-
-            registerShuffledOverload(parameters: [], externalLinkName: "kk_sequence_shuffled")
-
-            if let randomSymbol = symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("random"),
-                interner.intern("Random"),
-            ]) {
-                let randomType = types.make(.classType(ClassType(
-                    classSymbol: randomSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                registerShuffledOverload(
-                    parameters: [("random", randomType)],
-                    externalLinkName: "kk_sequence_shuffled_random"
-                )
-            }
-        }
-
         // reversed(): Sequence<T> (STDLIB-SEQ-FN-099)
         registerSequenceMemberStub(
             named: "reversed",
@@ -339,5 +274,140 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+    }
+
+    func registerSequenceMemberStub(
+        named name: String,
+        externalLinkName: String,
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        sequenceSymbol: SymbolID,
+        sequenceFQName: [InternedString],
+        typeParamSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner,
+        annotations: [MetadataAnnotationRecord] = [],
+        canThrow: Bool = false,
+        typeParameterUpperBounds: [TypeID] = [],
+        typeParameterUpperBoundsList: [[TypeID]]? = nil,
+        additionalTypeParameterSymbols: [SymbolID] = [],
+        additionalTypeParameterUpperBoundsList: [[TypeID]] = [],
+        flags: SymbolFlags = [.synthetic, .operatorFunction]
+    ) {
+        let memberName = interner.intern(name)
+        let memberFQName = sequenceFQName + [memberName]
+        let requestedParameterTypes = parameters.map(\.type)
+        let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
+            ownerKind: .sequence,
+            memberName: name,
+            arity: parameters.count,
+            fallback: externalLinkName
+        )
+
+        if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes == requestedParameterTypes
+                && signature.returnType == returnType
+        }) {
+            // KSP-441〜447: source Sequence 関数が存在すれば、合成外部リンクで上書きしない。
+            if symbols.symbol(existing)?.declSite != nil {
+                return
+            }
+            symbols.setExternalLinkName(resolvedExternalLinkName, for: existing)
+            return
+        }
+
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: sequenceFQName,
+               receiverType: receiverType,
+               name: memberName,
+               arity: parameters.count,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
+
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: flags
+        )
+        symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
+        symbols.setExternalLinkName(resolvedExternalLinkName, for: memberSymbol)
+        if !annotations.isEmpty {
+            symbols.setAnnotations(annotations, for: memberSymbol)
+        }
+
+        var parameterTypes: [TypeID] = []
+        var parameterSymbols: [SymbolID] = []
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: memberFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
+            parameterTypes.append(parameter.type)
+            parameterSymbols.append(parameterSymbol)
+        }
+
+        let allTypeParameterSymbols = [typeParamSymbol] + additionalTypeParameterSymbols
+        let reifiedTypeParameterIndices = Set(
+            allTypeParameterSymbols.enumerated().compactMap { index, symbolID in
+                symbols.symbol(symbolID)?.flags.contains(.reifiedTypeParameter) == true ? index : nil
+            }
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                canThrow: canThrow,
+                valueParameterSymbols: parameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
+                valueParameterIsVararg: Array(repeating: false, count: parameters.count),
+                typeParameterSymbols: allTypeParameterSymbols,
+                reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+                typeParameterUpperBoundsList: (typeParameterUpperBoundsList ?? [typeParameterUpperBounds]) + additionalTypeParameterUpperBoundsList,
+                classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
+    }
+
+    func makeSyntheticIterableType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        let iterableFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: iterableSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
     }
 }

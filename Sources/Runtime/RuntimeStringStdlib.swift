@@ -85,8 +85,8 @@ func runtimeStringTrimWithPredicate(
 
 // MARK: - STDLIB-TEXT-FN-026: intern
 
-@_cdecl("kk_string_intern")
-public func kk_string_intern(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_intern")
+public func __kk_string_intern(_ strRaw: Int) -> Int {
     return strRaw
 }
 
@@ -194,24 +194,15 @@ public func __kk_string_compareTo_locale_flat(
     )
 }
 
+// KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are Kotlin property
+// initializers now (Stdlib/kotlin/text/StringNormalize.kt); the rawValue
+// ordering below must stay in sync with the tags assigned there.
 private enum NormalizationFormTag: Int {
     case nfc = 0
     case nfd = 1
     case nfkc = 2
     case nfkd = 3
 }
-
-@_cdecl("__kk_normalization_form_nfc")
-public func __kk_normalization_form_nfc() -> Int { NormalizationFormTag.nfc.rawValue }
-
-@_cdecl("__kk_normalization_form_nfd")
-public func __kk_normalization_form_nfd() -> Int { NormalizationFormTag.nfd.rawValue }
-
-@_cdecl("__kk_normalization_form_nfkc")
-public func __kk_normalization_form_nfkc() -> Int { NormalizationFormTag.nfkc.rawValue }
-
-@_cdecl("__kk_normalization_form_nfkd")
-public func __kk_normalization_form_nfkd() -> Int { NormalizationFormTag.nfkd.rawValue }
 
 private func runtimeNormalizedString(_ source: String, formTagRaw: Int) -> String {
     guard let form = NormalizationFormTag(rawValue: formTagRaw) else {
@@ -266,9 +257,6 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
@@ -303,9 +291,6 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     let ignoreCase = ignoreCaseRaw != 0
     let limit = limitRaw
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
@@ -445,19 +430,16 @@ public func __kk_string_codePointCount_range(
     )
 }
 
+// KUU-634: CharArray elements are UTF-16 code units, so decode them through
+// the UTF-16 helper — surrogate pairs recombine and isolated surrogates
+// survive via the marker representation (the old scalar loop dropped them).
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {
         return runtimeMakeStringRaw("")
     }
-    var scalars = String.UnicodeScalarView()
-    for i in 0..<box.elements.count {
-        let charValue = kk_unbox_char(box.elements[i])
-        if let scalar = UnicodeScalar(charValue) {
-            scalars.append(scalar)
-        }
-    }
-    return runtimeMakeStringRaw(String(scalars))
+    let units = box.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(units))
 }
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source

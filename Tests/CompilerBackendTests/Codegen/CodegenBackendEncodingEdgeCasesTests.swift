@@ -123,11 +123,8 @@ struct CodegenBackendEncodingEdgeCasesTests {
     }
 
     /// KSP-481: HexFormat customization (byteSeparator/prefix/suffix/removeLeadingZeros)
-    /// is only reachable through the ordinary named-argument constructor here, not the
-    /// `HexFormat { }` builder lambda real kotlinc supports -- see the constraints
-    /// documented at the top of Stdlib/kotlin/io/encoding/HexFormat.kt. That gap keeps
-    /// this scenario out of Scripts/diff_cases (which requires kotlinc parity), so it is
-    /// pinned here against a hardcoded expected output instead.
+    /// is exercised through the ordinary named-argument constructor here, so this
+    /// scenario is pinned against a hardcoded expected output instead of a diff case.
     @Test
     func testCodegenCompilesHexFormatCustomization() throws {
         let source = """
@@ -154,8 +151,7 @@ struct CodegenBackendEncodingEdgeCasesTests {
             }
             println(HexFormat.Default.upperCase)
             println(HexFormat(byteSeparator = "-").bytes.byteSeparator)
-            val custom = HexFormat()
-            custom.number.prefix = "0x"
+            val custom = HexFormat(prefix = "0x")
             println(255.toHexString(custom))
         }
         """
@@ -193,8 +189,9 @@ struct CodegenBackendEncodingEdgeCasesTests {
             println(malformed.decodeToString(0, 2, false).length > 0)
             try {
                 println(malformed.decodeToString(0, 2, true))
-            } catch (e: Throwable) {
-                println("caught")
+            } catch (e: Exception) {
+                println("caught: ${e.message}")
+                println(e is kotlin.text.CharacterCodingException)
             }
         }
         """
@@ -207,7 +204,8 @@ struct CodegenBackendEncodingEdgeCasesTests {
                 bcd
                 abcdef
                 true
-                caught
+                caught: Input length = 1
+                true
                 """
                 + "\n"
         )

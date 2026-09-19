@@ -160,6 +160,21 @@ public fun IntArray.sortedArrayDescending(): IntArray {
     return result
 }
 
+public fun IntArray.sort() {
+    val n = this.size
+    var i = 1
+    while (i < n) {
+        val element = this[i]
+        var j = i - 1
+        while (j >= 0 && this[j] > element) {
+            this[j + 1] = this[j]
+            j -= 1
+        }
+        this[j + 1] = element
+        i += 1
+    }
+}
+
 public fun IntArray.binarySearch(element: Int, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex

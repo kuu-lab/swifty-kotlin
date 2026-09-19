@@ -38,9 +38,10 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 11 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。詳細は該当節） |
+| DEBT-DIFF-007 | 10 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
+| DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -275,16 +276,16 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 - **ハーネス側の修正(1件)**: `Scripts/diff_kotlinc.sh` に `KOTLINC_TEST_JAR`(`kotlin-test.jar` 自動解決、`KOTLINC_STDLIB_JAR`/`KOTLINC_REFLECT_JAR` と同じ仕組み)を追加。`test_framework_basic.kt` の ref 側失敗は `kotlin.test.*` が reference のクラスパスに無いだけで、候補側(kswiftc)は元々正しく動いていた。
 - **コンパイラ本体の修正(1件、DEBT-DIFF-007 調査の副産物)**: `error_parameters.kt` の triage 中に、`varargFun(name = "bad", 1, 2)`(named引数の後に来る positional 引数が、宣言順序上その named引数より前にある vararg パラメータへ逆流して束縛される)を kswiftc が誤って受理する実バグを発見・修正した。`Sources/CompilerCore/Sema/Resolution/Resolution+TypeConstraints.swift` の `buildParameterMapping` に `maxBoundParamIndex`(そこまでに束縛済みの最大パラメータ index)を追加し、named引数の後の positional 引数が vararg パラメータへ束縛される際に「宣言順序が逆行していないか」を検証するよう修正(回帰は `error_parameters.kt` の golden ケースで固定、既存の `OverloadResolverTests` 79件は無回帰を確認済み)。
 
-以下、現行タグ11件を分類ごとに記載する（2026-09-04 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
+以下、現行タグ10件を分類ごとに記載する（2026-09-16 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
 
-### グループ2: enum/data class/interface(残り6件)
+### グループ2: enum/data class/interface(残り5件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
 | `context_receivers.kt` | kotlinc 2.4 の named `context(name: Type)` 構文に kswiftc パーサーが未対応(旧・匿名 context 型リストのみ対応)で、Sema も最初の context 型を extension receiver に読み替えるだけでネストしたスコープに伝播しない | context parameter の設計を要する中規模タスク(クイックパッチ不可) |
 | `data_class_inheritance.kt` | 意図的な負テスト(コメントで明言)だが、ネストしたクラス(`Container.Outer : Inner`)が `validateSupertypesAreOpen` の対象外になっている点は独立した実バグ | 診断golden(DEBT-DIFF-006の`error_type_inference.kt`と同方針)へ移設し、ネストクラスのopen検証漏れは別途調査 |
 | `data_class_inheritance_valid.kt` | `if (other !is BaseEntity) return false` のようなガード節後、`other` の smart-cast 状態が後続コードへ伝播しない(`ControlFlowTypeChecker.inferIfExpr` は else 無しの分岐の flowState をブロック内の後続文へ引き継がない設計)。広範囲に影響しうる一般的なcorrectnessギャップ。2ファイル(L17/L44)がdata class ctorのval/var欠落という別ミスも持つ | `ExprTypeChecker.blockExpr` の逐次処理が現状 statement ごとに同じ `ctx` を使い回しており、Nothing型分岐後のflowStateを次のstatementへ運んでいない。`inferExpr`/`inferIfExpr` の戻り値契約を拡張する必要がある中規模タスク |
-| `enum_basic.kt`(未解除、範囲縮小) | 元々の root cause だった「明示的companionがあると`values()`/`valueOf()`/`entries`の合成がスキップされる」「`EnumEntries<T>`が空マーカーで`.size`等が解決できない」の2点は2026-07-29に実装・修正済み(下記「2026-07-29 enum修正」参照)。残る唯一のブロッカーは別バグ: enum の companion object に**ユーザー自身が定義した**関数(`fun opposite(...)`)が `EnumClass.opposite(...)` 静的呼び出し構文で解決できない(`Unresolved member function`)。values()/entries等の合成メンバーとは無関係の既存バグで、companion なしの2026-07-29修正前のmasterでも同じ症状を確認済み(再現: `enum class D { A,B; companion object { fun f(): Int = 1 } }; fun main() { D.f() }`) | companion object の**ユーザー宣言**メンバーが `EnumClass.member()` 構文で解決できない root cause を調査(合成メンバー用に新設した経路と、既存のcompanion member解決経路の相互作用を疑う) |
+| ~~`enum_basic.kt`~~ | 解除済み（2026-09-16、collection HOF lambda の enum 引数を `kk_unbox_int` で正規化。`entries.find`/`values().find` と enum constructor property の組み合わせを回帰テスト・diff で確認） | — |
 | `enum_edge_cases.kt`(未解除、範囲縮小) | 同じく values()/entries 側は2026-07-29修正で解消。残るブロッカーは、entry 固有 body を持つ enum 定数(`C { override fun toString() = "C-special" }`)を `ComplexEnum.C` の形で参照すると `Ambiguous overload resolution` + `Unresolved member function 'C'` になる別バグ(未調査) | entry-specific body を持つ enum 定数の `EnumClass.ENTRY` 参照を調査 |
 | `generic_typealias.kt` | `typealias A = B` / `typealias B = A` の循環定義が使用箇所でしか検出されず(`Helpers+TypeAliasExpansion.swift`)、未使用ならコンパイルが通ってしまう | 宣言済み typealias 全件に対する eager cycle check を追加 |
 | ~~`comparable_interface.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：ローカル generic 関数・nullable 比較を実kotlinc互換に修正） | — |
@@ -293,7 +294,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 #### 2026-07-29 enum修正(`enum_entries_function.kt` は解除済み)
 
-上表の `enum_basic.kt`/`enum_edge_cases.kt` の root cause として記載されていた、(1) enum が明示的 companion object を持つと `values()`/`valueOf()`/`entries` の合成がスキップされる、(2) `EnumEntries<T>` が空マーカーで `.size`/`.forEach` 等が解決できない、の2点を実装・修正した(`HeaderCollection.swift`, `HeaderHelpers+SyntheticEnumStubs.swift`, `DataEnumSealedSynthesisPass+EnumSynthesis.swift`, `CompilerKnownNames.swift`。回帰は `Tests/CompilerCoreTests/Sema/EnumAPISurfaceInventoryTests.swift`、`Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests+EnumEntriesEdgeCases.swift`、新規 `Scripts/diff_cases/enum_values_and_entries.kt`)。`enum_entries_function.kt`(`enumEntries<Color>()` トップレベル関数版)はこの修正で candidate 側が通るようになり、ref 側の残エラーが `import kotlin.enums.enumEntries` 欠落という test input mistake だったため、import を追加して `SKIP-DIFF` を解除した。`enum_basic.kt`/`enum_edge_cases.kt` は上表の通り別バグで依然ブロックされている。
+上表の `enum_basic.kt`/`enum_edge_cases.kt` の root cause として記載されていた、(1) enum が明示的 companion object を持つと `values()`/`valueOf()`/`entries` の合成がスキップされる、(2) `EnumEntries<T>` が空マーカーで `.size`/`.forEach` 等が解決できない、の2点を実装・修正した(`HeaderCollection.swift`, `HeaderHelpers+SyntheticEnumStubs.swift`, `DataEnumSealedSynthesisPass+EnumSynthesis.swift`, `CompilerKnownNames.swift`。回帰は `Tests/CompilerCoreTests/Sema/EnumAPISurfaceInventoryTests.swift`、`Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests+EnumEntriesEdgeCases.swift`、新規 `Scripts/diff_cases/enum_values_and_entries.kt`)。`enum_entries_function.kt`(`enumEntries<Color>()` トップレベル関数版)はこの修正で candidate 側が通るようになり、ref 側の残エラーが `import kotlin.enums.enumEntries` 欠落という test input mistake だったため、import を追加して `SKIP-DIFF` を解除した。さらに2026-09-16、collection HOF lambda の enum 引数を入口で `kk_unbox_int` に正規化する実装を追加し、`enum_basic.kt` の `entries.find`/`values().find` と enum constructor property の組み合わせを解消した。`enum_edge_cases.kt` は entry-specific body の参照バグで依然ブロック中。
 
 ### グループ3: common stdlib gap(残り1件)
 
@@ -363,6 +364,40 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | case | 結果 |
 | --- | --- |
 | `script_runtime_exception_before_output.kt` | `SKIP-DIFF` — 分類修正の診断に使った最小 repro として保持。`--force-run-skipped` で `script exit mismatch: ref=3 candidate=1` と正しく報告されることを確認済み（旧実装では `compile exit mismatch: ref=3 candidate=0` と誤診断し、stderr も両側空で表示されていた） |
+
+## DEBT-DIFF-010: sequence/iterator builder の yieldAll(sequence) 遅延評価順序ギャップ
+
+KSP-1519（`sequence`/`iterator` builder トップレベル関数の Kotlin 化）のテスト追加（ticket が要求する「yieldAll(sequence) の遅延評価順序ケース」）で発見。本バグの機構に関わる `__kk_sequence_builder_yieldAll`/`RuntimeSequenceCoroutine` は KSP-1519 で変更していないため同 PR が原因ではなく、分岐元コミット `3e3545a536` から存在する既存バグと確認済み（詳細な原因分析は BUG-255 を参照）。同 PR は同じファイル内の別関数 `__kk_iterator_builder_build` の ABI パラメータ数不一致（CI の `RuntimeABIExternalLinkValidationTests` で検出、本バグとは無関係）を修正しているため、`Sources/Runtime/` ディレクトリ全体としては無変更ではない。
+
+| case | 結果 |
+| --- | --- |
+| `sequence_yieldall_lazy_order.kt` | `SKIP-DIFF` — real kotlinc と kswiftc の出力が構造的に発散する最小 repro として保持 |
+
+症状（`bash Scripts/diff_kotlinc.sh --keep-temp Scripts/diff_cases/sequence_yieldall_lazy_order.kt`）:
+
+```
+--- ref_run_stdout.norm
++++ cand_run_stdout.norm
+@@ -1,7 +1,9 @@
+ start
+ outer:before
+ inner:1
+-1
+ inner:2
++inner:3
++outer:after
++1
+ 2
+ stop early
+```
+
+real kotlinc は `next()` を呼ぶたびに要素を1個ずつ pull して producer 側と interleave するが、kswiftc は最初の `next()` が返る前に、内側シーケンス全体（`inner:3` まで）はおろか外側 builder 自身の `yieldAll` 呼び出し以降の残り本体（`outer:after`）まで同期的に実行し尽くす。
+
+根本原因（`Sources/Runtime/RuntimeSequenceBuilders.swift` の `__kk_sequence_builder_yieldAll`）: CPS 経路（`RuntimeSequenceCoroutineBuilderProxy` 分岐）は `runtimeTraverseSequence(seq, ...) { elem in _ = proxy.coroutine.yieldValue(elem); return true }` で内側シーケンスをネイティブ Swift クロージャコールバックとして同期的に traverse し、`yieldValue` が CPS producer 用に返す `COROUTINE_SUSPENDED` センチネルを `_ = ...` で握り潰す。legacy thread-backed 経路（`runtimeSequenceBuilderBox` 分岐）も `builder.elements.append(contentsOf: elements)` で全要素を即時 materialize しており、両経路とも構造的に eager。
+
+KIR 実測（`--emit kir`）で、`yieldAll(inner)` は `call __kk_sequence_builder_yieldAll symbol=yieldAll args=[builder, innerSeq] thrown=true` という単一呼び出しへ解決され、`innerSeq` は先行する `.iterator()` 呼び出しの結果ではなく捕捉済みローカルへの直接参照（`symbolRef`）であることを確認した。`SequenceScope.kt` の `yieldAll(sequence: Sequence<T>): Unit = yieldAll(sequence.iterator())` という Kotlin source 委譲本体（`.iterator()` を経由するはず）は実行されていない（dead code）。`symbol` が nil でなく `thrown=true` である点から、`CollectionLiteralLoweringPass+CallRewriteSequenceBuilders.swift` の raw-name 書き換え分岐（`symbol: nil, canThrow: false` を設定）ではなく、`CallLowerer+MemberCallEmission.swift` の `sequenceBuilderRuntimeCalleeName`（解決済み symbol の owner が `kotlin.sequences.SequenceScope` であれば通常の member-call emission 時にコールバック名を runtime bridge へ差し替える経路）が実際に発火しているとみられる。`yield`/`yieldAll` のディスパッチには他にも独立した機構が存在する: `CallTypeChecker+BuilderDSL.swift:1107-1129` にも `externalLinkName == "__kk_sequence_builder_yieldAll"` を条件にした専用オーバーロード選択があるが、`rg -n 'externalLinkName' Sources/CompilerCore/Sema/ | rg -i 'sequence|yield'` で確認した限り、現行コードベースには `SequenceScope.yieldAll` のいずれのオーバーロードにもこの externalLinkName を設定する setter が存在せず、この選択ロジックは常に false（到達不能）と確認済み。いずれの経路でも「元の Kotlin 引数をそのまま runtime bridge へ転送し、委譲 body 自体は実行しない」という結果は同じであり、dead-body の結論と runtime 側の根本原因は変わらない。
+
+次アクション: `RuntimeSequenceCoroutine`（`Sources/Runtime/RuntimeTypes.swift`）へ「サブイテレータへ委譲中」状態を追加し、`nextElement()`/`nextElementAsync()` がこの状態を消費側 pull のたびにチェックして初めて内側シーケンスから1要素引き出す設計に変更する（CPS・legacy thread 両 producer 経路と `RuntimeSequence.swift` の `.lazyBuilder` traversal に影響する coroutine ランタイム自体の再設計）。BUG-255 で追跡。
 
 ## 解除手順
 

@@ -117,6 +117,63 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
     }
 
+    /// KSP-697: after List became source-backed, ControlFlowLowerer can emit
+    /// generic Iterator operations for the source declaration. Once the
+    /// iterator itself is proven to be the concrete list bridge, this pass
+    /// must restore the specialized hasNext/next calls.
+    @Test
+    func testConcreteListIteratorOperationsRewriteToSpecializedBridges() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let listSymbol = defineNominalSymbol(name: "List", interner: interner, symbols: symbols)
+        let listType = types.make(.classType(ClassType(classSymbol: listSymbol)))
+
+        let list = arena.appendExpr(.temporary(0), type: listType)
+        let iterator = arena.appendExpr(.temporary(1), type: types.anyType)
+        let hasNext = arena.appendExpr(.temporary(2), type: types.booleanType)
+        let next = arena.appendExpr(.temporary(3), type: types.anyType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_list_iterator"),
+                    arguments: [list],
+                    result: iterator,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterator_hasNext"),
+                    arguments: [iterator],
+                    result: hasNext,
+                    canThrow: true,
+                    thrownResult: arena.appendTemporary(type: types.anyType)
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterator_next"),
+                    arguments: [iterator],
+                    result: next,
+                    canThrow: true,
+                    thrownResult: arena.appendTemporary(type: types.anyType)
+                ),
+            ],
+            interner: interner,
+            arena: arena
+        )
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(callees.contains("kk_list_iterator"), "List iterator acquisition must remain specialized, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_hasNext"), "List hasNext must use the specialized bridge, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_next"), "List next must use the specialized bridge, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_hasNext"), "Proven list iterator must not keep generic hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_next"), "Proven list iterator must not keep generic next, got: \(callees)")
+    }
+
     /// KSP-699: `mutableListOf` declares a `MutableList` result, so it takes the
     /// ArrayList-tagged bridge like `arrayListOf`. `__kk_list_of` tags its box as
     /// the read-only `List`, which made `is MutableList` answer false.
@@ -219,7 +276,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testLinkedMapOfRewrittenToKkMapOf() throws {
+    func testLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let pair = arena.appendExpr(.temporary(0))
@@ -244,7 +301,10 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "linkedMapOf should become __kk_map_of")
+        // KUU-556: linkedMapOf is declared to return LinkedHashMap<K, V>, now a
+        // real HashMap subclass, so it gets its own runtime tag instead of the
+        // generic __kk_map_of hashMapOf/mutableMapOf still share.
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf should become __kk_linked_hash_map_of")
     }
 
     @Test
@@ -309,8 +369,16 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_emptyMap"), "emptyMap should become __kk_emptyMap")
     }
 
+    /// A `count(predicate)` call on a Map receiver with `symbol: nil` — the
+    /// only shape that ever reached the deleted `+CallRewriteFactories.swift`
+    /// branch, since a real compiled `map.count { ... }` always carries a
+    /// resolved `MapHOF.kt` symbol and `isSourceBackedBundledFunction` was
+    /// therefore always true (see `MapCountLoweringRoutingTests`). With the
+    /// branch gone, this synthetic shape now falls through untouched, the
+    /// same outcome the branch produced for every symbol-carrying call it
+    /// could ever have actually seen.
     @Test
-    func testMapCountRewriteToKkMapCount() throws {
+    func testMapCountSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -356,13 +424,13 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("count"), "map.count should be rewritten")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_count"), "count on map should become kk_map_count")
+        #expect(callees.contains("count"), "map.count(predicate) must survive as a source call")
+        #expect(!callees.contains("kk_map_count"), "kk_map_count has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAnyRewriteToKkMapAny() throws {
+    func testMapAnySurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -405,15 +473,20 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: the Map `any` rewrite this test used to pin was
+        // unreachable in production (see MapHOFLoweringRoutingTests) and has
+        // been deleted. With no symbol attached, `any` now simply survives as
+        // a plain call — the same outcome a resolved, source-backed `any`
+        // gets from the source-backed preservation gate.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("any"), "map.any should be rewritten")
+        #expect(callees.contains("any"), "map.any has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
+        #expect(!callees.contains("kk_map_any"), "kk_map_any has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAllRewriteToKkMapAll() throws {
+    func testMapAllSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -456,15 +529,16 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("all"), "map.all should be rewritten")
+        #expect(callees.contains("all"), "map.all has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
+        #expect(!callees.contains("kk_map_all"), "kk_map_all has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapNoneRewriteToKkMapNone() throws {
+    func testMapNoneSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -507,11 +581,12 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("none"), "map.none should be rewritten")
+        #expect(callees.contains("none"), "map.none has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
+        #expect(!callees.contains("kk_map_none"), "kk_map_none has no @_cdecl in Runtime and must never be emitted")
     }
 
     // MARK: - emptySet rewriting
@@ -687,7 +762,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgLinkedMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedMapOf")
@@ -698,7 +773,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "linkedMapOf() should become __kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
     }
 
     @Test
@@ -803,8 +878,8 @@ struct CollectionLiteralLoweringTests {
 
     // MARK: - buildList is served by CollectionBuilders.kt (RF-LOWER-CALL-004)
 
-    /// `symbol: nil` used to take the unconditional `return true` branch of
-    /// `isStdlibBuilderDSLCall` and rewrite to `__kk_build_list`.  Both
+    /// `symbol: nil` used to take the unconditional legacy-builder branch and
+    /// rewrite to `__kk_build_list`. Both
     /// overloads now come from `CollectionBuilders.kt`, so the legacy runtime
     /// entry point is gone and even a nil-symbol call must be left alone.
     @Test
@@ -931,7 +1006,7 @@ struct CollectionLiteralLoweringTests {
     /// declaration and is left alone — `BuilderDSLLoweringRoutingTests` pins
     /// that from source.  RF-LOWER-CALL-005 removed the legacy
     /// `__kk_build_set` rewrite, so even this hand-built `symbol: nil` shape —
-    /// the branch that used to short-circuit `isStdlibBuilderDSLCall` to
+    /// the branch that used to short-circuit the legacy builder predicate to
     /// `true` — must now pass through untouched.
     @Test
     func testBuildSetIsNotRewritten() throws {
@@ -994,12 +1069,12 @@ struct CollectionLiteralLoweringTests {
     // MARK: - buildMap is no longer rewritten (RF-LOWER-CALL-006)
 
     /// `buildMap` is supplied entirely by `CollectionBuilders.kt`, so the
-    /// legacy `__kk_build_map*` rewrite was removed.  These cases use the
-    /// `symbol: nil` hand-built shape that used to bypass every guard in
-    /// `isStdlibBuilderDSLCall` via `guard let symbol else { return true }` —
+    /// legacy `__kk_build_map*` rewrite was removed. These cases use the
+    /// `symbol: nil` hand-built shape that used to bypass every legacy-builder
+    /// guard via `guard let symbol else { return true }` —
     /// the strongest input the rewrite ever accepted.  It must now fall
     /// through untouched, which only holds while `buildMap` stays out of
-    /// `builderDSLNames`.
+    /// the retired Builder DSL lookup.
     @Test(arguments: [1, 2])
     func testBuildMapIsNotRewrittenToRuntimeBuilder(argumentCount: Int) throws {
         let interner = StringInterner()
@@ -1235,8 +1310,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnMapTypedParameterRewritesToKkMapSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "size")
         #expect(
-            callees.contains("kk_map_size"),
-            "virtualCall(size) on Map-typed parameter should be rewritten to kk_map_size, got: \(callees)"
+            callees.contains("__kk_map_size"),
+            "virtualCall(size) on Map-typed parameter should be rewritten to __kk_map_size, got: \(callees)"
         )
     }
 
@@ -1325,13 +1400,28 @@ struct CollectionLiteralLoweringTests {
         return calleesInDecl(declID, module: module, interner: interner)
     }
 
+    /// RF-LOWER-CALL-013: `toList` on every array receiver class (generic,
+    /// primitive, unsigned) is a bundled Kotlin declaration (ArrayConversions.kt
+    /// / UArrays.kt), and real calls to it never reach lowering as
+    /// `.virtualCall` in the first place — Array member/extension calls are
+    /// always statically resolved to `.call` (CallLowerer never emits
+    /// `.virtualCall` for them), so the array-specific virtual-dispatch
+    /// rewrite this test used to pin (`+VirtualCallRewrite+Array.swift`,
+    /// deleted with this task) could only ever fire on a hand-built KIR
+    /// fixture like this one, never on compiler output. What survives now is
+    /// that an unresolved `toList` `virtualCall` on an Array-typed receiver
+    /// is left untouched rather than redirected to the removed
+    /// `__kk_array_toList` runtime shortcut — it falls through as a
+    /// `virtualCall`, not a `.call`, so `calleesInDecl` (which only extracts
+    /// `.call` callees) reports none at all.
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayToList() throws {
+    func testVirtualCallOnArrayTypedParameterLeavesToListUnrewritten() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
         #expect(
-            callees.contains("__kk_array_toList"),
-            "virtualCall(toList) on Array-typed parameter should be rewritten to __kk_array_toList, got: \(callees)"
+            !callees.contains("__kk_array_toList"),
+            "virtualCall(toList) on Array-typed parameter must not be rewritten to the removed __kk_array_toList shortcut, got: \(callees)"
         )
+        #expect(callees.isEmpty, "the unresolved call should fall through as an untouched virtualCall, got: \(callees)")
     }
 
     @Test
@@ -1396,8 +1486,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnMapTypedParameterRewritesToKkMapIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "isEmpty")
         #expect(
-            callees.contains("kk_map_is_empty"),
-            "virtualCall(isEmpty) on Map-typed parameter should be rewritten to kk_map_is_empty, got: \(callees)"
+            callees.contains("__kk_map_is_empty"),
+            "virtualCall(isEmpty) on Map-typed parameter should be rewritten to __kk_map_is_empty, got: \(callees)"
         )
     }
 

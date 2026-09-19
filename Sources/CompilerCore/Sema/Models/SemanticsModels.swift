@@ -68,6 +68,13 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// scope for a top-level `private class`) instead of a class-hierarchy check,
     /// without loosening genuinely explicit `private constructor` declarations.
     public static let constructorVisibilityInherited = SymbolFlags(rawValue: 1 << 23)
+    /// Marks the synthetic member alias created for a source-backed bundled
+    /// extension function under its receiver nominal's FQ name (KSP-443). The
+    /// alias exists solely for owner+member-name lookup — it is statically
+    /// dispatched through its external link name and must never occupy a
+    /// vtable/itable slot or be treated as a real member of the nominal
+    /// (KUU-545).
+    public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -171,6 +178,16 @@ public struct FunctionSignature: Hashable, Sendable {
         self.typeParameterUpperBoundsList = normalizedUpperBoundsList
         self.typeParameterUpperBounds = normalizedUpperBoundsList.map(\.first)
         self.classTypeParameterCount = classTypeParameterCount
+    }
+}
+
+public struct EnumEntryDispatchTarget: Hashable, Sendable {
+    public let entrySymbol: SymbolID
+    public let functionSymbol: SymbolID
+
+    public init(entrySymbol: SymbolID, functionSymbol: SymbolID) {
+        self.entrySymbol = entrySymbol
+        self.functionSymbol = functionSymbol
     }
 }
 
@@ -449,6 +466,8 @@ public final class SymbolTable {
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
+    private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
+    private var enumEntryDispatchTargets: [SymbolID: [EnumEntryDispatchTarget]] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
@@ -763,6 +782,25 @@ public final class SymbolTable {
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
         functionSignatures[symbol]
+    }
+
+    public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {
+        enumEntryDispatchSymbols[functionSymbol] = dispatchSymbol
+    }
+
+    public func enumEntryDispatchSymbol(for functionSymbol: SymbolID) -> SymbolID? {
+        enumEntryDispatchSymbols[functionSymbol]
+    }
+
+    public func setEnumEntryDispatchTargets(
+        _ targets: [EnumEntryDispatchTarget],
+        for dispatchSymbol: SymbolID
+    ) {
+        enumEntryDispatchTargets[dispatchSymbol] = targets
+    }
+
+    public func enumEntryDispatchTargets(for dispatchSymbol: SymbolID) -> [EnumEntryDispatchTarget] {
+        enumEntryDispatchTargets[dispatchSymbol] ?? []
     }
 
     public func setPropertyType(_ type: TypeID, for symbol: SymbolID) {
@@ -1343,6 +1381,14 @@ public final class BindingTable {
     /// chain is a bare namespace path, not a real value, so it is never type
     /// -checked and must not be lowered as one.
     public private(set) var fqnTopLevelCallExprIDs: Set<ExprID> = []
+    /// Tracks namespace-qualified property and classifier expressions resolved
+    /// before their package-path receiver is type-checked. The receiver is a
+    /// qualifier such as `kotlin.math` or `kotlin`, not a runtime value.
+    public private(set) var fqnQualifiedValueExprIDs: Set<ExprID> = []
+    /// Tracks `.memberCall` expressions resolved as constructors of a static
+    /// nested class (for example, `Outer.Inner()`): the type qualifier is not
+    /// an instance receiver and must not be passed to the constructor ABI.
+    public private(set) var typeQualifiedConstructorCallExprIDs: Set<ExprID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
@@ -1823,6 +1869,29 @@ public final class BindingTable {
         fqnTopLevelCallExprIDs.contains(expr)
     }
 
+    /// Mark a namespace-qualified property or classifier expression whose
+    /// receiver path must not be lowered as a runtime value.
+    public func markFQNQualifiedValueExpr(_ expr: ExprID) {
+        fqnQualifiedValueExprIDs.insert(expr)
+    }
+
+    /// Whether this expression's receiver is a namespace-only qualifier path.
+    public func isFQNQualifiedValueExpr(_ expr: ExprID) -> Bool {
+        fqnQualifiedValueExprIDs.contains(expr)
+    }
+
+    /// Mark a `.memberCall` expression as a constructor call through a type
+    /// qualifier rather than an instance receiver (`Outer.Inner()`).
+    public func markTypeQualifiedConstructorCallExpr(_ expr: ExprID) {
+        typeQualifiedConstructorCallExprIDs.insert(expr)
+    }
+
+    /// Whether the call expression must lower its constructor without lowering
+    /// the type qualifier as a runtime receiver.
+    public func isTypeQualifiedConstructorCallExpr(_ expr: ExprID) -> Bool {
+        typeQualifiedConstructorCallExprIDs.contains(expr)
+    }
+
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
     public func markCoroutineLauncherLambdaExpr(_ expr: ExprID) {
         coroutineLauncherLambdaExprIDs.insert(expr)
@@ -1895,6 +1964,11 @@ public final class SemaModule {
     public let types: TypeSystem
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
+    /// String interner used to recover source-level nominal names while
+    /// resolving compiler-wide type shapes (for example `CharArray` spread
+    /// arguments passed to a vararg parameter). Kept optional for lightweight
+    /// unit-test sema modules that do not build a full source environment.
+    public let interner: StringInterner?
     public var importedInlineFunctions: [SymbolID: KIRFunction]
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
@@ -1912,12 +1986,14 @@ public final class SemaModule {
         types: TypeSystem,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
+        interner: StringInterner? = nil,
         importedInlineFunctions: [SymbolID: KIRFunction] = [:]
     ) {
         self.symbols = symbols
         self.types = types
         self.bindings = bindings
         self.diagnostics = diagnostics
+        self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
     }
@@ -1932,6 +2008,7 @@ public final class SemaModule {
         types: TypeSystem,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
+        interner: StringInterner? = nil,
         importedInlineFunctions: [SymbolID: KIRFunction] = [:],
         bundledIndex: BundledDeclarationIndex
     ) {
@@ -1939,6 +2016,7 @@ public final class SemaModule {
         self.types = types
         self.bindings = bindings
         self.diagnostics = diagnostics
+        self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex
     }

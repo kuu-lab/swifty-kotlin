@@ -103,6 +103,61 @@ extension DeclTypeChecker {
             solver: solver,
             diagnostics: diagnostics
         )
+        typeCheckEnumEntryMemberBodies(
+            classDecl,
+            enumSymbol: symbol,
+            enumType: classType,
+            ctx: classCtx,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+    }
+
+    /// Type-checks functions declared in enum entry bodies with the enum type as
+    /// their receiver. The runtime representation is still the enum ordinal;
+    /// the separate entry scope only keeps these implementations out of normal
+    /// enum-member lookup until the ordinal dispatch helper is selected.
+    private func typeCheckEnumEntryMemberBodies(
+        _ classDecl: ClassDecl,
+        enumSymbol: SymbolID,
+        enumType: TypeID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty {
+            let entryFQName = (ctx.sema.symbols.symbol(enumSymbol)?.fqName ?? []) + [entry.name]
+            guard let entrySymbol = ctx.sema.symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
+                ctx.sema.symbols.symbol(symbolID)?.kind == .field
+                    && ctx.sema.symbols.parentSymbol(for: symbolID) == enumSymbol
+            }) else {
+                continue
+            }
+            let entryScope = buildClassMemberScope(
+                ownerSymbol: entrySymbol,
+                ownerType: enumType,
+                memberFunctions: entry.memberFunctions,
+                memberProperties: [],
+                nestedClasses: [],
+                nestedObjects: [],
+                ctx: ctx
+            )
+            let entryCtx = ctx.copying(
+                scope: entryScope,
+                implicitReceiverType: enumType,
+                currentDeclSymbol: entrySymbol,
+                enclosingClassSymbol: enumSymbol
+            )
+            typeCheckClassLikeMembers(
+                memberFunctions: entry.memberFunctions,
+                memberProperties: [],
+                nestedClasses: [],
+                nestedObjects: [],
+                ctx: entryCtx,
+                solver: solver,
+                diagnostics: diagnostics
+            )
+        }
     }
 
     func typeCheckClassDelegation(

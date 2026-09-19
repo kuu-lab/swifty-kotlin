@@ -328,6 +328,74 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-704: make the source-backed set nominals available before collection
+    /// residuals register their Sequence/Iterable/Array overloads. The normal
+    /// header pass later fills these symbols with the complete Kotlin source
+    /// declarations.
+    func predeclareBundledSetHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let kotlinCollectionsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let bundledSetFileNominals = [
+            "Set.kt": "Set",
+            "MutableSet.kt": "MutableSet",
+            "HashSet.kt": "HashSet",
+            "LinkedHashSet.kt": "LinkedHashSet",
+        ]
+
+        for file in ast.sortedFiles where
+            sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+        {
+            let basename = sourceManager.path(of: file.fileID)
+                .split(separator: "/")
+                .last
+                .map(String.init) ?? ""
+            guard let nominalName = bundledSetFileNominals[basename],
+                  file.packageFQName == kotlinCollectionsPackage
+            else {
+                continue
+            }
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            let nominalSymbolName = interner.intern(nominalName)
+            guard file.topLevelDecls.contains(where: { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return classDecl.name == nominalSymbolName
+                case let .interfaceDecl(interfaceDecl):
+                    return interfaceDecl.name == nominalSymbolName
+                default:
+                    return false
+                }
+            }), symbols.lookup(fqName: kotlinCollectionsPackage + [nominalSymbolName]) == nil
+            else {
+                // An imported stdlib artifact already owns this nominal.
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1520: make the source-backed Comparator nominal available to early
     /// synthetic registrations without creating a duplicate declaration.
     func predeclareBundledComparatorHeaders(
@@ -377,6 +445,102 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1517: `Array<T>` and the primitive array types (`BooleanArray`,
+    /// `ByteArray`, ...) are source-backed nominal shells in
+    /// `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
+    /// `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
+    /// before the normal bundled header collection pass. Predeclare those
+    /// nominals so those signatures resolve without a synthetic array
+    /// anchor.
+    ///
+    /// Configurations with neither bundled stdlib source nor a merged
+    /// library import (e.g. `--no-stdlib`) never get a real declaration for
+    /// these names at all, so a bare synthetic shell is defined as a
+    /// fallback for whichever name is still unresolved afterward -- matching
+    /// what the deleted `HeaderHelpers+SyntheticArrayStubs.swift` did
+    /// unconditionally, but only as a last resort now.
+    func predeclareBundledArrayHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let arrayIntrinsicsPath = "__bundled_kotlin/ArrayIntrinsics.kt"
+        let kotlinPkg = [interner.intern("kotlin")]
+        let arrayClassNames = [
+            "Array", "BooleanArray", "ByteArray", "CharArray", "DoubleArray",
+            "FloatArray", "IntArray", "LongArray", "ShortArray", "UByteArray",
+            "UShortArray", "UIntArray", "ULongArray",
+        ].map { interner.intern($0) }
+
+        for file in ast.sortedFiles
+            where sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+                && sourceManager.path(of: file.fileID) == arrayIntrinsicsPath
+                && file.packageFQName == kotlinPkg
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            if symbols.lookup(fqName: kotlinPkg + [arrayClassNames[0]]) != nil {
+                // An imported stdlib artifact already owns the nominal. Do not
+                // predeclare the bundled source over that imported layout.
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+        let arrayFQName = kotlinPkg + [interner.intern("Array")]
+        let arraySymbol: SymbolID = if let existing = symbols.lookup(fqName: arrayFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .class,
+                name: interner.intern("Array"),
+                fqName: arrayFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if types.nominalTypeParameterSymbols(for: arraySymbol).isEmpty {
+            let tParamName = interner.intern("T")
+            let tParamSymbol = symbols.lookup(fqName: arrayFQName + [tParamName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: tParamName,
+                fqName: arrayFQName + [tParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            types.setNominalTypeParameterSymbols([tParamSymbol], for: arraySymbol)
+            types.setNominalTypeParameterVariances([.invariant], for: arraySymbol)
+        }
+        for name in arrayClassNames where name != arrayClassNames[0] {
+            let fqName = kotlinPkg + [name]
+            guard symbols.lookup(fqName: fqName) == nil else { continue }
+            _ = symbols.define(
+                kind: .class,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+    }
+
     /// KSP-711: forward-declares `Charset` and `Charsets` from
     /// `StringEncoding.kt` before synthetic FileIO bridges are registered.
     /// Their source symbols must be available while bridge signatures are
@@ -413,6 +577,39 @@ extension DataFlowSemaPhase {
             // visibility used by semantic inventory goldens. The normal header
             // pass still fills the source-backed declaration details.
             symbols.setDeclSite(nil, for: charsetSymbol)
+        }
+    }
+
+    /// KSP-717: forward-declares `java.util.Locale` from `Locale.kt` before
+    /// source-backed `String.Companion.format(locale, ...)` is collected. Its
+    /// nominal symbol must be available while the extension signature is
+    /// resolved; `collectAllHeaders` later fills in the complete header (the
+    /// two bridged constructors).
+    func predeclareBundledJavaUtilLocaleHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let localeFQName = [
+            interner.intern("java"),
+            interner.intern("util"),
+            interner.intern("Locale"),
+        ]
+        guard symbols.lookup(fqName: localeFQName) == nil else { return }
+
+        for file in ast.sortedFiles
+            where sourceManager.path(of: file.fileID) == "__bundled_java/util/Locale.kt"
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
         }
     }
 
@@ -466,6 +663,40 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1472: forward-declare the source-backed `kotlin.time.ExperimentalTime`
+    /// annotation before the experimental-time bootstrap attaches its residual
+    /// constructor and opt-in metadata.
+    func predeclareBundledExperimentalTimeHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("time")]
+        let targetName = interner.intern("ExperimentalTime")
+        for file in ast.sortedFiles
+            where sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+                && sourceManager.path(of: file.fileID) == "__bundled_kotlin/time/ExperimentalTime.kt"
+                && file.packageFQName == packageFQName
+        {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
             )
         }
     }
@@ -1120,6 +1351,23 @@ extension DataFlowSemaPhase {
                     symbols.setPropertyType(classType, for: entrySymbol)
                     classScope.insert(entrySymbol)
                 }
+                collectEnumEntryMemberHeaders(
+                    entries: classDecl.enumEntries,
+                    ownerFQName: fqName,
+                    ownerSymbol: symbol,
+                    enumType: classType,
+                    sourceFileID: file.fileID,
+                    ctx: ctx,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    bindings: bindings,
+                    scope: classScope,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: classTypeParamSymbols,
+                    classLocalTypeParameters: classLocalTypeParameters
+                )
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
@@ -1515,6 +1763,7 @@ extension DataFlowSemaPhase {
                     if !alreadyExists {
                         var aliasFlags = semanticSymbol.flags
                         aliasFlags.insert(.synthetic)
+                        aliasFlags.insert(.extensionMemberAlias)
                         let aliasSymbol = symbols.define(
                             kind: .function,
                             name: semanticSymbol.name,
@@ -1756,8 +2005,24 @@ extension DataFlowSemaPhase {
             // leave the bundled Kotlin declaration source-backed.
             || resolvedFQName == ["kotlin", "native", "runtime", "Debugging"]
             || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
+            // KSP-1305: mirror the IntProgression staged source-shell treatment
+            // for LongProgression's nominal and Companion.
+            || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
+            // declared in bundled source while early bootstrap still creates
+            // compatibility shells for their signatures.
+            || resolvedFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "AbstractLongTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "Clock"]
+            || resolvedFQName == ["kotlin", "time", "ComparableTimeMark"]
+            || resolvedFQName == ["kotlin", "time", "ExperimentalTime"]
+            || resolvedFQName == ["kotlin", "time", "Instant"]
+            || resolvedFQName == ["kotlin", "time", "TestTimeSource"]
+            || resolvedFQName == ["kotlin", "time", "TimeMark"]
+            || resolvedFQName == ["kotlin", "time", "TimeSource"]
+            || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]

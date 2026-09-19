@@ -329,23 +329,25 @@ extension CallLowerer {
             return interner.intern(runtimeLinkName)
         }
 
+        // KSP-1523: `contains`/`isEmpty` are also declared directly on the
+        // `ClosedRange<T>`/`ClosedFloatingPointRange<T>` interfaces UIntRange
+        // conforms to (HeaderHelpers+SyntheticRangeInterfaceStubs.swift), with
+        // no externalLinkName of their own. Overload resolution sometimes picks
+        // that interface member over the per-type bundled/synthetic one (or leaves
+        // no chosen callee for a scalar range representation), so check the
+        // receiver's concrete element type before requiring `chosenCallee`.
+        if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
+            memberName: fallbackName,
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        ) {
+            return closedRangeRuntimeName
+        }
+
         if let chosenCallee {
-            // KSP-1523: `contains`/`isEmpty` are also declared directly on the
-            // `ClosedRange<T>`/`ClosedFloatingPointRange<T>` interfaces UIntRange
-            // conforms to (HeaderHelpers+SyntheticRangeInterfaceStubs.swift), with
-            // no externalLinkName of their own. Overload resolution sometimes picks
-            // that interface member over the per-type bundled/synthetic one (its
-            // `chosenCallee` here has no link name at all), so check the
-            // receiver's concrete element type unconditionally instead of only
-            // as a fallback once `chosenCallee` already has a link name.
-            if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
-                memberName: fallbackName,
-                receiverType: receiverType,
-                sema: sema,
-                interner: interner
-            ) {
-                return closedRangeRuntimeName
-            }
             if sema.symbols.isSourceBackedSymbol(chosenCallee),
                let signature = sema.symbols.functionSignature(for: chosenCallee),
                let receiverType = signature.receiverType,
@@ -383,6 +385,7 @@ extension CallLowerer {
             if let setMember = runtimeBackedSetMemberCallee(
                 memberName: fallbackName,
                 receiverType: receiverType,
+                chosenCallee: chosenCallee,
                 sema: sema,
                 interner: interner
             ) {
@@ -604,10 +607,57 @@ extension CallLowerer {
 
     func closedRangeInterfaceRuntimeName(
         memberName: String,
+        receiverExpr: ExprID,
         receiverType: TypeID,
+        chosenCallee: SymbolID?,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
+        let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverExpr)
+            ?? sema.bindings.identifierSymbol(for: receiverExpr).flatMap {
+                sema.bindings.floatingPointRangeElementType(forSymbol: $0)
+            }
+        if let floatingPointElementType,
+           floatingPointElementType == sema.types.floatType || floatingPointElementType == sema.types.doubleType
+        {
+            let chosenContainsArgumentIsPrimitive: Bool = if let chosenCallee,
+                                                               let signature = sema.symbols.functionSignature(for: chosenCallee),
+                                                               let argumentType = signature.parameterTypes.first
+            {
+                if case .primitive = sema.types.kind(of: argumentType) {
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+            if memberName == "contains",
+               let chosenCallee,
+               let signature = sema.symbols.functionSignature(for: chosenCallee),
+               let argumentType = signature.parameterTypes.first,
+               sema.types.makeNonNullable(argumentType) != floatingPointElementType,
+               chosenContainsArgumentIsPrimitive
+            {
+                return nil
+            }
+            switch memberName {
+            case "contains":
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_contains"
+                        : "__kk_double_range_contains"
+                )
+            case "isEmpty":
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_isEmpty"
+                        : "__kk_double_range_isEmpty"
+                )
+            default:
+                break
+            }
+        }
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
               let closedRangeSymbol = sema.symbols.lookup(fqName: [
@@ -633,17 +683,16 @@ extension CallLowerer {
         }
         switch memberName {
         case "contains":
-            // KSP-1523: UInt values always fit the Int64 fields of the shared
-            // RuntimeRangeBox, so UIntRange can use the same bridge as signed
-            // ranges. ULong cannot (values above Int64.max need the dedicated
-            // unsigned-aware bridge), so it keeps its own name.
             if elementType == sema.types.ulongType {
-                return interner.intern("kk_ulong_range_contains")
+                // KSP-1524: ULong membership stays on the bundled Kotlin
+                // implementation; the signed bridge is not ULong-safe.
+                return nil
             }
             return interner.intern("__kk_range_contains")
         case "isEmpty":
             if elementType == sema.types.ulongType {
-                return interner.intern("kk_ulong_range_isEmpty")
+                // KSP-1524: source-backed ULongRange/ULongProgression member.
+                return nil
             }
             return interner.intern("__kk_range_isEmpty")
         default:

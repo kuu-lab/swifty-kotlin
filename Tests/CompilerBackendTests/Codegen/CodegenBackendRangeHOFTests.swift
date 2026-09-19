@@ -8,6 +8,30 @@ import Testing
 struct CodegenBackendRangeHOFTests {
 
     @Test
+    func testCodegenIntProgressionPositiveStepHOFs() throws {
+        let source = """
+        fun main() {
+            println((1..10 step 3).map { it })
+            println((1..10 step 3).filter { it > 4 })
+            val progression = 1..10 step 3
+            progression.forEach { print(it) }
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntProgressionPositiveStepHOFs",
+            expected:
+                """
+                [1, 4, 7, 10]
+                [7, 10]
+                14710
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapIndexed() throws {
         let source = """
         fun main() {
@@ -370,6 +394,112 @@ struct CodegenBackendRangeHOFTests {
                 [1, 3]
                 [[5, 4], [3, 2], [1]]
                 """ + "\n1 2 3 4 5 \n"
+        )
+    }
+
+    @Test
+    func testCodegenULongRangeMapFilterHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1uL..5uL).map { it * 2uL })
+            println((1uL..5uL).mapIndexed { index, value -> index.toULong() + value })
+            println((1uL..5uL).mapNotNull { if (it % 2uL == 0uL) null else it })
+            println((1uL..5uL).filter { it % 2uL == 1uL })
+            println((1uL..5uL).filterIndexed { index, _ -> index % 2 == 0 })
+            println((1uL..5uL).filterNot { it % 2uL == 0uL })
+            println((5uL..1uL).mapNotNull { it })
+            println((5uL..1uL).filterIndexed { index, _ -> index == 0 })
+            println((5uL downTo 1uL).mapIndexed { index, value -> index.toULong() + value })
+            println((5uL downTo 1uL).filterNot { it % 2uL == 0uL })
+            println((1uL..9uL step 2).mapIndexed { index, value -> index.toULong() + value })
+            println((1uL..9uL step 2).filterNot { it > 4uL })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeMapFilterHOFExecution",
+            expected:
+                """
+                [2, 4, 6, 8, 10]
+                [1, 3, 5, 7, 9]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                []
+                []
+                [5, 5, 5, 5, 5]
+                [5, 3, 1]
+                [1, 4, 7, 10, 13]
+                [1, 3]
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenULongRangeIteratorStepAndWindowingExecution() throws {
+        let source = """
+        fun main() {
+            println((1UL..5UL).take(3))
+            println((1UL..5UL).drop(2))
+            println((1UL..5UL).chunked(2))
+            println((1UL..5UL).windowed(3))
+            println((1UL..5UL).windowed(3, 2, true))
+            println((1UL..5UL step 2).take(2))
+            println((5UL downTo 1UL).windowed(2, 2, true))
+            for (value in 1UL..5UL) print("$value ")
+            println()
+            println((0UL..ULong.MAX_VALUE step 3).last)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeIteratorStepAndWindowingExecution",
+            expected:
+                """
+                [1, 2, 3]
+                [3, 4, 5]
+                [[1, 2], [3, 4], [5]]
+                [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
+                [[1, 2, 3], [3, 4, 5], [5]]
+                [1, 3]
+                [[5, 4], [3, 2], [1]]
+                """ + "\n1 2 3 4 5 \n18446744073709551615\n"
+        )
+    }
+
+    @Test
+    func testCodegenULongRangeStepNearMaxValueDoesNotWrap() throws {
+        let source = """
+        fun main() {
+            val nearMax = (ULong.MAX_VALUE - 4uL)..ULong.MAX_VALUE step 3
+            println(nearMax.toList())
+            println(((ULong.MAX_VALUE - 1uL)..ULong.MAX_VALUE step 3).toList())
+            println((ULong.MAX_VALUE downTo (ULong.MAX_VALUE - 5uL) step 2).toList())
+            println(nearMax.take(1))
+            println(nearMax.drop(1))
+            println(nearMax.chunked(1))
+            println(nearMax.windowed(2, 1, true))
+            for (value in (ULong.MAX_VALUE - 4uL)..ULong.MAX_VALUE step 3) print("$value ")
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeStepNearMaxValueDoesNotWrap",
+            expected:
+                """
+                [18446744073709551611, 18446744073709551614]
+                [18446744073709551614]
+                [18446744073709551615, 18446744073709551613, 18446744073709551611]
+                [18446744073709551611]
+                [18446744073709551614]
+                [[18446744073709551611], [18446744073709551614]]
+                [[18446744073709551611, 18446744073709551614], [18446744073709551614]]
+                """ + "\n18446744073709551611 18446744073709551614 \n"
         )
     }
 }

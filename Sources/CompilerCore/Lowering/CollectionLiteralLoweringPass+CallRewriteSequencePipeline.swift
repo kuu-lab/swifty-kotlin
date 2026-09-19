@@ -14,16 +14,16 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-    // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
-    // Kotlin source declaration and the receiver is a source Sequence object,
-    // route through normal function resolution so the source implementation runs.
-    // When the receiver is a runtime Sequence handle (RuntimeSequenceBox), keep
-    // the call in the lowering pipeline so it can be rewritten to a `kk_*` helper.
-    if isSourceBacked(symbol: symbol, ctx: ctx),
-       let receiverID = arguments.first,
-       !state.sequenceExprIDs.contains(receiverID.rawValue) {
-        return false
-    }
+        // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
+        // Kotlin source declaration, only a confirmed RuntimeSequenceBox may
+        // enter the runtime bridge path. A source object, a non-Sequence
+        // receiver, or unknown provenance must keep the original source call;
+        // static `Sequence` type alone is not enough to select a bridge.
+        if isSourceBacked(symbol: symbol, ctx: ctx),
+           let receiverID = arguments.first,
+           state.sequenceRuntimeRepresentation(of: receiverID) != .runtimeBox {
+            return false
+        }
 
     // --- Rewrite sequence member calls (STDLIB-003 / STDLIB-471) ---
     // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
@@ -148,7 +148,7 @@ extension CollectionLiteralConstructionLoweringPass {
        arguments.count == 2 || arguments.count == 3
     {
         let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue),
+        if state.sequenceRuntimeRepresentation(of: receiverID) == .runtimeBox,
            !state.arrayExprIDs.contains(receiverID.rawValue)
         {
             let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 1) ?? callee

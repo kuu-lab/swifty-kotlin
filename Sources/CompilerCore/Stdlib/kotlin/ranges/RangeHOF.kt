@@ -11,7 +11,7 @@ import kotlin.random.Random
 // Migration source:
 //   Sources/Runtime/RuntimeRangeAndDispatch.swift, RuntimeRangeIntRangeHOF.swift,
 //   RuntimeRangeLongRange.swift, RuntimeRangeSharedHOF.swift (kk_range_forEach,
-//   kk_range_map, kk_range_filter, kk_range_toList; kk_long_range_* / kk_char_range_*
+//   kk_range_map, kk_range_filter, kk_range_toList; __kk_long_range_* / __kk_char_range_*
 //   equivalents)
 //
 // NOTE: Range/Progression members that still use the hardcoded range dispatch remain
@@ -179,7 +179,7 @@ public fun IntRange.sum(): Int {
 }
 
 @KsSymbolName("__kk_range_reversed")
-public external fun IntRange.reversed(): IntRange
+public external fun IntRange.reversed(): IntProgression
 
 // KSP-1285: Kotlin exposes exact IntRange overloads for the other signed
 // primitive integer types. Long values must be range-checked before narrowing.
@@ -948,6 +948,36 @@ public fun CharRange.toList(): List<Char> {
     return result
 }
 
+// CharRange uses an integer-shaped runtime representation. Append each value
+// as Char here instead of erasing it through the generic Iterable join path.
+public fun CharRange.joinToString(
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): String {
+    val buffer = StringBuilder()
+    buffer.append(prefix)
+    var count = 0
+    var hasMore = false
+    for (element in this) {
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
+        buffer.append(element)
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
+    }
+    buffer.append(postfix)
+    return buffer.toString()
+}
+
 public fun CharRange.take(n: Int): List<Char> {
     if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
     val result = mutableListOf<Char>()
@@ -1652,6 +1682,64 @@ public fun ULongRange.none(predicate: (ULong) -> Boolean): Boolean {
     return true
 }
 
+public fun ULongRange.take(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun ULongRange.drop(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count < n) { count++; continue }
+        result.add(element)
+    }
+    return result
+}
+
+public fun ULongRange.chunked(size: Int): List<List<ULong>> {
+    require(size > 0) { "size $size must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    var current = mutableListOf<ULong>()
+    for (element in this) {
+        current.add(element)
+        if (current.size == size) {
+            result.add(current)
+            current = mutableListOf<ULong>()
+        }
+    }
+    if (current.isNotEmpty()) result.add(current)
+    return result
+}
+
+public fun ULongRange.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<List<ULong>> {
+    require(size > 0 && step > 0) { "Both size $size and step $step must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    val values = toList()
+    var i = 0
+    while (i < values.size) {
+        val end = i + size
+        if (end > values.size && !partialWindows) break
+        val window = mutableListOf<ULong>()
+        var j = i
+        while (j < values.size && j < end) {
+            window.add(values[j])
+            j++
+        }
+        result.add(window)
+        i += step
+    }
+    return result
+}
+
 public fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
@@ -1661,6 +1749,41 @@ public fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
 public fun ULongRange.filter(predicate: (ULong) -> Boolean): List<ULong> {
     val result = mutableListOf<ULong>()
     for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongRange.filterNot(predicate: (ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    for (element in this) { if (!predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongRange.filterIndexed(predicate: (Int, ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public fun <R> ULongRange.mapIndexed(transform: (Int, ULong) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        result.add(transform(index, element))
+        index++
+    }
+    return result
+}
+
+public fun <R : Any> ULongRange.mapNotNull(transform: (ULong) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val value = transform(element)
+        if (value != null) result.add(value)
+    }
     return result
 }
 
@@ -1684,6 +1807,12 @@ public fun ULongRange.toList(): List<ULong> {
     return result
 }
 
+public fun ULongRange.firstOrNull(): ULong? = if (isEmpty()) null else first
+
+public fun ULongRange.lastOrNull(): ULong? = if (isEmpty()) null else last
+
+public fun ULongRange.sorted(): List<ULong> = toList().sorted()
+
 // KSP-1292: Kotlin 2.3.10 widens unsigned values before using the native
 // ULong overload, preserving the exact range membership and boundary rules.
 @SinceKotlin("1.5")
@@ -1701,7 +1830,6 @@ public operator fun ULongRange.contains(value: UShort): Boolean {
     return contains(value.toULong())
 }
 
-@KsSymbolName("__kk_range_count")
 public fun ULongRange.count(): Int {
     val count: ULong = if (step > 0) {
         if (first > last) 0uL else (last - first) / step.toULong() + 1uL
@@ -1713,7 +1841,6 @@ public fun ULongRange.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("__kk_range_sum")
 public fun ULongRange.sum(): ULong {
     var sum = 0uL
     for (element in this) {
@@ -1722,8 +1849,7 @@ public fun ULongRange.sum(): ULong {
     return sum
 }
 
-@KsSymbolName("__kk_range_reversed")
-public external fun ULongRange.reversed(): ULongProgression
+public fun ULongRange.reversed(): ULongProgression = ULongProgression.fromClosedRange(last, first, -step)
 
 // MARK: - ULongProgression
 
@@ -1772,6 +1898,99 @@ public fun ULongProgression.filter(predicate: (ULong) -> Boolean): List<ULong> {
     return result
 }
 
+public fun ULongProgression.filterNot(predicate: (ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    for (element in this) { if (!predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongProgression.take(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun ULongProgression.drop(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count < n) { count++; continue }
+        result.add(element)
+    }
+    return result
+}
+
+public fun ULongProgression.chunked(size: Int): List<List<ULong>> {
+    require(size > 0) { "size $size must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    var current = mutableListOf<ULong>()
+    for (element in this) {
+        current.add(element)
+        if (current.size == size) {
+            result.add(current)
+            current = mutableListOf<ULong>()
+        }
+    }
+    if (current.isNotEmpty()) result.add(current)
+    return result
+}
+
+public fun ULongProgression.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<List<ULong>> {
+    require(size > 0 && step > 0) { "Both size $size and step $step must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    val values = toList()
+    var i = 0
+    while (i < values.size) {
+        val end = i + size
+        if (end > values.size && !partialWindows) break
+        val window = mutableListOf<ULong>()
+        var j = i
+        while (j < values.size && j < end) {
+            window.add(values[j])
+            j++
+        }
+        result.add(window)
+        i += step
+    }
+    return result
+}
+
+public fun ULongProgression.filterIndexed(predicate: (Int, ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public fun <R> ULongProgression.mapIndexed(transform: (Int, ULong) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        result.add(transform(index, element))
+        index++
+    }
+    return result
+}
+
+public fun <R : Any> ULongProgression.mapNotNull(transform: (ULong) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val value = transform(element)
+        if (value != null) result.add(value)
+    }
+    return result
+}
+
 public fun ULongProgression.toList(): List<ULong> {
     val result = mutableListOf<ULong>()
     if (step > 0) {
@@ -1792,7 +2011,6 @@ public fun ULongProgression.toList(): List<ULong> {
     return result
 }
 
-@KsSymbolName("__kk_range_count")
 public fun ULongProgression.count(): Int {
     val count: ULong = if (step > 0) {
         if (first > last) 0uL else (last - first) / step.toULong() + 1uL
@@ -1804,7 +2022,6 @@ public fun ULongProgression.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("__kk_range_sum")
 public fun ULongProgression.sum(): ULong {
     var sum = 0uL
     for (element in this) {
@@ -1813,5 +2030,4 @@ public fun ULongProgression.sum(): ULong {
     return sum
 }
 
-@KsSymbolName("__kk_range_reversed")
-public external fun ULongProgression.reversed(): ULongProgression
+public fun ULongProgression.reversed(): ULongProgression = ULongProgression.fromClosedRange(last, first, -step)

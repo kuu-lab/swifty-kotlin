@@ -88,6 +88,16 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
+    /// The source file whose body is currently being inferred.
+    ///
+    /// Member-style fallback resolution occasionally needs the file's import
+    /// provenance to disambiguate source-backed aliases that expand to the same
+    /// nominal runtime type. Keep that lookup on the context so callers do not
+    /// duplicate the AST scan.
+    var currentASTFile: ASTFile? {
+        ast.sortedFiles.first { $0.fileID == currentFileID }
+    }
+
     func withLambdaLabel(_ label: InternedString) -> TypeInferenceContext {
         var copy = self
         copy.lambdaLabelStack = lambdaLabelStack + [label]

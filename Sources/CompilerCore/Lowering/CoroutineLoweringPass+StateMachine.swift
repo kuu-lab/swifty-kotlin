@@ -51,6 +51,8 @@ extension CoroutineLoweringPass {
             interner.intern("kk_kxmini_async_await"),
             interner.intern("kk_job_join"),
             interner.intern("kk_job_await_completion"),
+            interner.intern("__kk_deep_recursive_scope_callRecursive"),
+            interner.intern("__kk_deep_recursive_function_callRecursive"),
         ]
         let stateBlocks = suspendPlan.stateBlocks
         let transitionsByResumeLabel = suspendPlan.transitionsByResumeLabel

@@ -2,8 +2,8 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-1078: the Set nominal declaration and its four built-in members are
-/// bundled Kotlin source while the compatibility shell retains runtime links.
+/// KSP-704: the Set nominal declaration and its four built-in members are
+/// bundled Kotlin source; only the private bridge helpers retain runtime links.
 @Suite
 struct SetSourceMigrationTests {
     private func makeSema() throws -> CompilationContext {
@@ -36,7 +36,7 @@ struct SetSourceMigrationTests {
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: setSymbol))
 
         #expect(!setInfo.flags.contains(.synthetic))
-        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/collections/SetHOF.kt")
+        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/collections/Set.kt")
         #expect(setInfo.kind == .interface)
         #expect(sema.types.nominalTypeParameterVariances(for: setSymbol) == [.out])
         #expect(sema.symbols.directSupertypes(for: setSymbol) == [collectionSymbol])
@@ -52,7 +52,7 @@ struct SetSourceMigrationTests {
         let sema = try #require(ctx.sema)
         let collections = ["kotlin", "collections"].map(ctx.interner.intern)
         let setFQName = collections + [ctx.interner.intern("Set")]
-        let sourcePath = "__bundled_kotlin/collections/SetHOF.kt"
+        let sourcePath = "__bundled_kotlin/collections/Set.kt"
 
         for member in ["contains", "isEmpty", "iterator", "size"] {
             let memberSymbol = try #require(
@@ -67,7 +67,7 @@ struct SetSourceMigrationTests {
             case "contains": "__kk_set_contains"
             case "isEmpty": "__kk_set_is_empty"
             case "iterator": "kk_list_iterator"
-            case "size": "__kk_set_size"
+            case "size": nil
             default: fatalError("unhandled Set member: \(member)")
             }
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == expectedLink)

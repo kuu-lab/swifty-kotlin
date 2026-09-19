@@ -24,35 +24,35 @@ public class SweepStatistics(
     public val keptCount: Long,
 )
 
-// KSP-1269: source-back the public RootSetStatistics nominal declaration and
-// constructor. Its residual property surface remains synthetic until KSP-1270.
+// KSP-1269/KSP-1270: Keep the native GC root-set statistics DTO source-backed
+// and immutable, matching upstream GCInfo.kt.
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public class RootSetStatistics(
-    threadLocalReferences: Long,
-    stackReferences: Long,
-    globalReferences: Long,
-    stableReferences: Long,
+    public val threadLocalReferences: Long,
+    public val stackReferences: Long,
+    public val globalReferences: Long,
+    public val stableReferences: Long,
 )
 
-// KSP-1264: source-back the public GCInfo nominal declaration and constructor.
-// Its property surface remains synthetic until KSP-1265.
+// KSP-1265: Keep the GC pause/heap statistics DTO's full property surface
+// source-backed and immutable, matching upstream GCInfo.kt.
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public class GCInfo(
-    epoch: Long,
-    startTimeNs: Long,
-    endTimeNs: Long,
-    firstPauseRequestTimeNs: Long,
-    firstPauseStartTimeNs: Long,
-    firstPauseEndTimeNs: Long,
-    secondPauseRequestTimeNs: Long?,
-    secondPauseStartTimeNs: Long?,
-    secondPauseEndTimeNs: Long?,
-    postGcCleanupTimeNs: Long?,
-    rootSet: RootSetStatistics,
-    markedCount: Long,
-    sweepStatistics: Map<String, SweepStatistics>,
-    memoryUsageBefore: Map<String, MemoryUsage>,
-    memoryUsageAfter: Map<String, MemoryUsage>,
+    public val epoch: Long,
+    public val startTimeNs: Long,
+    public val endTimeNs: Long,
+    public val firstPauseRequestTimeNs: Long,
+    public val firstPauseStartTimeNs: Long,
+    public val firstPauseEndTimeNs: Long,
+    public val secondPauseRequestTimeNs: Long?,
+    public val secondPauseStartTimeNs: Long?,
+    public val secondPauseEndTimeNs: Long?,
+    public val postGcCleanupTimeNs: Long?,
+    public val rootSet: RootSetStatistics,
+    public val markedCount: Long,
+    public val sweepStatistics: Map<String, SweepStatistics>,
+    public val memoryUsageBefore: Map<String, MemoryUsage>,
+    public val memoryUsageAfter: Map<String, MemoryUsage>,
 )

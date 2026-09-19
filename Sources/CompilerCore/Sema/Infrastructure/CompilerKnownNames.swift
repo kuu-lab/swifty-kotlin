@@ -266,40 +266,11 @@ package struct KnownCompilerNames {
     let buildMap: InternedString
     let className: InternedString
     let isInitialized: InternedString
-    let simpleName: InternedString
-    let qualifiedName: InternedString
-    let isInstanceName: InternedString
-    let membersName: InternedString
-    let constructorsName: InternedString
-    let primaryConstructorName: InternedString
-    // MIGRATION-REFLECT-002: KClass member introspection
-    let nestedClassesName: InternedString
-    // STDLIB-REFLECT-060: KClass basic reflection features
-    let isFinalName: InternedString
-    let isOpenName: InternedString
-    let isAbstractName: InternedString
-    let visibilityName: InternedString
-    let typeParametersName: InternedString
-    let supertypesName: InternedString
-    // STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
-    let isDataName: InternedString
-    let isSealedName: InternedString
-    let isValueName: InternedString
-    let isEnumName: InternedString
-    let isInterfaceName: InternedString
-    let isObjectName: InternedString
-    let isInnerName: InternedString
-    let isCompanionName: InternedString
-    let isFunName: InternedString
-    // STDLIB-REFLECT-061: KClass member access
+    // STDLIB-REFLECT-061: KClass member access (remains a compiler special
+    // case — see the NOTE in KClasses.kt)
     let propertiesName: InternedString
-    let memberPropertiesName: InternedString
-    let declaredMemberPropertiesName: InternedString
-    let functionsName: InternedString
-    let memberFunctionsName: InternedString
-    let declaredMemberFunctionsName: InternedString
-    // STDLIB-REFLECT-065: Annotation reflection
-    let annotationsName: InternedString
+    // STDLIB-REFLECT-065: Annotation reflection (reified-type special cases
+    // that were not migrated to bundled Kotlin — see KClasses.kt)
     let findAnnotationName: InternedString
     let findAssociatedObjectName: InternedString
     let size: InternedString
@@ -356,6 +327,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsMapFQName: [InternedString]
     let kotlinCollectionsMutableMapFQName: [InternedString]
     let kotlinCollectionsHashMapFQName: [InternedString]
+    let kotlinCollectionsLinkedHashMapFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
@@ -459,40 +431,7 @@ package struct KnownCompilerNames {
         buildMap = interner.intern("buildMap")
         className = interner.intern("class")
         isInitialized = interner.intern("isInitialized")
-        simpleName = interner.intern("simpleName")
-        qualifiedName = interner.intern("qualifiedName")
-        isInstanceName = interner.intern("isInstance")
-        membersName = interner.intern("members")
-        constructorsName = interner.intern("constructors")
-        primaryConstructorName = interner.intern("primaryConstructor")
-        // MIGRATION-REFLECT-002: KClass member introspection
-        nestedClassesName = interner.intern("nestedClasses")
-        // STDLIB-REFLECT-060: KClass basic reflection features
-        isFinalName = interner.intern("isFinal")
-        isOpenName = interner.intern("isOpen")
-        isAbstractName = interner.intern("isAbstract")
-        visibilityName = interner.intern("visibility")
-        typeParametersName = interner.intern("typeParameters")
-        supertypesName = interner.intern("supertypes")
-        // STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
-        isDataName = interner.intern("isData")
-        isSealedName = interner.intern("isSealed")
-        isValueName = interner.intern("isValue")
-        isEnumName = interner.intern("isEnum")
-        isInterfaceName = interner.intern("isInterface")
-        isObjectName = interner.intern("isObject")
-        isInnerName = interner.intern("isInner")
-        isCompanionName = interner.intern("isCompanion")
-        isFunName = interner.intern("isFun")
-        // STDLIB-REFLECT-061: KClass member access
         propertiesName = interner.intern("properties")
-        memberPropertiesName = interner.intern("memberProperties")
-        declaredMemberPropertiesName = interner.intern("declaredMemberProperties")
-        functionsName = interner.intern("functions")
-        memberFunctionsName = interner.intern("memberFunctions")
-        declaredMemberFunctionsName = interner.intern("declaredMemberFunctions")
-        // STDLIB-REFLECT-065: Annotation reflection
-        annotationsName = interner.intern("annotations")
         findAnnotationName = interner.intern("findAnnotation")
         findAssociatedObjectName = interner.intern("findAssociatedObject")
         size = interner.intern("size")
@@ -559,6 +498,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsMapFQName = [kotlin, kotlinCollections, map]
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
         kotlinCollectionsHashMapFQName = [kotlin, kotlinCollections, interner.intern("HashMap")]
+        kotlinCollectionsLinkedHashMapFQName = [kotlin, kotlinCollections, interner.intern("LinkedHashMap")]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
@@ -780,12 +720,17 @@ package struct KnownCompilerNames {
             || symbolMatches(symbol, fqName: kotlinCollectionsMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
+            // KUU-556: LinkedHashMap is now a real HashMap subclass (its own
+            // symbol), not a MutableMap typealias resolving straight through
+            // to the mutableMap check above.
+            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == mutableMap
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
+            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {

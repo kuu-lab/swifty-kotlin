@@ -97,6 +97,100 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// RF-GOLDEN-004: source-backed collection flags must not change the
+    /// iterator route after the stdlib is serialized and imported. A concrete
+    /// A concrete List receiver keeps the list bridge, while Iterable/MutableList
+    /// interface receivers keep generic iterator operations so user overrides
+    /// remain possible. The final output checks that both routes still execute
+    /// correctly through the artifact.
+    @Test
+    func testCollectionForLoopIteratorRoutesThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun sumList(values: List<Int>): Int {
+            var sum = 0
+            for (value in values) { sum += value }
+            return sum
+        }
+
+        fun sumIterable(values: Iterable<Int>): Int {
+            var sum = 0
+            for (value in values) { sum += value }
+            return sum
+        }
+
+        fun sumMutableList(values: MutableList<Int>): Int {
+            var sum = 0
+            for (value in values) { sum += value }
+            return sum
+        }
+
+        fun main() {
+            val list = listOf(1, 2, 3)
+            println(sumList(list))
+            println(sumIterable(list))
+            println(sumMutableList(mutableListOf(4, 5, 6)))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "CollectionForLoopIteratorArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+
+            let listCallees = extractCallees(
+                from: try findKIRFunctionBody(named: "sumList", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            )
+            #expect(listCallees.contains("kk_list_iterator"), "artifact List loop must use kk_list_iterator: \(listCallees)")
+            #expect(listCallees.contains("kk_list_iterator_hasNext"), "artifact List loop must use list hasNext: \(listCallees)")
+            #expect(listCallees.contains("kk_list_iterator_next"), "artifact List loop must use list next: \(listCallees)")
+            #expect(!listCallees.contains("kk_iterable_iterator"), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
+            #expect(!listCallees.contains("kk_iterator_hasNext"), "artifact List loop must not use generic hasNext: \(listCallees)")
+            #expect(!listCallees.contains("kk_iterator_next"), "artifact List loop must not use generic next: \(listCallees)")
+
+            let iterableCallees = extractCallees(
+                from: try findKIRFunctionBody(named: "sumIterable", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            )
+            #expect(iterableCallees.contains("kk_iterable_iterator"), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
+            #expect(iterableCallees.contains("kk_iterator_hasNext"), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
+            #expect(iterableCallees.contains("kk_iterator_next"), "artifact Iterable loop must use generic next: \(iterableCallees)")
+            #expect(!iterableCallees.contains("kk_list_iterator_hasNext"), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
+            #expect(!iterableCallees.contains("kk_list_iterator_next"), "artifact Iterable loop must not use list next: \(iterableCallees)")
+
+            let mutableListCallees = extractCallees(
+                from: try findKIRFunctionBody(named: "sumMutableList", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            )
+            #expect(mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must use generic hasNext: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must use generic next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must not force list hasNext: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must not force list next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_range_iterator"), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
+
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "6\n6\n15\n")
+        }
+    }
+
     /// KSP-1151: source-backed coroutine intrinsic fallbacks must not leave a
     /// direct reference to the Kotlin parameter `function` in the stdlib
     /// artifact. A trivial artifact consumer is enough to exercise the native
@@ -410,6 +504,78 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "caught: shared boom\n")
+        }
+    }
+
+    /// KUU-594: user-defined Throwable subclasses must initialize the object
+    /// allocated by the consumer module when their superclass constructor is
+    /// imported from the precompiled stdlib artifact. Runtime factory
+    /// constructors need accessor-based initialization, while source-backed
+    /// RuntimeException constructors must retain their normal super call.
+    @Test
+    func testUserDefinedThrowableSubclassThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        class MyEx(msg: String, cause: Throwable? = null) : RuntimeException(msg, cause)
+        class MyEx2(msg: String) : Exception(msg)
+        class MyEx3 : RuntimeException("fixed")
+        open class BaseEx(m: String) : Exception(m)
+        class SubEx(m: String) : BaseEx(m)
+
+        fun main() {
+            try {
+                throw MyEx("boom", IllegalArgumentException("root"))
+            } catch (e: MyEx) {
+                println("${e.message} / ${e.cause?.message} / ${e.cause is IllegalArgumentException} / $e")
+            }
+            try {
+                throw MyEx2("m2")
+            } catch (e: Exception) {
+                println("${e.message} / $e")
+            }
+            try {
+                throw MyEx3()
+            } catch (e: RuntimeException) {
+                println("${e.message} / $e")
+            }
+            try {
+                throw SubEx("sub")
+            } catch (e: BaseEx) {
+                println("${e.message} / $e / ${e is SubEx}")
+            }
+            println(RuntimeException("rt").message)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "UserDefinedThrowableArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            let expectedStdout = [
+                "boom / root / true / MyEx: boom",
+                "m2 / MyEx2: m2",
+                "fixed / MyEx3: fixed",
+                "sub / SubEx: sub / true",
+                "rt",
+            ].joined(separator: "\n") + "\n"
+            #expect(normalizedStdout == expectedStdout)
         }
     }
 
@@ -2036,7 +2202,7 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// `LinkedHashSet()` lowers to the `__kk_set_of` runtime factory, so the
+    /// `LinkedHashSet()` lowers to the `__kk_linked_hash_set_of` runtime factory, so the
     /// returned box never passes `kk_object_new` and never received the
     /// constructor-site `kk_object_register_vtable_method` registrations. Once
     /// `size` imported as the (Kotlin-correct) open member it is, a subclass in

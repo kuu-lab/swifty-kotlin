@@ -14,12 +14,13 @@ extension CollectionLiteralConstructionLoweringPass {
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // STDLIB-pipeline §5 / KSP-441〜447: Bundled Kotlin source implementations
-        // (e.g. flatten, toSet) take priority over runtime shortcuts, but a runtime
-        // Sequence handle still needs the corresponding `kk_*` helper because source
-        // `for-in` cannot dispatch against an opaque runtime box.
+        // (e.g. flatten, toSet) take priority over runtime shortcuts. Only a
+        // confirmed RuntimeSequenceBox may use the `kk_*` helper; source objects,
+        // non-Sequence receivers, and unknown provenance stay on the source
+        // iterator path.
         if isSourceBacked(symbol: symbol, ctx: ctx),
            let receiverID = arguments.first,
-           !state.sequenceExprIDs.contains(receiverID.rawValue) {
+           state.sequenceRuntimeRepresentation(of: receiverID) != .runtimeBox {
             return false
         }
     // toSet() on sequence → kk_sequence_toSet (STDLIB-470)
@@ -120,14 +121,16 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.count == 1 {
         let receiverID = arguments[0]
         if callee == lookup.reversedName, state.rangeExprIDs.contains(receiverID.rawValue) {
+            if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                // ULongRange.reversed() is bundled Kotlin source.
+                return false
+            }
             // KSP-1523: UIntRange never reaches this branch — its
             // constructing callee is never added to state.rangeExprIDs
             // during PreScan, so the old isUIntRange arm was unreachable.
             let transformResult = module.arena.appendTemporary(type: nil
             )
-            let reversedName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
-                ? lookup.kkULongRangeReversedName
-                : lookup.kkRangeReversedName
+            let reversedName = lookup.kkRangeReversedName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: reversedName,
@@ -191,15 +194,17 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
         if state.rangeExprIDs.contains(receiverID.rawValue) {
+            if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                // ULongRange.toList() is bundled Kotlin source.
+                return false
+            }
             let toListResult = module.arena.appendTemporary(type: nil
             )
-            // Use char/ULong range variant if applicable (STDLIB-290, STDLIB-524).
-            // KSP-1523: no UIntRange variant — see the reversed() branch above.
+            // Use the char range variant if applicable (STDLIB-290).
+            // KSP-1523/1524: unsigned range toList() is bundled Kotlin source.
             let rangeToListCallee: InternedString
             if state.charRangeExprIDs.contains(receiverID.rawValue) {
                 rangeToListCallee = lookup.kkCharRangeToListName
-            } else if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                rangeToListCallee = lookup.kkULongRangeToListName
             } else {
                 rangeToListCallee = lookup.kkRangeToListName
             }

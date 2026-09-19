@@ -460,6 +460,7 @@ extension DeclTypeChecker {
             named: name,
             receiverType: receiverType,
             requireOperator: true,
+            sourceFile: ctx.currentASTFile,
             sema: sema,
             interner: interner
         )

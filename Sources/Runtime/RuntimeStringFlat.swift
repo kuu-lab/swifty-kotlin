@@ -31,7 +31,9 @@ func runtimeStringUTF16CodeUnitsFromFlat(
     byteCount: Int,
     hash: Int
 ) -> [UInt16] {
-    Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).utf16)
+    runtimeKotlinStringUTF16CodeUnits(
+        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
 }
 
 @_cdecl("kk_string_trim_flat")
@@ -121,55 +123,12 @@ public func kk_string_uppercase_flat(
     )
 }
 
-@_cdecl("kk_string_reversed_flat")
-public func kk_string_reversed_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeRegisterFlatString(
-        String(source.reversed()),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-@_cdecl("kk_string_repeat_flat")
-public func kk_string_repeat_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ countRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard countRaw >= 0 else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "Requested element count \(countRaw) is less than zero.")
-        )
-        return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    return runtimeRegisterFlatString(
-        String(repeating: source, count: countRaw),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-@_cdecl("kk_string_first_flat")
-public func kk_string_first_flat(
+// KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its runtime
+// bridge was removed.
+// KSP-1396: reversed is bundled Kotlin source (StringBasics.kt); its runtime
+// bridge was removed.
+@_cdecl("__kk_string_first_flat")
+public func __kk_string_first_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -185,8 +144,8 @@ public func kk_string_first_flat(
     return Int(first)
 }
 
-@_cdecl("kk_string_last_flat")
-public func kk_string_last_flat(
+@_cdecl("__kk_string_last_flat")
+public func __kk_string_last_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -202,8 +161,8 @@ public func kk_string_last_flat(
     return Int(last)
 }
 
-@_cdecl("kk_string_single_flat")
-public func kk_string_single_flat(
+@_cdecl("__kk_string_single_flat")
+public func __kk_string_single_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -272,8 +231,8 @@ public func kk_string_isNotBlank_flat(
     return source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1
 }
 
-@_cdecl("kk_string_firstOrNull_flat")
-public func kk_string_firstOrNull_flat(
+@_cdecl("__kk_string_firstOrNull_flat")
+public func __kk_string_firstOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -284,8 +243,8 @@ public func kk_string_firstOrNull_flat(
     return Int(first)
 }
 
-@_cdecl("kk_string_lastOrNull_flat")
-public func kk_string_lastOrNull_flat(
+@_cdecl("__kk_string_lastOrNull_flat")
+public func __kk_string_lastOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -296,8 +255,8 @@ public func kk_string_lastOrNull_flat(
     return Int(last)
 }
 
-@_cdecl("kk_string_singleOrNull_flat")
-public func kk_string_singleOrNull_flat(
+@_cdecl("__kk_string_singleOrNull_flat")
+public func __kk_string_singleOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,

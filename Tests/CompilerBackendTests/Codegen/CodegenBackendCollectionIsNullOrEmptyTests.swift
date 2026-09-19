@@ -14,10 +14,12 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             val nullableSet: Set<Int>? = null
             val nullableMap: Map<String, Int>? = null
             val nullableArray: Array<Int>? = null
+            val nullableCollection: Collection<Int>? = null
             println(nullableList.isNullOrEmpty())
             println(nullableSet.isNullOrEmpty())
             println(nullableMap.isNullOrEmpty())
             println(nullableArray.isNullOrEmpty())
+            println(nullableCollection.isNullOrEmpty())
         }
         """
 
@@ -33,8 +35,12 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             #expect(throwFlags["__kk_set_is_empty"]?.allSatisfy { $0 == false } == true)
             // Map.isNullOrEmpty is source-backed; its private helper belongs to
             // the stdlib artifact and must not bypass the Kotlin declaration here.
-            #expect(throwFlags["kk_map_is_empty"] == nil)
+            #expect(throwFlags["__kk_map_is_empty"] == nil)
             #expect(throwFlags["kk_array_is_empty"]?.allSatisfy { $0 == false } == true)
+            // A bare Collection<T>? receiver may hold a Set box at runtime, so
+            // isNullOrEmpty must use the type-tag dispatching collection bridge
+            // rather than the List-only kk_list_is_empty (KUU-543).
+            #expect(throwFlags["__kk_collection_isEmpty"]?.allSatisfy { $0 == false } == true)
         }
     }
 }

@@ -81,6 +81,11 @@ public val FloatArray.size: Int get() = __kkFloatArraySize(this)
 public val Array<*>.size: Int get() = __kkArraySize(this)
 public fun <T> Array<out T>.toList(): List<T> = __kkArrayToList(this)
 
+/**
+ * Creates an [Iterable] instance that wraps the original array.
+ */
+public fun <T> Array<out T>.asIterable(): Iterable<T> = this.asList()
+
 public fun IntArray.toList(): List<Int> = __kkIntArrayToList(this)
 public fun LongArray.toList(): List<Long> = __kkLongArrayToList(this)
 public fun ShortArray.toList(): List<Short> = __kkShortArrayToList(this)
@@ -89,6 +94,20 @@ public fun CharArray.toList(): List<Char> = __kkCharArrayToList(this)
 public fun BooleanArray.toList(): List<Boolean> = __kkBooleanArrayToList(this)
 public fun DoubleArray.toList(): List<Double> = __kkDoubleArrayToList(this)
 public fun FloatArray.toList(): List<Float> = __kkFloatArrayToList(this)
+
+// RF-LOWER-CALL-013: `toMutableList` reuses the type-correct `toList` above
+// instead of a separate generic runtime bridge, so Long/ULong elements keep
+// the boxing `toList` already applies (a shared `kk_array_toMutableList`
+// bridge misread `Long.MIN_VALUE` as the null sentinel).
+public fun <T> Array<out T>.toMutableList(): MutableList<T> = this.toList().toMutableList()
+public fun IntArray.toMutableList(): MutableList<Int> = this.toList().toMutableList()
+public fun LongArray.toMutableList(): MutableList<Long> = this.toList().toMutableList()
+public fun ShortArray.toMutableList(): MutableList<Short> = this.toList().toMutableList()
+public fun ByteArray.toMutableList(): MutableList<Byte> = this.toList().toMutableList()
+public fun CharArray.toMutableList(): MutableList<Char> = this.toList().toMutableList()
+public fun BooleanArray.toMutableList(): MutableList<Boolean> = this.toList().toMutableList()
+public fun DoubleArray.toMutableList(): MutableList<Double> = this.toList().toMutableList()
+public fun FloatArray.toMutableList(): MutableList<Float> = this.toList().toMutableList()
 
 // KSP-1516: Array slicing/reversal and primitive-array object conversion are
 // source-backed. Typed constructors and indexed access keep allocation and

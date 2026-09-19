@@ -419,7 +419,14 @@ if (( ${#own_types[@]} > 0 )); then
     # alternation inside the one --filter argument (~40 bytes per name), so a
     # much larger chunk keeps a shard in a single swift test invocation and
     # avoids draining worker parallelism at every serial chunk boundary.
-    if [[ "${SWIFT_TEST_PARALLEL:-}" == "0" || "${SWIFT_TEST_PARALLEL:-}" == "false" ]]; then
+    will_be_serial=false
+    for passthrough_arg in "${passthrough[@]}"; do
+        if [[ "$passthrough_arg" == "--no-parallel" ]]; then
+            will_be_serial=true
+            break
+        fi
+    done
+    if [[ "$will_be_serial" == true ]]; then
         chunk_size=50
     else
         chunk_size=300

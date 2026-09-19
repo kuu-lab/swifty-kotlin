@@ -2,12 +2,12 @@
 import Foundation
 import Testing
 
-// Implemented (common scope, backed by runtime functions):
-//   - String.lowercase()                   → kk_string_lowercase_flat
-//   - String.uppercase()                   → kk_string_uppercase_flat
-//   - String.lowercase(Locale)             → kk_string_lowercase_locale_flat
-//   - String.uppercase(Locale)             → kk_string_uppercase_locale_flat
-//   - String.compareTo(String, Locale)     → __kk_string_compareTo_locale_flat
+// Implemented (common scope):
+//   - String.lowercase()                   → bundled Kotlin (StringCaseConversion.kt)
+//   - String.uppercase()                   → bundled Kotlin (StringCaseConversion.kt)
+//   - String.lowercase(Locale)             → bundled Kotlin, bridges through __kk_lowercase_locale
+//   - String.uppercase(Locale)             → bundled Kotlin, bridges through __kk_uppercase_locale
+//   - String.compareTo(String, Locale)     → bundled Kotlin, bridges through __kk_string_compareTo_locale
 //   - String.toInt(radix)                  → source-backed (bridges through __kk_string_toInt_radix)
 //   - String.toIntOrNull()                 → source-backed (bridges through __kk_string_toIntOrNull)
 //   - String.toIntOrNull(radix)            → source-backed (bridges through __kk_string_toIntOrNull_radix)
@@ -18,9 +18,12 @@ import Testing
 //   - Char.lowercase()                     → __kk_char_lowercase_string  (returns String per Kotlin spec)
 //   - Char.lowercase(Locale)               → __kk_char_lowercase_locale
 //   - Char.titlecase()                     → __kk_char_titlecase_string
-//   - java.util.Locale members (language/country/variant/displayLanguage, getDefault/
-//     setDefault/getAvailableLocales) — removed with CLEANUP-STUB-112; Locale is only a
-//     construction handle for locale-parameterised String/Char operations
+//   - java.util.Locale (Sources/CompilerCore/Stdlib/java/util/Locale.kt, KSP-717) is a
+//     bundled Kotlin class; its two constructors bridge through __kk_locale_new_flat /
+//     __kk_locale_new_language_country_flat. Other JDK Locale members (language/country/
+//     variant/displayLanguage, getDefault/setDefault/getAvailableLocales) — removed with
+//     CLEANUP-STUB-112; Locale is only a construction handle for locale-parameterised
+//     String/Char operations
 
 @Suite struct KotlinTextI18nLocaleInventoryTests {
 

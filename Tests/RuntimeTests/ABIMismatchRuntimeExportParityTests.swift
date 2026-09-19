@@ -59,6 +59,43 @@ struct ABIMismatchRuntimeExportParityTests {
     }
 
     @Test
+    func testMigratedBridgeExportsPreserveThrowingChannelContract() throws {
+        let expected: [(name: String, isThrowing: Bool)] = [
+            ("kk_duration_parse", true),
+            ("kk_duration_parseOrNull", false),
+            ("kk_duration_parseIsoString", true),
+            ("kk_duration_parseIsoStringOrNull", false),
+            ("kk_sequence_filterNot", false),
+            ("kk_sequence_contains", false),
+            ("kk_sequence_elementAtOrNull", false),
+            ("__kk_mutable_list_add", true),
+            ("__kk_mutable_set_add", true),
+            ("__kk_mutable_map_put", true),
+        ]
+        let exportsByName = Dictionary(grouping: try runtimeExportedABIs(), by: \.name)
+        let specsByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
+
+        for item in expected {
+            let export = try #require(exportsByName[item.name]?.first, "Missing runtime export \(item.name)")
+            let spec = try #require(specsByName[item.name]?.first, "Missing RuntimeABISpec entry \(item.name)")
+            let exportHasThrownChannel = export.parameterTypes.last == RuntimeABICType.nullableIntptrPointer.rawValue
+            #expect(spec.isThrowing == item.isThrowing)
+            #expect(
+                exportHasThrownChannel == item.isThrowing,
+                "Runtime export \(item.name) has the wrong throwing channel"
+            )
+            #expect(
+                spec.parameters.map(\.type.rawValue) == export.parameterTypes,
+                "Runtime export \(item.name) parameter types must match RuntimeABISpec"
+            )
+            #expect(
+                spec.returnType.rawValue == export.returnType,
+                "Runtime export \(item.name) return type must match RuntimeABISpec"
+            )
+        }
+    }
+
+    @Test
     func testSpecOnlyRuntimeABINamesAreExplicitlyAllowed() throws {
         let exportedNames = Set(try runtimeExportedABIs().map { $0.name })
         let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
@@ -87,9 +124,6 @@ struct ABIMismatchRuntimeExportParityTests {
 
     private var allowedSpecOnlyRuntimeABINames: Set<String> {
         [
-            "kk_annotation_class_name",
-            "kk_annotation_get_arguments",
-            "kk_annotation_simple_class_name",
             "kk_callable_ref_call_0",
             "kk_callable_ref_call_1",
             "kk_callable_ref_call_2",
@@ -110,9 +144,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_char_sequence_length",
             "kk_dynamic_iterator",
             "kk_int_to_int",
-            "kk_kclass_has_annotation",
-            "kk_kclass_js",
-            "kk_kclass_register_annotation",
             // Kept in RuntimeABISpec for source-migration compatibility; the
             // runtime exports only the __kk_ bridge.
             "kk_list_fold",
@@ -159,6 +190,11 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_list_sortedDescending_primitive",
             "kk_list_sortedWith",
             "kk_list_sorted_primitive",
+            // KSP-1511: shuffled/shuffled(Random) source-backed in
+            // ListSortingHOF.kt; retained only in RuntimeABISpec (same
+            // treatment as the KSP-426 block above).
+            "kk_list_shuffled",
+            "kk_list_shuffled_random",
             "__kk_mutable_list_sort",
             "__kk_mutable_list_sortBy",
             "__kk_mutable_list_sortByDescending",
@@ -196,8 +232,12 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_sequence_scan",
             "kk_sequence_scanIndexed",
             // KSP-430: Map higher-order functions are now source-backed in
-            // bundled MapHOF.kt; these ABI entries remain for compatibility
-            // with the synthetic stub externalLinkName literals.
+            // bundled MapHOF.kt. RF-LOWER-CALL-012 removed the Lowering-side
+            // rewrites and KSP-703 removed the Sema-side synthetic stub
+            // registrations that used to reference these names — no
+            // `@_cdecl` and no compiler-side reference remain for any of
+            // them — but the `RuntimeABISpec` entries themselves stay
+            // allowed here pending a decision on pruning the spec.
             "kk_map_all",
             "kk_map_any",
             "kk_map_count",
@@ -218,54 +258,12 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_map_minus",
             "kk_map_none",
             "kk_map_plus",
-            "kk_long_range_firstOrNull",
-            "kk_long_range_lastOrNull",
             "kk_native_atomic_ref_compareAndSet",
             "kk_native_atomic_ref_compareAndSwap",
             "kk_native_atomic_ref_create",
             "kk_native_atomic_ref_load",
-            "kk_path_createLinkPointingTo",
-            "kk_path_deleteExisting",
-            "kk_path_deleteRecursively",
-            "kk_path_div_path",
-            "kk_path_div_string",
-            "kk_path_fileAttributesView",
-            "kk_path_fileAttributesViewOrNull",
-            "kk_path_fileSize",
-            "kk_path_fileStore",
-            "kk_path_fileAttributesView",
-
-            "kk_path_getAttribute",
-            "kk_path_getPosixFilePermissions",
-            "kk_path_get_base_subpaths",
-            "kk_path_isExecutable",
-            "kk_path_isHidden",
-            "kk_path_isReadable",
-            "kk_path_isSameFileAs",
-            "kk_path_isSymbolicLink",
-            "kk_path_isWritable",
-            "kk_path_moveTo_options",
-            "kk_path_moveTo_overwrite",
-            "kk_path_outputStream",
-            "kk_path_inputStream",
-            "kk_path_readAttributes",
-            "kk_path_readBytes",
-            "kk_path_readLines_charset",
-            "kk_path_readSymbolicLink",
-            "kk_path_readText_charset",
-            "kk_path_relativeTo",
-            "kk_path_relativeToOrNull",
-            "kk_path_relativeToOrSelf",
-            "kk_path_setAttribute",
-            "kk_path_setOwner",
-            "kk_path_setPosixFilePermissions",
-            "kk_path_writeBytes",
-            "kk_path_writeLines_iterable",
-            "kk_path_writeLines_sequence",
-            "kk_path_reader",
-            "kk_path_reader_default",
-            "kk_path_readAttributes_string",
-            "kk_path_writeText_options",
+            "kk_long_range_firstOrNull",
+            "kk_long_range_lastOrNull",
         ]
     }
 

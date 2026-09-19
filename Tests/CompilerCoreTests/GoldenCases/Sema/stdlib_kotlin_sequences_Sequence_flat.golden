@@ -134,7 +134,7 @@ expr e@46:9 name(source) type=kotlin.sequences.Sequence<Int> ref=__local_0.sourc
 expr e@46:26 call callee=e@46:26#1 args=[] type=kotlin.collections.MutableList<Int> call=kotlin.collections.mutableListOf[kind=fun;params=;gen=1] targs=[Int]
 expr e@47:24 name(value) type=Int ref=s-5
 expr e@47:24#1 memberCall recv=e@47:24 callee=toString args=[] type=String
-expr e@47:13 compoundAssign(plusAssign) name=visited value=e@47:24#1 type=Unit ref=__local_12.visited[kind=local]
+expr e@47:13 compoundAssign(plusAssign) name=visited value=e@47:24#1 type=Unit ref=__local_12.visited[kind=local] call=kotlin.text.plus[kind=fun;recv=String?;params=Any?]
 expr e@48:17 name(value) type=Int ref=s-5
 expr e@48:26 int(2) type=Int
 expr e@48:17#1 binary(equal) lhs=e@48:17 rhs=e@48:26 type=Boolean

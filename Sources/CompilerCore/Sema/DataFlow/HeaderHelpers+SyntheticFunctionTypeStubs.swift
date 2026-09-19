@@ -1,7 +1,7 @@
 /// Synthetic stubs for kotlin.Function0..N type hierarchy.
 ///
-/// Split out from `HeaderHelpers+SyntheticTODOAndIOStubs.swift` to keep
-/// each header-helpers file scoped to a single responsibility.
+/// Kept separate from the source-backed migration buckets because
+/// Function0..22 are compiler-known residual interfaces.
 extension DataFlowSemaPhase {
     func registerSyntheticFunctionTypes(
         symbols: SymbolTable,

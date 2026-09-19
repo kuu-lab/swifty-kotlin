@@ -3,8 +3,8 @@ import Testing
 
 /// STDLIB-TEXT-FN-041: Validates that `CharSequence.padEnd(length, padChar)` resolves
 /// through Sema for `String` receivers using both overloads.
-/// - 1-arg overload (default padChar = ' ') links to `kk_string_padEnd_default_flat`.
-/// - 2-arg overload (explicit padChar) links to `kk_string_padEnd_flat`.
+/// - 1-arg overload (default padChar = ' ') resolves via bundled Kotlin stdlib.
+/// - 2-arg overload (explicit padChar) resolves via bundled Kotlin stdlib.
 @Suite
 struct StringPadEndFunctionTests {
     @Test func testPadEndFunctionResolvesInSource() throws {

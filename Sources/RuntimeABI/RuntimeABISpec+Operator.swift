@@ -78,6 +78,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_value_class_register_any_to_string",
+            parameters: [
+                RuntimeABIParameter(name: "classID", type: .intptr),
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_type_token_simple_name",
             parameters: [
                 RuntimeABIParameter(name: "typeToken", type: .intptr),
@@ -106,7 +116,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // KSP-496: KClass-handle-based simpleName/qualifiedName bridges (used by
-        // Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt).
+        // Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt).
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_simple_name",
             parameters: [

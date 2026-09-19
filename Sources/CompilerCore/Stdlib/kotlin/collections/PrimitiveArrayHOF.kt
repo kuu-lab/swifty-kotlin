@@ -52,7 +52,7 @@ public fun <R> IntArray.flatMap(transform: (Int) -> List<R>): List<R> {
     return result
 }
 
-public fun IntArray.forEach(action: (Int) -> Unit) {
+public inline fun IntArray.forEach(action: (Int) -> Unit) {
     var i = 0
     while (i < this.size) {
         action(this[i])

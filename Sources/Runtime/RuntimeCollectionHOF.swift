@@ -23,11 +23,6 @@ func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
     return raw
 }
 
-@_cdecl("kk_indexed_value_new")
-public func kk_indexed_value_new(_ index: Int, _ value: Int) -> Int {
-    runtimeIndexedValueNew(index: index, value: value)
-}
-
 /// KSP-626: `IndexedValue` is a source-backed Kotlin data class, so its
 /// instances are ordinary heap objects (index@2, value@3). The Any-erased
 /// print/toString paths cannot invoke the generated `toString`, so render such
@@ -493,26 +488,6 @@ public func kk_indexing_iterable_next(_ iterRaw: Int) -> Int {
 
 
 
-
-@_cdecl("kk_list_shuffled_random")
-public func kk_list_shuffled_random(_ listRaw: Int, _ randomRaw: Int) -> Int {
-    guard let listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    var elements = listBox.elements
-    // Fisher-Yates shuffle delegating to runtimeRandomNextIntBelow, which
-    // (KSP-466) currently ignores the Random instance and uses Swift's
-    // SystemRandomNumberGenerator, so seeded Random instances (e.g.
-    // Random(42)) do NOT yet produce deterministic results here. The
-    // randomRaw parameter is threaded through so that adding seeded RNG
-    // support requires changes only in RuntimeRandom.swift.
-    guard elements.count > 1 else {
-        return registerRuntimeObject(RuntimeListBox(elements: elements))
-    }
-    for i in stride(from: elements.count - 1, through: 1, by: -1) {
-        let j = runtimeRandomNextIntBelow(randomRaw, i + 1)
-        elements.swapAt(i, j)
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
-}
 
 @_cdecl("kk_list_random")
 public func kk_list_random(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

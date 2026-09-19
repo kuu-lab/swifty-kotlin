@@ -97,15 +97,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_kfunction_get_name",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_kcallable_get_name",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
@@ -116,24 +107,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_kcallable_get_return_type",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kfunction_get_arity",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kfunction_get_return_type",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -267,15 +240,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "name", type: .intptr),
                 RuntimeABIParameter(name: "returnType", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_callable_ref_name",
-            parameters: [
-                RuntimeABIParameter(name: "tagged", type: .intptr),
             ],
             returnType: .intptr,
             section: "Reflection",

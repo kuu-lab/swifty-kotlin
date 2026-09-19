@@ -188,7 +188,10 @@ final class DeclTypeChecker {
         }
 
         if let delegateExpr = property.delegateExpression {
-            var delegateLocals: LocalBindings = [:]
+            // A delegated property expression has the same initializer scope as
+            // an ordinary property initializer, including bare primary
+            // constructor parameters.
+            var delegateLocals: LocalBindings = initialLocals
             // DEBT-KIR-008/BUG-170: a stdlib delegate factory's trailing lambda
             // (delegateBody) is parsed as a separate FunctionBody from
             // delegateExpression specifically so KIR lowering can repackage it

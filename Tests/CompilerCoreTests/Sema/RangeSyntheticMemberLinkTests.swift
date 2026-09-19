@@ -158,6 +158,97 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testLongProgressionCompanionIsSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let longProgressionFQName = ["kotlin", "ranges", "LongProgression"].map { interner.intern($0) }
+        let longProgressionSymbol = try #require(sema.symbols.lookup(fqName: longProgressionFQName))
+        let longProgressionInfo = try #require(sema.symbols.symbol(longProgressionSymbol))
+        #expect(!longProgressionInfo.flags.contains(.synthetic))
+        #expect(longProgressionInfo.flags.contains(.openType))
+        #expect(longProgressionInfo.declSite != nil)
+
+        let companionFQName = longProgressionFQName + [interner.intern("Companion")]
+        let companionSymbols = sema.symbols.lookupAll(fqName: companionFQName)
+        #expect(companionSymbols.count == 1)
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: longProgressionSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        #expect(!companionInfo.flags.contains(.synthetic))
+        #expect(companionInfo.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(companionSymbol))
+
+        // KSP-1306/KSP-1307 keep the existing runtime-backed member surface unchanged.
+        for memberName in ["first", "last", "step"] {
+            let memberFQName = longProgressionFQName + [interner.intern(memberName)]
+            let memberSymbols = sema.symbols.lookupAll(fqName: memberFQName)
+            #expect(
+                memberSymbols.contains { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true },
+                "LongProgression.\(memberName) remains synthetic until KSP-1306"
+            )
+        }
+    }
+
+    @Test func testTypedRangeClassShellsAreSourceBacked() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let typedRangeSourcePaths: Set<String> = [
+            "__bundled_kotlin/ranges/IntRange.kt",
+            "__bundled_kotlin/ranges/LongRange.kt",
+            "__bundled_kotlin/ranges/CharRange.kt",
+        ]
+        let typedRangeDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+            guard let fileID = diagnostic.primaryRange?.start.file else { return false }
+            return typedRangeSourcePaths.contains(ctx.sourceManager.path(of: fileID))
+        }
+        #expect(
+            typedRangeDiagnostics.isEmpty,
+            Comment(rawValue: "Typed range shell diagnostics: \(typedRangeDiagnostics)")
+        )
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let expected: [(name: String, sourcePath: String, constructorLink: String, elementType: TypeID)] = [
+            ("IntRange", "__bundled_kotlin/ranges/IntRange.kt", "kk_op_rangeTo", sema.types.intType),
+            ("LongRange", "__bundled_kotlin/ranges/LongRange.kt", "__kk_long_rangeTo", sema.types.longType),
+            ("CharRange", "__bundled_kotlin/ranges/CharRange.kt", "__kk_char_rangeTo", sema.types.charType),
+        ]
+
+        for range in expected {
+            let classFQName = ["kotlin", "ranges", range.name].map(interner.intern)
+            let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
+            let classInfo = try #require(sema.symbols.symbol(classSymbol))
+            #expect(!classInfo.flags.contains(.synthetic))
+            #expect(sema.symbols.isSourceBackedSymbol(classSymbol))
+            let classFileID = try #require(sema.symbols.sourceFileID(for: classSymbol))
+            #expect(ctx.sourceManager.path(of: classFileID) == range.sourcePath)
+
+            let companion = try #require(sema.symbols.companionObjectSymbol(for: classSymbol))
+            #expect(sema.symbols.isSourceBackedSymbol(companion))
+            #expect(!sema.symbols.symbol(companion)!.flags.contains(.synthetic))
+
+            let constructor = try #require(
+                sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first { symbolID in
+                    guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                          let signature = sema.symbols.functionSignature(for: symbolID)
+                    else { return false }
+                    return signature.parameterTypes == [range.elementType, range.elementType]
+                }
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(constructor))
+            #expect(sema.symbols.externalLinkName(for: constructor) == range.constructorLink)
+
+            for propertyName in ["start", "endInclusive", "endExclusive"] {
+                let property = try #require(
+                    sema.symbols.lookupAll(fqName: classFQName + [interner.intern(propertyName)]).first { symbolID in
+                        sema.symbols.symbol(symbolID)?.kind == .property
+                            && sema.symbols.parentSymbol(for: symbolID) == classSymbol
+                    }
+                )
+                #expect(sema.symbols.isSourceBackedSymbol(property))
+                #expect(sema.symbols.externalLinkName(for: property) == nil)
+                #expect(sema.symbols.propertyType(for: property) == range.elementType)
+            }
+        }
+    }
+
     @Test func testCharProgressionFirstFamilyIsSourceBacked() throws {
         let ctx = makeContextFromSource(
             """
@@ -222,35 +313,43 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testUIntRangeMapFilterFamilyIsSourceBacked() throws {
+    /// The unsigned range types share one bundled `RangeHOF.kt` map/filter
+    /// surface — `receiverType` is `UIntRange`/`ULongRange`/
+    /// `UIntProgression`/`ULongProgression`, `elementType`/`literalSuffix`
+    /// pick `UInt`/`u` or `ULong`/`uL`.
+    private func assertUnsignedRangeMapFilterFamilyIsSourceBacked(
+        receiverType: String,
+        elementType: String,
+        literalSuffix: String
+    ) throws {
         let ctx = makeContextFromSource(
             """
-            fun mapValue(range: UIntRange): List<UInt> = range.map { it }
-            fun mapIndexedValue(range: UIntRange): List<UInt> = range.mapIndexed { index, value -> index.toUInt() + value }
-            fun mapNotNullValue(range: UIntRange): List<UInt> = range.mapNotNull { if (it % 2u == 0u) null else it }
-            fun filterValue(range: UIntRange): List<UInt> = range.filter { it % 2u == 1u }
-            fun filterIndexedValue(range: UIntRange): List<UInt> = range.filterIndexed { index, _ -> index % 2 == 0 }
-            fun filterNotValue(range: UIntRange): List<UInt> = range.filterNot { it % 2u == 0u }
+            fun mapValue(range: \(receiverType)): List<\(elementType)> = range.map { it }
+            fun mapIndexedValue(range: \(receiverType)): List<\(elementType)> = range.mapIndexed { index, value -> index.to\(elementType)() + value }
+            fun mapNotNullValue(range: \(receiverType)): List<\(elementType)> = range.mapNotNull { if (it % 2\(literalSuffix) == 0\(literalSuffix)) null else it }
+            fun filterValue(range: \(receiverType)): List<\(elementType)> = range.filter { it % 2\(literalSuffix) == 1\(literalSuffix) }
+            fun filterIndexedValue(range: \(receiverType)): List<\(elementType)> = range.filterIndexed { index, _ -> index % 2 == 0 }
+            fun filterNotValue(range: \(receiverType)): List<\(elementType)> = range.filterNot { it % 2\(literalSuffix) == 0\(literalSuffix) }
             """
         )
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            Comment(rawValue: "Expected UIntRange map/filter HOFs to type-check, got: \(errors)")
+            Comment(rawValue: "Expected \(receiverType) map/filter HOFs to type-check, got: \(errors)")
         )
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let expectedMembers = ["map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot"]
-        let uintRangeFQName = ["kotlin", "ranges", "UIntRange"].map { ctx.interner.intern($0) }
+        let ownerFQName = ["kotlin", "ranges", receiverType].map { ctx.interner.intern($0) }
         for member in expectedMembers {
             let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == member
                 },
-                "Expected UIntRange.\(member) member call"
+                "Expected \(receiverType).\(member) member call"
             )
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
@@ -259,86 +358,36 @@ struct RangeSyntheticMemberLinkTests {
             #expect(signature.parameterTypes.count == 1)
             let receiver = try #require(signature.receiverType)
             let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiver, sema: sema))
-            #expect(receiverSymbol.fqName == uintRangeFQName)
+            #expect(receiverSymbol.fqName == ownerFQName)
         }
     }
 
-    @Test func testUIntProgressionMapFilterFamilyIsSourceBacked() throws {
-        let ctx = makeContextFromSource(
-            """
-            fun mapValue(range: UIntProgression): List<UInt> = range.map { it }
-            fun mapIndexedValue(range: UIntProgression): List<UInt> = range.mapIndexed { index, value -> index.toUInt() + value }
-            fun mapNotNullValue(range: UIntProgression): List<UInt> = range.mapNotNull { if (it % 2u == 0u) null else it }
-            fun filterValue(range: UIntProgression): List<UInt> = range.filter { it % 2u == 1u }
-            fun filterIndexedValue(range: UIntProgression): List<UInt> = range.filterIndexed { index, _ -> index % 2 == 0 }
-            fun filterNotValue(range: UIntProgression): List<UInt> = range.filterNot { it % 2u == 0u }
-            """
+    @Test func testUIntRangeMapFilterFamilyIsSourceBacked() throws {
+        try assertUnsignedRangeMapFilterFamilyIsSourceBacked(
+            receiverType: "UIntRange", elementType: "UInt", literalSuffix: "u"
         )
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            Comment(rawValue: "Expected UIntProgression map/filter HOFs to type-check, got: \(errors)")
-        )
+    }
 
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let expectedMembers = ["map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot"]
-        let uintProgressionFQName = ["kotlin", "ranges", "UIntProgression"].map { ctx.interner.intern($0) }
-        for member in expectedMembers {
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == member
-                },
-                "Expected UIntProgression.\(member) member call"
-            )
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
-            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-            #expect(signature.parameterTypes.count == 1)
-            let receiver = try #require(signature.receiverType)
-            let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiver, sema: sema))
-            #expect(receiverSymbol.fqName == uintProgressionFQName)
-        }
+    @Test func testUIntProgressionMapFilterFamilyIsSourceBacked() throws {
+        try assertUnsignedRangeMapFilterFamilyIsSourceBacked(
+            receiverType: "UIntProgression", elementType: "UInt", literalSuffix: "u"
+        )
+    }
+
+    @Test func testULongRangeMapFilterFamilyIsSourceBacked() throws {
+        try assertUnsignedRangeMapFilterFamilyIsSourceBacked(
+            receiverType: "ULongRange", elementType: "ULong", literalSuffix: "uL"
+        )
+    }
+
+    @Test func testULongProgressionMapFilterFamilyIsSourceBacked() throws {
+        try assertUnsignedRangeMapFilterFamilyIsSourceBacked(
+            receiverType: "ULongProgression", elementType: "ULong", literalSuffix: "uL"
+        )
     }
 
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try sharedSema()
-
-        let orNullExpected: [(owner: String, link: String)] = [
-            // IntRange.firstOrNull is source-backed now; no runtime link.
-            ("LongRange", "kk_long_range_firstOrNull"),
-            ("ULongRange", "kk_ulong_range_firstOrNull"),
-        ]
-        for expectation in orNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "firstOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).firstOrNull should link to \(expectation.link)")
-            )
-        }
-        let lastOrNullExpected: [(owner: String, link: String)] = [
-            // IntRange.lastOrNull is source-backed now; no runtime link.
-            ("LongRange", "kk_long_range_lastOrNull"),
-            ("ULongRange", "kk_ulong_range_lastOrNull"),
-        ]
-        for expectation in lastOrNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "lastOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).lastOrNull should link to \(expectation.link)")
-            )
-        }
 
         for owner in ["IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange"] {
             for member in ["random", "randomOrNull"] {

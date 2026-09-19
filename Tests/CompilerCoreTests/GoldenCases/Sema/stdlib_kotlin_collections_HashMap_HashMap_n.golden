@@ -34,7 +34,7 @@ expr e@14:16 name(other) type=kotlin.collections.Map<String, Int?> ref=golden.se
 expr e@14:5#1 memberCall recv=e@14:5 callee=putAll args=[_:e@14:16] type=Unit call=kotlin.collections.HashMap.putAll[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=kotlin.collections.Map<out T0,T1>;gen=2] targs=[String,Int?]
 expr e@15:5 name(map) type=kotlin.collections.HashMap<String, Int?> ref=golden.sema.hashMapReceiverMembers.$0.map[kind=vparam]
 expr e@15:16 string(key) type=String
-expr e@15:5#1 memberCall recv=e@15:5 callee=remove args=[_:e@15:16] type=Int? call=kotlin.collections.remove[kind=fun;recv=kotlin.collections.MutableMap<out T0,T1>;params=T0;gen=2] targs=[String,Int?]
+expr e@15:5#1 memberCall recv=e@15:5 callee=remove args=[_:e@15:16] type=Int? call=kotlin.collections.MutableMap.remove[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0;gen=2] targs=[String,Int?]
 expr e@16:5 name(map) type=kotlin.collections.HashMap<String, Int?> ref=golden.sema.hashMapReceiverMembers.$0.map[kind=vparam]
 expr e@16:5#1 memberCall recv=e@16:5 callee=size args=[] type=Int ref=kotlin.collections.HashMap.size[kind=prop]
 expr e@17:5 name(map) type=kotlin.collections.HashMap<String, Int?> ref=golden.sema.hashMapReceiverMembers.$0.map[kind=vparam]

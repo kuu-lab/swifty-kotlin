@@ -1,5 +1,15 @@
 package golden.sema
 
+fun removePrefix(source: CharSequence): CharSequence = source.removePrefix("A")
+
+fun removeSuffix(source: CharSequence): CharSequence = source.removeSuffix("C")
+
+fun removeSurroundingDelimiter(source: CharSequence): CharSequence =
+    source.removeSurrounding("A")
+
+fun removeSurroundingPair(source: CharSequence): CharSequence =
+    source.removeSurrounding("A", "C")
+
 fun removeRangeIndices(source: CharSequence): CharSequence = source.removeRange(1, 3)
 
 fun removeRangeIntRange(source: CharSequence): CharSequence = source.removeRange(1..2)

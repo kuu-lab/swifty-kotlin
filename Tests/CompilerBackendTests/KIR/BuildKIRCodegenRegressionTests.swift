@@ -225,9 +225,9 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KSP-977: only exact/custom Iterable receivers bind to the bundled
-    /// Iterable.forEach declaration; receiver-specific forEach families keep
-    /// their existing lowering paths.
+    /// KSP-977 / KUU-604: exact/custom Iterable and concrete List receivers
+    /// bind to the bundled inline Iterable.forEach declaration. Other
+    /// receiver-specific forEach families keep their existing lowering paths.
     @Test
     func testBuildKIRLowersIterableForEachWithoutHijackingOtherReceivers() throws {
         let source = """
@@ -269,7 +269,10 @@ struct BuildKIRCodegenRegressionTests {
 
             let familyBody = try findKIRFunctionBody(named: "receiverFamilies", in: module, interner: ctx.interner)
             let familyCallees = extractCallees(from: familyBody, interner: ctx.interner)
-            #expect(familyCallees.contains("kk_list_forEach"))
+            // List.forEach is source-backed and inline so a non-local return
+            // in its lambda can escape the enclosing function (KUU-604).
+            #expect(containsKotlinCallee("forEach", in: familyCallees))
+            #expect(!(familyCallees.contains("kk_list_forEach")))
             // No kk_sequence_forEach intrinsic exists; Sequence.forEach is bundled Kotlin source (see CodegenBackendSequenceForEachTests).
             #expect(!(familyCallees.contains("kk_sequence_forEach")))
             #expect(containsKotlinCallee("forEach", in: familyCallees))
@@ -473,7 +476,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersStringEqualsToFlatRuntimeCall() throws {
+    func testBuildKIRPreservesSourceBackedStringEqualsCall() throws {
         let source = """
         fun main(lhs: String, rhs: String?) {
             lhs.equals(rhs)
@@ -488,8 +491,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_string_equals_flat"))
+            // `String.equals(String?)` is bundled Kotlin source now. The
+            // caller must preserve that source-backed declaration instead of
+            // lowering directly to its private flat-string bridge.
+            #expect(containsKotlinCallee("equals", in: callNames))
             #expect(!(callNames.contains("kk_string_equals")))
+            #expect(!(callNames.contains("__kk_string_equals_flat")))
         }
     }
 
@@ -499,7 +506,7 @@ struct BuildKIRCodegenRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_string_equals_flat")))
+        #expect(callees.contains(interner.intern("__kk_string_equals_flat")))
         #expect(!(callees.contains(interner.intern("kk_string_equals"))))
     }
 
