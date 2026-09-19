@@ -850,6 +850,11 @@ extension CallTypeChecker {
                 interner.intern("collections"),
                 calleeName,
             ]
+            let iterableFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]
             let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -857,7 +862,12 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == 1,
                       let signatureReceiver = signature.receiverType,
-                      receiverClassifier.isIterableLikeType(signatureReceiver),
+                      // This helper is specifically for the generic
+                      // Iterable<T>.sumOf overloads. A List<T> receiver is
+                      // Iterable-like too, but its indexed List.sumOf body
+                      // is not valid for Set/Collection receivers.
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
+                      receiverSymbol.fqName == iterableFQName,
                       !signature.typeParameterSymbols.isEmpty
                 else {
                     return false
