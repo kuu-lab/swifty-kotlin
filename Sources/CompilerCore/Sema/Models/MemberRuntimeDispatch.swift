@@ -280,7 +280,15 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "first_predicate")
             }
-            return rangeFirstLastOrThrowLinkName(kind: kind, wantLast: false)
+            // KSP-1523/KSP-1529: `MemberDispatchKey` has no notion of
+            // "property read" vs. "explicit call" — only the
+            // isExplicitCall check in CallLowerer+LegacyMemberLikeCalls.swift
+            // can tell them apart, and it intercepts `.first()` before this
+            // dispatch table is ever consulted. Keep routing arity-0 `first`
+            // through the same source-backed-aware lookup as `start` so this
+            // never reconstructs a `kk_uint_range_first`/`_orThrow` name for
+            // a receiver kind whose HOF surface is source-backed.
+            return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
         case "start":
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
         case "firstOrNull":
@@ -292,7 +300,9 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "last_predicate")
             }
-            return rangeFirstLastOrThrowLinkName(kind: kind, wantLast: true)
+            // See the "first" case above: same source-backed-aware lookup,
+            // same reason.
+            return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
         case "end":
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
         case "lastOrNull":
@@ -429,14 +439,25 @@ enum MemberRuntimeDispatch {
         orThrow: Bool
     ) -> String {
         let member = wantLast ? "last" : "first"
-        let suffix = orThrow ? "_orThrow" : ""
+        if orThrow {
+            if kind.isULongRangeLike {
+                return "kk_ulong_range_\(member)_orThrow"
+            }
+            if kind.isUIntRangeLike {
+                return "kk_uint_range_\(member)_orThrow"
+            }
+            return "__kk_range_\(member)_orThrow"
+        }
+        // KSP-1523: the non-throwing property getter has no dedicated
+        // `kk_uint_range_first`/`kk_uint_range_last` entry point — UInt
+        // shares the common `__kk_range_*` bridge with signed ranges (its
+        // full value range fits the non-negative half of the box's Int64
+        // fields). ULong keeps its own bridge (values above Int64.max need
+        // unsigned comparisons).
         if kind.isULongRangeLike {
-            return "kk_ulong_range_\(member)\(suffix)"
+            return "kk_ulong_range_\(member)"
         }
-        if kind.isUIntRangeLike {
-            return "kk_uint_range_\(member)\(suffix)"
-        }
-        return "__kk_range_\(member)\(suffix)"
+        return "__kk_range_\(member)"
     }
 
     private static func rangeRuntimeName(
