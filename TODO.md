@@ -421,20 +421,19 @@
     8. **検証**: `swift build` green（既存の `SemanticsModels.swift` 重複 case 警告のみ）。List/MutableList/AbstractCollection/AbstractMutableList/ListIterator の対象 Sema テスト、`ListSyntheticMemberLinkTests` の関連ケース green。Sema golden は 93 cases 全 PASS（差分は3 fixtureの型表記置換のみ）。新規 `collection_interface_declarations.kt` は `bash Scripts/diff_kotlinc.sh` で PASS、Runtime ABI 外部リンク検証は4/4 PASS。全体テスト・全 diff_kotlinc は未実行（最小スコープ方針）。
     9. **`kk_cdecl_count`/`__kk_cdecl_count`**: 新規 bridge の追加・削除・改名はなく、既存 `__kk_list_get`/`kk_list_is_empty`/`kk_list_iterator`/`kk_list_iterator_at` を再利用した。Runtime/RuntimeABI のソース変更はない。
 
-- [~] KSP-703: Map shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticMapStubs.swift` を削除する
+- [x] KSP-703: Map shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticMapStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMapStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/` 新設 `Map.kt`/`MutableMap.kt`/`HashMap.kt`/`LinkedHashMap.kt`（`MapHOF.kt`/`MapLookupAndTransform.kt` 既存から統合）
   - 削除/降格 kk_*: `kk_map_*` public ブリッジ（`RuntimeSetAndMap.swift`/`RuntimeMapHOF.swift`。着手時 `rg -o '@_cdecl\("kk_map[a-zA-Z0-9_]*"\)' Sources/Runtime` 全層で再固定）を削除 or `__kk_` 降格
   - 手順: T
   - diff: `map_*.kt` 既存 + `HashMap`/`LinkedHashMap` 生成ケース
   - 前提: KSP-700, KSP-701
-  - **2026-09-15 実装メモ**: KSP-701 は完了済み。KSP-700 は未完了だが、KSP-704/KSP-1542 の前例に従い、個別の Map shell を先行移行した。着手時点で `Map`/`MutableMap`/`HashMap` は既に bundled Kotlin source 化済みで、issue の「新設」は stale だった。
+  - **2026-09-18 完了メモ**: KSP-701 は完了済み。KSP-700 は未完了だが、KSP-704/KSP-1542 の前例に従い、個別の Map shell を先行移行した。着手時点で `Map`/`MutableMap`/`HashMap`/`LinkedHashMap` は既に bundled Kotlin source 化済みで、issue の「新設」は stale だった。
     1. `HeaderHelpers+SyntheticMapStubs.swift` の到達不能な Map HOF 合成登録（`forEach`/`map`/`mapNotNull`/`mapValues`/`mapKeys`/`filter*`/`count`/`any`/`all`/`none`/`plus`/`minus`/`flatMap`/`maxByOrNull`/`minByOrNull`）を削除した。`MapHOF.kt`/`MapLookupAndTransform.kt` の source-backed extension と重複しており、`bundledIndex.contains(...)` の無条件 return で到達不能だったためである。`Map.Entry` の `component1`/`component2` と `MutableEntry.setValue` の同様の dead 登録も削除した。
-    2. `Map.isEmpty`/`Map.get` を `Map/Map.kt`、`MutableMap.remove`/`clear` を `MutableMap.kt` の `@KsSymbolName` 付き宣言へ移した。Map の `size`/`keys`/`values`/`entries` は property への link-name 注釈が未対応のため Swift residual として残し、`MutableMap.put`（throwing ABI の伝播確認が必要）と `putAll`（意図的な member/extension overlap whitelist）は従来登録を維持した。`Map.Entry`/`MutableEntry` の interface shell も bundled source 側に対応宣言がないため残置した。
+    2. `Map.isEmpty`/`Map.get` を `Map/Map.kt`、`MutableMap.remove`/`clear` を `MutableMap.kt` の `@KsSymbolName` 付き宣言へ移した。`Map` の property と `MutableMap` の `put`/`putAll` は、runtime map box が itable を持たないため、source 宣言と ABI 直結 residual を分離して維持した（default body 化は `KSWIFTK-RUNTIME-0001` を再現）。`Map.Entry`/`MutableEntry` の nested interface shell と key/value accessor は、現行 bundled-header pass の前方宣言制約のため `HeaderHelpers+SyntheticMapEntryResiduals.swift` に残置した。runtime property/mutation の residual は `HeaderHelpers+SyntheticMapRuntimeResiduals.swift` に分離した。
     3. `LinkedHashMap` の typealias を `CollectionAliases.kt` から本家準拠の `LinkedHashMap.kt` へ分離した。HashMap/LinkedHashMap の alias 方向を kotlin-native と一致させる concrete-class 化は `CollectionLiteralLoweringPass` の再設計を伴うため、§13-8 の構造逸脱台帳に follow-up として記録した。
-    4. 着手時の `rg -o '@_cdecl\("kk_map[a-zA-Z0-9_]*"\)' Sources/Runtime` は3件（`size`/`is_empty`/`to_string`）で、すべて `__kk_` へ降格した。HOF の public map cdecl は着手時から存在しなかった。RuntimeABI、Lowering、KIR、テスト期待値も同じ link 名へ追従した。
-    5. 検証: `swift build` green。MapAsSourceMigrationTests、MapInterfaceSourceMigrationTests、MutableMapInterfaceSourceMigrationTests、MutableMapEntrySourceMigrationTests、MapHOFLoweringRoutingTests、RuntimeABIExternalLinkValidationTests、ABIMismatchRuntimeExportParityTests、CodegenBackendMapHOFTests の計26テスト green。新規 `linkedhashmap_constructors.kt` を含む map/mutable_map/hashmap/linkedhashmap 関連60ケースの `diff_kotlinc.sh` は `total=59 failed=0 passed=59 skipped=1`（`ksp687_map_not_null.kt` の既存 `SKIP-DIFF` のみ）。全 Swift suite、全 Golden、全 diff ケースは未実行。
-    6. `Scripts/loc_report.sh`: `header_helpers_synthetic_total_lines` 30121→29531（-590）、`kk_literal_count` 6071→6023（-48）、`kk_cdecl_count` 831→828（-3）、`__kk_cdecl_count` 847→850（+3）、`kir_lowering_todo_fixme_count` は0で不変。公開 `kk_map_*` cdecl の降格に伴う hidden bridge 3件の増加であり、その他の残留数を悪化させていない。
+    4. 着手時の `rg -o '@_cdecl\("kk_map[a-zA-Z0-9_]*"\)' Sources/Runtime` は空で、現在も public `kk_map_*` Runtime export は存在しない。Runtime 側は既存の `__kk_map_*` hidden bridge を再利用した。
+    5. 検証: `swift build`、MapAsSourceMigrationTests、MutableMapInterfaceSourceMigrationTests、MutableMapEntrySourceMigrationTests、MapHOFLoweringRoutingTests、RuntimeABIExternalLinkValidationTests、ABIMismatchRuntimeExportParityTests、CodegenBackendMapHOFTests は green。KUU-510 対象 27 件（`map_*.kt`、`mutable_map_*.kt`、HashMap/LinkedHashMap alias・constructor・生成ケース）の `diff_kotlinc.sh` は `total=27 failed=0 passed=27 skipped=0`。全 Swift suite、全 Golden、全 diff ケースは未実行。
 
 - [x] KSP-704: Set shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticSetStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSetStubs.swift`
