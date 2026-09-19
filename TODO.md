@@ -2952,21 +2952,21 @@
     - `kotlin.sequences.elementAtOrElse` — fun Sequence.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`
     - `kotlin.sequences.elementAtOrNull` — fun Sequence.elementAtOrNull(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrNull(kotlin/Int): #A?`
 
-- [ ] KSP-1344: kotlin.sequences.Sequence.first-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1344: kotlin.sequences.Sequence.first-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `first`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_first.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_first.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_first.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 実装シンボル一覧:
     - `kotlin.sequences.first` — fun Sequence.first(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/first(): #A`
     - `kotlin.sequences.first` — fun Sequence.first(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/first(kotlin/Function1<#A, kotlin/Boolean>): #A`
     - `kotlin.sequences.firstNotNullOf` — fun Sequence.firstNotNullOf(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstNotNullOf(kotlin/Function1<#A, #B?>): #B`
     - `kotlin.sequences.firstNotNullOfOrNull` — fun Sequence.firstNotNullOfOrNull(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstNotNullOfOrNull(kotlin/Function1<#A, #B?>): #B?`
     - `kotlin.sequences.firstOrNull` — fun Sequence.firstOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstOrNull(): #A?`
     - `kotlin.sequences.firstOrNull` — fun Sequence.firstOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
-  - 現状確認（2026-09-15、監査 stale・追記のみ）: 6件中4件（`first`x2, `firstOrNull`x2）は `SequenceAggregateHOF.kt:676-707`（KSP-442、commit `c965a08f8` #5723）で実装済み。真の残件は2件のみ: `firstNotNullOf`/`firstNotNullOfOrNull`。これらは `kk_sequence_firstNotNullOf`/`kk_sequence_firstNotNullOfOrNull`（`RuntimeSequence.swift:1908,1951`）の runtime bridge のみで、対応する Kotlin 宣言が `Sources/CompilerCore/Stdlib/kotlin/sequences/` に存在しない（Iterable/Map版は `Iterables.kt`/`MapHOF.kt` に実装済みだが Sequence版は未移植）。チェックボックスは残件があるため据え置き、次回着手者はこの2件のみに絞ってよい。
+  - 完了根拠（2026-09-19、KSP-1344 残件対応）: `SequenceConversionsAndSetOps.kt:36-59` に `firstNotNullOf` / `firstNotNullOfOrNull` を追加し、Sequence の encounter order、最初の non-null 結果、空結果、例外伝播を Kotlin source path で実装。`HeaderHelpers+SyntheticSequenceResidualStubs.swift` の該当 synthetic registration と Sequence runtime surface spec の該当2件を削除し、既存の低レベル runtime ABI bridge は direct/residual path 用として保持した。専用 Sema Golden、Sema call-binding/link テスト、Codegen 回帰、`stdlib_kotlin_sequences_Sequence_first.kt` の Kotlin 2.3.10 diff が PASS。
 
 - [x] KSP-1345: kotlin.sequences.Sequence.flat-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `flat`
