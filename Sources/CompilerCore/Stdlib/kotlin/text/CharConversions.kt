@@ -21,7 +21,7 @@ internal external fun __charTitlecaseString(code: Int): String
 @KsSymbolName("__kk_char_uppercase_code")
 internal external fun __charUppercaseCode(code: Int): Int
 
-/// One-to-one lowercase mapping; returns -1 for undefined mappings.
+/// One-to-one lowercase mapping; returns -1 for multi-scalar or undefined mappings.
 @KsSymbolName("__kk_char_lowercase_code")
 internal external fun __charLowercaseCode(code: Int): Int
 
