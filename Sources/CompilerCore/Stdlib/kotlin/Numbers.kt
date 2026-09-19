@@ -129,3 +129,36 @@ public fun Float.toLong(): Long = __floatToLong(this)
 public fun Float.toDouble(): Double = __floatToDouble(this)
 
 public fun Float.toChar(): Char = toInt().toChar()
+
+// KSP-1544 (KUU-588): Float/Double narrowing to Byte/Short is defined by the
+// stdlib as `toInt().toByte()` / `toInt().toShort()` and deprecated at error
+// level since Kotlin 1.5. Keep the public API and its deprecation metadata in
+// bundled Kotlin; the hidden toInt bridges carry the IEEE payload.
+
+@Deprecated(
+    "Unclear conversion. To achieve the same result convert to Int explicitly and then to Byte.",
+    ReplaceWith("toInt().toByte()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.3", errorSince = "1.5")
+public fun Double.toByte(): Byte = toInt().toByte()
+
+@Deprecated(
+    "Unclear conversion. To achieve the same result convert to Int explicitly and then to Short.",
+    ReplaceWith("toInt().toShort()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.3", errorSince = "1.5")
+public fun Double.toShort(): Short = toInt().toShort()
+
+@Deprecated(
+    "Unclear conversion. To achieve the same result convert to Int explicitly and then to Byte.",
+    ReplaceWith("toInt().toByte()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.3", errorSince = "1.5")
+public fun Float.toByte(): Byte = toInt().toByte()
+
+@Deprecated(
+    "Unclear conversion. To achieve the same result convert to Int explicitly and then to Short.",
+    ReplaceWith("toInt().toShort()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.3", errorSince = "1.5")
+public fun Float.toShort(): Short = toInt().toShort()

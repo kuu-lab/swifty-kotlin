@@ -261,6 +261,10 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_map_minus",
             "kk_map_none",
             "kk_map_plus",
+            "kk_native_atomic_ref_compareAndSet",
+            "kk_native_atomic_ref_compareAndSwap",
+            "kk_native_atomic_ref_create",
+            "kk_native_atomic_ref_load",
             "kk_long_range_firstOrNull",
             "kk_long_range_lastOrNull",
         ]

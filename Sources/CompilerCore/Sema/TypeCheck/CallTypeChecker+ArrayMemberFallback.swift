@@ -3,7 +3,7 @@
 ///
 /// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
-    private static let primitiveArraySourceHOFNames: Set<String> = [
+    private static let primitiveArraySourceMemberNames: Set<String> = [
         "map", "mapIndexed", "mapNotNull", "flatMap", "forEach",
         "filter", "filterIndexed", "filterNot",
         "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
@@ -11,6 +11,7 @@ extension CallTypeChecker {
         "any", "all", "none", "count", "joinToString",
         "contentEquals", "contentHashCode", "contentToString",
         "copyOf", "copyOfRange", "copyInto",
+        "indices", "lastIndex", "iterator", "withIndex", "sort",
     ]
 
     private static let arraySourceConversionNames: Set<String> = [
@@ -19,16 +20,16 @@ extension CallTypeChecker {
 
     /// Finds the exact primitive-array source overload before the default-import
     /// scope fallback can select a same-named Sequence extension. Primitive
-    /// arrays are compiler-provided nominal classes, while their bundled HOFs
-    /// live in kotlin.collections as top-level extensions.
-    func collectPrimitiveArraySourceHOFs(
+    /// arrays are compiler-provided nominal classes, while their bundled source
+    /// members live in kotlin.collections as top-level extensions.
+    func collectPrimitiveArraySourceMembers(
         named calleeName: InternedString,
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
         let memberName = interner.resolve(calleeName)
-        guard Self.primitiveArraySourceHOFNames.contains(memberName),
+        guard Self.primitiveArraySourceMemberNames.contains(memberName),
               let receiverClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
               let receiverSymbol = sema.symbols.symbol(receiverClass),
               receiverSymbol.fqName.count == 2,
@@ -124,11 +125,11 @@ extension CallTypeChecker {
             return nil
         }
 
-        // KSP-687: primitive-array HOFs are bundled Kotlin extensions, not
+        // KSP-687: primitive-array source members are bundled Kotlin extensions, not
         // unresolved members. Let ordinary overload resolution select the
         // source declaration so the legacy raw-array bridge cannot intercept
         // the call (especially joinToString(transform)).
-        if !collectPrimitiveArraySourceHOFs(
+        if !collectPrimitiveArraySourceMembers(
             named: calleeName,
             receiverType: sema.bindings.exprTypes[receiverID] ?? sema.types.anyType,
             sema: sema,

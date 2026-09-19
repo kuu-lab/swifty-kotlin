@@ -121,10 +121,10 @@ public func kk_set_to_string(_ setRaw: Int) -> UnsafeMutableRawPointer {
 @_cdecl("__kk_collection_toList")
 public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
-        return registerRuntimeObject(RuntimeListBox(elements: list.elements))
+        return registerRuntimeObject(RuntimeListBox(values: list.values))
     }
     if let set = runtimeSetBox(from: collRaw) {
-        return registerRuntimeObject(RuntimeListBox(elements: set.elements))
+        return registerRuntimeObject(RuntimeListBox(values: set.values))
     }
     if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
@@ -192,7 +192,7 @@ public func kk_mutable_set_add(
     if runtimeThrowIfReadOnlySet(set, outThrown) {
         return 0
     }
-    return set.insert(rawValue: elem) ? 1 : 0
+    return set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_remove")
@@ -442,7 +442,11 @@ public func kk_mutable_map_put(
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
     }
-    return map.put(key: key, value: value) ?? runtimeNullSentinelInt
+    let runtimeKey = runtimeValueFromCollectionABI(key)
+    let runtimeValue = runtimeValueFromCollectionABI(value)
+    return map.put(key: runtimeKey, value: runtimeValue)
+        .map(runtimeCollectionABIValue)
+        ?? runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_mutable_map_remove")
@@ -489,8 +493,8 @@ public func kk_mutable_map_putAll(
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
     }
-    let otherKeys = other.keys
-    let otherValues = other.values
+    let otherKeys = other.keyValues
+    let otherValues = other.entryValues
     for (idx, key) in otherKeys.enumerated() {
         guard idx < otherValues.count else { break }
         _ = map.put(key: key, value: otherValues[idx])
@@ -505,7 +509,12 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     else {
         return 0
     }
-    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second, nil)
+    _ = kk_mutable_map_put(
+        mapRaw,
+        runtimeCollectionABIValue(pairBox.firstValue),
+        runtimeCollectionABIValue(pairBox.secondValue),
+        nil
+    )
     return 0
 }
 
@@ -525,7 +534,10 @@ public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let index = map.index(ofRawKey: key) else {
         return runtimeNullSentinelInt
     }
-    return map.rawValue(at: index) ?? runtimeNullSentinelInt
+    guard let value = map.runtimeValue(at: index) else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeCollectionABIValue(value)
 }
 
 @inline(__always)
@@ -638,7 +650,9 @@ public func kk_map_keys(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(map.keys)))
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(map.keyValues))
+    )
 }
 
 @_cdecl("__kk_map_values")
@@ -646,7 +660,7 @@ public func kk_map_values(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: map.values))
+    return registerRuntimeObject(RuntimeListBox(values: map.entryValues))
 }
 
 @_cdecl("__kk_map_iterator")
@@ -705,10 +719,20 @@ public func kk_mutable_map_iterator_next(_ iterRaw: Int) -> Int {
     let key = iter.keys[iter.index]
     iter.index += 1
     iter.lastKey = key
+    guard let map = runtimeMapBox(from: iter.mapRaw),
+          let storageIndex = map.index(ofRawKey: key),
+          let value = map.runtimeValue(at: storageIndex)
+    else {
+        return runtimeMutableMapEntryNew(
+            mapRaw: iter.mapRaw,
+            key: RuntimeValue(raw: key),
+            value: RuntimeValue(raw: kk_map_get(iter.mapRaw, key))
+        )
+    }
     return runtimeMutableMapEntryNew(
         mapRaw: iter.mapRaw,
-        key: key,
-        value: kk_map_get(iter.mapRaw, key)
+        key: map.keyValues[storageIndex],
+        value: value
     )
 }
 
@@ -749,7 +773,7 @@ public func kk_mutable_map_entry_setValue(
     if outThrown?.pointee != 0 {
         return runtimeNullSentinelInt
     }
-    pairBox.secondValue = RuntimeValue(raw: value)
+    pairBox.secondValue = runtimeValueFromCollectionABI(value)
     return previous
 }
 
@@ -762,7 +786,7 @@ public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
             kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
         }
     }
-    let parts = zip(map.keys, map.values).map { key, value -> String in
+    let parts = zip(map.keyValues, map.entryValues).map { key, value -> String in
         let keyStr = runtimeElementToString(key)
         let valStr = runtimeElementToString(value)
         return "\(keyStr)=\(valStr)"

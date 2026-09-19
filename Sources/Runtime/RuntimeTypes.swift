@@ -288,8 +288,8 @@ final class RuntimePairBox {
     var mutableMapRaw: Int = 0
     var mutableMapKey: Int = 0
 
-    var first: Int { firstValue.legacyRawValue }
-    var second: Int { secondValue.legacyRawValue }
+    var first: Int { runtimeCollectionABIValue(firstValue) }
+    var second: Int { runtimeCollectionABIValue(secondValue) }
 
     init(first: Int, second: Int) {
         self.firstValue = RuntimeValue(raw: first)
@@ -522,7 +522,7 @@ final class RuntimeSetBox {
         get {
             if let backingMapRaw,
                let map = runtimeMapBox(from: backingMapRaw) {
-                return zip(map.keys, map.values).map { key, value in
+                return zip(map.keyValues, map.entryValues).map { key, value in
                     RuntimeValue(raw: runtimeMutableMapEntryNew(
                         mapRaw: backingMapRaw,
                         key: key,
@@ -612,13 +612,18 @@ final class RuntimeSetBox {
 
     @discardableResult
     func insert(rawValue: Int) -> Bool {
+        insert(value: RuntimeValue(raw: rawValue))
+    }
+
+    @discardableResult
+    func insert(value: RuntimeValue) -> Bool {
         guard backingMapRaw == nil, !isReadOnly else { return false }
-        let key = RuntimeElementKey(value: rawValue)
+        let key = RuntimeElementKey(value: value.legacyRawValue)
         guard index[key] == nil else {
             return false
         }
         let newIndex = storage.count
-        storage.append(RuntimeValue(raw: rawValue))
+        storage.append(value)
         index[key] = newIndex
         return true
     }
@@ -815,29 +820,47 @@ final class RuntimeMapBox {
         return valueStorage[index].legacyRawValue
     }
 
-    func updateValue(at index: Int, rawValue: Int) {
+    func runtimeValue(at index: Int) -> RuntimeValue? {
         if let backingMap {
-            backingMap.updateValue(at: index, rawValue: rawValue)
+            return backingMap.runtimeValue(at: index)
+        }
+        guard valueStorage.indices.contains(index) else {
+            return nil
+        }
+        return valueStorage[index]
+    }
+
+    func updateValue(at index: Int, rawValue: Int) {
+        updateValue(at: index, value: RuntimeValue(raw: rawValue))
+    }
+
+    func updateValue(at index: Int, value: RuntimeValue) {
+        if let backingMap {
+            backingMap.updateValue(at: index, value: value)
             return
         }
         guard !isReadOnly else { return }
         guard valueStorage.indices.contains(index) else {
-            valueStorage.append(RuntimeValue(raw: rawValue))
+            valueStorage.append(value)
             return
         }
-        valueStorage[index] = RuntimeValue(raw: rawValue)
+        valueStorage[index] = value
     }
 
     func appendEntry(key: Int, value: Int) {
+        appendEntry(key: RuntimeValue(raw: key), value: RuntimeValue(raw: value))
+    }
+
+    func appendEntry(key: RuntimeValue, value: RuntimeValue) {
         if let backingMap {
             backingMap.appendEntry(key: key, value: value)
             return
         }
         guard !isReadOnly else { return }
         let newIndex = keyStorage.count
-        keyStorage.append(RuntimeValue(raw: key))
-        valueStorage.append(RuntimeValue(raw: value))
-        let runtimeKey = RuntimeElementKey(value: key)
+        keyStorage.append(key)
+        valueStorage.append(value)
+        let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
         if keyIndex[runtimeKey] == nil {
             keyIndex[runtimeKey] = newIndex
         }
@@ -845,14 +868,19 @@ final class RuntimeMapBox {
 
     @discardableResult
     func put(key: Int, value: Int) -> Int? {
+        put(key: RuntimeValue(raw: key), value: RuntimeValue(raw: value))?.legacyRawValue
+    }
+
+    @discardableResult
+    func put(key: RuntimeValue, value: RuntimeValue) -> RuntimeValue? {
         if let backingMap {
             return backingMap.put(key: key, value: value)
         }
         guard !isReadOnly else { return nil }
-        let runtimeKey = RuntimeElementKey(value: key)
+        let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
         if let index = keyIndex[runtimeKey] {
-            let previous = rawValue(at: index)
-            updateValue(at: index, rawValue: value)
+            let previous = runtimeValue(at: index)
+            updateValue(at: index, value: value)
             return previous
         }
         appendEntry(key: key, value: value)
@@ -1049,23 +1077,45 @@ final class RuntimeIndexingIteratorBox {
 
 /// Iterator box for `List` iteration via `for (x in list)`.
 final class RuntimeListIteratorBox {
-    var elements: [Int]
+    var values: [RuntimeValue]
+    var elements: [Int] {
+        get {
+            values.map(\.legacyRawValue)
+        }
+        set {
+            values = newValue.map(runtimeValueFromCollectionABI)
+        }
+    }
     var index: Int
     /// Index last returned by `next()`/`previous()`, or -1 before any
     /// traversal call or once consumed by `remove()`/`add()` — mirrors
     /// Java/Kotlin's `AbstractList.Itr.lastRet` invariant.
     var lastReturnedIndex: Int
     let removeAction: ((Int) -> Void)?
-    let setAction: ((Int, Int) -> Void)?
-    let addAction: ((Int, Int) -> Void)?
+    let setAction: ((Int, RuntimeValue) -> Void)?
+    let addAction: ((Int, RuntimeValue) -> Void)?
 
     init(
         elements: [Int],
         removeAction: ((Int) -> Void)? = nil,
-        setAction: ((Int, Int) -> Void)? = nil,
-        addAction: ((Int, Int) -> Void)? = nil
+        setAction: ((Int, RuntimeValue) -> Void)? = nil,
+        addAction: ((Int, RuntimeValue) -> Void)? = nil
     ) {
-        self.elements = elements
+        values = elements.map(runtimeValueFromCollectionABI)
+        index = 0
+        lastReturnedIndex = -1
+        self.removeAction = removeAction
+        self.setAction = setAction
+        self.addAction = addAction
+    }
+
+    init(
+        values: [RuntimeValue],
+        removeAction: ((Int) -> Void)? = nil,
+        setAction: ((Int, RuntimeValue) -> Void)? = nil,
+        addAction: ((Int, RuntimeValue) -> Void)? = nil
+    ) {
+        self.values = values
         index = 0
         lastReturnedIndex = -1
         self.removeAction = removeAction
@@ -1074,10 +1124,10 @@ final class RuntimeListIteratorBox {
     }
 
     func removeLastReturned() -> Bool {
-        guard lastReturnedIndex >= 0, lastReturnedIndex < elements.count else {
+        guard lastReturnedIndex >= 0, lastReturnedIndex < values.count else {
             return false
         }
-        elements.remove(at: lastReturnedIndex)
+        values.remove(at: lastReturnedIndex)
         index = lastReturnedIndex
         removeAction?(lastReturnedIndex)
         lastReturnedIndex = -1
@@ -1087,12 +1137,12 @@ final class RuntimeListIteratorBox {
     /// `MutableListIterator.set`: replaces the element most recently returned
     /// by `next()`/`previous()`, at the same position `removeLastReturned()`
     /// targets.
-    func setLastReturned(_ rawValue: Int) -> Bool {
-        guard lastReturnedIndex >= 0, lastReturnedIndex < elements.count else {
+    func setLastReturned(_ value: RuntimeValue) -> Bool {
+        guard lastReturnedIndex >= 0, lastReturnedIndex < values.count else {
             return false
         }
-        elements[lastReturnedIndex] = rawValue
-        setAction?(lastReturnedIndex, rawValue)
+        values[lastReturnedIndex] = value
+        setAction?(lastReturnedIndex, value)
         return true
     }
 
@@ -1101,9 +1151,9 @@ final class RuntimeListIteratorBox {
     /// following `next()` does not return it again. Invalidates
     /// `lastReturnedIndex`: `add()` cannot be followed directly by
     /// `set()`/`remove()`.
-    func addBeforeNext(_ rawValue: Int) {
-        elements.insert(rawValue, at: index)
-        addAction?(index, rawValue)
+    func addBeforeNext(_ value: RuntimeValue) {
+        values.insert(value, at: index)
+        addAction?(index, value)
         index += 1
         lastReturnedIndex = -1
     }

@@ -32,9 +32,9 @@ struct KotlinCompilationDeepRecursiveTests {
         """)
     }
 
-    // The capturing block is lowered through the receiver-aware HOF adapter
-    // (closure env, scope receiver, value); without it the captured value and
-    // the scope receiver share a parameter slot.
+    // Captures travel as closureRaw into the trampoline launcher-arg prefix
+    // (capture, scope, value). Without that slot the capture and the scope
+    // receiver share a parameter.
     @Test func testCompileDeepRecursiveFunctionCapturingBlock() throws {
         try assertKotlinCompilesToObject("""
         fun probe(step: Int): Int {

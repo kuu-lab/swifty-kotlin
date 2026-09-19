@@ -223,10 +223,43 @@ func anyToStringBridgeSymbolForImplementation(
         .symbolRef(receiverParam.symbol),
         type: receiverParam.type
     )
+    let rawReceiverKind = sema.types.kind(of: receiverType)
+    let resolvedReceiverKind = resolveValueClassKind(
+        rawReceiverKind,
+        types: sema.types,
+        symbols: sema.symbols
+    )
     var body: [KIRInstruction] = [
         .beginBlock,
         .constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)),
     ]
+    // A value-class Any bridge receives the boxed underlying representation,
+    // while the source implementation expects the unboxed value-class ABI.
+    // Unbox the bridge receiver before calling the implementation; otherwise
+    // `toString()` implementations that inspect their receiver recurse back
+    // through the same Any override.
+    let receiverForCall: KIRExprID
+    if rawReceiverKind != resolvedReceiverKind,
+       let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+           for: resolvedReceiverKind,
+           requireNonNull: true
+       )
+    {
+        let unboxedReceiver = arena.appendTemporary(
+            type: sema.types.make(resolvedReceiverKind)
+        )
+        body.append(.call(
+            symbol: nil,
+            callee: unboxCallee,
+            arguments: [receiverExpr],
+            result: unboxedReceiver,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        receiverForCall = unboxedReceiver
+    } else {
+        receiverForCall = receiverExpr
+    }
     let callResult = arena.appendTemporary(type: implementationReturnType)
     let thrownResult: KIRExprID? = implementationSig.canThrow
         ? arena.appendTemporary(type: sema.types.nullableAnyType)
@@ -234,7 +267,7 @@ func anyToStringBridgeSymbolForImplementation(
     body.append(.call(
         symbol: implementation,
         callee: interner.intern("__any_to_string_impl_\(implementation.rawValue)"),
-        arguments: [receiverExpr],
+        arguments: [receiverForCall],
         result: callResult,
         canThrow: implementationSig.canThrow,
         thrownResult: thrownResult
@@ -302,6 +335,53 @@ func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
         symbol: nil,
         callee: interner.intern("kk_object_register_any_to_string"),
         arguments: [objectValue, bridgeExpr],
+        result: registerResult,
+        canThrow: false,
+        thrownResult: nil
+    ))
+}
+
+/// Registers the raw-string bridge for a value class independently of an
+/// object allocation. ValueClassUnboxingPass removes the heap allocation and
+/// therefore cannot retain the ordinary per-object registration above, while
+/// an Any-erased value class still needs its nominal toString implementation.
+func appendValueClassAnyToStringRegistration<C: RangeReplaceableCollection>(
+    nominalSymbol: SymbolID,
+    classID: Int64,
+    driver: KIRLoweringDriver,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout C
+) where C.Element == KIRInstruction {
+    guard classID != 0,
+          sema.symbols.symbol(nominalSymbol)?.flags.contains(.valueType) == true,
+          let implementation = resolveClassToStringSymbol(
+              for: nominalSymbol,
+              sema: sema,
+              interner: interner
+          ),
+          let bridge = anyToStringBridgeSymbolForImplementation(
+              implementation,
+              driver: driver,
+              arena: arena,
+              sema: sema,
+              interner: interner
+          )
+    else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+    let bridgeExpr = arena.appendExpr(.symbolRef(bridge), type: intType)
+    instructions.append(.constValue(result: bridgeExpr, value: .symbolRef(bridge)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        symbol: nil,
+        callee: interner.intern("kk_value_class_register_any_to_string"),
+        arguments: [classIDExpr, bridgeExpr],
         result: registerResult,
         canThrow: false,
         thrownResult: nil

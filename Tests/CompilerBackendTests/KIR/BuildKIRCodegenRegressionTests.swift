@@ -225,9 +225,9 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KSP-977: only exact/custom Iterable receivers bind to the bundled
-    /// Iterable.forEach declaration; receiver-specific forEach families keep
-    /// their existing lowering paths.
+    /// KSP-977 / KUU-604: exact/custom Iterable and concrete List receivers
+    /// bind to the bundled inline Iterable.forEach declaration. Other
+    /// receiver-specific forEach families keep their existing lowering paths.
     @Test
     func testBuildKIRLowersIterableForEachWithoutHijackingOtherReceivers() throws {
         let source = """
@@ -269,7 +269,10 @@ struct BuildKIRCodegenRegressionTests {
 
             let familyBody = try findKIRFunctionBody(named: "receiverFamilies", in: module, interner: ctx.interner)
             let familyCallees = extractCallees(from: familyBody, interner: ctx.interner)
-            #expect(familyCallees.contains("kk_list_forEach"))
+            // List.forEach is source-backed and inline so a non-local return
+            // in its lambda can escape the enclosing function (KUU-604).
+            #expect(containsKotlinCallee("forEach", in: familyCallees))
+            #expect(!(familyCallees.contains("kk_list_forEach")))
             // No kk_sequence_forEach intrinsic exists; Sequence.forEach is bundled Kotlin source (see CodegenBackendSequenceForEachTests).
             #expect(!(familyCallees.contains("kk_sequence_forEach")))
             #expect(containsKotlinCallee("forEach", in: familyCallees))

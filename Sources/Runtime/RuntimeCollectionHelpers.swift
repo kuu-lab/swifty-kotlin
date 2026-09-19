@@ -189,12 +189,31 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 }
 
 @inline(__always)
+func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
+    let raw = runtimePairNew(firstValue: key, secondValue: value)
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
     let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key
+    }
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
+func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeValue) -> Int {
+    let raw = registerRuntimeObject(RuntimePairBox(firstValue: key, secondValue: value))
+    if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
+        pairBox.mutableMapRaw = mapRaw
+        pairBox.mutableMapKey = key.legacyRawValue
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     return raw
@@ -387,6 +406,34 @@ func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeVal
         return RuntimeValue(charScalar: kk_unbox_char(rawValue))
     }
     return RuntimeValue(raw: rawValue)
+}
+
+/// Preserves the representation of values crossing a generic collection ABI.
+/// Primitive `Char` values are boxed at this boundary so a later generic
+/// consumer can recover the character instead of treating its UTF-16 scalar as
+/// an `Int`.
+@inline(__always)
+func runtimeValueFromCollectionABI(_ rawValue: Int) -> RuntimeValue {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: pointer))
+          }),
+          let charBox = tryCast(pointer, to: RuntimeCharBox.self)
+    else {
+        return RuntimeValue(raw: rawValue)
+    }
+    return RuntimeValue(charScalar: charBox.value)
+}
+
+/// Converts a tagged value to the legacy raw ABI representation used by
+/// collection iterator/accessor entry points. `Char` is the one primitive whose
+/// type identity must survive this conversion for generic collection consumers.
+@inline(__always)
+func runtimeCollectionABIValue(_ value: RuntimeValue) -> Int {
+    if value.tag == RuntimeValue.charTag {
+        return kk_box_char(value.payload0)
+    }
+    return value.legacyRawValue
 }
 
 func runtimeIterableElements(from rawValue: Int) -> [Int]? {
@@ -873,6 +920,14 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    let lhsRange = lhsIsObjectPointer ? runtimeRangeBox(from: lhs) : nil
+    let rhsRange = rhsIsObjectPointer ? runtimeRangeBox(from: rhs) : nil
+    if lhsRange != nil || rhsRange != nil {
+        guard let lhsRange, let rhsRange else {
+            return false
+        }
+        return runtimeRangesEqual(lhsRange, rhsRange)
+    }
     if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
         return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
     }
@@ -1143,6 +1198,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     guard isObjectPointer else {
         return "\(elem)"
+    }
+    if let override = runtimeAnyToStringOverride(elem),
+       let pointer = extractString(from: override)
+    {
+        return pointer
     }
     if runtimeIsUnitBox(elem) {
         return "kotlin.Unit"
@@ -1622,7 +1682,10 @@ private enum RuntimeComparableScalarValue {
     case floating(Double)
 }
 
-private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
+/// Kotlin `Double.compare` / `Float.compare` total order: NaN is greater than
+/// every non-NaN, and `-0.0` sorts before `0.0`. Shared by collection
+/// comparisons and `kk_compare_any` (generic `Comparable` `minOf`/`maxOf`).
+func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
     if lhs.isNaN {
         return rhs.isNaN ? 0 : 1
     }
