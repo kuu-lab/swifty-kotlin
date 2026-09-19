@@ -2297,6 +2297,31 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
+        // kotlinc prohibits a super-call from omitting an argument that carries
+        // a default value ("super-calls with default arguments are prohibited.
+        // Specify all arguments of 'super.<name>' explicitly.") -- resolving the
+        // default and dispatching statically to the base implementation can
+        // never re-evaluate an override's own default expression. The call is
+        // otherwise fully well-typed, so diagnose without erroring the
+        // expression's type -- an error type here would risk cascading into a
+        // second, spurious kswiftc-only diagnostic on an unrelated line.
+        if isSuperCall,
+           let signature = sema.symbols.functionSignature(for: chosen)
+        {
+            let suppliedParameterIndices = Set(resolved.parameterMapping.values)
+            let hasOmittedDefaultArgument = signature.valueParameterHasDefaultValues.indices.contains { index in
+                signature.valueParameterHasDefaultValues[index] && !suppliedParameterIndices.contains(index)
+            }
+            if hasOmittedDefaultArgument {
+                let memberName = interner.resolve(calleeName)
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0306",
+                    "Super-calls with default arguments are prohibited. Specify all arguments of 'super.\(memberName)' explicitly.",
+                    range: range
+                )
+            }
+        }
+
         // --- Use-site variance projection check ---
         // When the receiver has projected type arguments (e.g. MutableList<out Number>),
         // check that the member access respects variance constraints.
