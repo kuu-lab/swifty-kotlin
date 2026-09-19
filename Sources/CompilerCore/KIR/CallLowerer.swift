@@ -1182,10 +1182,15 @@ final class CallLowerer {
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
+        // KUU-655: an override that inherits its defaults never has its own
+        // stub; resolve to the base declaration's stub instead (see
+        // `defaultStubOwnerSymbol`).
+        let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema) }
         if callNormalized.defaultMask != 0,
            let chosen,
+           let defaultStubOwner,
            (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
-            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosen)) != nil)
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: defaultStubOwner)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
@@ -1204,7 +1209,7 @@ final class CallLowerer {
                 arguments: &finalArgIDs
             )
             let stubName = interner.intern(interner.resolve(sourceCalleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosen)
+            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: defaultStubOwner)
             instructions.append(.call(
                 symbol: stubSym,
                 callee: stubName,

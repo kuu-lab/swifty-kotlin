@@ -281,7 +281,13 @@ extension CallLowerer {
                     let stubName = interner.intern(
                         (sema.symbols.symbol(callBinding.chosenCallee).map { interner.resolve($0.name) } ?? "unknown") + "$default"
                     )
-                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: callBinding.chosenCallee)
+                    // KUU-655: an override that inherits its defaults never
+                    // has its own stub; resolve to the base declaration's
+                    // stub instead (see `defaultStubOwnerSymbol`). Operators
+                    // have no `super.`-qualified call syntax, so there is no
+                    // mask "super call" bit to set here.
+                    let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: callBinding.chosenCallee, sema: sema)
+                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
                     instructions.append(.call(
                         symbol: stubSym,
                         callee: stubName,

@@ -130,6 +130,16 @@ final class JvmOverloadsLoweringPass: LoweringPass {
         else {
             return nil
         }
+        // KUU-655: an override whose defaults are only inherited (its own
+        // declaration has none) has no `$default` stub for this pass's
+        // wrapper bodies to forward through -- see
+        // `CallSupportLowerer.defaultStubOwnerSymbol`. Skip it rather than
+        // building a wrapper that would call a stub that was never emitted;
+        // `@JvmOverloads` has no effect on such an override in kotlinc
+        // either.
+        guard symbols.overrideDefaultsBaseSymbol(for: function.symbol) == nil else {
+            return nil
+        }
 
         let defaults = signature.valueParameterHasDefaultValues
         guard !defaults.isEmpty, defaults.contains(true) else {

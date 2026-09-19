@@ -285,39 +285,52 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           let chosenCallee,
-           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
-            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
+           let chosenCallee
         {
-            appendReifiedTypeTokens(
-                chosenCallee: chosenCallee,
-                callBinding: callBinding,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            appendDefaultMaskArgument(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            let stubName = interner.intern(interner.resolve(calleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)
-            instructions.append(.call(
-                symbol: stubSym,
-                callee: stubName,
-                arguments: finalArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: isSuperCall,
-                qualifiedSuperType: qualifiedSuperType
-            ))
-            return
+            // KUU-655: an override that inherits its defaults never has its
+            // own stub; resolve to the base declaration's stub instead (see
+            // `defaultStubOwnerSymbol`).
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema)
+            if sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+                sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
+            {
+                appendReifiedTypeTokens(
+                    chosenCallee: chosenCallee,
+                    callBinding: callBinding,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                // KUU-655: a `super.f()` call that omits a defaulted
+                // argument must resolve the default *and* dispatch
+                // statically to the overridden implementation, never
+                // virtually to the runtime type's own override -- see the
+                // reserved mask bit 30 decoded in
+                // `CallSupportLowerer.generateDefaultStubFunction`.
+                let effectiveMask = isSuperCall ? (normalized.defaultMask | (Int64(1) << 30)) : normalized.defaultMask
+                appendDefaultMaskArgument(
+                    effectiveMask,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                let stubName = interner.intern(interner.resolve(calleeName) + "$default")
+                let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
+                instructions.append(.call(
+                    symbol: stubSym,
+                    callee: stubName,
+                    arguments: finalArguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                return
+            }
         }
 
         appendReifiedTypeTokens(
