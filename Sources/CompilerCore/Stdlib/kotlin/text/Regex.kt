@@ -158,8 +158,6 @@ public class Regex {
 
     public fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> =
         split(input.regexInputString(), limit).asSequence()
-
-    override fun toString(): String = __kkRegexPattern(this)
 }
 
 @KsSymbolName("__kk_string_replace_regex")
