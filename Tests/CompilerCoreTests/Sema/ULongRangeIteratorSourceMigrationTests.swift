@@ -75,6 +75,7 @@ struct ULongRangeIteratorSourceMigrationTests {
         let source = """
         fun rangeToValue(): ULongRange = 1uL.rangeTo(5uL)
         fun rangeOperatorValue(): ULongRange = 1uL..5uL
+        fun downToValue(): ULongProgression = 10uL downTo 1uL
         fun rangeStep(range: ULongRange): ULongProgression = range.step(2)
         fun progressionStep(progression: ULongProgression): ULongProgression = progression.step(2)
         fun rangeIterator(range: ULongRange): Iterator<ULong> = range.iterator()
@@ -99,6 +100,7 @@ struct ULongRangeIteratorSourceMigrationTests {
             let expectedNames = Set(["rangeTo", "step", "iterator", "take", "drop", "chunked", "windowed"])
             var seen = Set<String>()
             var rangeOperatorSeen = false
+            var downToOperatorSeen = false
 
             for offset in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(offset))
@@ -107,11 +109,15 @@ struct ULongRangeIteratorSourceMigrationTests {
                 else {
                     continue
                 }
-                if case let .binary(op, _, _, _) = ast.arena.expr(exprID), op == .rangeTo {
+                if case let .binary(op, _, _, _) = ast.arena.expr(exprID), op == .rangeTo || op == .downTo {
                     let chosenCallee = try #require(sema.bindings.callBinding(for: exprID)?.chosenCallee)
-                    #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected ULong rangeTo operator to be source-backed")
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected ULong \(op) operator to be source-backed")
                     #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-                    rangeOperatorSeen = true
+                    if op == .rangeTo {
+                        rangeOperatorSeen = true
+                    } else {
+                        downToOperatorSeen = true
+                    }
                     continue
                 }
                 guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID) else {
@@ -127,6 +133,7 @@ struct ULongRangeIteratorSourceMigrationTests {
 
             #expect(seen == expectedNames, "Missing source-backed ULong migration calls: \(expectedNames.subtracting(seen))")
             #expect(rangeOperatorSeen, "Missing source-backed ULong rangeTo operator")
+            #expect(downToOperatorSeen, "Missing source-backed ULong downTo operator")
         }
     }
 }

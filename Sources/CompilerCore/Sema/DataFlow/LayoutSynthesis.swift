@@ -312,6 +312,13 @@ extension DataFlowSemaPhase {
         let methods = symbols.children(ofFQName: nominalSymbol.fqName)
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .function }
+            // KUU-545: extension member aliases (KSP-443) are owner+name lookup
+            // shims, not dispatchable members. Counting one here inflates
+            // vtableSize, which shifts the interface property getter region
+            // (kirInterfacePropertyGetterSlots bases its slots on vtableSize)
+            // and breaks the fixed itable slot contract the runtime registers
+            // for runtime-created objects (e.g. CharSequence.length at slot 2).
+            .filter { !$0.flags.contains(.extensionMemberAlias) }
 
         let isSequence = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"

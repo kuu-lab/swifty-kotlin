@@ -2004,6 +2004,24 @@ public func kk_object_register_any_to_string(
     return 0
 }
 
+/// Registers the Any-erased toString bridge for a value class. Value classes
+/// are represented by boxed underlying primitives at reference boundaries, so
+/// the nominal class ID is the stable dispatch key rather than an object
+/// pointer.
+@_cdecl("kk_value_class_register_any_to_string")
+public func kk_value_class_register_any_to_string(
+    _ classID: Int,
+    _ functionRaw: Int
+) -> Int {
+    guard classID != 0, functionRaw != 0 else {
+        return 0
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.valueClassAnyToStringMethods[Int64(classID)] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_array_get")
 public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

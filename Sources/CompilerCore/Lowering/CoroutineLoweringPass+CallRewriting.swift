@@ -320,6 +320,15 @@ extension CoroutineLoweringPass {
                 continue
             }
 
+            if let deepRecursiveNew = rewriteDeepRecursiveFunctionNewCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(deepRecursiveNew)
+                continue
+            }
+
             if let createCoroutineInstructions = rewriteCreateCoroutineUninterceptedCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
@@ -396,6 +405,12 @@ extension CoroutineLoweringPass {
                 using: rewrite
             ) {
                 loweredBody.append(builderInstruction)
+            } else if let deepRecursiveNew = rewriteDeepRecursiveFunctionNewCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(deepRecursiveNew)
             } else {
                 loweredBody.append(instruction)
             }
@@ -1700,6 +1715,103 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
+    func rewriteDeepRecursiveFunctionNewCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> KIRInstruction? {
+        let newCallee = rewrite.ctx.interner.intern("__kk_deep_recursive_function_new")
+        guard call.callee == newCallee else {
+            return nil
+        }
+
+        // The constructor call may be `(block)`, `(fnPtr, closureRaw)`, or
+        // `(instance, fnPtr[, closureRaw])`. Find the suspend lambda among the
+        // arguments rather than assuming a fixed slot.
+        var lambdaIndex: Int?
+        var referencedSymbol: SymbolID?
+        var loweredTarget: LoweredSuspendFunction?
+        for (index, argument) in call.arguments.enumerated() {
+            guard let symbol = symbolReference(
+                for: argument,
+                module: rewrite.module,
+                propagatedSymbols: symbolByExprRaw
+            ),
+            let lowered = rewrite.loweredBySymbol[symbol]
+            else {
+                continue
+            }
+            (lambdaIndex, referencedSymbol, loweredTarget) = (index, symbol, lowered)
+            break
+        }
+        guard let lambdaIndex, let referencedSymbol, let loweredTarget else {
+            return nil
+        }
+
+        let chosenEntryPoint = entryPointSymbol(
+            for: referencedSymbol,
+            loweredTarget: loweredTarget,
+            hasLauncherArg: true,
+            using: rewrite
+        )
+        let entryPointExpr = rewrite.module.arena.appendExpr(
+            .symbolRef(chosenEntryPoint),
+            type: rewrite.intType
+        )
+        let functionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let closureRawExpr = deepRecursiveClosureRaw(
+            call: call,
+            lambdaIndex: lambdaIndex,
+            referencedSymbol: referencedSymbol,
+            symbolByExprRaw: symbolByExprRaw,
+            using: rewrite
+        )
+        let launcherArgCount = rewrite.suspendFunctionArityBySymbol[referencedSymbol] ?? 2
+        let launcherArgCountExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(launcherArgCount)),
+            type: rewrite.intType
+        )
+
+        return .call(
+            symbol: nil,
+            callee: newCallee,
+            arguments: [entryPointExpr, functionIDExpr, closureRawExpr, launcherArgCountExpr],
+            result: call.result,
+            canThrow: call.canThrow,
+            thrownResult: call.thrownResult,
+            isSuperCall: call.isSuperCall
+        )
+    }
+
+    private func deepRecursiveClosureRaw(
+        call: CallRewriteInput,
+        lambdaIndex: Int,
+        referencedSymbol: SymbolID,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> KIRExprID {
+        if let candidate = call.arguments.dropFirst(lambdaIndex + 1).first {
+            let isLoweredLambda = symbolReference(
+                for: candidate,
+                module: rewrite.module,
+                propagatedSymbols: symbolByExprRaw
+            ).map { rewrite.loweredBySymbol[$0] != nil } ?? false
+            if !isLoweredLambda {
+                return candidate
+            }
+        }
+        if let first = rewrite.module.arena.lambdaCaptureArgsBySymbol[referencedSymbol]?.first {
+            return first
+        }
+        return rewrite.module.arena.appendExpr(
+            .intLiteral(0),
+            type: rewrite.intType
+        )
+    }
+
     private func entryPointSymbol(
         for referencedSymbol: SymbolID,
         loweredTarget: LoweredSuspendFunction,
@@ -1724,7 +1836,9 @@ extension CoroutineLoweringPass {
         // boxing, but builder bridges already implement their suspension ABI.
         // Rebinding them to the source suspend body would discard each yield.
         guard callee != rewrite.sequenceBuilderYieldCallee,
-              callee != rewrite.sequenceBuilderYieldAllCallee
+              callee != rewrite.sequenceBuilderYieldAllCallee,
+              callee != rewrite.ctx.interner.intern("__kk_deep_recursive_scope_callRecursive"),
+              callee != rewrite.ctx.interner.intern("__kk_deep_recursive_function_callRecursive")
         else { return nil }
         if let symbol {
             if let loweredBySymbol = rewrite.loweredBySymbol[symbol] {
