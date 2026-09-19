@@ -28,7 +28,11 @@ extension KotlinLexer {
                 continue
             }
 
-            if ch == 0x24, offset + 1 < byteCount(), isIdentifierStart(byte(at: offset + 1)) {
+            if ch == 0x24,
+               offset + 1 < byteCount(),
+               isIdentifierStart(byte(at: offset + 1)),
+               byte(at: offset + 1) != 0x24
+            {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
                     Token(
