@@ -99,9 +99,10 @@ extension KIRLoweringDriver {
         }
         ctx.setImplicitReceiver(symbol: companionSymbol, exprID: companionObjectValue)
 
-        emitCompanionSuperConstructorDelegation(
-            objectDecl: companionDecl,
-            ownerSymbol: companionSymbol,
+        emitNamedObjectSuperConstructorCall(
+            companionDecl,
+            objectSymbol: companionSymbol,
+            objectValue: companionObjectValue,
             shared: shared,
             body: &body
         )
@@ -181,58 +182,5 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
         return declIDs
-    }
-
-    /// Emits the superclass constructor call for a named companion object.
-    /// The companion is a real object declaration when it has a named type, so
-    /// its superclass state must be initialized before its own members run.
-    private func emitCompanionSuperConstructorDelegation(
-        objectDecl: ObjectDecl,
-        ownerSymbol: SymbolID,
-        shared: KIRLoweringSharedContext,
-        body: inout KIRLoweringEmitContext
-    ) {
-        let sema = shared.sema
-        let arena = shared.arena
-        let interner = shared.interner
-        guard let receiverID = ctx.activeImplicitReceiverExprID(),
-              let superclassSymbol = sema.symbols.directSupertypes(for: ownerSymbol).first(where: {
-                  let kind = sema.symbols.symbol($0)?.kind
-                  return kind == .class || kind == .enumClass
-              }),
-              let superclassInfo = sema.symbols.symbol(superclassSymbol)
-        else {
-            return
-        }
-
-        let constructorCandidates = sema.symbols.lookupAll(
-            fqName: superclassInfo.fqName + [interner.intern("<init>")]
-        )
-        guard let superConstructor = constructorCandidates.first(where: {
-            sema.symbols.externalLinkName(for: $0)?.isEmpty ?? true
-        }) else {
-            return
-        }
-        if sema.symbols.symbol(superConstructor)?.flags.contains(.synthetic) == true,
-           sema.symbols.parentSymbol(for: superConstructor) == sema.types.anyClassSymbol
-        {
-            // Kotlin/Native's implicit Any constructor has no body to delegate to.
-            return
-        }
-
-        var argumentIDs: [KIRExprID] = [receiverID]
-        for argument in objectDecl.superTypeConstructorArgs {
-            argumentIDs.append(lowerExpr(argument.expr, shared: shared, emit: &body))
-        }
-        let resultID = arena.appendTemporary(type: sema.types.unitType)
-        body.append(.call(
-            symbol: superConstructor,
-            callee: interner.intern("<init>"),
-            arguments: argumentIDs,
-            result: resultID,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
-        ))
     }
 }
