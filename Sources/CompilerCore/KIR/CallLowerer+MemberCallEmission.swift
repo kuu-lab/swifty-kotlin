@@ -917,7 +917,7 @@ extension CallLowerer {
             canThrow = true
         case ("windowed", 4):
             callee = "__kk_list_windowed"
-            canThrow = false
+            canThrow = true
         case ("windowed", 6):
             callee = "__kk_list_windowed_transform"
             canThrow = true
