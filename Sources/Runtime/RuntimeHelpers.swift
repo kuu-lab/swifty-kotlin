@@ -535,10 +535,20 @@ public enum KxMiniRuntime {
     }
 
     public static func launch(_ block: @escaping () -> Void) {
-        DispatchQueue.global().async(execute: DispatchWorkItem(block: block))
+        launch(workItem: DispatchWorkItem(block: block))
     }
 
     public static func launch(workItem: DispatchWorkItem) {
+        // When the launching coroutine is running on a `runBlocking`
+        // event loop, append to that loop's FIFO queue instead of handing the
+        // work item to the concurrent global pool. Two coroutines launched in
+        // the same burst then start in launch order, as they do under
+        // kotlinx.coroutines' single-threaded runBlocking dispatcher, rather
+        // than in whatever order two pool threads happen to pick them up.
+        if let loop = RuntimeEventLoop.current {
+            loop.enqueue(workItem: workItem)
+            return
+        }
         DispatchQueue.global().async(execute: workItem)
     }
 

@@ -192,7 +192,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // BUG-041 interaction: flush undispatched launch{} work before blocking
         // so a sibling `launch { receive() }` queued on this thread can run.
         RuntimePendingLaunchQueue.flush()
-        senderSem.wait()
+        runtimeWaitDrainingEventLoop(senderSem)
 
         // After waking, check the wakeup reason.
         lock.lock()
@@ -321,8 +321,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // BUG-041 interaction: flush undispatched launch{} work before blocking
         // so a sibling `launch { send(x) }` queued on this thread can run.
         // Without this, channel_basic-style rendezvous deadlocks (run exit 124).
+        // On a runBlocking event loop the flush only *queues* that sibling, so
+        // the wait below has to keep draining the queue rather than park.
         RuntimePendingLaunchQueue.flush()
-        receiverEntry.semaphore.wait()
+        runtimeWaitDrainingEventLoop(receiverEntry.semaphore)
 
         // After waking, check the wakeup reason.
         lock.lock()
