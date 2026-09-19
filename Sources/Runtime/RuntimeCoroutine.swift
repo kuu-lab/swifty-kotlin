@@ -1592,6 +1592,7 @@ public func kk_coroutine_suspended() -> UnsafeMutableRawPointer {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(runtimeStorage.coroutineSuspendedBox).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
+        state.borrowedObjectPointers.insert(UInt(bitPattern: ptr))
     }
     return ptr
 }
@@ -1831,19 +1832,7 @@ public func kk_coroutine_state_set_label(_ continuation: Int, _ label: Int) -> I
 
 @_cdecl("kk_coroutine_state_exit")
 public func kk_coroutine_state_exit(_ continuation: Int, _ value: Int) -> Int {
-    if let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) {
-        var shouldRelease = false
-        runtimeStorage.withGCLock { state in
-            let key = UInt(bitPattern: continuationPtr)
-            if state.objectPointers.contains(key) {
-                state.objectPointers.remove(key)
-                shouldRelease = true
-            }
-        }
-        if shouldRelease {
-            Unmanaged<RuntimeContinuationState>.fromOpaque(continuationPtr).release()
-        }
-    }
+    _ = runtimeReleaseObject(continuation)
     return value
 }
 
@@ -2846,8 +2835,7 @@ public func kk_coroutine_scope_cancel(_ scopeHandle: Int) -> Int {
 /// Waits for all children in the scope to complete, then pops/releases the scope.
 @_cdecl("kk_coroutine_scope_wait")
 public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
-    guard let scope = runtimeCoroutineScope(from: scopeHandle),
-          let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_wait received invalid scope handle")
     }
     let firstFailure = scope.waitForChildren()
@@ -2857,10 +2845,7 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     enterScopeOnCurrentContinuation(scope.parent)
 
     // Release the scope
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.remove(UInt(bitPattern: ptr))
-    }
-    Unmanaged<RuntimeCoroutineScope>.fromOpaque(ptr).release()
+    _ = runtimeReleaseObject(scopeHandle)
     // The Kotlin ABI models this as `Throwable?`; absence of a failure must use
     // the shared null sentinel (see runtimeResultExceptionOrNull) rather than raw
     // 0, so a `!= null` check in bundled Kotlin resolves correctly.
@@ -3565,6 +3550,7 @@ public func kk_non_cancellable_instance() -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(runtimeNonCancellableJob).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
+        state.borrowedObjectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
 }
