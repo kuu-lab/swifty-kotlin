@@ -373,10 +373,22 @@ final class MemberLowerer {
             // itable dispatch. Without this, a source-backed extension such as
             // TimeSource.measureTime reaches TimeSource.markNow() with an object
             // that has no registered interface entry.
-            let hasInterfaceSupertypes = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
-                sema.symbols.symbol(superSymbol)?.kind == .interface
+            // A non-Any class superclass needs it too: the implicit `super(...)`
+            // call and the superclass's field storage only exist once the
+            // singleton is actually allocated (BUG-264). Companions are
+            // excluded — `synthesizeCompanionInitializerIfNeeded` already owns
+            // their allocation and super delegation.
+            let isCompanion = nested.modifiers.contains(.companion)
+            let needsRuntimeInitialization = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
+                let kind = sema.symbols.symbol(superSymbol)?.kind
+                if kind == .interface {
+                    return true
+                }
+                return !isCompanion
+                    && (kind == .class || kind == .enumClass)
+                    && superSymbol != sema.types.anyClassSymbol
             }
-            if hasInterfaceSupertypes {
+            if needsRuntimeInitialization {
                 let objectType = sema.types.make(.classType(ClassType(
                     classSymbol: symbol, args: [], nullability: .nonNull
                 )))

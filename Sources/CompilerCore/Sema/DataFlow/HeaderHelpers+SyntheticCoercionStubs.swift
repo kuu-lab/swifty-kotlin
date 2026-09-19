@@ -1,6 +1,13 @@
 
 // Coercion extension stubs (STDLIB-150) for kotlin.ranges.
 // Int/Long/Double/Float coercion tests: CoercionSyntheticStubTests (TEST-002)
+//
+// KSP-1544 (KUU-588): the remaining registrations are all bucket (c)
+// compiler/runtime residuals — language-core primitive casts lowered directly
+// to kk_* runtime symbols (see docs/stdlib-pipeline.md §9). The source-backed
+// (b) surface is fully migrated: range coercion lives in
+// Stdlib/kotlin/ranges/RangeCoercion.kt, and Float/Double.toByte()/toShort()
+// live in Stdlib/kotlin/Numbers.kt.
 
 extension DataFlowSemaPhase {
     func registerSyntheticCoercionStubs(
@@ -10,16 +17,6 @@ extension DataFlowSemaPhase {
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         // Unsigned coercion overloads are provided by bundled Kotlin source (RangeCoercion.kt).
-
-        let kotlinMathPkg = kotlinPkg + [interner.intern("math")]
-        if symbols.lookup(fqName: kotlinMathPkg) == nil {
-            let mathName = interner.intern("math")
-            let mathSym = symbols.define(kind: .package, name: mathName, fqName: kotlinMathPkg, declSite: nil, visibility: .public, flags: [.synthetic])
-            if let kotlinSym = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(kotlinSym, for: mathSym)
-            }
-        }
-
 
         // STDLIB-NUM-130: isNaN / isInfinite / isFinite
 
@@ -275,60 +272,11 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // Float conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "__kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "__kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
+            // KSP-1544: Float.toByte()/toShort() and Double.toByte()/toShort()
+            // are source-backed in Stdlib/kotlin/Numbers.kt (toInt().toX()
+            // composition with error-level deprecation metadata).
 
             // Double conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "__kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "__kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
             registerSyntheticCoercionFunction(
                 named: "toFloat",
                 externalLinkName: "kk_double_to_float",
@@ -360,22 +308,14 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
-        let deprecatedAnnotations = syntheticDeprecatedAnnotationsForCoercion(
-            name: name,
-            receiverType: receiverType,
-            types: types
-        )
 
         // Check if already registered with same signature
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == receiverType
                 && signature.parameterTypes == parameters.map(\.type)
                 && signature.returnType == returnType
         }) {
-            if !deprecatedAnnotations.isEmpty {
-                symbols.setAnnotations(deprecatedAnnotations, for: existing)
-            }
             return
         }
         let functionSymbol = symbols.define(
@@ -388,9 +328,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        if !deprecatedAnnotations.isEmpty {
-            symbols.setAnnotations(deprecatedAnnotations, for: functionSymbol)
-        }
 
         var valueParameterSymbols: [SymbolID] = []
         for param in parameters {
@@ -419,31 +356,5 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-    }
-
-    private func syntheticDeprecatedAnnotationsForCoercion(
-        name: String,
-        receiverType: TypeID,
-        types: TypeSystem
-    ) -> [MetadataAnnotationRecord] {
-        guard name == "toChar" else {
-            return []
-        }
-        // Int.toChar() is not deprecated in Kotlin 2.3.10; all other primitive
-        // toChar() conversions (Long/Float/Double/Byte/Short) are deprecated.
-        guard receiverType != types.intType else {
-            return []
-        }
-        let deprecatedMessage = "Use toInt().toChar() or Char(code) instead."
-        let deprecatedArguments = [
-            "message = \"\(deprecatedMessage)\"",
-            "replaceWith = ReplaceWith(\"toInt().toChar()\")",
-        ]
-        return [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: deprecatedArguments
-            ),
-        ]
     }
 }

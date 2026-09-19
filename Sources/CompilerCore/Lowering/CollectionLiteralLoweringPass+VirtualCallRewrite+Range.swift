@@ -453,9 +453,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             } else if isUIntRange {
                 takeName = interner.intern("__kk_uint_range_take")
             } else if isLongRange {
-                takeName = interner.intern("kk_long_range_take")
+                takeName = interner.intern("__kk_long_range_take")
             } else if isCharRange {
-                takeName = interner.intern("kk_char_range_take")
+                takeName = interner.intern("__kk_char_range_take")
             } else {
                 takeName = lookup.kkRangeTakeName
             }
@@ -471,9 +471,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             } else if isUIntRange {
                 dropName = interner.intern("__kk_uint_range_drop")
             } else if isLongRange {
-                dropName = interner.intern("kk_long_range_drop")
+                dropName = interner.intern("__kk_long_range_drop")
             } else if isCharRange {
-                dropName = interner.intern("kk_char_range_drop")
+                dropName = interner.intern("__kk_char_range_drop")
             } else {
                 dropName = lookup.kkRangeDropName
             }
@@ -489,7 +489,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if isULongRange {
                 averageName = interner.intern("kk_ulong_range_average")
             } else if isLongRange {
-                averageName = interner.intern("kk_long_range_average")
+                averageName = interner.intern("__kk_long_range_average")
             } else {
                 averageName = lookup.kkRangeAverageName
             }
@@ -504,9 +504,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if isULongRange {
                 sortedName = interner.intern("kk_ulong_range_sorted")
             } else if isLongRange {
-                sortedName = interner.intern("kk_long_range_sorted")
+                sortedName = interner.intern("__kk_long_range_sorted")
             } else if isCharRange {
-                sortedName = interner.intern("kk_char_range_sorted")
+                sortedName = interner.intern("__kk_char_range_sorted")
             } else {
                 sortedName = lookup.kkRangeSortedName
             }
