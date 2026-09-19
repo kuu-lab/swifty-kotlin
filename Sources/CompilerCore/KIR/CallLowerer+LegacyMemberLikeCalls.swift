@@ -457,6 +457,51 @@ extension CallLowerer {
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let calleeText = interner.resolve(calleeName)
+            // Property `.first`/`.last` keep the non-throwing getters. Explicit
+            // `first()`/`last()` must throw `NoSuchElementException` on empty,
+            // including `IntRange` (Sema binds those calls to the property).
+            // Explicit `first()`/`last()` on a *Progression* is excluded here:
+            // it is bundled Kotlin source (RangeHOF.kt) that already throws
+            // with the exact kotlinc message
+            // ("Progression ${xxxProgressionDescription(this)} is empty."),
+            // and is handled by the `isExplicitProgressionSourceCall` gate
+            // below. Reconstructing a Runtime bridge call here would shadow
+            // that source-backed implementation with a generic-message one.
+            let progressionKinds: Set<MemberDispatchReceiverKind> = [
+                .intProgression, .longProgression, .charProgression,
+                .uintProgression, .ulongProgression,
+            ]
+            if (calleeText == "first" || calleeText == "last"),
+               let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+                   receiverExpr: receiverExpr,
+                   receiverType: receiverType,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                let usesThrowingFunction = ast.arena.isExplicitCall(exprID)
+                if !(usesThrowingFunction && progressionKinds.contains(rangeKind)) {
+                    let runtimeName = usesThrowingFunction
+                        ? MemberRuntimeDispatch.rangeFirstLastOrThrowLinkName(
+                            kind: rangeKind,
+                            wantLast: calleeText == "last"
+                        )
+                        : MemberRuntimeDispatch.rangeFirstLastPropertyLinkName(
+                            kind: rangeKind,
+                            wantLast: calleeText == "last"
+                        )
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeName),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: usesThrowingFunction,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
             let isRangeLikeReceiver = sema.bindings.isRangeExpr(receiverExpr) || {
                 guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                     return false
@@ -503,10 +548,6 @@ extension CallLowerer {
                     interner.intern("__kk_range_last")
                 case "endExclusive":
                     interner.intern("__kk_range_endExclusive")
-                case "first":
-                    interner.intern("__kk_range_first")
-                case "last":
-                    interner.intern("__kk_range_last")
                 case "step":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_step"

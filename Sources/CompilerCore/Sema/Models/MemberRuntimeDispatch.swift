@@ -282,6 +282,14 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "first_predicate")
             }
+            // KSP-1523/KSP-1529: `MemberDispatchKey` has no notion of
+            // "property read" vs. "explicit call" — only the
+            // isExplicitCall check in CallLowerer+LegacyMemberLikeCalls.swift
+            // can tell them apart, and it intercepts `.first()` before this
+            // dispatch table is ever consulted. Keep routing arity-0 `first`
+            // through the same source-backed-aware lookup as `start` so this
+            // never reconstructs a `kk_uint_range_first`/`_orThrow` name for
+            // a receiver kind whose HOF surface is source-backed.
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
         case "start":
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
@@ -294,6 +302,8 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "last_predicate")
             }
+            // See the "first" case above: same source-backed-aware lookup,
+            // same reason.
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
         case "end":
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
@@ -416,6 +426,40 @@ enum MemberRuntimeDispatch {
         "filter", "filterIndexed", "filterNot",
         "contains", "isEmpty", "count", "sum", "reversed", "toList",
     ]
+
+    /// `Progression.first` / `last` properties (never throw).
+    static func rangeFirstLastPropertyLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
+        rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: false)
+    }
+
+    /// `Progression.first()` / `last()` (0-arg functions). Distinct from the
+    /// `first`/`last` properties, which keep the non-throwing getters.
+    static func rangeFirstLastOrThrowLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
+        rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: true)
+    }
+
+    private static func rangeFirstLastLinkName(
+        kind: MemberDispatchReceiverKind,
+        wantLast: Bool,
+        orThrow: Bool
+    ) -> String {
+        let member = wantLast ? "last" : "first"
+        if orThrow {
+            if kind.isULongRangeLike {
+                return "kk_ulong_range_\(member)_orThrow"
+            }
+            if kind.isUIntRangeLike {
+                return "kk_uint_range_\(member)_orThrow"
+            }
+            return "__kk_range_\(member)_orThrow"
+        }
+        // KSP-1524: the non-throwing property getter has no dedicated
+        // `kk_uint_range_first`/`kk_ulong_range_first` (or `last`) entry
+        // point — first/last values are raw bits at this ABI boundary, so
+        // both UInt and ULong share the common `__kk_range_*` bridge with
+        // signed ranges.
+        return "__kk_range_\(member)"
+    }
 
     private static func rangeRuntimeName(
         kind: MemberDispatchReceiverKind,
