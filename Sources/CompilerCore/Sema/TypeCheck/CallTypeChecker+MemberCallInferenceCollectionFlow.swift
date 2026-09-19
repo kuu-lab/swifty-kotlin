@@ -31,7 +31,7 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
-        if !collectArraySourceConversionCandidates(
+        if !collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: receiverType,
             sema: sema,
@@ -128,6 +128,15 @@ extension CallTypeChecker {
         let isSyntheticSequenceReceiver = receiverClassification.isSyntheticSequenceReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
         let isSetReceiver = receiverClassification.isSetReceiver
+        let isEnumEntriesReceiver: Bool = {
+            guard let (_, symbol) = resolveClassTypeSymbol(
+                sema.types.makeNonNullable(receiverType),
+                sema: sema
+            ) else {
+                return false
+            }
+            return symbol.fqName == knownNames.kotlinEnumsEnumEntriesFQName
+        }()
         let isStringReceiver = sema.types.isSubtype(
             sema.types.makeNonNullable(receiverType),
             sema.types.stringType
@@ -463,11 +472,13 @@ extension CallTypeChecker {
             matchingReceiverElementType: TypeID? = nil,
             allowNominalIterableReceiver: Bool = false,
             allowCollectionReceiver: Bool = false,
+            allowConcreteForEachReceiver: Bool = false,
             receiverElementType: TypeID? = nil
         ) -> Bool {
             // KSP-978: Generic Iterable group-family calls use the bundled
             // source declarations. Concrete List receivers keep the List path
-            // unless an exact specialized Iterable overload opts in below.
+            // unless an exact specialized Iterable overload opts in below, and
+            // the inline forEach family also routes concrete List/Set receivers.
             guard !isSequenceReceiver,
                   ((allowCollectionReceiver && isCollectionReceiver)
                     || (allowNominalIterableReceiver
@@ -480,7 +491,9 @@ extension CallTypeChecker {
                         || calleeStr == "groupBy"
                         || calleeStr == "groupByTo"
                         || isIterableFilterFamilyHOF))
-                        || (isIterableIndexReceiver && isIterableIndexFamilyHOF))))
+                        || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
+                    || (allowConcreteForEachReceiver
+                        && ((isListReceiver && !isEnumEntriesReceiver) || isSetReceiver)))
             else {
                 return false
             }
@@ -2185,9 +2198,7 @@ extension CallTypeChecker {
                 ]
                 var chosenCallee: SymbolID?
                 for packageFQName in sourcePackages {
-                    let candidates = sema.symbols.lookupAll(fqName: packageFQName + [calleeName])
-
-                    if let candidate = candidates.first(where: { candidate in
+                    let candidates = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).filter { candidate in
                         guard let symbol = sema.symbols.symbol(candidate),
                               symbol.kind == .function,
                               sema.symbols.isSourceBackedSymbol(candidate),
@@ -2202,8 +2213,47 @@ extension CallTypeChecker {
                                 signature,
                                 actualElementType: collectionElementType
                             )
-                    }) {
-                        chosenCallee = candidate
+                    }
+
+                    // `Sequence<Sequence<T>>.flatten()` and
+                    // `Sequence<Iterable<T>>.flatten()` are both generic
+                    // source declarations. Prefer the candidate whose inner
+                    // receiver owner matches the actual element type, while
+                    // retaining the historical first-candidate fallback for
+                    // unresolved/mixed element types (KUU-461).
+                    var bestCandidate: SymbolID?
+                    var bestScore = Int.min
+                    for candidate in candidates {
+                        var score = 0
+                        if calleeName == interner.intern("flatten"),
+                           let actualElementClassType = resolveClassTypeSymbol(
+                               collectionElementType,
+                               sema: sema
+                           )?.0,
+                           let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                           let candidateElementClassType = resolveClassTypeSymbol(
+                               getCollectionElementType(signatureReceiver, sema: sema, interner: interner),
+                               sema: sema
+                           )?.0
+                        {
+                            let actualElementSymbol = actualElementClassType.classSymbol
+                            let candidateElementSymbol = candidateElementClassType.classSymbol
+                            if candidateElementSymbol == actualElementSymbol {
+                                score = 2
+                            } else if sema.types.isNominalSubtypeSymbol(
+                                actualElementSymbol,
+                                of: candidateElementSymbol
+                            ) {
+                                score = 1
+                            }
+                        }
+                        if score > bestScore {
+                            bestCandidate = candidate
+                            bestScore = score
+                        }
+                    }
+                    if let bestCandidate {
+                        chosenCallee = bestCandidate
                         break
                     }
                 }
@@ -3126,7 +3176,8 @@ extension CallTypeChecker {
                         resultType = sema.types.unitType
                         if bindBundledIterableSourceFunction(
                             typeArguments: [collectionElementType],
-                            allowNominalIterableReceiver: true
+                            allowNominalIterableReceiver: true,
+                            allowConcreteForEachReceiver: true
                         ),
                            let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                         {
