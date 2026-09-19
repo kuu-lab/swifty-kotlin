@@ -449,6 +449,10 @@ struct RuntimeStringArrayTests {
         Double(bitPattern: UInt64(bitPattern: Int64(raw)))
     }
 
+    private func floatFromRuntimeBits(_ raw: Int) -> Float {
+        Float(bitPattern: UInt32(truncatingIfNeeded: UInt(bitPattern: raw)))
+    }
+
     // MARK: - kk_string_from_utf8
 
     @Test
@@ -1426,6 +1430,54 @@ struct RuntimeStringArrayTests {
         }
         #expect(parsed != runtimeNullSentinelInt)
         #expect(abs(doubleFromRuntimeBits(parsed) - 4.0) <= 1e-12)
+    }
+
+    @Test
+    func testStringToFloatParsesKotlinFloatingLiteralsAndRejectsSwiftOnlySpellings() {
+        var thrown = 0
+        let cases: [(String, Float)] = [
+            ("1.", 1.0),
+            (".5", 0.5),
+            ("1e3", 1_000.0),
+            ("1.0d", 1.0),
+            ("+6.25F", 6.25),
+            ("0x1.8p1", 3.0),
+        ]
+
+        for (source, expected) in cases {
+            thrown = 0
+            let raw = __kk_string_toFloat(rawFromRuntimeString(source), &thrown)
+            #expect(thrown == 0, "Expected \(source) to parse")
+            #expect(abs(floatFromRuntimeBits(raw) - expected) <= 1e-6)
+        }
+
+        let specialCases: [(String, Float)] = [
+            ("NaN", .nan),
+            ("Infinity", .infinity),
+            ("+Infinity", .infinity),
+            ("-Infinity", -.infinity),
+        ]
+        for (source, expected) in specialCases {
+            let raw = __kk_string_toFloatOrNull(rawFromRuntimeString(source))
+            #expect(raw != runtimeNullSentinelInt, "Expected \(source) to parse")
+            let parsed = floatFromRuntimeBits(raw)
+            if expected.isNaN {
+                #expect(parsed.isNaN)
+            } else {
+                #expect(parsed == expected)
+            }
+        }
+
+        for source in ["inf", "nan", "infinity", "-nan", "INFINITY"] {
+            #expect(
+                __kk_string_toFloatOrNull(rawFromRuntimeString(source)) == runtimeNullSentinelInt,
+                "Expected \(source) to be rejected by toFloatOrNull"
+            )
+
+            thrown = 0
+            _ = __kk_string_toFloat(rawFromRuntimeString(source), &thrown)
+            #expect(thrown != 0, "Expected \(source) to be rejected by toFloat")
+        }
     }
 
     @Test
