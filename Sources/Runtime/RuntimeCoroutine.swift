@@ -257,7 +257,7 @@ final class RuntimeCoroutineSyncGate: @unchecked Sendable {
         }
         let sem = fallbackSemaphore!
         lock.unlock()
-        sem.wait()
+        runtimeWaitDrainingEventLoop(sem)
         return false
     }
 }
@@ -501,7 +501,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
         }
         let sem = fallbackSemaphore!
         stateLock.unlock()
-        sem.wait()
+        runtimeWaitDrainingEventLoop(sem)
     }
 
     /// Wake the coroutine.  If a continuation closure is installed, it is
