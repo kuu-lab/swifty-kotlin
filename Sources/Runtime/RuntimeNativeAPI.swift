@@ -200,10 +200,12 @@ private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
         return hookRaw
     }
 
-    func set(_ raw: Int) {
+    func set(_ raw: Int) -> Int {
         lock.lock()
+        let previous = hookRaw
         hookRaw = raw == 0 || raw == runtimeNullSentinelInt ? runtimeNullSentinelInt : raw
         lock.unlock()
+        return previous
     }
 }
 
@@ -217,7 +219,6 @@ public func kk_native_getUnhandledExceptionHook() -> Int {
 @_cdecl("kk_native_setUnhandledExceptionHook")
 public func kk_native_setUnhandledExceptionHook(_ hookRaw: Int) -> Int {
     runtimeUnhandledExceptionHookRegistry.set(hookRaw)
-    return 0
 }
 
 @_cdecl("kk_native_processUnhandledException")
@@ -234,7 +235,7 @@ public func kk_native_processUnhandledException(
 }
 
 @_cdecl("kk_native_terminateWithUnhandledException")
-public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
+public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Never {
     _ = kk_native_processUnhandledException(throwableRaw, nil)
     runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }

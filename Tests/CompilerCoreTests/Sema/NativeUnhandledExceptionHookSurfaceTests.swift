@@ -78,7 +78,7 @@ struct NativeUnhandledExceptionHookSurfaceTests {
 
         let expectations: [(String, [TypeID], TypeID, String, Bool)] = [
             ("getUnhandledExceptionHook", [], nullableHook, "kk_native_getUnhandledExceptionHook", false),
-            ("setUnhandledExceptionHook", [nullableHook], sema.types.unitType, "kk_native_setUnhandledExceptionHook", false),
+            ("setUnhandledExceptionHook", [nullableHook], nullableHook, "kk_native_setUnhandledExceptionHook", false),
             ("processUnhandledException", [throwable], sema.types.unitType, "kk_native_processUnhandledException", true),
             ("terminateWithUnhandledException", [throwable], sema.types.nothingType, "kk_native_terminateWithUnhandledException", false),
         ]
