@@ -20,7 +20,7 @@ import Testing
 /// `java.io.InputStream` surface (close / read / use {} / etc.).
 ///
 /// The extension is wired through the synthetic File IO stub registry in
-/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift`, and is
+/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJavaIOStreamStubs.swift`, and is
 /// expected to bind to the runtime helper `__kk_bytearray_inputStream` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 @Suite
