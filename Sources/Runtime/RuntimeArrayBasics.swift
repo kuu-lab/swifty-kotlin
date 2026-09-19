@@ -36,7 +36,7 @@ public func kk_array_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 @_cdecl("kk_array_is_empty")
@@ -47,7 +47,7 @@ public func kk_array_is_empty(_ arrayRaw: Int) -> Int {
         // the project's "never crash on invalid input" design principle.
         return kk_box_bool(1)
     }
-    return kk_box_bool(array.elements.isEmpty ? 1 : 0)
+    return kk_box_bool(array.count == 0 ? 1 : 0)
 }
 
 // MARK: - Pair Functions (FUNC-002)
@@ -489,7 +489,7 @@ public func kk_intArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// LongArray.size: Int
@@ -498,7 +498,7 @@ public func kk_longArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// ByteArray.size: Int
@@ -507,7 +507,7 @@ public func kk_byteArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// ShortArray.size: Int
@@ -516,7 +516,7 @@ public func kk_shortArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// UIntArray.size: Int
@@ -525,7 +525,7 @@ public func kk_uIntArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// ULongArray.size: Int
@@ -534,7 +534,7 @@ public func kk_uLongArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// DoubleArray.size: Int
@@ -543,7 +543,7 @@ public func kk_doubleArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// FloatArray.size: Int
@@ -552,7 +552,7 @@ public func kk_floatArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// BooleanArray.size: Int
@@ -561,7 +561,7 @@ public func kk_booleanArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// CharArray.size: Int
@@ -570,7 +570,7 @@ public func kk_charArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// UByteArray.size: Int
@@ -579,7 +579,7 @@ public func kk_uByteArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
 
 /// UShortArray.size: Int
@@ -588,5 +588,5 @@ public func kk_uShortArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }
-    return array.elements.count
+    return array.count
 }
