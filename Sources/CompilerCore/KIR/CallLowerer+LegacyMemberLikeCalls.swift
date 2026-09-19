@@ -461,6 +461,17 @@ extension CallLowerer {
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
             // `first()`/`last()` must throw `NoSuchElementException` on empty,
             // including `IntRange` (Sema binds those calls to the property).
+            // Explicit `first()`/`last()` on a *Progression* is excluded here:
+            // it is bundled Kotlin source (RangeHOF.kt) that already throws
+            // with the exact kotlinc message
+            // ("Progression ${xxxProgressionDescription(this)} is empty."),
+            // and is handled by the `isExplicitProgressionSourceCall` gate
+            // below. Reconstructing a Runtime bridge call here would shadow
+            // that source-backed implementation with a generic-message one.
+            let progressionKinds: Set<MemberDispatchReceiverKind> = [
+                .intProgression, .longProgression, .charProgression,
+                .uintProgression, .ulongProgression,
+            ]
             if (calleeText == "first" || calleeText == "last"),
                let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
                    receiverExpr: receiverExpr,
@@ -470,24 +481,26 @@ extension CallLowerer {
                )
             {
                 let usesThrowingFunction = ast.arena.isExplicitCall(exprID)
-                let runtimeName = usesThrowingFunction
-                    ? MemberRuntimeDispatch.rangeFirstLastOrThrowLinkName(
-                        kind: rangeKind,
-                        wantLast: calleeText == "last"
-                    )
-                    : MemberRuntimeDispatch.rangeFirstLastPropertyLinkName(
-                        kind: rangeKind,
-                        wantLast: calleeText == "last"
-                    )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(runtimeName),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: usesThrowingFunction,
-                    thrownResult: nil
-                ))
-                return result
+                if !(usesThrowingFunction && progressionKinds.contains(rangeKind)) {
+                    let runtimeName = usesThrowingFunction
+                        ? MemberRuntimeDispatch.rangeFirstLastOrThrowLinkName(
+                            kind: rangeKind,
+                            wantLast: calleeText == "last"
+                        )
+                        : MemberRuntimeDispatch.rangeFirstLastPropertyLinkName(
+                            kind: rangeKind,
+                            wantLast: calleeText == "last"
+                        )
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeName),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: usesThrowingFunction,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
             }
             let isRangeLikeReceiver = sema.bindings.isRangeExpr(receiverExpr) || {
                 guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
