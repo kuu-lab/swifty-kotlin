@@ -415,6 +415,7 @@ public final class KIRModule {
     public let files: [KIRFile]
     public let arena: KIRArena
     public private(set) var executedLowerings: [String]
+    public private(set) var stage: KIRStage
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set
@@ -438,10 +439,15 @@ public final class KIRModule {
         featuresScanned = false
     }
 
-    public init(files: [KIRFile], arena: KIRArena, executedLowerings: [String] = []) {
+    public init(
+        files: [KIRFile],
+        arena: KIRArena,
+        executedLowerings: [String] = []
+    ) {
         self.files = files
         self.arena = arena
         self.executedLowerings = executedLowerings
+        self.stage = .raw
     }
 
     public func scanFeatures() {
@@ -514,6 +520,39 @@ public final class KIRModule {
 
     public func recordLowering(_ name: String) {
         executedLowerings.append(name)
+    }
+
+    /// Validate a lowering pass boundary before running the pass.
+    ///
+    /// The exact input-stage check is intentionally debug-only: this is a
+    /// development-time ordering contract, while `stage` remains available
+    /// in all configurations for inspection and future pipeline consumers.
+    func validateLoweringStage(
+        passName: String,
+        required: KIRStage,
+        produced: KIRStage
+    ) throws {
+        #if DEBUG
+        guard stage == required else {
+            throw KIRStageViolation.unexpectedInput(
+                passName: passName,
+                required: required,
+                actual: stage
+            )
+        }
+        guard produced >= required else {
+            throw KIRStageViolation.regressingOutput(
+                passName: passName,
+                required: required,
+                produced: produced
+            )
+        }
+        #endif
+    }
+
+    /// Record the stage established by a successfully completed pass.
+    func advanceLoweringStage(to stage: KIRStage) {
+        self.stage = stage
     }
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {

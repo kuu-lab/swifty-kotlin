@@ -71,6 +71,44 @@ extension ExprTypeChecker {
         let outerLocalsSnapshot = locals
         let outerSymbols = Set(outerLocalsSnapshot.values.map(\.symbol))
 
+        // KSP-CAP-001: an object-literal member function can also resolve a
+        // bare name through the enclosing class receiver. Include stored
+        // properties owned by that receiver (and its class supertypes) in the
+        // capture set so the member function does not later read the same
+        // field offset from the object literal's own receiver.
+        var outerReceiverOwners: Set<SymbolID> = []
+        var pendingOuterReceiverOwners: [SymbolID] = []
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            pendingOuterReceiverOwners.append(enclosingClassSymbol)
+        } else if let implicitReceiverType = ctx.implicitReceiverType,
+                  let receiverSymbol = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(implicitReceiverType),
+                      types: sema.types
+                  )
+        {
+            pendingOuterReceiverOwners.append(receiverSymbol)
+        }
+        while let ownerSymbol = pendingOuterReceiverOwners.popLast() {
+            guard outerReceiverOwners.insert(ownerSymbol).inserted else {
+                continue
+            }
+            pendingOuterReceiverOwners.append(contentsOf: sema.symbols.directSupertypes(for: ownerSymbol))
+        }
+        let outerReceiverPropertySymbols = Set(
+            sema.symbols.allSymbols().compactMap { symbol -> SymbolID? in
+                guard symbol.kind == .property,
+                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
+                      outerReceiverOwners.contains(ownerSymbol),
+                      sema.symbols.symbol(ownerSymbol)?.kind == .class,
+                      !symbol.flags.contains(.mutable)
+                else {
+                    return nil
+                }
+                return symbol.id
+            }
+        )
+        let captureOuterSymbols = outerSymbols.union(outerReceiverPropertySymbols)
+
         let objectSymbol = sema.symbols.define(
             kind: .class,
             name: objectDecl.name,
@@ -355,7 +393,7 @@ extension ExprTypeChecker {
                 inBody: functionDecl.body,
                 ast: ast,
                 sema: sema,
-                outerSymbols: outerSymbols
+                outerSymbols: captureOuterSymbols
             ))
         }
 
@@ -379,7 +417,7 @@ extension ExprTypeChecker {
                     inBody: accessorBody,
                     ast: ast,
                     sema: sema,
-                    outerSymbols: outerSymbols
+                    outerSymbols: captureOuterSymbols
                 ))
             }
         }
@@ -389,7 +427,9 @@ extension ExprTypeChecker {
                 typesBySymbol[binding.symbol] = binding.type
             }
             for capturedSymbol in capturedSymbols {
-                if let type = typesBySymbol[capturedSymbol] {
+                if let type = typesBySymbol[capturedSymbol]
+                    ?? sema.symbols.propertyType(for: capturedSymbol)
+                {
                     sema.bindings.bindCapturedLocalType(capturedSymbol, type: type)
                 }
             }
