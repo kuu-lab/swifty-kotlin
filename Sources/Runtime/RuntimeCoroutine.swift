@@ -690,6 +690,10 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// (`kk_kxmini_async_await`) and the synchronous `awaitResult()` fallback both
     /// register here so completion never blocks on a task-level semaphore.
     private var completionResumers: [@Sendable (Int, Int) -> Void] = []
+    /// STDLIB-CORO-001: the deferred-start action of an
+    /// `async(start = CoroutineStart.LAZY)` task. Set when
+    /// `kk_kxmini_async_lazy` returns; `startIfNeeded()` runs it exactly once.
+    private var lazyStartBody: (@Sendable () -> Void)?
 
     init() {
         RuntimeLiveHandles.register(self)
@@ -718,6 +722,42 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         lock.lock()
         isBodyStarted = true
         lock.unlock()
+    }
+
+    /// STDLIB-CORO-001: Capture the deferred-start action for a LAZY task.
+    /// Mirrors `RuntimeJobHandle.installLazyStartBody`.
+    func installLazyStartBody(_ body: @escaping @Sendable () -> Void) {
+        lock.lock()
+        if !isBodyStarted, !isCompleted {
+            lazyStartBody = body
+        }
+        lock.unlock()
+    }
+
+    /// STDLIB-CORO-001: Start a LAZY task by dispatching its body exactly once.
+    ///
+    /// Called from `awaitResult(callerState:afterResume:)`, which every await
+    /// and structured-concurrency join funnels through, so demanding the result
+    /// of a lazily started `async` is what starts it -- as in Kotlin, where
+    /// `Deferred.await()` starts a `CoroutineStart.LAZY` coroutine.
+    ///
+    /// A task cancelled before it started never runs, which is what
+    /// `RuntimeJobHandle.startIfNeeded()` gets from its `state == .new` guard.
+    /// `cancel()` marks the task completed, so `isCompleted` alone would cover
+    /// it; `isCancelled` is named too because that is the property that matters.
+    ///
+    /// `body` runs after the lock is released: it dispatches the block, and
+    /// `NSLock` is not recursive.
+    func startIfNeeded() {
+        lock.lock()
+        guard let body = lazyStartBody, !isCompleted, !isCancelled else {
+            lazyStartBody = nil
+            lock.unlock()
+            return
+        }
+        lazyStartBody = nil
+        lock.unlock()
+        body()
     }
 
     func markConsumedByUserCode() {
@@ -825,6 +865,12 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         callerState: RuntimeContinuationState?,
         afterResume: (@Sendable () -> Void)? = nil
     ) -> RuntimeTaskAwaitOutcome {
+        // STDLIB-CORO-001: start a LAZY task on demand before awaiting it, the
+        // same way `RuntimeJobHandle.join()` does. This is the one choke point
+        // every await reaches -- `awaitResult()`, `kk_kxmini_async_await` and
+        // `kk_job_join` all route through here -- so no await path can register
+        // for a completion that nothing would ever produce.
+        startIfNeeded()
         lock.lock()
         if isCompleted {
             let value = result
@@ -2583,6 +2629,156 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
             }
         }
     }
+    return Int(bitPattern: taskPtr)
+}
+
+// MARK: - STDLIB-CORO-001: CoroutineStart.LAZY / UNDISPATCHED async
+
+/// Registers a freshly created `async` task with the caller's scope and seeds
+/// the block's continuation with that scope, so the child's suspend-entry loop
+/// discovers its parent (CORO-003). Factored out of the four `async` start-mode
+/// entry points; `kk_kxmini_async` and `kk_kxmini_async_with_cont` do the same
+/// thing inline.
+private func runtimeRegisterAsyncChild(
+    taskPtr: UnsafeMutableRawPointer,
+    continuation: Int
+) -> RuntimeCoroutineScope? {
+    let callerScope = RuntimeCoroutineScope.current
+    if let callerScope {
+        callerScope.registerChild(Int(bitPattern: taskPtr))
+    }
+    if let contState = runtimeContinuationState(from: continuation) {
+        contState.scope = callerScope
+    }
+    return callerScope
+}
+
+/// The completion handler every `async` entry point installs.
+///
+/// STDLIB-CORO-BUG-05: the thrown exception is reported alongside the result,
+/// so `await()` re-throws instead of silently resuming with 0 (the synchronous
+/// path forces the result to 0 on a throw and would otherwise drop it).
+private func runtimeAsyncTaskCompletion(
+    _ task: RuntimeAsyncTask
+) -> @Sendable (_ result: Int, _ thrown: Int) -> Void {
+    { result, thrown in
+        if thrown != 0 {
+            task.completeExceptionally(with: thrown)
+        } else {
+            task.complete(with: result)
+        }
+    }
+}
+
+/// `async(start = CoroutineStart.LAZY)`: create the `Deferred` without
+/// scheduling its body. The body is dispatched the first time something demands
+/// the result -- `await()`, or the enclosing scope joining its children -- via
+/// `RuntimeAsyncTask.startIfNeeded()`.
+@_cdecl("kk_kxmini_async_lazy")
+public func kk_kxmini_async_lazy(_ entryPointRaw: Int, _ functionID: Int) -> Int {
+    runtimeAsyncLazy(
+        entryPointRaw: entryPointRaw,
+        continuation: kk_coroutine_continuation_new(functionID)
+    )
+}
+
+/// Variant of `kk_kxmini_async_lazy` that accepts a pre-built continuation
+/// carrying the block's captured outer variables.
+@_cdecl("kk_kxmini_async_lazy_with_cont")
+public func kk_kxmini_async_lazy_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
+    runtimeAsyncLazy(entryPointRaw: entryPointRaw, continuation: continuation)
+}
+
+private func runtimeAsyncLazy(entryPointRaw: Int, continuation: Int) -> Int {
+    let task = RuntimeAsyncTask()
+    let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+    let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
+
+    task.installLazyStartBody { [entryPointRaw, continuation, callerScope] in
+        // Dispatched exactly as an eager `async` would be: onto the enclosing
+        // runBlocking event loop when there is one, the global pool otherwise
+        // (see KxMiniRuntime.launch). Only the *timing* differs from DEFAULT.
+        KxMiniRuntime.launch {
+            task.markStarted()
+            // Re-check on the dispatch thread: a cancel() can win between
+            // startIfNeeded() enqueueing this and it running. Mirrors the
+            // kk_kxmini_launch_lazy work item.
+            if task.isCancelledSnapshot() {
+                task.complete(with: 0)
+                return
+            }
+            runtimeStartLaunchedBody(
+                entryPointRaw: entryPointRaw,
+                continuation: continuation,
+                scope: callerScope,
+                job: nil,
+                onFinished: runtimeAsyncTaskCompletion(task)
+            )
+        }
+    }
+    return Int(bitPattern: taskPtr)
+}
+
+/// `async(start = CoroutineStart.UNDISPATCHED)`: the body begins executing
+/// immediately on the calling thread and runs there until its first suspension
+/// point, so the statements following the `async` observe whatever it did
+/// before suspending. Everything after that suspension is ordinary queued work
+/// on the inherited event loop.
+@_cdecl("kk_kxmini_async_undispatched")
+public func kk_kxmini_async_undispatched(_ entryPointRaw: Int, _ functionID: Int) -> Int {
+    runtimeAsyncUndispatched(
+        entryPointRaw: entryPointRaw,
+        continuation: kk_coroutine_continuation_new(functionID)
+    )
+}
+
+/// Variant of `kk_kxmini_async_undispatched` that accepts a pre-built
+/// continuation carrying the block's captured outer variables.
+@_cdecl("kk_kxmini_async_undispatched_with_cont")
+public func kk_kxmini_async_undispatched_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
+    runtimeAsyncUndispatched(entryPointRaw: entryPointRaw, continuation: continuation)
+}
+
+private func runtimeAsyncUndispatched(entryPointRaw: Int, continuation: Int) -> Int {
+    let task = RuntimeAsyncTask()
+    let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+    let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
+    if let contState = runtimeContinuationState(from: continuation) {
+        // Inherit the caller's event loop explicitly. The body starts inline on
+        // this thread, but every resumption after its first suspension has to be
+        // queued on the loop like any other child's, or this coroutine would
+        // drop back to racing on the global pool. Same as runtimeLaunchUndispatched.
+        contState.eventLoop = RuntimeEventLoop.current
+    }
+
+    task.markStarted()
+    // A parent scope that was already cancelled cancels this task inside
+    // `registerChild` above, before the body has run. Skip it rather than start
+    // it, the same way runtimeLaunchUndispatched does: `complete(with:)` is
+    // idempotent, so this is a no-op on an already-completed task.
+    if task.isCancelledSnapshot() {
+        task.complete(with: 0)
+        return Int(bitPattern: taskPtr)
+    }
+
+    // The nested suspend-entry loop installs its own task-local keys and removes
+    // them on the way out, so snapshot the caller's coroutine identity and put it
+    // back afterwards. Without this the statements following the `async` would run
+    // with no ambient scope, and a later `launch`/`async` there would detach from
+    // its parent. Same as runtimeLaunchUndispatched.
+    let savedTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let savedJob = RuntimeJobHandle.current
+    runtimeStartLaunchedBody(
+        entryPointRaw: entryPointRaw,
+        continuation: continuation,
+        scope: callerScope,
+        // `nil` like the other async entry points: an async body carries no
+        // ambient job of its own, since RuntimeAsyncTask is not a RuntimeJobHandle.
+        job: nil,
+        onFinished: runtimeAsyncTaskCompletion(task)
+    )
+    RuntimeCoroutineScopeTaskKey.installKey(savedTaskKey)
+    RuntimeJobHandle.current = savedJob
     return Int(bitPattern: taskPtr)
 }
 

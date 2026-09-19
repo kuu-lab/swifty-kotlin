@@ -3,11 +3,9 @@ import kotlinx.coroutines.*
 // TEST-CORO-003: Deferred values — async/await, multiple awaiters, and
 // combining results from parallel async operations.
 //
-// CoroutineStart.LAZY is intentionally not covered here: KSwiftK doesn't yet
-// have a genuine "pending, not yet started" Job state, the same gap that
-// blocks `launch(start = CoroutineStart.LAZY)` (see coroutine_edge_cases.kt
-// and docs/diff-skip-inventory.md's structured concurrency / Deferred /
-// Supervisor notes).
+// The start modes are covered separately, in coroutine_async_start_modes.kt:
+// `async(start = CoroutineStart.LAZY)` and its three siblings now select their
+// own runtime entry points, so this case stays about await semantics.
 
 suspend fun heavyComputation(n: Int): Int {
     delay(1)
