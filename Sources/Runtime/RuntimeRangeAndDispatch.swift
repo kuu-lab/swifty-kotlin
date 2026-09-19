@@ -649,6 +649,9 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Iterable"
 )
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Iterator"
+)
 
 /// BUG-167: Calls `iterator()` on a source-implemented `Iterable` object through
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
@@ -917,8 +920,10 @@ private func runtimeObjectIteratorMethodCall(
     methodSlot: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int? {
-    let iteratorInterfaceSlot = 0
-    let functionRaw = kk_itable_lookup(iterRaw, iteratorInterfaceSlot, methodSlot)
+    // KUU-477: an Iterator object may implement another interface before
+    // Iterator, so its physical itable slot is not necessarily zero. Resolve
+    // the slot from the interface registration attached to this object.
+    let functionRaw = kk_itable_lookup_dynamic(iterRaw, Int(runtimeIteratorInterfaceTypeID), methodSlot)
     guard functionRaw != 0 else {
         return nil
     }
