@@ -221,6 +221,15 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+Pass additional arguments to each candidate `kswiftc` invocation with
+`DIFF_KSWIFTC_FLAGS`. The per-shard stdlib artifact remains at the default
+optimization level, while the case under test receives these flags; CI uses
+this to keep the baseline and optimized lanes separate:
+
+```bash
+DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:
