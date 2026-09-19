@@ -21,6 +21,10 @@ fun main() {
     // (kk_array_get_inbounds), because the inherited AbstractMutableList
     // default routed through listIterator(), which reads the modCount field.
     val toClear = ArrayList<Int>()
+    val emptyIterator = toClear.listIterator()
+    println(emptyIterator.hasNext())
+    val emptySubList = toClear.subList(0, 0)
+    println(emptySubList.size)
     toClear.clear()
     println(toClear.isEmpty())
     toClear.add(1)

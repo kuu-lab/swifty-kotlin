@@ -481,6 +481,49 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KUU-623: Int.toString(radix) and Long.toString(radix) must reject
+    // radices outside Kotlin's valid 2..36 range instead of clamping them.
+    @Test
+    func testSignedToStringRadixRejectsInvalidRadix() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                try {
+                    42.toString(1)
+                    println("missing-int-low")
+                } catch (e: IllegalArgumentException) {
+                    println("int-low: ${e.message}")
+                }
+                try {
+                    42.toString(37)
+                    println("missing-int-high")
+                } catch (e: IllegalArgumentException) {
+                    println("int-high: ${e.message}")
+                }
+                try {
+                    42L.toString(1)
+                    println("missing-long-low")
+                } catch (e: IllegalArgumentException) {
+                    println("long-low: ${e.message}")
+                }
+                try {
+                    42L.toString(37)
+                    println("missing-long-high")
+                } catch (e: IllegalArgumentException) {
+                    println("long-high: ${e.message}")
+                }
+            }
+            """,
+            expectedOutput: """
+            int-low: radix 1 was not in valid range 2..36
+            int-high: radix 37 was not in valid range 2..36
+            long-low: radix 1 was not in valid range 2..36
+            long-high: radix 37 was not in valid range 2..36
+
+            """
+        )
+    }
+
     /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
     /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
     @Test

@@ -30,6 +30,33 @@ struct LexerIdentifierClassificationTests {
     }
 
     @Test
+    func dollarIsRejectedOutsideStringTemplates() {
+        let result = lex("""
+        val a$b = 1
+        val $x = 2
+        val `$x` = 3
+        val text = "$a$b"
+        """)
+        let aID = result.interner.intern("a")
+        let bID = result.interner.intern("b")
+        let xID = result.interner.intern("x")
+        let escapedDollarID = result.interner.intern("$x")
+        let textID = result.interner.intern("text")
+
+        #expect(result.tokens.map(\.kind) == [
+            .keyword(.val), .identifier(aID), .identifier(bID), .symbol(.assign), .intLiteral("1"),
+            .keyword(.val), .identifier(xID), .symbol(.assign), .intLiteral("2"),
+            .keyword(.val), .backtickedIdentifier(escapedDollarID), .symbol(.assign), .intLiteral("3"),
+            .keyword(.val), .identifier(textID), .symbol(.assign),
+            .stringQuote, .templateSimpleNameStart, .identifier(aID),
+            .templateSimpleNameStart, .identifier(bID), .stringQuote, .eof,
+        ])
+        #expect(result.diagnostics.diagnostics.map(\.code) == [
+            "KSWIFTK-LEX-0001", "KSWIFTK-LEX-0001",
+        ])
+    }
+
+    @Test
     func repeatedIdentifiersUseTheirOwnInterner() {
         let firstInterner = StringInterner()
         let secondInterner = StringInterner()

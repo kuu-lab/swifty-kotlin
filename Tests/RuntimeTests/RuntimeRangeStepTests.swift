@@ -197,7 +197,7 @@ struct RuntimeRangeStepTests {
         let progression = __kk_ulong_progression_fromClosedRange(0, 1, 10, 3, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 10)
-        let list = kk_ulong_range_toList(progression)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: progression)!)
         #expect(kk_list_size(list) == 4)
     }
 
@@ -260,7 +260,7 @@ struct RuntimeRangeStepTests {
         let range = __kk_ulong_rangeTo(1, 10)
         #expect(kk_range_first(range) == 1)
         #expect(kk_range_last(range) == 10)
-        let list = kk_ulong_range_toList(range)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: range)!)
         #expect(kk_list_size(list) == 10)
     }
 
@@ -276,16 +276,8 @@ struct RuntimeRangeStepTests {
         let stepped = __kk_ulong_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
-        let list = kk_ulong_range_toList(stepped)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: stepped)!)
         #expect(kk_list_size(list) == 4) // 1,4,7,10
-    }
-
-    @Test func testULongRangeReversed() {
-        let range = __kk_ulong_rangeTo(1, 5)
-        let reversed = kk_ulong_range_reversed(range)
-        #expect(kk_range_first(reversed) == 5)
-        #expect(kk_range_last(reversed) == 1)
-        #expect(kk_range_count(reversed) == 5)
     }
 
     // MARK: - IntRange Additional Features (STDLIB-RANGE-034)

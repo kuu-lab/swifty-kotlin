@@ -2298,27 +2298,25 @@ extension CallTypeChecker {
             return sema.types.doubleType
         }
 
-        if memberName == interner.intern("chunked") && args.count == 2 {
-            let transformExpr = args[1].expr
-            // Prefer the lambda body's inferred type over the stored function type,
-            // because inferLambdaLiteralExpr binds the lambda to the *expected* type
-            // (e.g. (List<T>) -> Any) rather than the *inferred* return type.
-            let lambdaReturnType: TypeID = {
-                if let lambdaNode = ctx.ast.arena.expr(transformExpr),
-                   case let .lambdaLiteral(_, body: bodyExprID, _, _) = lambdaNode,
-                   let bodyType = sema.bindings.exprTypes[bodyExprID],
-                   bodyType != sema.types.nothingType
-                {
-                    return bodyType
-                }
-                if let transformType = sema.bindings.exprTypes[transformExpr],
-                   case let .functionType(fnType) = sema.types.kind(of: transformType),
-                   fnType.returnType != sema.types.anyType
-                {
-                    return fnType.returnType
-                }
-                return sema.types.anyType
-            }()
+        let transformExpr: ExprID? = if memberName == interner.intern("chunked"), args.count == 2 {
+            args[1].expr
+        } else if memberName == interner.intern("windowed"), (2...4).contains(args.count),
+                  let lastExpr = args.last?.expr,
+                  let lastExprNode = ctx.ast.arena.expr(lastExpr),
+                  lastExprNode.isLambdaOrCallableRef
+        {
+            // Defaulted windowed parameters may be omitted before the trailing
+            // transform, so the transform is always the final supplied argument.
+            lastExpr
+        } else {
+            nil
+        }
+        if let transformExpr {
+            let lambdaReturnType = collectionFallbackTransformResultType(
+                transformExpr: transformExpr,
+                ctx: ctx,
+                sema: sema
+            )
 
             if isSequenceReceiver {
                 return makeSyntheticSequenceType(
@@ -3151,6 +3149,30 @@ extension CallTypeChecker {
             )
         }
 
+        return sema.types.anyType
+    }
+
+    private func collectionFallbackTransformResultType(
+        transformExpr: ExprID,
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> TypeID {
+        // Prefer the lambda body's inferred type over the stored function type,
+        // because inferLambdaLiteralExpr binds the lambda to the *expected* type
+        // (e.g. (List<T>) -> Any) rather than the *inferred* return type.
+        if let lambdaNode = ctx.ast.arena.expr(transformExpr),
+           case let .lambdaLiteral(_, body: bodyExprID, _, _) = lambdaNode,
+           let bodyType = sema.bindings.exprTypes[bodyExprID],
+           bodyType != sema.types.nothingType
+        {
+            return bodyType
+        }
+        if let transformType = sema.bindings.exprTypes[transformExpr],
+           case let .functionType(fnType) = sema.types.kind(of: transformType),
+           fnType.returnType != sema.types.anyType
+        {
+            return fnType.returnType
+        }
         return sema.types.anyType
     }
 

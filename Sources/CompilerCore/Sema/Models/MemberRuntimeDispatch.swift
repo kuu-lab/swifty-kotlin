@@ -220,13 +220,15 @@ enum MemberRuntimeDispatch {
 
         switch key.memberName {
         case "contains":
+            // KSP-1524: ULong membership is source-backed. The signed runtime
+            // bridge cannot compare values whose high bit is set.
+            if kind.isULongRangeLike { return nil }
             // KSP-1523: UIntRange used to special-case its own bridge here,
             // but this is never reached for UInt — `contains`/`isEmpty` are
             // intercepted earlier by `closedRangeInterfaceRuntimeName` in
             // CallLowerer+MemberCallDefaultsAndResolution.swift, which
             // already sends UInt through `__kk_range_contains` (confirmed by
-            // marker probe). Kept for ULong, whose values can exceed Int64.
-            if kind.isULongRangeLike { return "kk_ulong_range_contains" }
+            // marker probe).
             return "__kk_range_contains"
         case "isEmpty":
             return rangeRuntimeName(kind: kind, member: "isEmpty")
@@ -237,7 +239,7 @@ enum MemberRuntimeDispatch {
             // declaration (RangeHOF.kt); `chosenCallee`'s isSourceBackedSymbol
             // check short-circuits before this is ever consulted for UInt
             // (confirmed by marker probe on both receiver shapes).
-            return "__kk_range_sum"
+            return kind.isULongRangeLike ? nil : "__kk_range_sum"
         case "count":
             return rangeRuntimeName(kind: kind, member: "count")
         case "toList":
@@ -411,6 +413,8 @@ enum MemberRuntimeDispatch {
         "first_predicate", "firstOrNull_predicate",
         "last_predicate", "lastOrNull_predicate",
         "any", "all", "none",
+        "contains", "isEmpty", "firstOrNull", "lastOrNull", "count", "sum",
+        "reversed", "sorted", "toList",
     ]
 
     /// Members with bundled `RangeHOF.kt` definitions on `UIntProgression` /
@@ -420,6 +424,7 @@ enum MemberRuntimeDispatch {
         "iterator", "chunked", "windowed", "take", "drop",
         "map", "mapIndexed", "mapNotNull",
         "filter", "filterIndexed", "filterNot",
+        "contains", "isEmpty", "count", "sum", "reversed", "toList",
     ]
 
     /// `Progression.first` / `last` properties (never throw).
@@ -448,15 +453,12 @@ enum MemberRuntimeDispatch {
             }
             return "__kk_range_\(member)_orThrow"
         }
-        // KSP-1523: the non-throwing property getter has no dedicated
-        // `kk_uint_range_first`/`kk_uint_range_last` entry point — UInt
-        // shares the common `__kk_range_*` bridge with signed ranges (its
-        // full value range fits the non-negative half of the box's Int64
-        // fields). ULong keeps its own bridge (values above Int64.max need
-        // unsigned comparisons).
-        if kind.isULongRangeLike {
-            return "kk_ulong_range_\(member)"
-        }
+        // KSP-1523/KSP-1524: the non-throwing property getter has no
+        // dedicated `kk_uint_range_first`/`kk_ulong_range_first` (or `_last`)
+        // entry point — both UInt and ULong share the common `__kk_range_*`
+        // bridge with signed ranges. The raw bits stored in the box are
+        // reinterpreted by the caller, so no unsigned-specific comparison is
+        // needed for a plain getter (unlike `contains`, which does need one).
         return "__kk_range_\(member)"
     }
 
@@ -478,7 +480,11 @@ enum MemberRuntimeDispatch {
         {
             return nil
         }
+        if kind.isULongRangeLike, member == "first" || member == "last" {
+            return "__kk_range_\(member)"
+        }
         if kind.isULongRangeLike {
+            if member == "average" { return nil }
             return "kk_ulong_range_\(member)"
         }
         if kind == .uintRange {

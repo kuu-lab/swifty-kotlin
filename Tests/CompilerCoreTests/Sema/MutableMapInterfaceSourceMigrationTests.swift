@@ -1,8 +1,8 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-946: MutableMap's nominal declaration is source-backed while its
-/// mutation and query members remain compiler/runtime residuals.
+/// KSP-946/KSP-703: MutableMap's nominal declaration is source-backed while
+/// its runtime-backed mutation surface retains direct ABI links.
 @Suite
 struct MutableMapInterfaceSourceMigrationTests {
     @Test
