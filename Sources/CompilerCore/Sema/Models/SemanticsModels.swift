@@ -68,6 +68,13 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// scope for a top-level `private class`) instead of a class-hierarchy check,
     /// without loosening genuinely explicit `private constructor` declarations.
     public static let constructorVisibilityInherited = SymbolFlags(rawValue: 1 << 23)
+    /// Marks the synthetic member alias created for a source-backed bundled
+    /// extension function under its receiver nominal's FQ name (KSP-443). The
+    /// alias exists solely for owner+member-name lookup — it is statically
+    /// dispatched through its external link name and must never occupy a
+    /// vtable/itable slot or be treated as a real member of the nominal
+    /// (KUU-545).
+    public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
 }
 
 public struct SemanticSymbol: Sendable {

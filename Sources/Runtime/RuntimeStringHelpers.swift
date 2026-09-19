@@ -142,7 +142,7 @@ func runtimeMakeListRaw(_ values: [Int]) -> Int {
 func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
     let box = RuntimeArrayBox(length: values.count)
     for (index, value) in values.enumerated() {
-        box.elements[index] = value
+        box[index] = value
     }
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -284,6 +284,9 @@ private func runtimeStringIndexOfLast(
 }
 
 func runtimeSplitString(_ source: String, delimiter: String, limit: Int = 0) -> [String] {
+    if delimiter.isEmpty {
+        return runtimeSplitStringOnEmptyDelimiter(source, limit: limit)
+    }
     if source.isEmpty {
         return [""]
     }
@@ -310,6 +313,9 @@ func runtimeSplitStringLimit(
     ignoreCase: Bool,
     limit: Int
 ) -> [String] {
+    if delimiter.isEmpty {
+        return runtimeSplitStringOnEmptyDelimiter(source, limit: limit)
+    }
     if source.isEmpty {
         return [""]
     }
@@ -329,4 +335,35 @@ func runtimeSplitStringLimit(
         result.append(String(source[cursor ..< match.lowerBound]))
         cursor = match.upperBound
     }
+}
+
+/// Splits at every UTF-16 code-unit boundary, including the boundaries at both
+/// ends of the source. Kotlin treats an empty string delimiter as a zero-width
+/// match at each such position.
+private func runtimeSplitStringOnEmptyDelimiter(_ source: String, limit: Int) -> [String] {
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(source)
+    var result: [String] = []
+    result.reserveCapacity(limit > 0 ? min(limit, codeUnits.count + 2) : codeUnits.count + 2)
+
+    var fieldStart = 0
+    var matchPosition = 0
+    while matchPosition <= codeUnits.count {
+        if limit > 0 && result.count == limit - 1 {
+            break
+        }
+        result.append(
+            runtimeKotlinStringFromUTF16CodeUnits(
+                Array(codeUnits[fieldStart ..< matchPosition])
+            )
+        )
+        fieldStart = matchPosition
+        matchPosition += 1
+    }
+
+    result.append(
+        runtimeKotlinStringFromUTF16CodeUnits(
+            Array(codeUnits[fieldStart ..< codeUnits.count])
+        )
+    )
+    return result
 }

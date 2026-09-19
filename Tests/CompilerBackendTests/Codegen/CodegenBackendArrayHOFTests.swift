@@ -67,6 +67,26 @@ struct CodegenBackendArrayHOFTests {
         try assertKotlinOutput(source, moduleName: "ArrayFoldIndexed", expected: "8\n")
     }
 
+    @Test func testCodegenArrayAsIterableAndSumOfOverloads() throws {
+        let source = """
+        fun main() {
+            val values = arrayOf("a", "bb", "ccc")
+            println(values.asIterable().joinToString(","))
+            println(values.sumOf { it.length })
+            println(values.sumOf { it.length.toLong() })
+            println(values.sumOf { it.length.toDouble() })
+            println(values.sumOf { it.length.toUInt() })
+            println(values.sumOf { it.length.toULong() })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayAsIterableSumOf",
+            expected: "a,bb,ccc\n6\n6\n6.0\n6\n6\n"
+        )
+    }
+
     @Test func testCodegenArrayFlatMapExpandsElements() throws {
         let source = """
         fun main() {
