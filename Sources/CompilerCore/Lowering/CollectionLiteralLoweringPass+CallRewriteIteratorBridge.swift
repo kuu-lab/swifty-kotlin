@@ -254,8 +254,8 @@ extension CollectionLiteralConstructionLoweringPass {
                     callee: lookup.kkMapIteratorNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: canThrow,
+                    thrownResult: thrownResult
                 ))
                 return true
             }

@@ -129,10 +129,10 @@ public extension RuntimeABISpec {
             name: "kk_indexing_iterable_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_list_iterator_at",
@@ -746,10 +746,10 @@ public extension RuntimeABISpec {
             name: "__kk_map_iterator_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_map_iterator",
@@ -773,10 +773,10 @@ public extension RuntimeABISpec {
             name: "__kk_mutable_map_iterator_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_map_iterator_remove",

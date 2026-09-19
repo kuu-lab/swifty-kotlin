@@ -729,11 +729,6 @@ let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<I
 }
 
 let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: iterRaw), iter.index < iter.elements.count else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no next element."))
-        return 0
-    }
     return kk_list_iterator_next(iterRaw, outThrown)
 }
 
@@ -765,6 +760,9 @@ private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutable
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
+    if kk_range_hasNext(iterRaw) == 0 {
+        return runtimeThrowIteratorExhausted(outThrown)
+    }
     return kk_range_next(iterRaw)
 }
 
@@ -780,8 +778,7 @@ private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePo
 }
 
 private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_map_iterator_next(iterRaw)
+    return kk_map_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMutableMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -790,8 +787,7 @@ private let runtimeMutableMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMu
 }
 
 private let runtimeMutableMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_mutable_map_iterator_next(iterRaw)
+    return kk_mutable_map_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMutableMapIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1343,6 +1339,16 @@ typealias RuntimeCollectionLambda4 = @convention(c) (Int, Int, Int, Int, Int, Un
 /// Writes a thrown payload when the caller provided an out-thrown slot.
 func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
     outThrown?.pointee = value
+}
+
+/// Sets `NoSuchElementException` on the thrown channel. Used by iterator `next()`
+/// after the iteration is exhausted so callers do not observe a silent `0`.
+func runtimeThrowIteratorExhausted(
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    message: String = "Iterator contains no more elements."
+) -> Int {
+    runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: message))
+    return 0
 }
 
 /// Normalizes truthiness for predicates from raw/boxed Boolean values.

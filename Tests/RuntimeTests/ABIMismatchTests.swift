@@ -98,6 +98,10 @@ struct ABIMismatchTests {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_list_get", ["listRaw", "index", "outThrown"]),
             ("kk_list_iterator_next", ["iterRaw", "outThrown"]),
+            ("kk_iterator_next", ["iterRaw", "outThrown"]),
+            ("kk_indexing_iterable_next", ["iterRaw", "outThrown"]),
+            ("__kk_map_iterator_next", ["iterRaw", "outThrown"]),
+            ("__kk_mutable_map_iterator_next", ["iterRaw", "outThrown"]),
             ("__kk_mutable_list_removeAt", ["listRaw", "index", "outThrown"]),
         ]
         for item in expected {

@@ -355,7 +355,9 @@ final class RuntimeListIteratorTests {
         let result4 = kk_list_iterator_hasPrevious(iterHandle)
         #expect(result4 == 1) // kk_box_bool(1) == 1
 
-        #expect(kk_list_iterator_next(iterHandle) == 0) // Should be at end, returns 0
+        var exhaustedThrown = 0
+        #expect(kk_list_iterator_next(iterHandle, &exhaustedThrown) == 0)
+        #expect(exhaustedThrown != 0)
         let result5 = kk_list_iterator_hasPrevious(iterHandle)
         #expect(result5 == 1) // Should still have previous at end
 

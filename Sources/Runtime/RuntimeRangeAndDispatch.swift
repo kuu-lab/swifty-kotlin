@@ -880,9 +880,15 @@ public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointe
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+        if __kk_iterator_builder_hasNext(iterRaw) == 0 {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
         return __kk_iterator_builder_next(iterRaw)
     }
     if let rangeIterator = runtimeRangeIteratorBox(from: iterRaw) {
+        if kk_range_hasNext(iterRaw) == 0 {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
         let value = kk_range_next(iterRaw)
         // `Iterator<T>.next()` is an erased boundary. Direct range iteration
         // still uses `kk_range_next` and keeps the primitive representation.
@@ -892,10 +898,13 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
         return kk_list_iterator_next(iterRaw, outThrown)
     }
     if runtimeMapIteratorBox(from: iterRaw) != nil {
-        return kk_map_iterator_next(iterRaw)
+        return kk_map_iterator_next(iterRaw, outThrown)
+    }
+    if runtimeMutableMapIteratorBox(from: iterRaw) != nil {
+        return kk_mutable_map_iterator_next(iterRaw, outThrown)
     }
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
-        return kk_indexing_iterable_next(iterRaw)
+        return kk_indexing_iterable_next(iterRaw, outThrown)
     }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: outThrown) {
         if let outThrown, outThrown.pointee != 0 {
@@ -909,7 +918,7 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
         }
         return objectResult
     }
-    return 0
+    return runtimeThrowIteratorExhausted(outThrown)
 }
 
 private func runtimeObjectIteratorMethodCall(
