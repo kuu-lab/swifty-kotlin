@@ -2357,6 +2357,16 @@ extension CallTypeChecker {
         }
 
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
+        // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
+        // through this path, so their `callsInPlace` contracts must be applied
+        // here too (not just for the unqualified-call path in CallTypeChecker.swift).
+        applyContractEffects(
+            chosen: chosen,
+            args: args,
+            ctx: ctx,
+            locals: &locals
+        )
         // `Deferred.await()` resolves here as a normal candidate (the synthetic
         // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
         // signature hardcodes `Any` since `Deferred` has no class-level type

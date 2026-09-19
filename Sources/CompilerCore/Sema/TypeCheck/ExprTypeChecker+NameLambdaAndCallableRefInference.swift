@@ -1306,6 +1306,24 @@ extension ExprTypeChecker {
             locals: &lambdaLocals,
             expectedType: bodyExpectedType
         )
+        // STDLIB-592 definite assignment: record which outer-scope locals this
+        // lambda body unconditionally initializes, mirroring the blockExpr merge
+        // in ExprTypeChecker.swift. `locals` itself is never mutated here -- the
+        // lambda isn't known to run at this point -- but a caller whose contract
+        // guarantees EXACTLY_ONCE/AT_LEAST_ONCE invocation (applyContractEffects)
+        // can later fold this back into its own definite-assignment state.
+        var callsInPlaceInitializedSymbols: [SymbolID] = []
+        for (name, outerLocal) in locals where !outerLocal.isInitialized {
+            if let lambdaLocal = lambdaLocals[name],
+               lambdaLocal.symbol == outerLocal.symbol,
+               lambdaLocal.isInitialized
+            {
+                callsInPlaceInitializedSymbols.append(outerLocal.symbol)
+            }
+        }
+        if !callsInPlaceInitializedSymbols.isEmpty {
+            sema.bindings.bindContractCallsInPlaceInitializedSymbols(id, symbols: callsInPlaceInitializedSymbols)
+        }
         let captures = driver.captureAnalyzer.collectCapturedOuterSymbols(
             in: body,
             ast: ast,

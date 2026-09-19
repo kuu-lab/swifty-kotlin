@@ -1316,6 +1316,12 @@ public final class BindingTable {
     public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// STDLIB-592 definite assignment: outer-scope symbols a lambda literal's body
+    /// unconditionally initializes, keyed by the lambda literal's own `ExprID`.
+    /// Populated by `inferLambdaLiteralExpr` and consumed by `applyContractEffects`
+    /// when the enclosing call's callee has a `callsInPlace(param, EXACTLY_ONCE/AT_LEAST_ONCE)`
+    /// contract on that lambda parameter.
+    public private(set) var contractCallsInPlaceInitializedSymbolsByExpr: [ExprID: [SymbolID]] = [:]
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
@@ -1492,6 +1498,14 @@ public final class BindingTable {
 
     public func destructuringComponentCallee(for expr: ExprID, index: Int) -> SymbolID? {
         destructuringComponentCallees[expr]?[index]
+    }
+
+    public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
+        contractCallsInPlaceInitializedSymbolsByExpr[expr] = symbols
+    }
+
+    public func contractCallsInPlaceInitializedSymbols(for expr: ExprID) -> [SymbolID] {
+        contractCallsInPlaceInitializedSymbolsByExpr[expr] ?? []
     }
 
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {
