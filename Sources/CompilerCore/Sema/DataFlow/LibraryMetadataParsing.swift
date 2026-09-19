@@ -105,6 +105,7 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
+                valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
@@ -317,6 +318,20 @@ extension DataFlowSemaPhase {
             )
             symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
             valueParameterSymbols.append(paramSymbol)
+        }
+        // STDLIB-592: restore `contract { callsInPlace(param, kind) }` effects
+        // decoded from metadata. `ContractCallsInPlaceEffect.parameterSymbol` is a
+        // `SymbolID` that cannot itself survive the metadata round-trip, so the
+        // wire format carries a per-parameter-index kind instead and this
+        // reconstructs the symbol reference from the freshly-imported
+        // `valueParameterSymbols`, mirroring how `recordContractEffects` derives
+        // it from a parameter index when parsing source directly.
+        for (index, kind) in record.valueParameterCallsInPlaceKinds.enumerated() where kind != nil {
+            guard index < valueParameterSymbols.count else { continue }
+            symbols.addContractCallsInPlaceEffect(
+                ContractCallsInPlaceEffect(parameterSymbol: valueParameterSymbols[index], kind: kind!),
+                for: ownerSymbol
+            )
         }
         return FunctionSignature(
             receiverType: functionType.receiver,
