@@ -10,6 +10,8 @@
 /// fallback for source-less enum surfaces.
 final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumNameAccessLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()

@@ -1,6 +1,8 @@
 
 final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "OperatorLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         _ = ctx

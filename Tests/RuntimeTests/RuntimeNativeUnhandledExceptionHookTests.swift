@@ -63,9 +63,9 @@ struct RuntimeNativeUnhandledExceptionHookTests {
         )
 
         #expect(kk_native_getUnhandledExceptionHook() == runtimeNullSentinelInt)
-        #expect(kk_native_setUnhandledExceptionHook(hookRaw) == 0)
+        #expect(kk_native_setUnhandledExceptionHook(hookRaw) == runtimeNullSentinelInt)
         #expect(kk_native_getUnhandledExceptionHook() == hookRaw)
-        #expect(kk_native_setUnhandledExceptionHook(runtimeNullSentinelInt) == 0)
+        #expect(kk_native_setUnhandledExceptionHook(runtimeNullSentinelInt) == hookRaw)
         #expect(kk_native_getUnhandledExceptionHook() == runtimeNullSentinelInt)
     }
 

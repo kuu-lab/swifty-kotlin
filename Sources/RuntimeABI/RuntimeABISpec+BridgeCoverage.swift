@@ -337,6 +337,7 @@ public extension RuntimeABISpec {
                 ]
             ),
             bridgeSpec("kk_native_terminateWithUnhandledException", section: "Native", params: ["throwableRaw"],
+            returnType: .noreturn,
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_getByteAt", section: "Native", params: ["arrayRaw", "index"],
             isThrowing: false),
