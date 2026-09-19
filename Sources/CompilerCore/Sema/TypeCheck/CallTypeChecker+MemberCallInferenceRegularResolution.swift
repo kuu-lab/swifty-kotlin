@@ -195,6 +195,34 @@ extension CallTypeChecker {
         }
         let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? rangeSourceMemberLookupType ?? lookupReceiverType
 
+        // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
+        // ULongRange expression. Prefer the exact bundled ULongRange source
+        // extension before ordinary member resolution can select that broader
+        // interface helper.
+        if !isSuperCall,
+           interner.resolve(calleeName) == "isEmpty",
+           args.isEmpty,
+           sourceLevelRangeMemberReceiverKind(
+               receiverExpr: receiverID,
+               receiverType: lookupReceiverType,
+               sema: sema,
+               interner: interner,
+               allowSyntacticRangeExpression: true
+           ) == .ulongRange,
+           let sourceType = bindSourceRangeHOFCall(
+               id,
+               memberName: "isEmpty",
+               calleeName: calleeName,
+               receiverID: receiverID,
+               args: args,
+               safeCall: safeCall,
+               ctx: ctx,
+               locals: &locals
+           )
+        {
+            return sourceType
+        }
+
         // Detect class-name receiver: when the receiver is a name reference to
         // a class/interface/enumClass symbol, only companion members should be
         // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
@@ -1025,13 +1053,13 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+            let primitiveArraySourceCandidates = collectPrimitiveArraySourceMembers(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
                 interner: interner
             )
-            let arrayConversionSourceCandidates = collectArraySourceConversionCandidates(
+            let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
@@ -1103,7 +1131,7 @@ extension CallTypeChecker {
             } else if !mutableMapPutAllSourceCandidates.isEmpty {
                 standardMemberCandidates = mutableMapPutAllSourceCandidates
             } else if !primitiveArraySourceCandidates.isEmpty {
-                // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
+                // Primitive-array source members are bundled Kotlin extensions. Prefer the
                 // exact source receiver over synthetic member stubs, including
                 // joinToString(transform), whose legacy stub shares the same name.
                 standardMemberCandidates = primitiveArraySourceCandidates
@@ -1199,18 +1227,18 @@ extension CallTypeChecker {
                         }
                         return true
                     }
-                    // Primitive-array HOFs are top-level extensions in
+                    // Primitive-array source members are top-level extensions in
                     // kotlin.collections. Default-import lookup may stop at a
                     // same-named Sequence extension first (notably for
                     // UByteArray/UShortArray), so prefer the exact source
                     // receiver overload when one is present.
-                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceMembers(
                         named: calleeName,
                         receiverType: nonNullReceiverForScope,
                         sema: sema,
                         interner: interner
                     )
-                    let arrayConversionSourceCandidates = collectArraySourceConversionCandidates(
+                    let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                         named: calleeName,
                         receiverType: nonNullReceiverForScope,
                         sema: sema,
@@ -1831,8 +1859,17 @@ extension CallTypeChecker {
         // prevents the array resolver from binding the source overload.
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
+            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+            && !collectArraySourceBackedCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            ).isEmpty
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
             || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+            || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName

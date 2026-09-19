@@ -8,7 +8,7 @@ import kotlin.internal.KsSymbolName
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (__kk_range_contains, __kk_range_isEmpty, kk_op_contains)
 //   Sources/Runtime/RuntimeRangeLongRange.swift
-//   (kk_long_range_contains, kk_long_range_isEmpty)
+//   (__kk_long_range_contains, __kk_long_range_isEmpty)
 // See RangeIterators.kt for the iterator() half of this migration.
 //
 // NOTE: KSP-312 wires explicit `contains`/`isEmpty` calls through bundled stdlib
@@ -21,10 +21,9 @@ import kotlin.internal.KsSymbolName
 // These implementations are written purely in terms of the first/last/step
 // properties every one of the six classes already exposes as Kotlin members.
 //
-// LongRange.step is Kotlin-typed Long (registerSyntheticLongRangeStub) while
-// LongProgression.step is Kotlin-typed Int (registerSyntheticProgressionStub,
-// shared stepType across all *Progression classes) — a pre-existing asymmetry in
-// those registrations, not introduced here. The LongProgression overloads below
+// The Kotlin LongRange contract uses Long for step while this compiler's
+// residual LongProgression.step property is modelled as Int (the shared
+// progression registration). The LongRange/LongProgression overloads below
 // widen step to Long before delegating so the shared helper only has to handle
 // one width.
 
@@ -41,7 +40,7 @@ private fun rangeIsEmptyChar(first: Char, last: Char, step: Long): Boolean =
 
 public fun IntRange.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
 public fun IntProgression.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
-public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
+public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step.toLong())
 public fun LongProgression.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step.toLong())
 public fun CharRange.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
 public fun CharProgression.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
@@ -120,7 +119,7 @@ public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, 
 public operator fun IntProgression.contains(value: Int): Boolean = containsInt(value, first, last, step)
 
 @KsSymbolName("__kk_range_contains")
-public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step)
+public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step.toLong())
 
 @KsSymbolName("__kk_range_contains")
 public operator fun LongProgression.contains(value: Long): Boolean =
@@ -143,8 +142,8 @@ public operator fun UIntRange.contains(value: UInt): Boolean = containsUInt(valu
 @KsSymbolName("__kk_range_contains")
 public operator fun UIntProgression.contains(value: UInt): Boolean = containsUInt(value, first, last, step)
 
-@KsSymbolName("__kk_range_contains")
+// Keep ULong membership on the Kotlin body: the signed runtime bridge cannot
+// compare values whose high bit is set.
 public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step)
 
-@KsSymbolName("__kk_range_contains")
 public operator fun ULongProgression.contains(value: ULong): Boolean = containsULong(value, first, last, step)

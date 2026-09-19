@@ -125,6 +125,8 @@ struct DeepRecursiveSourceMigrationTests {
         #expect(
             sema.symbols.externalLinkName(for: scopeCallRecursive) == "__kk_deep_recursive_scope_callRecursive"
         )
+        let scopeCallSignature = try #require(sema.symbols.functionSignature(for: scopeCallRecursive))
+        #expect(scopeCallSignature.isSuspend)
         #expect(bundledSourcePath(for: scopeCallRecursive, sema: sema, ctx: ctx) == true)
 
         let functionExtension = try #require(

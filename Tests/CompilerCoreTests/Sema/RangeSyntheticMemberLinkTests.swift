@@ -187,6 +187,68 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testTypedRangeClassShellsAreSourceBacked() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let typedRangeSourcePaths: Set<String> = [
+            "__bundled_kotlin/ranges/IntRange.kt",
+            "__bundled_kotlin/ranges/LongRange.kt",
+            "__bundled_kotlin/ranges/CharRange.kt",
+        ]
+        let typedRangeDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+            guard let fileID = diagnostic.primaryRange?.start.file else { return false }
+            return typedRangeSourcePaths.contains(ctx.sourceManager.path(of: fileID))
+        }
+        #expect(
+            typedRangeDiagnostics.isEmpty,
+            Comment(rawValue: "Typed range shell diagnostics: \(typedRangeDiagnostics)")
+        )
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let expected: [(name: String, sourcePath: String, constructorLink: String, elementType: TypeID)] = [
+            ("IntRange", "__bundled_kotlin/ranges/IntRange.kt", "kk_op_rangeTo", sema.types.intType),
+            ("LongRange", "__bundled_kotlin/ranges/LongRange.kt", "__kk_long_rangeTo", sema.types.longType),
+            ("CharRange", "__bundled_kotlin/ranges/CharRange.kt", "__kk_char_rangeTo", sema.types.charType),
+        ]
+
+        for range in expected {
+            let classFQName = ["kotlin", "ranges", range.name].map(interner.intern)
+            let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
+            let classInfo = try #require(sema.symbols.symbol(classSymbol))
+            #expect(!classInfo.flags.contains(.synthetic))
+            #expect(sema.symbols.isSourceBackedSymbol(classSymbol))
+            let classFileID = try #require(sema.symbols.sourceFileID(for: classSymbol))
+            #expect(ctx.sourceManager.path(of: classFileID) == range.sourcePath)
+
+            let companion = try #require(sema.symbols.companionObjectSymbol(for: classSymbol))
+            #expect(sema.symbols.isSourceBackedSymbol(companion))
+            #expect(!sema.symbols.symbol(companion)!.flags.contains(.synthetic))
+
+            let constructor = try #require(
+                sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first { symbolID in
+                    guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                          let signature = sema.symbols.functionSignature(for: symbolID)
+                    else { return false }
+                    return signature.parameterTypes == [range.elementType, range.elementType]
+                }
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(constructor))
+            #expect(sema.symbols.externalLinkName(for: constructor) == range.constructorLink)
+
+            for propertyName in ["start", "endInclusive", "endExclusive"] {
+                let property = try #require(
+                    sema.symbols.lookupAll(fqName: classFQName + [interner.intern(propertyName)]).first { symbolID in
+                        sema.symbols.symbol(symbolID)?.kind == .property
+                            && sema.symbols.parentSymbol(for: symbolID) == classSymbol
+                    }
+                )
+                #expect(sema.symbols.isSourceBackedSymbol(property))
+                #expect(sema.symbols.externalLinkName(for: property) == nil)
+                #expect(sema.symbols.propertyType(for: property) == range.elementType)
+            }
+        }
+    }
+
     @Test func testCharProgressionFirstFamilyIsSourceBacked() throws {
         let ctx = makeContextFromSource(
             """
@@ -326,39 +388,6 @@ struct RangeSyntheticMemberLinkTests {
 
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try sharedSema()
-
-        let orNullExpected: [(owner: String, link: String)] = [
-            // IntRange.firstOrNull is source-backed now; no runtime link.
-            ("LongRange", "kk_long_range_firstOrNull"),
-            ("ULongRange", "kk_ulong_range_firstOrNull"),
-        ]
-        for expectation in orNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "firstOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).firstOrNull should link to \(expectation.link)")
-            )
-        }
-        let lastOrNullExpected: [(owner: String, link: String)] = [
-            // IntRange.lastOrNull is source-backed now; no runtime link.
-            ("LongRange", "kk_long_range_lastOrNull"),
-            ("ULongRange", "kk_ulong_range_lastOrNull"),
-        ]
-        for expectation in lastOrNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "lastOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).lastOrNull should link to \(expectation.link)")
-            )
-        }
 
         for owner in ["IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange"] {
             for member in ["random", "randomOrNull"] {

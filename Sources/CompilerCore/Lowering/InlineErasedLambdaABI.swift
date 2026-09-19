@@ -77,10 +77,12 @@ enum InlineErasedLambdaABI {
         }
         var boxed = loweredArguments
         for index in loweredArguments.indices.dropFirst() {
+            // Same scoping as boxPrimitiveArgumentsForErasedParameters: only a
+            // concrete primitive arg gets a plain box here; enum/value-class
+            // args stay raw so a later nominal-aware boundary keeps their tag.
             guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(loweredArguments[index]), ctx: ctx
-                  )
+                  let loweredType = module.arena.exprType(loweredArguments[index]),
+                  case let .primitive(primitive, .nonNull) = types.kind(of: loweredType)
             else {
                 continue
             }
@@ -163,7 +165,16 @@ enum InlineErasedLambdaABI {
 
     private static func nonNullPrimitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
         guard let type, let types = ctx.sema?.types,
-              case let .primitive(primitive, .nonNull) = types.kind(of: type)
+              let symbols = ctx.sema?.symbols
+        else {
+            return nil
+        }
+        let resolvedKind = resolveValueClassKind(
+            types.kind(of: type),
+            types: types,
+            symbols: symbols
+        )
+        guard case let .primitive(primitive, .nonNull) = resolvedKind
         else {
             return nil
         }
@@ -210,8 +221,8 @@ enum InlineErasedLambdaABI {
     }
 
     /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
-    /// feeds an erased slot, the primitive the lambda body produced must be
-    /// boxed again.
+    /// feeds an erased slot, the concrete value the lambda body produced must be
+    /// boxed again, preserving a value-class nominal tag when present.
     static func boxErasedLambdaResultIfNeeded(
         returnedExpr: KIRExprID,
         result: KIRExprID,
@@ -222,21 +233,23 @@ enum InlineErasedLambdaABI {
     ) -> KIRExprID {
         let resultType = module.arena.exprType(result)
         let resultIsErased = resultType.map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
-        guard resultIsErased, let types = ctx.sema?.types,
-              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx)
+        guard resultIsErased,
+              let sema = ctx.sema,
+              let returnedType = module.arena.exprType(returnedExpr)
         else {
             return returnedExpr
         }
-        let boxed = module.arena.appendTemporary(type: resultType ?? types.anyType)
-        body.append(.call(
-            symbol: nil,
-            callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-            arguments: [returnedExpr],
-            result: boxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return boxed
+        return boxValueForAnySlot(
+            returnedExpr,
+            sourceType: returnedType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: ctx.interner,
+            arena: module.arena,
+            resultType: resultType ?? sema.types.anyType,
+            requireNonNull: true,
+            into: &body.instructions
+        )
     }
 
     static func boxPrimitiveArgumentsForErasedParameters(
@@ -251,10 +264,14 @@ enum InlineErasedLambdaABI {
         }
         var boxed = arguments
         for index in arguments.indices {
+            // Only true primitives need the explicit box: enum and value-class
+            // arguments keep their nominal expr type, so the erased slots they
+            // reach downstream (e.g. the `__kk_sequence_generate` seed bridge)
+            // still see the concrete class and emit `kk_enum_box_ordinal` /
+            // `kk_tag_value_class_box` instead of a tagless primitive box.
             guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(arguments[index]), ctx: ctx
-                  )
+                  let argType = module.arena.exprType(arguments[index]),
+                  case let .primitive(primitive, .nonNull) = types.kind(of: argType)
             else {
                 continue
             }

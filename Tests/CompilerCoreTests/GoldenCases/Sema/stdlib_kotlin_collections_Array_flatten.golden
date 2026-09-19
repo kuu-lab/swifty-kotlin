@@ -1,0 +1,33 @@
+symbol fq=__local_0.nested[kind=local] kind=local vis=private flags=_ type=kotlin.Array<kotlin.Array<Int>>
+symbol fq=__local_1.lists[kind=local] kind=local vis=private flags=_ type=kotlin.Array<kotlin.collections.List<out Int>>
+symbol fq=flattenArrays.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=flattenArrays[kind=fun;params=kotlin.Array<out kotlin.Array<out Int>>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<out kotlin.Array<out Int>>] ret=kotlin.collections.List<Int>
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_collections_Array_flatten package=_
+  decl flattenArrays[kind=fun;params=kotlin.Array<out kotlin.Array<out Int>>] fun flattenArrays sym=flattenArrays[kind=fun;params=kotlin.Array<out kotlin.Array<out Int>>]
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@5:67 name(values) type=kotlin.Array<out kotlin.Array<out Int>> ref=flattenArrays.$0.values[kind=vparam]
+expr e@5:67#1 memberCall recv=e@5:67 callee=flatten args=[] type=kotlin.collections.List<Int> call=kotlin.collections.flatten[kind=fun;recv=kotlin.Array<out kotlin.Array<out T0>>;params=;gen=1] targs=[Int]
+expr e@8:53 int(1) type=Int
+expr e@8:56 int(2) type=Int
+expr e@8:45 call callee=e@8:45#1 args=[_:e@8:53,_:e@8:56] type=kotlin.Array<Int> call=kotlin.arrayOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@8:68 int(3) type=Int
+expr e@8:60 call callee=e@8:60#1 args=[_:e@8:68] type=kotlin.Array<Int> call=kotlin.arrayOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@8:37 call callee=e@8:37#1 args=[_:e@8:45,_:e@8:60] type=kotlin.Array<kotlin.Array<Int>> call=kotlin.arrayOf[kind=fun;params=*T0;gen=1] targs=[kotlin.Array<Int>]
+expr e@8:5 localDecl nested mutable=0 type=Array<Array<Int>> init=e@8:37 type=Unit ref=__local_0.nested[kind=local]
+expr e@9:32 int(4) type=Int
+expr e@9:35 int(5) type=Int
+expr e@9:25 call callee=e@9:25#1 args=[_:e@9:32,_:e@9:35] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[Int]
+expr e@9:46 int(6) type=Int
+expr e@9:39 call callee=e@9:39#1 args=[_:e@9:46] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[Int]
+expr e@9:17 call callee=e@9:17#1 args=[_:e@9:25,_:e@9:39] type=kotlin.Array<kotlin.collections.List<out Int>> call=kotlin.arrayOf[kind=fun;params=*T0;gen=1] targs=[kotlin.collections.List<out Int>]
+expr e@9:5 localDecl lists mutable=0 type=_ init=e@9:17 type=Unit ref=__local_1.lists[kind=local]
+expr e@11:13 name(nested) type=kotlin.Array<kotlin.Array<Int>> ref=__local_0.nested[kind=local]
+expr e@11:13#1 memberCall recv=e@11:13 callee=flatten args=[] type=kotlin.collections.List<Int> call=kotlin.collections.flatten[kind=fun;recv=kotlin.Array<out kotlin.Array<out T0>>;params=;gen=1] targs=[Int]
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@12:13 name(lists) type=kotlin.Array<kotlin.collections.List<out Int>> ref=__local_1.lists[kind=local]
+expr e@12:13#1 memberCall recv=e@12:13 callee=flatten args=[] type=kotlin.collections.List<Int> call=kotlin.collections.flatten[kind=fun;recv=kotlin.Array<out kotlin.collections.Iterable<T0>>;params=;gen=1] targs=[Int]
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@13:27 name(nested) type=kotlin.Array<kotlin.Array<Int>> ref=__local_0.nested[kind=local]
+expr e@13:13 call callee=e@13:13#1 args=[_:e@13:27] type=kotlin.collections.List<Int> call=flattenArrays[kind=fun;params=kotlin.Array<out kotlin.Array<out Int>>]
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

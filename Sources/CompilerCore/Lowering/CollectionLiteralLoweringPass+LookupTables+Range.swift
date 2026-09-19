@@ -55,14 +55,7 @@ struct RangeLookupNames {
     let kkCharRangeToListName: InternedString
     let kkCharRangeForEachName: InternedString
     // ULongRange (STDLIB-524, STDLIB-RANGE-037)
-    let kkULongRangeToListName: InternedString
-    let kkULongRangeContainsName: InternedString
-    let kkULongRangeFirstName: InternedString
-    let kkULongRangeLastName: InternedString
     let kkULongRangeStepName: InternedString
-    let kkULongRangeIsEmptyName: InternedString
-    let kkULongRangeReversedName: InternedString
-    let kkULongRangeCountName: InternedString
     let kkULongRangeIteratorName: InternedString
     let kkULongRangeHasNextName: InternedString
     let kkULongRangeNextName: InternedString
@@ -114,17 +107,10 @@ struct RangeLookupNames {
         kkOpContainsName = interner.intern("kk_op_contains")
         // CharRange (STDLIB-290)
         kkBoxCharName = ABILoweringPass.primitiveBoxingCallee(for: .char, interner: interner)
-        kkCharRangeToListName = interner.intern("kk_char_range_toList")
-        kkCharRangeForEachName = interner.intern("kk_char_range_forEach")
+        kkCharRangeToListName = interner.intern("__kk_char_range_toList")
+        kkCharRangeForEachName = interner.intern("__kk_char_range_forEach")
         // ULongRange (STDLIB-524, STDLIB-RANGE-037)
-        kkULongRangeToListName = interner.intern("kk_ulong_range_toList")
-        kkULongRangeContainsName = interner.intern("kk_ulong_range_contains")
-        kkULongRangeFirstName = interner.intern("kk_ulong_range_first")
-        kkULongRangeLastName = interner.intern("kk_ulong_range_last")
         kkULongRangeStepName = interner.intern("kk_ulong_range_step")
-        kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
-        kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
-        kkULongRangeCountName = interner.intern("kk_ulong_range_count")
         kkULongRangeIteratorName = interner.intern("__kk_ulong_range_iterator")
         kkULongRangeHasNextName = interner.intern("__kk_ulong_range_hasNext")
         kkULongRangeNextName = interner.intern("__kk_ulong_range_next")
