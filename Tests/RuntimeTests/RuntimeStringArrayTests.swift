@@ -1654,6 +1654,25 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatBooleanSpecifierUsesJavaTruthinessForNonBooleans() {
+        let args = makeRuntimeValueArray([
+            runtimeStringAggregateValue(""),
+            RuntimeValue(raw: 0),
+            RuntimeValue(raw: 1),
+            RuntimeValue(raw: kk_box_bool(0)),
+            RuntimeValue(raw: kk_box_bool(1)),
+            RuntimeValue(raw: runtimeNullSentinelInt),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%b %b %b %b %b %b",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "true true true false true false")
+    }
+
+    @Test
     func testStringFormatStringPrecisionUsesUTF16CodeUnits() {
         func format(_ template: String, _ argument: String) -> String {
             let args = makeRuntimeArray([rawFromRuntimeString(argument)])
