@@ -28,7 +28,7 @@ expr e@3:47#1 memberCall recv=e@3:47 callee=size args=[] type=Int ref=kotlin.col
 expr e@3:39#1 binary(lessThan) lhs=e@3:39 rhs=e@3:47#1 type=Boolean
 expr e@5:21 name(values) type=kotlin.collections.List<Int> ref=UserIterator.values[kind=prop]
 expr e@5:28 name(index) type=Int ref=UserIterator.index[kind=prop]
-expr e@5:21#1 indexedAccess receiver=e@5:21 indices=[e@5:28] type=Int call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<out T0>;params=Int;gen=1] targs=[Int]
+expr e@5:21#1 indexedAccess receiver=e@5:21 indices=[e@5:28] type=Int call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<T0>;params=Int;gen=1] targs=[Int]
 expr e@5:9 localDecl value mutable=0 type=_ init=e@5:21#1 type=Unit ref=__local_0.value[kind=local]
 expr e@6:18 int(1) type=Int
 expr e@6:9 compoundAssign(plusAssign) name=index value=e@6:18 type=Unit ref=UserIterator.index[kind=prop]
@@ -60,9 +60,9 @@ expr e@23:5 localDecl generatedNext mutable=0 type=_ init=e@23:25 type=Unit ref=
 expr e@25:15 int(1) type=Int
 expr e@25:9 call callee=e@25:9#1 args=[_:e@25:15] type=Unit call=kotlin.sequences.SequenceScope.yield[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=T0;susp;gen=1] targs=[Int]
 expr e@26:18 name(values) type=kotlin.collections.Iterable<Int> ref=topLevelSequenceFactories.$1.values[kind=vparam]
-expr e@26:9 call callee=e@26:9#1 args=[_:e@26:18] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.collections.Iterable<T0>;susp;gen=1]
+expr e@26:9 call callee=e@26:9#1 args=[_:e@26:18] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.collections.Iterable<T0>;susp;gen=1] targs=[Int]
 expr e@27:18 name(fromIterator) type=kotlin.sequences.Sequence<Int> ref=__local_1.fromIterator[kind=local]
-expr e@27:9 call callee=e@27:9#1 args=[_:e@27:18] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.sequences.Sequence<T0>;susp;gen=1]
+expr e@27:9 call callee=e@27:9#1 args=[_:e@27:18] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.sequences.Sequence<T0>;susp;gen=1] targs=[Int]
 expr e@25:9#2 blockExpr stmts=[e@25:9,e@26:9] trailing=e@27:9 type=Unit
 expr e@24:26 lambda params=[] body=e@25:9#2 label=sequence type=suspend kotlin.sequences.SequenceScope<Int>.() -> Unit
 expr e@24:17 call callee=e@24:17#1 args=[_:e@24:26] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequence[kind=fun;params=fn{su;r=kotlin.sequences.SequenceScope<T0>;p=;ret=Unit};gen=1]
@@ -70,7 +70,7 @@ expr e@24:5 localDecl built mutable=0 type=_ init=e@24:17 type=Unit ref=__local_
 expr e@30:15 int(2) type=Int
 expr e@30:9 call callee=e@30:9#1 args=[_:e@30:15] type=Unit call=kotlin.sequences.SequenceScope.yield[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=T0;susp;gen=1] targs=[Int]
 expr e@31:18 name(single) type=kotlin.sequences.Sequence<Int> ref=__local_3.single[kind=local]
-expr e@31:9 call callee=e@31:9#1 args=[_:e@31:18] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.sequences.Sequence<T0>;susp;gen=1]
+expr e@31:9 call callee=e@31:9#1 args=[_:e@31:18] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.sequences.Sequence<T0>;susp;gen=1] targs=[Int]
 expr e@30:9#2 blockExpr stmts=[e@30:9] trailing=e@31:9 type=Unit
 expr e@29:25 lambda params=[] body=e@30:9#2 label=iterator type=suspend kotlin.sequences.SequenceScope<Int>.() -> Unit
 expr e@29:16 call callee=e@29:16#1 args=[_:e@29:25] type=kotlin.collections.Iterator<out Int> call=kotlin.sequences.iterator[kind=fun;params=fn{su;r=kotlin.sequences.SequenceScope<T0>;p=;ret=Unit};gen=1]
