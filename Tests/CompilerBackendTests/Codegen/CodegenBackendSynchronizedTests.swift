@@ -65,7 +65,7 @@ struct CodegenBackendSynchronizedTests {
         try assertKotlinOutput(
             source,
             moduleName: "MutexUnlockIllegalState",
-            expected: "Mutex is not locked\n"
+            expected: "This mutex is not locked\n"
         )
     }
 

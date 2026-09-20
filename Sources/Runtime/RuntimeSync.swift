@@ -81,7 +81,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         lock.lock()
         guard isHeld else {
             lock.unlock()
-            return runtimeAllocateIllegalStateException(message: "Mutex is not locked")
+            return runtimeAllocateIllegalStateException(message: "This mutex is not locked")
         }
         while !waiters.isEmpty {
             let waiter = waiters.removeFirst()

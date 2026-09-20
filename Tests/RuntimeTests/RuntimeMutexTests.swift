@@ -73,7 +73,7 @@ struct RuntimeMutexTests {
         #expect(kk_mutex_unlock(handle, &thrown) == 0)
         let box = try requireThrownBox(thrown)
         #expect(box.exceptionFQName == "kotlin.IllegalStateException")
-        #expect(box.message == "Mutex is not locked")
+        #expect(box.message == "This mutex is not locked")
         #expect(__kk_mutex_isLocked(handle) == 0)
 
         thrown = 0
@@ -86,7 +86,7 @@ struct RuntimeMutexTests {
         #expect(kk_mutex_unlock(handle, &thrown) == 0)
         let secondBox = try requireThrownBox(thrown)
         #expect(secondBox.exceptionFQName == "kotlin.IllegalStateException")
-        #expect(secondBox.message == "Mutex is not locked")
+        #expect(secondBox.message == "This mutex is not locked")
     }
 
     // NOTE: pthread_mutex_t does not guarantee FIFO wake-up order on Linux, so
