@@ -315,7 +315,10 @@ extension BuildKIRRegressionTests {
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
         let incSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "inc"
+            symbol.kind == .function
+                && symbol.declSite != nil
+                && ctx.interner.resolve(symbol.name) == "inc"
+                && sema.symbols.functionSignature(for: symbol.id)?.receiverType == nil
         })?.id)
 
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
@@ -337,6 +340,37 @@ extension BuildKIRRegressionTests {
             Issue.record("Expected callable reference call to forward the explicit argument.")
             return
         }
+    }
+
+    @Test func testLocalCallableValueShadowsSameNamedStdlibExtension() throws {
+        let source = """
+        fun main(): Int {
+            var counter = 0
+            val inc = { counter++ }
+            inc()
+            inc()
+            return counter
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Local callable value should shadow Char.inc: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableValueCalls = ast.arena.exprs.indices.compactMap { index -> CallableValueCallBinding? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard isUserSourceExpr(exprID, in: ctx),
+                  case .call = ast.arena.expr(exprID)
+            else { return nil }
+            return sema.bindings.callableValueCallBinding(for: exprID)
+        }
+        #expect(callableValueCalls.count == 2)
+        #expect(callableValueCalls.allSatisfy { binding in
+            if case .localValue = binding.target { return true }
+            return false
+        })
     }
 
     @Test func testBuildKIRPrependsBoundCallableRefReceiverAsCaptureArgument() throws {

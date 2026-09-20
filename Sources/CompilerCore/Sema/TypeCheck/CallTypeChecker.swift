@@ -1730,12 +1730,12 @@ final class CallTypeChecker {
             }
             var resolvedFromLocalShadow = false
             if let local = locals[calleeName],
-               let sym = ctx.cachedSymbol(local.symbol),
-               sym.kind == .function
+               let sym = ctx.cachedSymbol(local.symbol)
             {
-                // Local function declarations shadow imported and top-level functions
-                // of the same name, so use the local symbol as the sole candidate.
-                candidates = [local.symbol]
+                // Local declarations shadow imported and top-level callables
+                // of the same name. Local functions resolve here; callable
+                // values continue through the indirect invocation path below.
+                candidates = sym.kind == .function ? [local.symbol] : []
                 resolvedFromLocalShadow = true
             }
             // KSP-CAP-006: a class/enum/annotation-class/object may coexist
