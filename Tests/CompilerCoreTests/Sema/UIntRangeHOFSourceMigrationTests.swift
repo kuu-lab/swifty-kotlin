@@ -162,13 +162,8 @@ struct UIntRangeHOFSourceMigrationTests {
     // real Kotlin members, resolved through bundled Kotlin source
     // (`bindSourceRangeHOFCall`) rather than the legacy allowlist entry that
     // was removed — must keep resolving. `ULongRange.average()` is
-    // deliberately excluded here: it is NOT a real Kotlin member either
-    // (same `Iterable<Byte/Short/Int/Long/Float/Double>`-only shape as
-    // UIntRange, per TODO.md's KSP-1524 note) and currently only compiles
-    // because of its own Sema synthetic registration
-    // (`kk_ulong_range_average`, unrelated to this fix) — asserting it
-    // type-checks here would lock in that pre-existing kotlinc divergence
-    // instead of guarding this fix.
+    // deliberately covered by KSP-1524 because it is not a real Kotlin
+    // member.
     @Test
     func otherRangeTypesAverageStillTypeChecks() throws {
         let source = """
