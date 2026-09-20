@@ -24,6 +24,8 @@
 /// builtins are never matched, so their behavior is unchanged.
 final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     static let name = "IntegerNarrowing"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .integerNarrowed
 
     /// Binary / unary integer builtins whose `Int` result must wrap to 32 bits.
     /// `Long` variants (`kk_op_lmod`, `kk_op_lfloor_div`, …) are intentionally

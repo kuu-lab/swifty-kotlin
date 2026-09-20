@@ -100,4 +100,17 @@ struct RuntimeExceptionTypeDiscriminationTests {
         #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")) == 1)
         #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ArithmeticException")) == 1)
     }
+
+    /// `MalformedInputException` is an Exception subtype, so `catch (e: Exception)`
+    /// matches it without also matching unrelated sibling types.
+    @Test func malformedInputExceptionMatchesExceptionButNotUnrelatedSiblings() {
+        let thrown = runtimeAllocateMalformedInputException()
+
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "java.nio.charset.MalformedInputException")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.text.CharacterCodingException")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.Exception")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.Throwable")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")) == 0)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalArgumentException")) == 0)
+    }
 }
