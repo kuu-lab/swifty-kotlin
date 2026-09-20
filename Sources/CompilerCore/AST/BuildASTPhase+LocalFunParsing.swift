@@ -83,7 +83,9 @@ extension BuildASTPhase {
             // caller convention) so a nested block in the expression body — e.g.
             // `= if (c) { a; b } else d` — keeps its own statement separator.
             let exprTokens = filterTopLevelSemicolons(funTokens[index...])
-            let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             if let exprID = parser.parse(), let exprRange = astArena.exprRange(exprID) {
                 body = .expr(exprID, exprRange)
             } else {

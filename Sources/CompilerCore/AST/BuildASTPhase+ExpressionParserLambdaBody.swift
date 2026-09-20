@@ -14,7 +14,8 @@ extension BuildASTPhase.ExpressionParser {
         if let parsedExpr = BuildASTPhase.ExpressionParser(
             tokens: bodySlice,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ).parse() {
             return parsedExpr
         }
@@ -90,7 +91,8 @@ extension BuildASTPhase.ExpressionParser {
         return BuildASTPhase.ExpressionParser(
             tokens: group,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ).parse()
     }
 
