@@ -15,6 +15,8 @@
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
 final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     static let name = "ValueClassUnboxing"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .valueClassUnboxed
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard let sema = ctx.sema else { return false }

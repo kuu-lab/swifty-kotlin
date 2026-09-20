@@ -301,7 +301,7 @@ public func __kk_string_toDoubleOrNull_flat(
 #error("Long conversion assumes 64-bit Int")
 #endif
 
-/// Shared helper: parse a trimmed string into a Float, handling NaN/Infinity literals.
+/// Parse a trimmed string using the same Kotlin/Java floating-literal grammar as Double.
 private func runtimeParseFloat(_ trimmed: String) -> Float? {
     switch trimmed {
     case "NaN":
@@ -311,8 +311,15 @@ private func runtimeParseFloat(_ trimmed: String) -> Float? {
     case "-Infinity":
         return -.infinity
     default:
-        return Float(trimmed)
+        break
     }
+
+    guard runtimeMatchesEntireRegex(trimmed, pattern: runtimeDecimalFloatingLiteralPattern)
+        || runtimeMatchesEntireRegex(trimmed, pattern: runtimeHexFloatingLiteralPattern)
+    else {
+        return nil
+    }
+    return Float(runtimeDroppingFloatingTypeSuffix(trimmed))
 }
 
 /// Convert a Float's bit pattern to Int in an architecture-safe manner.
