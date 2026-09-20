@@ -30,6 +30,7 @@ final class JvmOverloadsLoweringPass: LoweringPass {
         let symbols = sema.symbols
         let arena = module.arena
         let unitType = sema.types.unitType
+        let intType = sema.types.intType
         let originalDecls = arena.declarations
 
         for decl in originalDecls {
@@ -99,8 +100,12 @@ final class JvmOverloadsLoweringPass: LoweringPass {
                 let wrapperBody = buildWrapperBody(
                     wrapperParams: Array(wrapperParams),
                     originalFunction: function,
+                    originalSignature: originalSignature,
+                    keepParameterCount: keepCount,
                     unitType: unitType,
-                    arena: arena
+                    intType: intType,
+                    arena: arena,
+                    interner: ctx.interner
                 )
 
                 _ = arena.appendDecl(.function(KIRFunction(
@@ -172,8 +177,12 @@ final class JvmOverloadsLoweringPass: LoweringPass {
     private func buildWrapperBody(
         wrapperParams: [KIRParameter],
         originalFunction: KIRFunction,
+        originalSignature: FunctionSignature,
+        keepParameterCount: Int,
         unitType: TypeID,
-        arena: KIRArena
+        intType: TypeID,
+        arena: KIRArena,
+        interner: StringInterner
     ) -> [KIRInstruction] {
         var body: [KIRInstruction] = [.beginBlock]
         var forwardedArgs: [KIRExprID] = []
@@ -184,10 +193,26 @@ final class JvmOverloadsLoweringPass: LoweringPass {
             forwardedArgs.append(expr)
         }
 
+        for parameterType in originalSignature.parameterTypes.dropFirst(keepParameterCount) {
+            let sentinel = arena.appendExpr(.intLiteral(0), type: parameterType)
+            body.append(.constValue(result: sentinel, value: .intLiteral(0)))
+            forwardedArgs.append(sentinel)
+        }
+
+        var defaultMask: Int64 = 0
+        for parameterIndex in keepParameterCount ..< originalSignature.parameterTypes.count {
+            defaultMask |= Int64(1) << parameterIndex
+        }
+        let mask = arena.appendExpr(.intLiteral(defaultMask), type: intType)
+        body.append(.constValue(result: mask, value: .intLiteral(defaultMask)))
+        forwardedArgs.append(mask)
+
+        let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: originalFunction.symbol)
+        let stubName = interner.intern(interner.resolve(originalFunction.name) + "$default")
         if originalFunction.returnType == unitType {
             body.append(.call(
-                symbol: originalFunction.symbol,
-                callee: originalFunction.name,
+                symbol: stubSymbol,
+                callee: stubName,
                 arguments: forwardedArgs,
                 result: nil,
                 canThrow: false,
@@ -198,8 +223,8 @@ final class JvmOverloadsLoweringPass: LoweringPass {
             let callResult = arena.appendTemporary(type: originalFunction.returnType
             )
             body.append(.call(
-                symbol: originalFunction.symbol,
-                callee: originalFunction.name,
+                symbol: stubSymbol,
+                callee: stubName,
                 arguments: forwardedArgs,
                 result: callResult,
                 canThrow: false,
