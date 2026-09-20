@@ -433,8 +433,28 @@ extension KotlinParser {
     static func endsWithControlFlowCondition<C: BidirectionalCollection>(_ tokens: C) -> Bool
         where C.Element == Token
     {
-        guard let last = tokens.last, last.kind == .symbol(.rParen) else {
+        guard let opener = trailingControlFlowConditionOpener(tokens) else {
             return false
+        }
+        switch opener.kind {
+        case .keyword(.if), .keyword(.when), .keyword(.for), .keyword(.catch):
+            return true
+        case .keyword(.while):
+            // A standalone `while (condition)` may continue with its body on
+            // the next line. The trailing condition of a completed
+            // `do { ... } while (condition)` must not consume the following
+            // statement, however.
+            return !hasTopLevelDoKeyword(in: tokens, before: opener.index)
+        default:
+            return false
+        }
+    }
+
+    private static func trailingControlFlowConditionOpener<C: BidirectionalCollection>(
+        _ tokens: C
+    ) -> (kind: TokenKind, index: C.Index)? where C.Element == Token {
+        guard let last = tokens.last, last.kind == .symbol(.rParen) else {
+            return nil
         }
         var depth = 0
         var index = tokens.index(before: tokens.endIndex)
@@ -445,19 +465,42 @@ extension KotlinParser {
             } else if token.kind == .symbol(.lParen) {
                 depth -= 1
                 if depth == 0 {
-                    guard index > tokens.startIndex else { return false }
-                    let opener = tokens[tokens.index(before: index)]
-                    switch opener.kind {
-                    case .keyword(.if), .keyword(.when), .keyword(.while), .keyword(.for), .keyword(.catch):
-                        return true
-                    default:
-                        return false
-                    }
+                    guard index > tokens.startIndex else { return nil }
+                    let openerIndex = tokens.index(before: index)
+                    return (tokens[openerIndex].kind, openerIndex)
                 }
             }
-            guard index > tokens.startIndex else { return false }
+            guard index > tokens.startIndex else { return nil }
             index = tokens.index(before: index)
         }
+    }
+
+    private static func hasTopLevelDoKeyword<C: BidirectionalCollection>(
+        in tokens: C,
+        before endIndex: C.Index
+    ) -> Bool where C.Element == Token {
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var index = tokens.startIndex
+        while index != endIndex {
+            let kind = tokens[index].kind
+            let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            if isTopLevel, kind == .keyword(.do) {
+                return true
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            default: break
+            }
+            index = tokens.index(after: index)
+        }
+        return false
     }
 
     /// Tokens that can end an operand: an identifier that follows one of these

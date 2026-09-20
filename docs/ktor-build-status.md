@@ -20,7 +20,7 @@ bash Scripts/ktor_build.sh --module ktor_io  # 1モジュールだけ
 
 すべて `kotlinc` 実機と比較して確認済み。`Scripts/diff_cases/` に再現ケースを追加した
 （`expect_actual_class_member_body.kt` は kotlinc が単一ファイルでの expect/actual 併存を許さない
-ため diff_kotlinc.sh では検証できず、kswiftc 自身の挙動確認のみ）。
+ため diff_kotlinc.sh では検証できず、focused Sema test で診断が出ないことを確認）。
 
 **パーサ / AST 構築**
 
