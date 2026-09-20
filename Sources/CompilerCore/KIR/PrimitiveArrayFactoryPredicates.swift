@@ -41,3 +41,32 @@ func isPrimitiveArrayType(
         && symbol.name != knownNames.array
         && knownNames.isArrayLikeName(symbol.name)
 }
+
+/// Returns the runtime nominal type ID for an array-shaped Kotlin type.
+///
+/// Arrays share one runtime storage representation, so lowering must preserve
+/// the static array class at the point where the value is allocated or copied.
+func runtimeArrayNominalTypeID(
+    _ type: TypeID?,
+    sema: SemaModule,
+    interner: StringInterner
+) -> Int64? {
+    guard let type,
+          let (classType, symbol) = resolveClassTypeSymbol(
+              sema.types.makeNonNullable(type),
+              sema: sema
+          ),
+          classType.args.isEmpty || symbol.name == KnownCompilerNames(interner: interner).array
+    else {
+        return nil
+    }
+    let knownNames = KnownCompilerNames(interner: interner)
+    guard knownNames.isArrayLikeName(symbol.name) else {
+        return nil
+    }
+    return RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: symbol.id,
+        sema: sema,
+        interner: interner
+    )
+}
