@@ -386,7 +386,8 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                bundledIndex: lazyLoaderState.bundledIndex
+                bundledIndex: lazyLoaderState.bundledIndex,
+                indexedBindingsBySymbol: bindingsBySymbol
             )
             for (inlineSymbol, function) in loadedInlineFunctions {
                 lazyLoaderState.importedInlineFunctions[inlineSymbol] = function
@@ -506,7 +507,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        bundledIndex: BundledDeclarationIndex
+        bundledIndex: BundledDeclarationIndex,
+        indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]
     ) {
         for edge in pendingSupertypeEdges {
             guard let superSymbol = symbols.lookupAll(fqName: edge.superFQName)
@@ -546,7 +548,8 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             metadataPath: binding.metadataPath,
-            interner: interner
+            interner: interner,
+            indexedBindingsBySymbol: indexedBindingsBySymbol
         )
 
         let singleBindingWork = LibraryImportDeferredWork(

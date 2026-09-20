@@ -208,6 +208,11 @@ struct LibMetadataSerializationTests {
         case .star: nil
         }
         #expect(liftedType == types.stringType)
+        let unresolvedLayoutWarnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0004" }
+        #expect(
+            unresolvedLayoutWarnings.isEmpty,
+            "Indexed stdlib layout entries must resolve during recursive lazy materialization: \(unresolvedLayoutWarnings.map(\.message))"
+        )
         #expect(!diagnostics.hasError)
     }
 
