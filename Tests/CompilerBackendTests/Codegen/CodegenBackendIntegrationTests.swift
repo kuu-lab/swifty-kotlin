@@ -119,6 +119,24 @@ import Testing
     }
 
     @Test
+    func testCodegenRawStringSimpleNameTemplatesInterpolate() throws {
+        let source = #"""
+        fun main() {
+            val x = 5
+            println("""$x""")
+            println("""a$x b""")
+            println("""${x}""")
+        }
+        """#
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RawStringSimpleNameTemplates",
+            expected: "5\na5 b\n5\n"
+        )
+    }
+
+    @Test
     func testCodegenProducesDeterministicKirOutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
@@ -700,6 +718,27 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "MutableMapBasicRuntime", expected: "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\n3\n7\n{a=3, c=7}\ntrue\n")
+    }
+
+    @Test
+    func testCodegenMutableMapEntrySetValueWritesThroughToMap() throws {
+        let source = """
+        fun main() {
+            val map = mutableMapOf("a" to 1, "b" to 2)
+            val entry = map.entries.first()
+            entry.setValue(99)
+            println(map)
+            println(map.values)
+            println(map.entries)
+            println(entry.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableMapEntrySetValueRuntime",
+            expected: "{a=99, b=2}\n[99, 2]\n[a=99, b=2]\n99\n"
+        )
     }
 
     @Test

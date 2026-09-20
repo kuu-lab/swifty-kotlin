@@ -121,14 +121,16 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.count == 1 {
         let receiverID = arguments[0]
         if callee == lookup.reversedName, state.rangeExprIDs.contains(receiverID.rawValue) {
+            if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                // ULongRange.reversed() is bundled Kotlin source.
+                return false
+            }
             // KSP-1523: UIntRange never reaches this branch — its
             // constructing callee is never added to state.rangeExprIDs
             // during PreScan, so the old isUIntRange arm was unreachable.
             let transformResult = module.arena.appendTemporary(type: nil
             )
-            let reversedName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
-                ? lookup.kkULongRangeReversedName
-                : lookup.kkRangeReversedName
+            let reversedName = lookup.kkRangeReversedName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: reversedName,
@@ -192,15 +194,17 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
         if state.rangeExprIDs.contains(receiverID.rawValue) {
+            if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                // ULongRange.toList() is bundled Kotlin source.
+                return false
+            }
             let toListResult = module.arena.appendTemporary(type: nil
             )
-            // Use char/ULong range variant if applicable (STDLIB-290, STDLIB-524).
-            // KSP-1523: no UIntRange variant — see the reversed() branch above.
+            // Use the char range variant if applicable (STDLIB-290).
+            // KSP-1523/1524: unsigned range toList() is bundled Kotlin source.
             let rangeToListCallee: InternedString
             if state.charRangeExprIDs.contains(receiverID.rawValue) {
                 rangeToListCallee = lookup.kkCharRangeToListName
-            } else if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                rangeToListCallee = lookup.kkULongRangeToListName
             } else {
                 rangeToListCallee = lookup.kkRangeToListName
             }

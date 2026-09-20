@@ -189,8 +189,9 @@ struct CodegenBackendEncodingEdgeCasesTests {
             println(malformed.decodeToString(0, 2, false).length > 0)
             try {
                 println(malformed.decodeToString(0, 2, true))
-            } catch (e: Throwable) {
-                println("caught")
+            } catch (e: Exception) {
+                println("caught: ${e.message}")
+                println(e is kotlin.text.CharacterCodingException)
             }
         }
         """
@@ -203,7 +204,8 @@ struct CodegenBackendEncodingEdgeCasesTests {
                 bcd
                 abcdef
                 true
-                caught
+                caught: Input length = 1
+                true
                 """
                 + "\n"
         )

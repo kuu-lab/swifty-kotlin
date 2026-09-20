@@ -332,21 +332,6 @@ func runtimeSignedRangeCount(_ range: RuntimeRangeBox) -> Int {
     return 0
 }
 
-func runtimeUnsignedRangeCount(_ range: RuntimeRangeBox) -> Int {
-    let first = UInt(bitPattern: range.first)
-    let last = UInt(bitPattern: range.last)
-    if range.step > 0 {
-        guard first <= last else { return 0 }
-        let uStep = UInt(bitPattern: range.step)
-        return Int(bitPattern: (last - first) / uStep + 1)
-    } else if range.step < 0 {
-        guard first >= last else { return 0 }
-        let uStep = UInt(range.step.magnitude)
-        return Int(bitPattern: (first - last) / uStep + 1)
-    }
-    return 0
-}
-
 func runtimeCharRangeCount(_ range: RuntimeRangeBox) -> Int {
     let first = kk_unbox_char(range.first)
     let last = kk_unbox_char(range.last)
@@ -664,6 +649,9 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Iterable"
 )
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Iterator"
+)
 
 /// BUG-167: Calls `iterator()` on a source-implemented `Iterable` object through
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
@@ -932,8 +920,10 @@ private func runtimeObjectIteratorMethodCall(
     methodSlot: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int? {
-    let iteratorInterfaceSlot = 0
-    let functionRaw = kk_itable_lookup(iterRaw, iteratorInterfaceSlot, methodSlot)
+    // KUU-477: an Iterator object may implement another interface before
+    // Iterator, so its physical itable slot is not necessarily zero. Resolve
+    // the slot from the interface registration attached to this object.
+    let functionRaw = kk_itable_lookup_dynamic(iterRaw, Int(runtimeIteratorInterfaceTypeID), methodSlot)
     guard functionRaw != 0 else {
         return nil
     }
@@ -972,6 +962,31 @@ public func kk_range_last(_ rangeRaw: Int) -> Int {
     }
     return range.last
 }
+
+/// `IntProgression`/`LongProgression`/`CharProgression.first()` — throws on empty.
+@_cdecl("__kk_range_first_orThrow")
+public func kk_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "__kk_range_first_orThrow"
+    )
+}
+
+/// `IntProgression`/`LongProgression`/`CharProgression.last()` — throws on empty.
+@_cdecl("__kk_range_last_orThrow")
+public func kk_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "__kk_range_last_orThrow"
+    )
+}
+
 
 @_cdecl("__kk_range_count")
 public func kk_range_count(_ rangeRaw: Int) -> Int {
@@ -1570,31 +1585,26 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
 
 // MARK: - ULongRange properties (STDLIB-RANGE-037)
 
-@_cdecl("kk_ulong_range_contains")
-public func kk_ulong_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_contains")
-    }
-    let first = UInt(bitPattern: range.first)
-    let last = UInt(bitPattern: range.last)
-    let uValue = UInt(bitPattern: value)
-    return (first <= uValue && uValue <= last) ? 1 : 0
+@_cdecl("kk_ulong_range_first_orThrow")
+public func kk_ulong_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "kk_ulong_range_first_orThrow"
+    )
 }
 
-@_cdecl("kk_ulong_range_first")
-public func kk_ulong_range_first(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_first")
-    }
-    return range.first
-}
-
-@_cdecl("kk_ulong_range_last")
-public func kk_ulong_range_last(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_last")
-    }
-    return range.last
+@_cdecl("kk_ulong_range_last_orThrow")
+public func kk_ulong_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "kk_ulong_range_last_orThrow"
+    )
 }
 
 @_cdecl("kk_ulong_range_step")
@@ -1603,21 +1613,6 @@ public func kk_ulong_range_step(_ rangeRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_step")
     }
     return range.step
-}
-
-@_cdecl("kk_ulong_range_isEmpty")
-public func kk_ulong_range_isEmpty(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_isEmpty")
-    }
-    let first = UInt(bitPattern: range.first)
-    let last = UInt(bitPattern: range.last)
-    if range.step > 0 {
-        return first > last ? 1 : 0
-    } else if range.step < 0 {
-        return first < last ? 1 : 0
-    }
-    return 1
 }
 
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {

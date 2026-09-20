@@ -37,7 +37,8 @@ extension ABILoweringPass {
                 interner: interner,
                 boxingCalleeTable: boxingCalleeTable,
                 symbols: symbols,
-                boxTypeParamBoundary: boxTypeParamArguments
+                boxTypeParamBoundary: boxTypeParamArguments,
+                preferStaticPrimitive: true
             ) {
                 let boxedResult = module.arena.appendTemporary(type: paramType)
                 emitBoxCallWithValueClassTag(
@@ -91,7 +92,8 @@ extension ABILoweringPass {
             targetKind: resultKind,
             boxingCalleeTable: boxingCalleeTable,
             types: types,
-            symbols: symbols
+            symbols: symbols,
+            preferStaticPrimitive: true
         ) else {
             return nil
         }

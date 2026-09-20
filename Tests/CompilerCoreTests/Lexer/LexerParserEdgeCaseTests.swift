@@ -105,6 +105,36 @@ struct LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testDoubleDollarPreservesLiteralDollarBeforeTemplate() {
+        let source = """
+        val price = 0.0
+        val text = "$$price"
+        """
+
+        let result = lex(source)
+        let priceID = result.interner.intern("price")
+        let textID = result.interner.intern("text")
+        let dollarID = result.interner.intern("$")
+
+        #expect(result.tokens.map(\.kind) == [
+            .keyword(.val),
+            .identifier(priceID),
+            .symbol(.assign),
+            .doubleLiteral("0.0"),
+            .keyword(.val),
+            .identifier(textID),
+            .symbol(.assign),
+            .stringQuote,
+            .stringSegment(dollarID),
+            .templateSimpleNameStart,
+            .identifier(priceID),
+            .stringQuote,
+            .eof,
+        ])
+        #expect(!result.diagnostics.hasError)
+    }
+
+    @Test
     func testLexerNumericAndCharLiteralsCoverErrorAndSuffixPaths() {
         let source = """
         0x1F 0X 0b101 0b 0o77 0o

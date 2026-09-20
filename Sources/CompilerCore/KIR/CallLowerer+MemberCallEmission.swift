@@ -810,6 +810,12 @@ extension CallLowerer {
             interner.intern("__kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
+            interner.intern("__kk_range_first_orThrow"),
+            interner.intern("__kk_range_last_orThrow"),
+            interner.intern("kk_uint_range_first_orThrow"),
+            interner.intern("kk_uint_range_last_orThrow"),
+            interner.intern("kk_ulong_range_first_orThrow"),
+            interner.intern("kk_ulong_range_last_orThrow"),
             interner.intern("__kk_range_random"),
             interner.intern("__kk_range_random_random"),
             interner.intern("__kk_char_range_random"),
@@ -911,13 +917,13 @@ extension CallLowerer {
         switch (interner.resolve(calleeName), argumentCount) {
         case ("chunked", 2):
             callee = "__kk_list_chunked"
-            canThrow = false
+            canThrow = true
         case ("chunked", 4):
             callee = "__kk_list_chunked_transform"
             canThrow = true
         case ("windowed", 4):
             callee = "__kk_list_windowed"
-            canThrow = false
+            canThrow = true
         case ("windowed", 6):
             callee = "__kk_list_windowed_transform"
             canThrow = true

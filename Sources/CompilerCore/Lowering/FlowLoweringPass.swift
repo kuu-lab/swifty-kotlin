@@ -1,6 +1,8 @@
 
 final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "FlowLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     private enum RuntimeFlowTag: Int64 {
         case emit = 0
