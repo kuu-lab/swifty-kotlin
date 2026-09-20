@@ -9,6 +9,7 @@ BASELINE="${BENCHMARK_BASELINE:-$SCRIPT_DIR/benchmark_baseline.tsv}"
 OUTPUT=""
 SUMMARY=""
 MEASURED=""
+MEASURE_CASE=""
 TOLERANCE="${BENCHMARK_TOLERANCE_PERCENT:-10}"
 EXECUTION_RUNS="${BENCH_EXECUTION_RUNS:-5}"
 COMPILE_RUNS="${BENCH_COMPILE_RUNS:-3}"
@@ -19,7 +20,7 @@ usage() {
 Usage:
   benchmark_gate.sh [--baseline PATH] [--output PATH] [--summary PATH]
                     [--tolerance PERCENT] [--execution-runs N] [--compile-runs N]
-                    [--measure-only]
+                    [--measure-only [--measure-case KIND/CASE]]
   benchmark_gate.sh --compare-only --baseline PATH --measured PATH
                     [--output PATH] [--summary PATH] [--tolerance PERCENT]
 EOF
@@ -45,6 +46,11 @@ while (($# > 0)); do
         --measured)
             [[ $# -ge 2 ]] || { usage; exit 2; }
             MEASURED="$2"
+            shift 2
+            ;;
+        --measure-case)
+            [[ $# -ge 2 ]] || { usage; exit 2; }
+            MEASURE_CASE="$2"
             shift 2
             ;;
         --tolerance)
@@ -102,6 +108,13 @@ if [[ "$MODE" != "compare" ]]; then
     }
 fi
 
+if [[ -n "$MEASURE_CASE" ]]; then
+    if [[ "$MODE" != "measure" || ! "$MEASURE_CASE" =~ ^(execution|compile)/[^/]+$ ]]; then
+        echo "error: --measure-case requires --measure-only and KIND/CASE" >&2
+        exit 2
+    fi
+fi
+
 if [[ "$MODE" == "compare" ]]; then
     [[ -n "$MEASURED" ]] || {
         echo "error: --compare-only requires --measured" >&2
@@ -117,6 +130,65 @@ fi
     echo "error: benchmark baseline TSV not found: $BASELINE" >&2
     exit 1
 }
+
+validate_production_baseline() {
+    local baseline_path="$1"
+    awk -F '\t' '
+        BEGIN {
+            expected["execution" SUBSEP "arch010_hash_collections" SUBSEP "runtime_ms"] = "execution/arch010_hash_collections/runtime_ms"
+            expected["execution" SUBSEP "compile_medium" SUBSEP "runtime_ms"] = "execution/compile_medium/runtime_ms"
+            expected["execution" SUBSEP "filter" SUBSEP "runtime_ms"] = "execution/filter/runtime_ms"
+            expected["execution" SUBSEP "for_in_range" SUBSEP "runtime_ms"] = "execution/for_in_range/runtime_ms"
+            expected["execution" SUBSEP "map" SUBSEP "runtime_ms"] = "execution/map/runtime_ms"
+            expected["execution" SUBSEP "sort" SUBSEP "runtime_ms"] = "execution/sort/runtime_ms"
+            expected["compile" SUBSEP "hello" SUBSEP "TOTAL"] = "compile/hello/TOTAL"
+            expected["compile" SUBSEP "medium" SUBSEP "TOTAL"] = "compile/medium/TOTAL"
+            expected["compile" SUBSEP "stdlib-only" SUBSEP "TOTAL"] = "compile/stdlib-only/TOTAL"
+        }
+        $1 == "kind" || $1 ~ /^#/ || $1 == "" { next }
+        {
+            key = $1 SUBSEP $2 SUBSEP $3
+            if (!(key in expected)) {
+                printf "error: unexpected production benchmark metric: %s/%s/%s\n", $1, $2, $3 > "/dev/stderr"
+                invalid = 1
+                next
+            }
+            if (key in seen) {
+                printf "error: duplicate production benchmark metric: %s/%s/%s\n", $1, $2, $3 > "/dev/stderr"
+                invalid = 1
+                next
+            }
+            if (NF != 4 || $4 !~ /^[0-9]+([.][0-9]+)?$/ || $4 == 0) {
+                printf "error: invalid production benchmark row: %s\n", $0 > "/dev/stderr"
+                invalid = 1
+                next
+            }
+            seen[key] = 1
+            count++
+        }
+        END {
+            for (key in expected) {
+                if (!(key in seen)) {
+                    printf "error: production benchmark baseline is missing required metric: %s\n", expected[key] > "/dev/stderr"
+                    invalid = 1
+                }
+            }
+            if (count != 9) {
+                printf "error: production benchmark baseline must contain exactly 9 metrics, got %d\n", count > "/dev/stderr"
+                invalid = 1
+            }
+            if (invalid) exit 1
+        }
+    ' "$baseline_path"
+}
+
+# The stored-baseline fast path is a fixed production gate. Validate its key
+# contract before measuring so removing the same target from both the baseline
+# and the harness cannot silently turn a nine-metric gate into an eight-metric
+# PASS. compare-only remains generic for focused fixtures and diagnostics.
+if [[ "$MODE" == "run" ]]; then
+    validate_production_baseline "$BASELINE"
+fi
 
 if [[ "$MODE" == "compare" ]]; then
     WORK_DIR=""
@@ -199,15 +271,12 @@ measure_compile_case() {
     done
 
     local -a phases=()
-    local -A phase_seen=()
     while IFS= read -r phase; do
-        [[ -n "$phase" && -z "${phase_seen[$phase]+seen}" ]] || continue
-        phase_seen["$phase"]=1
         phases+=("$phase")
-    done < <(awk '$0 !~ /^[[:space:]]/ && $2 ~ /^[0-9]+([.][0-9]+)?$/ { print $1 }' "$case_dir/stderr-1")
-    if [[ -z "${phase_seen[TOTAL]+seen}" ]]; then
-        phases+=(TOTAL)
-    fi
+    done < <(awk '
+        $0 !~ /^[[:space:]]/ && $2 ~ /^[0-9]+([.][0-9]+)?$/ && !seen[$1]++ { print $1 }
+        END { if (!("TOTAL" in seen)) print "TOTAL" }
+    ' "$case_dir/stderr-1")
     for phase in "${phases[@]}"; do
         for ((run = 1; run <= COMPILE_RUNS; run++)); do
             value="$(extract_phase "$phase" "$case_dir/stderr-$run")"
@@ -232,6 +301,25 @@ compare_tsv() {
     local rows=0
     local unbaselined=0
 
+    if ! awk -F '\t' '
+        NR == FNR {
+            if ($1 != "kind" && $1 !~ /^#/ && $1 != "") required[$1 SUBSEP $2 SUBSEP $3] = $1 "/" $2 "/" $3
+            next
+        }
+        $1 != "kind" && $1 !~ /^#/ && $1 != "" { measured[$1 SUBSEP $2 SUBSEP $3] = 1 }
+        END {
+            for (key in required) {
+                if (!(key in measured)) {
+                    printf "error: measured TSV is missing gated metric %s\n", required[key] > "/dev/stderr"
+                    missing = 1
+                }
+            }
+            if (missing) exit 1
+        }
+    ' "$baseline_path" "$measured_path"; then
+        return 1
+    fi
+
     mkdir -p "$(dirname "$report_path")"
     printf 'kind\tcase\tmetric\tbaseline_ms\tmeasured_ms\tdelta_ms\tdelta_percent\tstatus\n' >"$report_path"
 
@@ -250,7 +338,7 @@ compare_tsv() {
             $0 !~ /^#/ && $1 != "kind" && $1 == kind && $2 == case_name && $3 == metric { print $4; exit }
         ' "$baseline_path")"
         if [[ -z "$baseline_value" ]]; then
-            if [[ "$metric" == "TOTAL" ]]; then
+            if [[ "$kind" == "execution" || "$metric" == "TOTAL" ]]; then
                 echo "error: missing baseline for gated metric $kind/$case_name/$metric" >&2
                 return 1
             fi
@@ -266,8 +354,9 @@ compare_tsv() {
         fi
 
         delta_ms="$(awk -v measured="$measured_value" -v baseline="$baseline_value" 'BEGIN { printf "%.2f", measured - baseline }')"
-        delta_percent="$(awk -v measured="$measured_value" -v baseline="$baseline_value" 'BEGIN { printf "%.2f", (measured - baseline) * 100 / baseline }')"
-        status="$(awk -v delta="$delta_percent" -v tolerance="$TOLERANCE" 'BEGIN { print (delta <= tolerance) ? "PASS" : "FAIL" }')"
+        delta_percent="$(awk -v measured="$measured_value" -v baseline="$baseline_value" 'BEGIN { printf "%.3f", (measured - baseline) * 100 / baseline }')"
+        status="$(awk -v measured="$measured_value" -v baseline="$baseline_value" -v tolerance="$TOLERANCE" \
+            'BEGIN { print (((measured - baseline) * 100 / baseline) <= tolerance) ? "PASS" : "FAIL" }')"
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "$kind" "$case_name" "$metric" "$baseline_value" "$measured_value" "$delta_ms" "$delta_percent" "$status" >>"$report_path"
         rows=$((rows + 1))
@@ -324,15 +413,44 @@ fi
 measured_path="$WORK_DIR/measured.tsv"
 printf 'kind\tcase\tmetric\tvalue_ms\n' >"$measured_path"
 
-BENCH_RUNS="$EXECUTION_RUNS" \
-BENCH_RELEASE=1 \
-BENCH_OUTPUT_TSV="$measured_path" \
-KSWIFTC="$KSWIFTC" \
-    bash "$SCRIPT_DIR/benchmark_stdlib_hof.sh"
+measure_kind="${MEASURE_CASE%%/*}"
+measure_case="${MEASURE_CASE#*/}"
 
-measure_compile_case hello "$ROOT_DIR/Scripts/diff_cases/hello.kt"
-measure_compile_case medium "$ROOT_DIR/Scripts/benchmark_cases/compile_medium.kt"
-measure_compile_case stdlib-only ""
+if [[ -z "$MEASURE_CASE" || "$measure_kind" == "execution" ]]; then
+    if [[ -n "$MEASURE_CASE" && ! -f "$SCRIPT_DIR/benchmark_cases/$measure_case.kt" ]]; then
+        echo "error: unknown execution benchmark case: $measure_case" >&2
+        exit 2
+    fi
+    BENCH_RUNS="$EXECUTION_RUNS" \
+    BENCH_RELEASE=1 \
+    BENCH_CASE="${MEASURE_CASE:+$measure_case}" \
+    BENCH_OUTPUT_TSV="$measured_path" \
+    KSWIFTC="$KSWIFTC" \
+        bash "$SCRIPT_DIR/benchmark_stdlib_hof.sh"
+fi
+
+if [[ -z "$MEASURE_CASE" || "$measure_kind" == "compile" ]]; then
+    case "$measure_case" in
+        "" )
+            measure_compile_case hello "$ROOT_DIR/Scripts/diff_cases/hello.kt"
+            measure_compile_case medium "$ROOT_DIR/Scripts/benchmark_cases/compile_medium.kt"
+            measure_compile_case stdlib-only ""
+            ;;
+        hello)
+            measure_compile_case hello "$ROOT_DIR/Scripts/diff_cases/hello.kt"
+            ;;
+        medium)
+            measure_compile_case medium "$ROOT_DIR/Scripts/benchmark_cases/compile_medium.kt"
+            ;;
+        stdlib-only)
+            measure_compile_case stdlib-only ""
+            ;;
+        *)
+            echo "error: unknown compile benchmark case: $measure_case" >&2
+            exit 2
+            ;;
+    esac
+fi
 
 if [[ "$MODE" == "measure" ]]; then
     [[ -n "$OUTPUT" ]] || {

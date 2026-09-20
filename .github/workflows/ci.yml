@@ -356,8 +356,10 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/refactoring-metrics"
           bash Scripts/loc_report.sh | tee "$RUNNER_TEMP/refactoring-metrics/loc_report.tsv"
-      - name: Test benchmark regression gate
-        run: bash Scripts/test_benchmark_gate.sh
+      - name: Test benchmark regression gates
+        run: |
+          bash Scripts/test_benchmark_gate.sh
+          bash Scripts/test_paired_benchmark_gate.sh
       - name: Summarize loc report
         run: |
           {
@@ -629,48 +631,20 @@ jobs:
           tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
           test -x "$install_dir/kswiftc"
           echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
-      - name: Measure benchmark base on the retry runner
-        env:
-          BENCHMARK_BASELINE: ${{ github.workspace }}/Scripts/benchmark_baseline.tsv
-          PAIRED_BASELINE_ALL: ${{ runner.temp }}/benchmark-gate-attempt-2/paired-baseline-all.tsv
-          PAIRED_BASELINE: ${{ runner.temp }}/benchmark-gate-attempt-2/paired-baseline.tsv
-          BENCH_EXECUTION_RUNS: "5"
-          BENCH_COMPILE_RUNS: "3"
-        run: |
-          mkdir -p "$RUNNER_TEMP/benchmark-gate-attempt-2"
-          KSWIFTC="$BASE_KSWIFTC" bash Scripts/benchmark_gate.sh \
-            --measure-only \
-            --output "$PAIRED_BASELINE_ALL" \
-            --execution-runs "$BENCH_EXECUTION_RUNS" \
-            --compile-runs "$BENCH_COMPILE_RUNS"
-          awk -F '\t' '
-            BEGIN { OFS = "\t" }
-            NR == FNR {
-              if ($0 !~ /^#/ && $1 != "kind") gated[$1 FS $2 FS $3] = 1
-              next
-            }
-            FNR == 1 { print; next }
-            (($1 FS $2 FS $3) in gated) { print }
-          ' "$BENCHMARK_BASELINE" "$PAIRED_BASELINE_ALL" > "$PAIRED_BASELINE"
-      - name: Run benchmark regression gate
+      - name: Run time-balanced paired benchmark gate
         id: run-gate
         continue-on-error: true
         env:
-          BENCHMARK_BASELINE: ${{ runner.temp }}/benchmark-gate-attempt-2/paired-baseline.tsv
-          BENCHMARK_OUTPUT: ${{ runner.temp }}/benchmark-gate-attempt-2/benchmark-report.tsv
-          BENCHMARK_SUMMARY: ${{ runner.temp }}/benchmark-gate-attempt-2/summary.md
+          BENCHMARK_BASELINE: ${{ github.workspace }}/Scripts/benchmark_baseline.tsv
+          BENCHMARK_OUTPUT_DIR: ${{ runner.temp }}/benchmark-gate-attempt-2
           BENCHMARK_TOLERANCE_PERCENT: "10"
-          BENCH_EXECUTION_RUNS: "5"
-          BENCH_COMPILE_RUNS: "3"
         run: |
-          mkdir -p "$RUNNER_TEMP/benchmark-gate-attempt-2"
-          bash Scripts/benchmark_gate.sh \
+          bash Scripts/paired_benchmark_gate.sh \
+            --base-kswiftc "$BASE_KSWIFTC" \
+            --candidate-kswiftc "$KSWIFTC" \
             --baseline "$BENCHMARK_BASELINE" \
-            --output "$BENCHMARK_OUTPUT" \
-            --summary "$BENCHMARK_SUMMARY" \
-            --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
-            --execution-runs "$BENCH_EXECUTION_RUNS" \
-            --compile-runs "$BENCH_COMPILE_RUNS"
+            --output-dir "$BENCHMARK_OUTPUT_DIR" \
+            --tolerance "$BENCHMARK_TOLERANCE_PERCENT"
       - name: Add benchmark summary
         if: always()
         run: |
