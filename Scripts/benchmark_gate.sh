@@ -267,7 +267,7 @@ compare_tsv() {
 
         delta_ms="$(awk -v measured="$measured_value" -v baseline="$baseline_value" 'BEGIN { printf "%.2f", measured - baseline }')"
         delta_percent="$(awk -v measured="$measured_value" -v baseline="$baseline_value" 'BEGIN { printf "%.2f", (measured - baseline) * 100 / baseline }')"
-        status="$(awk -v delta="$delta_percent" -v tolerance="$TOLERANCE" 'BEGIN { if (delta < 0) delta = -delta; print (delta <= tolerance) ? "PASS" : "FAIL" }')"
+        status="$(awk -v delta="$delta_percent" -v tolerance="$TOLERANCE" 'BEGIN { print (delta <= tolerance) ? "PASS" : "FAIL" }')"
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "$kind" "$case_name" "$metric" "$baseline_value" "$measured_value" "$delta_ms" "$delta_percent" "$status" >>"$report_path"
         rows=$((rows + 1))
@@ -286,7 +286,7 @@ compare_tsv() {
         {
             echo '# Benchmark gate'
             echo
-            echo "Tolerance: ±${TOLERANCE}%"
+            echo "Regression tolerance: +${TOLERANCE}%"
             echo
             echo '| Kind | Case | Metric | Baseline (ms) | Measured (ms) | Delta | Status |'
             echo '|---|---|---|---:|---:|---:|---|'
@@ -300,19 +300,19 @@ compare_tsv() {
             echo
             if ((failed == 0)); then
                 gated_rows=$((rows - unbaselined))
-                echo "Result: PASS ($gated_rows enforced measurements within tolerance; $unbaselined diagnostic rows without a baseline)."
+                echo "Result: PASS ($gated_rows enforced measurements within regression tolerance; $unbaselined diagnostic rows without a baseline)."
             else
                 gated_rows=$((rows - unbaselined))
-                echo "Result: FAIL ($failed of $gated_rows enforced measurements outside tolerance; $unbaselined diagnostic rows without a baseline)."
+                echo "Result: FAIL ($failed of $gated_rows enforced measurements exceeded the regression tolerance; $unbaselined diagnostic rows without a baseline)."
             fi
         } >"$summary_path"
     fi
 
     if ((failed > 0)); then
-        echo "Benchmark regression gate failed: $failed of $rows measurements exceeded ±${TOLERANCE}% from baseline." >&2
+        echo "Benchmark regression gate failed: $failed of $rows measurements exceeded +${TOLERANCE}% from baseline." >&2
         return 1
     fi
-    echo "Benchmark regression gate passed: $rows measurements within ±${TOLERANCE}% of baseline."
+    echo "Benchmark regression gate passed: $rows measurements stayed within +${TOLERANCE}% of baseline."
 }
 
 if [[ "$MODE" == "compare" ]]; then

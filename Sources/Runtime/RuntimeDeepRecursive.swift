@@ -43,6 +43,13 @@ final class RuntimeDeepRecursiveScopeBox {
     var crossFunctionStack: [(restore: RuntimeDeepRecursiveFunctionBox, originalCont: Int)] = []
     var parentOf: [Int: Int] = [:]
     var entryPointOf: [Int: Int] = [:]
+    /// Keep each active continuation alive until its trampoline step returns.
+    /// The generated state machine calls `kk_coroutine_state_exit` on normal
+    /// completion, but the trampoline still has to resume the continuation's
+    /// state machine while unwinding a deep recursive call. Without this
+    /// strong reference, allocator reuse can turn a stale raw handle into an
+    /// unrelated live state and truncate the recursion.
+    var continuationStateByHandle: [Int: RuntimeContinuationState] = [:]
 
     init(function: RuntimeDeepRecursiveFunctionBox) {
         self.function = function
@@ -197,21 +204,32 @@ private func runtimeRunDeepRecursiveTrampoline(
         case .startNew:
             let active = scope.currentFunction
             let child = kk_coroutine_continuation_new(active.functionID)
+            guard let childState = runtimeContinuationState(from: child) else {
+                return (0, 0)
+            }
+            scope.continuationStateByHandle[child] = childState
             runtimeConfigureDeepRecursiveLauncherArgs(
                 continuation: child,
                 function: active,
                 scopeRaw: scopeRaw,
                 value: scope.value
             )
-            scope.parentOf[child] = scope.cont
+            let parent = scope.cont
+            scope.parentOf[child] = parent
             scope.entryPointOf[child] = active.fnPtr
+            let step = runtimeCallDeepRecursiveEntry(
+                entryPointRaw: active.fnPtr,
+                continuation: child,
+                taskKey: taskKey
+            )
+            if step.thrown != 0 || step.result != suspendedToken {
+                scope.continuationStateByHandle.removeValue(forKey: child)
+                scope.parentOf.removeValue(forKey: child)
+                scope.entryPointOf.removeValue(forKey: child)
+            }
             work = runtimeDeepRecursiveWork(
-                after: runtimeCallDeepRecursiveEntry(
-                    entryPointRaw: active.fnPtr,
-                    continuation: child,
-                    taskKey: taskKey
-                ),
-                resumeCont: scope.cont,
+                after: step,
+                resumeCont: parent,
                 suspendedToken: suspendedToken
             )
 
@@ -226,21 +244,28 @@ private func runtimeRunDeepRecursiveTrampoline(
                 scope.currentFunction = frame.restore
                 work = .resume(cont: frame.originalCont, value: value, thrown: thrown)
             default:
-                guard let state = runtimeContinuationState(from: cont),
+                guard let state = scope.continuationStateByHandle[cont],
                       let entryPointRaw = scope.entryPointOf[cont]
                 else {
                     return (0, thrown)
                 }
+                let parent = scope.parentOf[cont] ?? 0
                 state.completion = Int64(value)
                 state.thrownException = thrown
                 state.resetResumeState()
+                let step = runtimeCallDeepRecursiveEntry(
+                    entryPointRaw: entryPointRaw,
+                    continuation: cont,
+                    taskKey: taskKey
+                )
+                if step.thrown != 0 || step.result != suspendedToken {
+                    scope.continuationStateByHandle.removeValue(forKey: cont)
+                    scope.parentOf.removeValue(forKey: cont)
+                    scope.entryPointOf.removeValue(forKey: cont)
+                }
                 work = runtimeDeepRecursiveWork(
-                    after: runtimeCallDeepRecursiveEntry(
-                        entryPointRaw: entryPointRaw,
-                        continuation: cont,
-                        taskKey: taskKey
-                    ),
-                    resumeCont: scope.parentOf[cont] ?? 0,
+                    after: step,
+                    resumeCont: parent,
                     suspendedToken: suspendedToken
                 )
             }

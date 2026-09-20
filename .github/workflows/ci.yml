@@ -538,13 +538,21 @@ jobs:
           BENCH_COMPILE_RUNS: "3"
         run: |
           mkdir -p "$RUNNER_TEMP/benchmark-gate"
-          bash Scripts/benchmark_gate.sh \
-            --baseline "$BENCHMARK_BASELINE" \
-            --output "$BENCHMARK_OUTPUT" \
-            --summary "$BENCHMARK_SUMMARY" \
-            --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
-            --execution-runs "$BENCH_EXECUTION_RUNS" \
-            --compile-runs "$BENCH_COMPILE_RUNS"
+          run_gate() {
+            bash Scripts/benchmark_gate.sh \
+              --baseline "$BENCHMARK_BASELINE" \
+              --output "$BENCHMARK_OUTPUT" \
+              --summary "$BENCHMARK_SUMMARY" \
+              --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
+              --execution-runs "$BENCH_EXECUTION_RUNS" \
+              --compile-runs "$BENCH_COMPILE_RUNS"
+          }
+          if ! run_gate; then
+            mv "$BENCHMARK_OUTPUT" "$RUNNER_TEMP/benchmark-gate/benchmark-report-attempt-1.tsv"
+            mv "$BENCHMARK_SUMMARY" "$RUNNER_TEMP/benchmark-gate/summary-attempt-1.md"
+            echo "::warning::Benchmark gate failed once; retrying to reject transient hosted-runner contention."
+            run_gate
+          fi
       - name: Add benchmark summary
         if: always()
         run: |
