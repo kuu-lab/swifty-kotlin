@@ -1730,13 +1730,30 @@ final class CallTypeChecker {
             }
             var resolvedFromLocalShadow = false
             if let local = locals[calleeName],
-               let sym = ctx.cachedSymbol(local.symbol),
-               sym.kind == .function
+               let sym = ctx.cachedSymbol(local.symbol)
             {
-                // Local function declarations shadow imported and top-level functions
-                // of the same name, so use the local symbol as the sole candidate.
-                candidates = [local.symbol]
-                resolvedFromLocalShadow = true
+                let localIsCallableValue: Bool = {
+                    if case .functionType = sema.types.kind(of: local.type) {
+                        return true
+                    }
+                    let invokeName = interner.intern("invoke")
+                    return driver.helpers.collectMemberFunctionCandidates(
+                        named: invokeName,
+                        receiverType: local.type,
+                        sema: sema,
+                        interner: interner
+                    ).contains { candidateID in
+                        sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+                    }
+                }()
+                if sym.kind == .function || localIsCallableValue || local.type == sema.types.errorType {
+                    // Callable local declarations shadow imported and top-level
+                    // callables of the same name. Non-callable values do not:
+                    // `val emptyList = emptyList<Int>()` must not hide a later
+                    // `emptyList<String>()` call.
+                    candidates = sym.kind == .function ? [local.symbol] : []
+                    resolvedFromLocalShadow = true
+                }
             }
             // KSP-CAP-006: a class/enum/annotation-class/object may coexist
             // with a top-level function of the same name (e.g. `class Random`
