@@ -13,8 +13,9 @@ struct RuntimeCharTests {
         #expect(runtimeStringValue(__kk_char_lowercase_string(scalarValue(of: "İ"))) == "i\u{0307}")
     }
 
-    @Test func lowercaseCodeUsesFirstScalarOfLowercaseMapping() {
-        #expect(__kk_char_lowercase_code(scalarValue(of: "İ")) == scalarValue(of: "i"))
+    @Test func lowercaseCodeUsesOnlySingleScalarLowercaseMappings() {
+        // U+0130 lowercases to "i" + U+0307; the caller keeps the original Char.
+        #expect(__kk_char_lowercase_code(scalarValue(of: "İ")) == -1)
         #expect(__kk_char_lowercase_code(scalarValue(of: "A")) == scalarValue(of: "a"))
         #expect(__kk_char_lowercase_code(scalarValue(of: "5")) == scalarValue(of: "5"))
     }

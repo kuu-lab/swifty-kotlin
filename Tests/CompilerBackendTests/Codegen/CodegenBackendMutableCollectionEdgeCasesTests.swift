@@ -229,6 +229,32 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCodegenArrayListListIteratorAndSubListUseRuntimeBacking() throws {
+        let source = """
+        fun main() {
+            val list = ArrayList<Int>()
+            list.add(1)
+            list.add(2)
+
+            val iterator = list.listIterator()
+            println(iterator.hasNext())
+            println(iterator.next())
+
+            val sub = list.subList(0, 1)
+            sub.add(9)
+            println(sub)
+            println(list)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayListRuntimeBacking",
+            expected: "true\n1\n[1, 9]\n[1, 9, 2]\n"
+        )
+    }
+
     // MutableListIterator.add/set had no external link name, so codegen fell
     // back to a direct call to the bare Kotlin name ("_add"/"_set"),
     // undefined at link time. `remove` happened to *link* anyway because

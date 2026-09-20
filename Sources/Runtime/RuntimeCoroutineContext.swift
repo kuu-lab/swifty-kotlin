@@ -375,15 +375,7 @@ public func kk_context_get_name(_ contextRaw: Int) -> Int {
 /// Release a CoroutineContext (decrement reference count).
 @_cdecl("kk_context_release")
 public func kk_context_release(_ contextRaw: Int) {
-    guard contextRaw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: contextRaw)
-    else {
-        return
-    }
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.remove(UInt(bitPattern: ptr))
-    }
-    Unmanaged<AnyObject>.fromOpaque(ptr).release()
+    _ = runtimeReleaseObject(contextRaw)
 }
 
 /// withContext with a full CoroutineContext (not just a dispatcher tag).

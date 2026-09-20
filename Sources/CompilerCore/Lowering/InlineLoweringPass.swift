@@ -11,6 +11,8 @@ struct InlineExpansion {
 
 final class InlineLoweringPass: LoweringPass {
     static let name = "InlineLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()

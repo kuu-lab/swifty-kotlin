@@ -1,0 +1,3 @@
+version=1
+stdlib-profile=source
+target=kotlin.sequences.Sequence.shuffled[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]

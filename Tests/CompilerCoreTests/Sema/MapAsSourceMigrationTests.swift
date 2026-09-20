@@ -106,7 +106,7 @@ struct MapAsSourceMigrationTests {
     }
 
     @Test
-    func testMapAbstractSurfaceUsesBundledSourceAndRuntimeLinks() throws {
+    func testMapSurfaceUsesBundledSourceAndRuntimeLinks() throws {
         let source = """
         fun use(values: Map<String, Int?>): Boolean {
             val entries: Set<Map.Entry<String, Int?>> = values.entries

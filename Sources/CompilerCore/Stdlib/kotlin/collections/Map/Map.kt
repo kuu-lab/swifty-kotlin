@@ -8,13 +8,9 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-703: isEmpty/get are source-backed with direct runtime links, matching
-// the Set.kt precedent (KSP-704). size/keys/values/entries stay plain abstract
-// declarations: the @KsSymbolName annotation pipeline only attaches link names
-// to .function/.constructor symbols, not .property, so their `__kk_map_*`
-// bridges remain registered by `registerMapHigherOrderMembers` in
-// `HeaderHelpers+SyntheticMapStubs.swift`, which also remains (along with the
-// type shell and AbstractMap fallback) for `--no-stdlib` contexts.
+// KSP-703: isEmpty/get are source-backed with direct runtime links. The
+// runtime-backed property links remain residual symbols because built-in map
+// boxes bypass itable registration; see SyntheticMapRuntimeResiduals.swift.
 public interface Map<K, out V> {
     public val size: Int
     public val keys: Set<K>

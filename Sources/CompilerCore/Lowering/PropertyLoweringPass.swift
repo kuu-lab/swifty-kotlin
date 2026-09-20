@@ -1,6 +1,8 @@
 
 final class PropertyLoweringPass: LoweringPass {
     static let name = "PropertyLowering"
+    static let requiredStage: KIRStage = .valueClassUnboxed
+    static let producedStage: KIRStage = .propertyLowered
 
     /// Lazily built reverse map from backing field symbol to its owning property symbol.
     private var backingFieldToPropertyMap: [SymbolID: SymbolID]?

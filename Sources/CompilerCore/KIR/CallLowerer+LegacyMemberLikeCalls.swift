@@ -1971,7 +1971,11 @@ extension CallLowerer {
 
                 switch interner.resolve(calleeName) {
                 case "chunked" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
-                    return appendBridgeCall("__kk_list_chunked", [loweredReceiverID, normalizedArgIDs[0]])
+                    return appendBridgeCall(
+                        "__kk_list_chunked",
+                        [loweredReceiverID, normalizedArgIDs[0]],
+                        canThrow: true
+                    )
                 case "chunked" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
                     let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
                         normalizedArgIDs[1],
@@ -1989,7 +1993,11 @@ extension CallLowerer {
                     let sizeArg = normalizedArgIDs[0]
                     let stepArg = normalizedArgIDs.count >= 2 ? normalizedArgIDs[1] : intLiteral(1)
                     let partialArg = normalizedArgIDs.count >= 3 ? normalizedArgIDs[2] : intLiteral(0)
-                    return appendBridgeCall("__kk_list_windowed", [loweredReceiverID, sizeArg, stepArg, partialArg])
+                    return appendBridgeCall(
+                        "__kk_list_windowed",
+                        [loweredReceiverID, sizeArg, stepArg, partialArg],
+                        canThrow: true
+                    )
                 case "windowed" where hasHOFLambdaArg:
                     guard let runtimeArguments = windowedTransformRuntimeArguments() else {
                         break

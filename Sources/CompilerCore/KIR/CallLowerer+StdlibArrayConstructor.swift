@@ -44,6 +44,12 @@ extension CallLowerer {
         let boolType = sema.types.booleanType
         let anyType = sema.types.anyType
         let arrayNewCallee = interner.intern("kk_array_new_checked")
+        let arrayTypeID = [
+            sema.bindings.exprTypes[exprID],
+            sema.bindings.callBinding(for: exprID)
+                .flatMap { $0.chosenCallee }
+                .flatMap { sema.symbols.functionSignature(for: $0)?.returnType },
+        ].compactMap { runtimeArrayNominalTypeID($0, sema: sema, interner: interner) }.first
 
         // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(
@@ -59,7 +65,7 @@ extension CallLowerer {
         // 2. Create the array: kk_array_new_checked(size) — throws
         // NegativeArraySizeException for negative sizes instead of silently
         // clamping to an empty array.
-        let arrayExpr = arena.appendTemporary(type: anyType)
+        var arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: arrayNewCallee,
@@ -68,6 +74,20 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
+        if let arrayTypeID {
+            let typeIDExpr = arena.appendExpr(.intLiteral(arrayTypeID), type: intType)
+            instructions.append(.constValue(result: typeIDExpr, value: .intLiteral(arrayTypeID)))
+            let taggedArrayExpr = arena.appendTemporary(type: anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_tag_type"),
+                arguments: [arrayExpr, typeIDExpr],
+                result: taggedArrayExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            arrayExpr = taggedArrayExpr
+        }
 
         // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
         // already zero-fills every slot (RuntimeValue(raw: 0)), which matches

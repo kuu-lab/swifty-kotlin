@@ -453,11 +453,12 @@ enum MemberRuntimeDispatch {
             }
             return "__kk_range_\(member)_orThrow"
         }
-        // KSP-1524: the non-throwing property getter has no dedicated
-        // `kk_uint_range_first`/`kk_ulong_range_first` (or `last`) entry
-        // point — first/last values are raw bits at this ABI boundary, so
-        // both UInt and ULong share the common `__kk_range_*` bridge with
-        // signed ranges.
+        // KSP-1523/KSP-1524: the non-throwing property getter has no
+        // dedicated `kk_uint_range_first`/`kk_ulong_range_first` (or `_last`)
+        // entry point — both UInt and ULong share the common `__kk_range_*`
+        // bridge with signed ranges. The raw bits stored in the box are
+        // reinterpreted by the caller, so no unsigned-specific comparison is
+        // needed for a plain getter (unlike `contains`, which does need one).
         return "__kk_range_\(member)"
     }
 
