@@ -180,15 +180,15 @@ final class ConstraintSolver {
             if lowers.isEmpty {
                 candidate = typeSystem.glb(uppers)
             } else if uppers.isEmpty {
-                candidate = typeSystem.inferenceLub(lowers)
+                candidate = typeSystem.inferenceLubRetainingCommonComparable(lowers)
             } else {
-                let lowerCandidate = typeSystem.inferenceLub(lowers)
+                let lowerCandidate = typeSystem.inferenceLubRetainingCommonComparable(lowers)
                 let upperCandidate = typeSystem.glb(uppers)
                 guard typeSystem.isSubtype(lowerCandidate, upperCandidate) else {
                     let blameRange = firstRelevantBlameRange(for: variable, relations: constraints)
                     let message = """
                     Conflicting bounds for type variable #\(variable.rawValue): \
-                    inferred \(typeSystem.renderType(lowerCandidate)) is not a subtype of \(typeSystem.renderType(upperCandidate)). \
+                    inferred \(typeSystem.renderConstraintType(lowerCandidate)) is not a subtype of \(typeSystem.renderConstraintType(upperCandidate)). \
                     lower=[\(renderBounds(lowers, typeSystem: typeSystem))], upper=[\(renderBounds(uppers, typeSystem: typeSystem))]
                     """
                     return failureSolution(

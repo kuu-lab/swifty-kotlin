@@ -518,13 +518,14 @@ extension TypeSystem {
         return result
     }
 
-    /// Computes the LUB used when inferring a type variable from lower bounds.
+    /// Retains a common `Comparable<*>` while inferring from lower bounds.
     ///
     /// `lub` intentionally keeps its conservative `Any` fallback for callers
-    /// that need the existing nominal-only behavior. Generic argument
-    /// inference can retain a more precise common built-in interface when the
-    /// ordinary LUB would otherwise widen unrelated values to `Any`.
-    func inferenceLub(_ types: [TypeID]) -> TypeID {
+    /// that need the existing nominal-only behavior. This is deliberately not
+    /// a general common-supertype search: generic argument inference only
+    /// retains the platform-neutral built-in interface needed for mixed
+    /// comparable values. Other nominal LUB work remains with `lub`.
+    func inferenceLubRetainingCommonComparable(_ types: [TypeID]) -> TypeID {
         let fallback = lub(types)
         guard fallback == anyType || fallback == nullableAnyType else {
             return fallback
@@ -539,48 +540,21 @@ extension TypeSystem {
             return fallback
         }
 
-        let resultNullability: Nullability = types.contains { nullability(of: $0) != .nonNull }
+        let resultNullability: Nullability = types.contains { nullability(of: $0) == .nullable }
             ? .nullable
             : .nonNull
-        var candidates: [TypeID] = []
-
-        if let comparableSymbol = comparableInterfaceSymbol {
-            let comparable = make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.star],
-                nullability: resultNullability
-            )))
-            if filtered.allSatisfy({ isSubtype($0, comparable) }) {
-                candidates.append(comparable)
-            }
-        }
-
-        if let numberSymbol = numberClassSymbol {
-            let number = make(.classType(ClassType(
-                classSymbol: numberSymbol,
-                args: [],
-                nullability: resultNullability
-            )))
-            if filtered.allSatisfy({ isSubtype($0, number) }) {
-                candidates.append(number)
-            }
-        }
-
-        guard !candidates.isEmpty else {
+        guard let comparableSymbol = comparableInterfaceSymbol else {
             return fallback
         }
-
-        // Keep only the most specific candidates: if one candidate is
-        // already a subtype of another, the broader candidate is redundant.
-        let mostSpecific = candidates.filter { candidate in
-            !candidates.contains { other in
-                other != candidate && isSubtype(other, candidate)
-            }
-        }
-        guard !mostSpecific.isEmpty else {
+        let comparable = make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: resultNullability
+        )))
+        guard filtered.allSatisfy({ isSubtype($0, comparable) }) else {
             return fallback
         }
-        return mostSpecific.count == 1 ? mostSpecific[0] : make(.intersection(mostSpecific))
+        return comparable
     }
 
     public func glb(_ types: [TypeID]) -> TypeID {

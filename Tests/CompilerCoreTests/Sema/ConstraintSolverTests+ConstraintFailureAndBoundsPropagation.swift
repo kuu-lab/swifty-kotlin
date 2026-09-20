@@ -54,6 +54,53 @@ extension ConstraintSolverTests {
         #expect(solution.substitution[t0] == comparableNullable)
     }
 
+    @Test func testSolveDoesNotMakeCommonComparableNullableForPlatformLowerBound() {
+        let (solver, types) = makeDeps()
+        let comparableSymbol = SymbolID(rawValue: 292)
+        types.comparableInterfaceSymbol = comparableSymbol
+        let comparableStar = types.make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: .nonNull
+        )))
+        let platformInt = types.make(.primitive(.int, .platformType))
+        let t0 = TypeVarID(rawValue: 292)
+
+        let solution = solver.solve(
+            vars: [t0],
+            constraints: [
+                VariableConstraint(kind: .subtype, left: .type(platformInt), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.stringType), right: .variable(t0)),
+            ],
+            typeSystem: types
+        )
+
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == comparableStar)
+    }
+
+    @Test func testConflictingComparableInferenceDiagnosticDoesNotExposeSymbolID() throws {
+        let (solver, types) = makeDeps()
+        let comparableSymbol = SymbolID(rawValue: 293)
+        types.comparableInterfaceSymbol = comparableSymbol
+        let t0 = TypeVarID(rawValue: 293)
+
+        let solution = solver.solve(
+            vars: [t0],
+            constraints: [
+                VariableConstraint(kind: .subtype, left: .type(types.intType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.stringType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .variable(t0), right: .type(types.intType)),
+            ],
+            typeSystem: types
+        )
+
+        let message = try #require(solution.failure?.message)
+        #expect(!(solution.isSuccess))
+        #expect(message.contains("inferred Comparable<*> is not a subtype of Int"))
+        #expect(!message.contains("Class#"))
+    }
+
     @Test func testSolveEliminatesEquivalentProjectedLowerBounds() {
         let (solver, types) = makeDeps()
         let listSymbol = SymbolID(rawValue: 290)
