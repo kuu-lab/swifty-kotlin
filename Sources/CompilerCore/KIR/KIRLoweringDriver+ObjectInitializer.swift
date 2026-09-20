@@ -158,6 +158,28 @@ extension KIRLoweringDriver {
             interner: interner,
             instructions: &body.instructions
         )
+        appendObjectAnyToStringRegistration(
+            objectValue: allocatedObj,
+            nominalSymbol: objectSymbol,
+            driver: self,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+
+        // Companions are excluded: `synthesizeCompanionInitializerIfNeeded`
+        // already emits their super delegation, and an interface companion can
+        // still reach this initializer through the nested-object path.
+        if !objectDecl.modifiers.contains(.companion) {
+            emitNamedObjectSuperConstructorCall(
+                objectDecl,
+                objectSymbol: objectSymbol,
+                objectValue: allocatedObj,
+                shared: shared,
+                body: &body
+            )
+        }
 
         emitObjectBodyInitializers(objectDecl, shared: shared, body: &body)
 
@@ -178,6 +200,108 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
         return declIDs
+    }
+
+    /// Emits the implicit `super(...)` call of a named object declaration's
+    /// superclass, e.g. `object Named : Base(x)` (BUG-264). Kotlin runs the
+    /// superclass constructor before the object's own initializers, so the
+    /// superclass's property initializers and `init` blocks — which write
+    /// into the same instance at the layout offsets the object inherits —
+    /// must execute here. Without this call the object keeps the zeroed
+    /// defaults for every inherited property (same root cause as BUG-155 for
+    /// named classes and KSP-CAP-018 for object literals).
+    func emitNamedObjectSuperConstructorCall(
+        _ objectDecl: ObjectDecl,
+        objectSymbol: SymbolID,
+        objectValue: KIRExprID,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        guard let superclassSymbol = sema.symbols.directSupertypes(for: objectSymbol).first(where: {
+            let kind = sema.symbols.symbol($0)?.kind
+            return kind == .class || kind == .enumClass
+        }),
+        let superclassInfo = sema.symbols.symbol(superclassSymbol)
+        else {
+            return
+        }
+        let candidates = sema.symbols.lookupAll(
+            fqName: superclassInfo.fqName + [interner.intern("<init>")]
+        )
+        guard let superCtorSymbol = resolveObjectSuperConstructor(
+            candidates: candidates,
+            argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
+            sema: sema
+        ),
+        sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+        else {
+            return
+        }
+        if sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true,
+           sema.symbols.parentSymbol(for: superCtorSymbol) == sema.types.anyClassSymbol
+        {
+            // Any's compiler-provided constructor has no body to delegate to.
+            return
+        }
+
+        var argIDs: [KIRExprID] = [objectValue]
+        for arg in objectDecl.superTypeConstructorArgs {
+            argIDs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
+        }
+
+        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        body.append(.call(
+            symbol: superCtorSymbol,
+            callee: interner.intern("<init>"),
+            arguments: argIDs,
+            result: resultID,
+            canThrow: false,
+            thrownResult: nil,
+            isSuperCall: false
+        ))
+    }
+
+    /// Picks which of the superclass's `<init>` overloads `argExprs` (the
+    /// `object ... : Base(args)` header) actually calls. A single candidate
+    /// is used as-is; multiple candidates are first narrowed by arity, then —
+    /// if more than one still matches — by parameter type (using each
+    /// argument's Sema-resolved expression type, with a type-parameter
+    /// position treated as a wildcard, mirroring `resolveOverriddenVtableSlot`
+    /// in `VtableOverrideMatching.swift`). Falls back to the first candidate
+    /// when nothing narrows cleanly (e.g. a defaulted trailing parameter
+    /// omitted at the call site) rather than emitting no super call at all —
+    /// the same residual gap `emitSuperConstructorDelegation` has for named
+    /// classes, since neither path expands omitted default arguments.
+    func resolveObjectSuperConstructor(
+        candidates: [SymbolID],
+        argExprs: [ExprID],
+        sema: SemaModule
+    ) -> SymbolID? {
+        guard candidates.count > 1 else {
+            return candidates.first
+        }
+        let arityMatches = candidates.filter {
+            sema.symbols.functionSignature(for: $0)?.parameterTypes.count == argExprs.count
+        }
+        guard arityMatches.count > 1 else {
+            return arityMatches.first ?? candidates.first
+        }
+        let argTypes = argExprs.map { sema.bindings.exprTypes[$0] }
+        let typeMatches = arityMatches.filter { candidate in
+            guard let parameterTypes = sema.symbols.functionSignature(for: candidate)?.parameterTypes else {
+                return false
+            }
+            for (paramType, argType) in zip(parameterTypes, argTypes) {
+                guard let argType else { continue }
+                if case .typeParam = sema.types.kind(of: paramType) { continue }
+                if paramType != argType { return false }
+            }
+            return true
+        }
+        return typeMatches.count == 1 ? typeMatches[0] : arityMatches[0]
     }
 
     private func emitObjectBodyInitializers(

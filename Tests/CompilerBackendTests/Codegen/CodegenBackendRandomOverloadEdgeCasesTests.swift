@@ -207,6 +207,15 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
             } catch (e: IllegalArgumentException) {
                 println(true)
             }
+
+            try {
+                r.nextUInt(5u..3u)
+                println(false)
+            } catch (e: IllegalArgumentException) {
+                println(true)
+            } catch (e: Exception) {
+                println(false)
+            }
         }
         """
 
@@ -215,6 +224,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
             moduleName: "RandomNextUIntOverloads",
             expected:
                 """
+                true
                 true
                 true
                 true

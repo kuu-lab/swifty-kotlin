@@ -683,17 +683,16 @@ extension CallLowerer {
         }
         switch memberName {
         case "contains":
-            // KSP-1523: UInt values always fit the Int64 fields of the shared
-            // RuntimeRangeBox, so UIntRange can use the same bridge as signed
-            // ranges. ULong cannot (values above Int64.max need the dedicated
-            // unsigned-aware bridge), so it keeps its own name.
             if elementType == sema.types.ulongType {
-                return interner.intern("kk_ulong_range_contains")
+                // KSP-1524: ULong membership stays on the bundled Kotlin
+                // implementation; the signed bridge is not ULong-safe.
+                return nil
             }
             return interner.intern("__kk_range_contains")
         case "isEmpty":
             if elementType == sema.types.ulongType {
-                return interner.intern("kk_ulong_range_isEmpty")
+                // KSP-1524: source-backed ULongRange/ULongProgression member.
+                return nil
             }
             return interner.intern("__kk_range_isEmpty")
         default:

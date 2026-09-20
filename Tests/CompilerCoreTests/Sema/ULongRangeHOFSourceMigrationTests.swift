@@ -41,6 +41,13 @@ struct ULongRangeHOFSourceMigrationTests {
                     else {
                         return false
                     }
+                    if memberName == "firstOrNull" || memberName == "lastOrNull" {
+                        return signature.parameterTypes.count == 1 && receiverSymbol.fqName == [
+                            interner.intern("kotlin"),
+                            interner.intern("ranges"),
+                            interner.intern("ULongRange"),
+                        ]
+                    }
                     return receiverSymbol.fqName == [
                         interner.intern("kotlin"),
                         interner.intern("ranges"),
@@ -50,6 +57,109 @@ struct ULongRangeHOFSourceMigrationTests {
 
                 #expect(sourceSymbols.count == 1, "Expected one source-backed ULongRange.\(memberName), got: \(sourceSymbols)")
             }
+        }
+    }
+
+    @Test
+    func ULongRangeMembershipAndAggregateMembersAreSourceBacked() throws {
+        let source = """
+        fun probe() {
+            (1uL..5uL).contains(3uL)
+            (1uL..5uL).isEmpty()
+            (1uL..5uL).firstOrNull()
+            (1uL..5uL).lastOrNull()
+            (1uL..5uL).count()
+            (1uL..5uL).sum()
+            (1uL..5uL).reversed()
+            (1uL..5uL).sorted()
+            (1uL..5uL).toList()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected ULongRange source members to type-check: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let containsSymbols = sema.symbols.lookupAll(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("ranges"),
+                ctx.interner.intern("contains"),
+            ]).filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      signature.parameterTypes == [sema.types.ulongType],
+                      let receiverType = signature.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                else { return false }
+                return receiverSymbol.fqName == [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("ranges"),
+                    ctx.interner.intern("ULongRange"),
+                ]
+            }
+            #expect(containsSymbols.count == 1, "Expected one ULongRange.contains(ULong) source declaration, got \(containsSymbols.count)")
+            let isEmptySymbols = sema.symbols.lookupAll(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("ranges"),
+                ctx.interner.intern("isEmpty"),
+            ]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(symbolID),
+                      let sourceFileID = sema.symbols.sourceFileID(for: symbolID),
+                      ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/ranges/RangeMembership.kt",
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      signature.parameterTypes.isEmpty,
+                      let receiverType = signature.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                else { return false }
+                return receiverSymbol.fqName == [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("ranges"),
+                    ctx.interner.intern("ULongRange"),
+                ]
+            }
+            #expect(isEmptySymbols.count == 1, "Expected one ULongRange.isEmpty() source declaration, got \(isEmptySymbols.count)")
+            let expected = Set([
+                "contains", "isEmpty", "firstOrNull", "lastOrNull", "count",
+                "sum", "reversed", "sorted", "toList",
+            ])
+            var seen = Set<String>()
+
+            for offset in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(offset))
+                guard let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID)
+                else { continue }
+                let memberName = ctx.interner.resolve(callee)
+                guard expected.contains(memberName),
+                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+                else { continue }
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let receiverType = try #require(signature.receiverType)
+                let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiverType, sema: sema))
+                #expect(receiverSymbol.fqName == [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("ranges"),
+                    ctx.interner.intern("ULongRange"),
+                ], "Unexpected receiver for ULongRange.\(memberName): \(ctx.interner.resolve(receiverSymbol.name))")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "ULongRange.\(memberName) was not source-backed")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "ULongRange.\(memberName) retained an external link")
+                seen.insert(memberName)
+            }
+
+            #expect(seen == expected, "Missing source-backed ULongRange members: \(expected.subtracting(seen))")
+        }
+    }
+
+    @Test
+    func ULongRangeAverageIsRejectedLikeKotlin() throws {
+        try withTemporaryFile(contents: "fun probe() { (1uL..5uL).average() }") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "ULongRange.average() must be rejected by Sema")
         }
     }
 
