@@ -59,9 +59,33 @@ typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMu
 
 final class RuntimeStringBox {
     let value: String
+    /// Kotlin UTF-16 code units materialized on first positional access.
+    /// `value` is immutable, so the cache never invalidates.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         self.value = value
+    }
+
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let units = runtimeKotlinStringUTF16CodeUnits(value)
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
+    /// UTF-16 length without allocating the code-unit array when nothing has
+    /// indexed this string yet.
+    var utf16Length: Int {
+        utf16CodeUnitsLock.lock()
+        let cached = cachedUTF16CodeUnits
+        utf16CodeUnitsLock.unlock()
+        return cached?.count ?? runtimeKotlinStringUTF16Length(value)
     }
 }
 
