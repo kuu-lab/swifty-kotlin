@@ -152,6 +152,47 @@ struct GoldenHarnessSymbolOriginTests {
         #expect(classify.origin(of: alias) == .sourceBackedAlias)
     }
 
+    /// Exercise the production HeaderCollection path as well as the synthetic
+    /// shape above: a bundled external extension creates a nil-site member
+    /// alias under its receiver owner. The alias must retain its own origin
+    /// classification and point back to the unique source declaration.
+    @Test
+    func productionBundledMemberAliasIsClassifiedFromItsSourceSibling() throws {
+        let ctx = makeContextFromSource("fun noop() {}\n")
+        _ = ctx.sourceManager.addFile(
+            path: "__bundled_kuu334_alias.kt",
+            contents: Data("""
+            package kotlin.text
+
+            import kotlin.internal.KsSymbolName
+
+            @KsSymbolName("__kk_kuu334_alias_probe")
+            internal external fun CharSequence.kuu334AliasProbe(): Int
+            """.utf8),
+            origin: .bundledStdlib
+        )
+        try runSema(ctx)
+
+        let sema = try #require(ctx.sema)
+        let aliasFQName = ["kotlin", "CharSequence", "kuu334AliasProbe"].map { ctx.interner.intern($0) }
+        let alias = try #require(
+            sema.symbols.lookupAll(fqName: aliasFQName).first {
+                guard let symbol = sema.symbols.symbol($0) else { return false }
+                return symbol.flags.contains(.extensionMemberAlias)
+            }
+        )
+        let aliasSymbol = try #require(sema.symbols.symbol(alias))
+        #expect(aliasSymbol.declSite == nil)
+        #expect(aliasSymbol.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: alias) == "__kk_kuu334_alias_probe")
+
+        let classify = try classifier(for: ctx)
+        #expect(classify.origin(of: alias) == .sourceBackedAlias)
+        let sourceSibling = try #require(classify.sourceBackedAliasTarget(of: alias))
+        #expect(sema.symbols.symbol(sourceSibling)?.declSite != nil)
+        #expect(classify.origin(of: sourceSibling) == .bundledSource)
+    }
+
     /// Symbols registered from compiled libraries carry `.importedLibrary` —
     /// that is their origin even with no decl site.
     @Test
