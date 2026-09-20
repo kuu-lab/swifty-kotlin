@@ -32,6 +32,17 @@ public enum class CpuArchitecture(public val bitness: Int) {
     WASM32(32)
 }
 
+// NOTE: Must match the Kotlin/Native runtime memory model names.
+@kotlin.experimental.ExperimentalNativeApi
+@kotlin.Deprecated(
+    "The only possible value returned in runtime is MemoryModel.EXPERIMENTAL now. The usages of this enum can be safely removed."
+)
+public enum class MemoryModel {
+    STRICT,
+    RELAXED,
+    EXPERIMENTAL
+}
+
 /**
  * Object describing the current platform program executes upon.
  */
@@ -144,3 +155,10 @@ public object Platform {
     @KsSymbolName("__kk_illegal_state_exception_new_message")
     private external fun __invalidAvailableProcessors(message: String?): IllegalStateException
 }
+
+@kotlin.experimental.ExperimentalStdlibApi
+@kotlin.Deprecated(
+    "This property always returns true, its usages can be safely removed.",
+    ReplaceWith("true")
+)
+public fun isExperimentalMM(): Boolean = true

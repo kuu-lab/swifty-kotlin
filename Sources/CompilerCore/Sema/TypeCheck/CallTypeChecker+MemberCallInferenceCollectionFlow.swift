@@ -31,7 +31,7 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
-        if !collectArraySourceConversionCandidates(
+        if !collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: receiverType,
             sema: sema,
@@ -850,6 +850,11 @@ extension CallTypeChecker {
                 interner.intern("collections"),
                 calleeName,
             ]
+            let iterableFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]
             let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -857,7 +862,12 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == 1,
                       let signatureReceiver = signature.receiverType,
-                      receiverClassifier.isIterableLikeType(signatureReceiver),
+                      // This helper is specifically for the generic
+                      // Iterable<T>.sumOf overloads. A List<T> receiver is
+                      // Iterable-like too, but its indexed List.sumOf body
+                      // is not valid for Set/Collection receivers.
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
+                      receiverSymbol.fqName == iterableFQName,
                       !signature.typeParameterSymbols.isEmpty
                 else {
                     return false
@@ -2198,9 +2208,7 @@ extension CallTypeChecker {
                 ]
                 var chosenCallee: SymbolID?
                 for packageFQName in sourcePackages {
-                    let candidates = sema.symbols.lookupAll(fqName: packageFQName + [calleeName])
-
-                    if let candidate = candidates.first(where: { candidate in
+                    let candidates = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).filter { candidate in
                         guard let symbol = sema.symbols.symbol(candidate),
                               symbol.kind == .function,
                               sema.symbols.isSourceBackedSymbol(candidate),
@@ -2215,8 +2223,47 @@ extension CallTypeChecker {
                                 signature,
                                 actualElementType: collectionElementType
                             )
-                    }) {
-                        chosenCallee = candidate
+                    }
+
+                    // `Sequence<Sequence<T>>.flatten()` and
+                    // `Sequence<Iterable<T>>.flatten()` are both generic
+                    // source declarations. Prefer the candidate whose inner
+                    // receiver owner matches the actual element type, while
+                    // retaining the historical first-candidate fallback for
+                    // unresolved/mixed element types (KUU-461).
+                    var bestCandidate: SymbolID?
+                    var bestScore = Int.min
+                    for candidate in candidates {
+                        var score = 0
+                        if calleeName == interner.intern("flatten"),
+                           let actualElementClassType = resolveClassTypeSymbol(
+                               collectionElementType,
+                               sema: sema
+                           )?.0,
+                           let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                           let candidateElementClassType = resolveClassTypeSymbol(
+                               getCollectionElementType(signatureReceiver, sema: sema, interner: interner),
+                               sema: sema
+                           )?.0
+                        {
+                            let actualElementSymbol = actualElementClassType.classSymbol
+                            let candidateElementSymbol = candidateElementClassType.classSymbol
+                            if candidateElementSymbol == actualElementSymbol {
+                                score = 2
+                            } else if sema.types.isNominalSubtypeSymbol(
+                                actualElementSymbol,
+                                of: candidateElementSymbol
+                            ) {
+                                score = 1
+                            }
+                        }
+                        if score > bestScore {
+                            bestCandidate = candidate
+                            bestScore = score
+                        }
+                    }
+                    if let bestCandidate {
+                        chosenCallee = bestCandidate
                         break
                     }
                 }

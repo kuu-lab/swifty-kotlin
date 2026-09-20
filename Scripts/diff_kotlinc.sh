@@ -6,6 +6,14 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+# Space-separated arguments appended to each candidate compiler invocation.
+# The shared stdlib artifact intentionally remains at the default optimization
+# level so this lane measures optimization of the case under test.
+DIFF_KSWIFTC_FLAGS="${DIFF_KSWIFTC_FLAGS:-}"
+KSWIFTC_ARGS=()
+if [[ -n "$DIFF_KSWIFTC_FLAGS" ]]; then
+  read -r -a KSWIFTC_ARGS <<< "$DIFF_KSWIFTC_FLAGS"
+fi
 KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
@@ -129,6 +137,9 @@ Environment:
   DIFF_STDLIB_LIBRARY
                      Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
                      the runner builds one under DIFF_ARTIFACT_ROOT
+  DIFF_KSWIFTC_FLAGS
+                     Space-separated arguments appended to the candidate
+                     kswiftc invocation (default: empty)
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -781,6 +792,7 @@ echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
+echo "kswiftc flags: ${DIFF_KSWIFTC_FLAGS:-<none>}"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
 if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
   echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
@@ -898,8 +910,11 @@ persist_artifacts() {
 
   cp "$case_path" "$destination/input.kt"
 
+  local escaped_kswiftc_flags
+  printf -v escaped_kswiftc_flags '%q' "$DIFF_KSWIFTC_FLAGS"
+
   if [[ $cand_compile_exit -eq 0 ]]; then
-    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" --emit kir "$case_path" -o "$destination/candidate.kir" \
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
       2>"$destination/candidate_kir.stderr" || true
   fi
@@ -921,6 +936,7 @@ candidate_run_exit: $cand_run_exit
 stdlib_artifact: $STDLIB_ARTIFACT
 stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
 kswiftc: $KSWIFTC
+kswiftc_flags: $DIFF_KSWIFTC_FLAGS
 kotlinc: $KOTLINC
 java: $JAVA_BIN
 force_run_skipped: $FORCE_RUN_SKIPPED
@@ -931,7 +947,7 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$ROOT_DIR"
-DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
+DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_KSWIFTC_FLAGS=$escaped_kswiftc_flags DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
 EOF
   chmod +x "$destination/repro.sh"
 
@@ -1121,7 +1137,7 @@ run_case() {
     fi
   fi
 
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
   if [[ $cand_compile_exit -eq 0 ]]; then
     if needs_stdin_eof "$kt_file"; then
       "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?

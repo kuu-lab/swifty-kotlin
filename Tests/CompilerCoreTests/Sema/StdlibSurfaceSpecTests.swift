@@ -105,8 +105,6 @@ struct StdlibSurfaceSpecTests {
             sequence("first", 0),
             sequence("firstOrNull", 0),
             sequence("minOrNull", 0),
-            sequence("firstNotNullOf", 1),
-            sequence("firstNotNullOfOrNull", 1),
             sequence("indexOfLast", 1),
             sequence("intersect", 1),
             sequence("maxOrNull", 0),
@@ -141,8 +139,9 @@ struct StdlibSurfaceSpecTests {
                 // synthetically registered with their runtime links.
                 // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
                 // source, so it no longer registers a synthetic bridge member.
+                // KSP-1344 migrated the Sequence firstNotNullOf family to
+                // bundled Kotlin source as well.
                 // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),

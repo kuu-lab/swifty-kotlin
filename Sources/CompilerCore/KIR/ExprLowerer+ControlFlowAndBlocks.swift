@@ -160,6 +160,18 @@ extension ExprLowerer {
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
                let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
+                // KSP-CAP-001: an enclosing immutable property captured by an
+                // object-literal member function is restored as a local value.
+                // It must take precedence over the implicit receiver member
+                // path, which would otherwise apply the enclosing property's
+                // field offset to the object literal receiver.
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   sema.symbols.symbol(symbol)?.kind == .property,
+                   !driver.ctx.isMutableCaptureBoxed(symbol),
+                   let localValue = driver.ctx.localValue(for: symbol)
+                {
+                    return localValue
+                }
                 let receiverType = arena.exprType(receiverExprID) ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
                 let memberStr = interner.resolve(memberName)
@@ -2164,6 +2176,64 @@ extension ExprLowerer {
                     // vetoable-style delegate rejecting this write is
                     // observed correctly with no extra bookkeeping here.
                 } else if let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface,
+                          let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                          driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
+                          driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
+                {
+                    // Member property whose reads and writes both go through
+                    // accessors (delegated `var`, or custom getter AND custom
+                    // setter): there is no `fieldOffsets[symbol]` slot to do
+                    // the read-modify-write against — delegated storage is
+                    // keyed by `$delegate_<name>` — so the direct-field
+                    // branches below cannot handle it. Mirror the explicit
+                    // `o.x += v` path in lowerMemberCompoundAssignExpr: load
+                    // through `get`, compute, store through `set`.
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let loadedValue = arena.appendTemporary(type: propType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: loadedValue,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    func storeViaSetter(_ value: KIRExprID) {
+                        let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                        let setResultExprID = arena.appendTemporary(type: sema.types.unitType)
+                        instructions.append(.call(
+                            symbol: setterSymbol,
+                            callee: interner.intern("set"),
+                            arguments: [receiverExprID, value],
+                            result: setResultExprID,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeViaSetter(resultID)
+                        }
+                    } else {
+                        let resultID = appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: propType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        )
+                        storeViaSetter(resultID)
+                    }
+                } else if let symInfo = sema.symbols.symbol(symbol),
                           symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
                               let p = sema.symbols.parentSymbol(for: symbol)
                               let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
@@ -2633,7 +2703,6 @@ extension ExprLowerer {
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
             let result = arena.appendTemporary(type: boundType ?? boolType)
-            let rhsType = sema.bindings.exprTypes[rhsExpr]
             // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
             // gated on `rhsType == uintType` — but `rhsType` is the range's own type
             // (e.g. UIntRange), never its element type, so that comparison was always
@@ -2663,16 +2732,6 @@ extension ExprLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-            } else if let rhsType = rhsType,
-               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_ulong_range_contains"),
-                    arguments: [rhsID, lhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             } else {
                 appendContainsCall(
                     exprID: exprID,
@@ -2695,7 +2754,6 @@ extension ExprLowerer {
                 rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
-            let notInRhsType = sema.bindings.exprTypes[rhsExpr]
             let notInContainsCallee: String
             // KSP-1523: see the `inExpr` case above — the analogous UInt branch here
             // was gated on the same always-false `rhsType == uintType` check and has
@@ -2708,15 +2766,11 @@ extension ExprLowerer {
             )
             if let floatingPointContainsCallee {
                 notInContainsCallee = interner.resolve(floatingPointContainsCallee)
-            } else if let notInRhsType = notInRhsType,
-               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
-                notInContainsCallee = "kk_ulong_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_ulong_range_contains"
-                || notInContainsCallee.hasPrefix("__kk_")
+            if notInContainsCallee.hasPrefix("__kk_")
             {
                 let floatingPointValueID: KIRExprID = if let floatingPointContainsCallee {
                     floatingPointRangeContainsValueID(

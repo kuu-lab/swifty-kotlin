@@ -61,7 +61,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing, got: \(callees)")
+        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static call for Int -> Any? boxing, got: \(callees)")
     }
 
     @Test
@@ -119,7 +119,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_bool"), "Expected kk_box_bool call for Bool -> Any? boxing, got: \(callees)")
+        #expect(callees.contains("kk_box_bool_static"), "Expected kk_box_bool_static call for Bool -> Any? boxing, got: \(callees)")
     }
 
     @Test
@@ -177,7 +177,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Int? boxing, got: \(callees)")
+        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static call for Int -> Int? boxing, got: \(callees)")
     }
 
     @Test
@@ -235,7 +235,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static call for Any? -> Int unboxing, got: \(callees)")
     }
 
     @Test
@@ -293,7 +293,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Int? -> Int unboxing, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static call for Int? -> Int unboxing, got: \(callees)")
     }
 
     @Test
@@ -328,7 +328,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "returnBoxed", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int"), "Expected kk_box_int before returnValue for Any? return type, got: \(callees)")
+        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static before returnValue for Any? return type, got: \(callees)")
     }
 
     @Test
@@ -365,7 +365,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "copyBoxed", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int"), "Expected kk_box_int for copy Int -> Any?, got: \(callees)")
+        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static for copy Int -> Any?, got: \(callees)")
         // Verify that the copy instruction was replaced (no copy should remain)
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }
@@ -408,7 +408,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "copyUnboxed", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int for copy Any? -> Int, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static for copy Any? -> Int, got: \(callees)")
         // Verify that the copy instruction was replaced
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }

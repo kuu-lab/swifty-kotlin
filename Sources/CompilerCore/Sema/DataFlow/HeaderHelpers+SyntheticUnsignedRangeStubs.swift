@@ -199,13 +199,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
-        let progressionType = syntheticNominalType(
-            named: "ULongProgression",
-            in: rangesFQName,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let iteratorType = syntheticIteratorType(
             elementType: types.ulongType,
             symbols: symbols,
@@ -213,10 +206,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         for property in [
-            ("start", "kk_ulong_range_first"),
-            ("endInclusive", "kk_ulong_range_last"),
-            ("first", "kk_ulong_range_first"),
-            ("last", "kk_ulong_range_last"),
+            ("start", "__kk_range_first"),
+            ("endInclusive", "__kk_range_last"),
+            ("first", "__kk_range_first"),
+            ("last", "__kk_range_last"),
             ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
@@ -238,26 +231,6 @@ extension DataFlowSemaPhase {
         )
 
         registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [types.ulongType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_ulong_range_contains",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "kk_ulong_range_isEmpty",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
             named: "iterator",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
@@ -267,46 +240,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerProgressionMethod(
-            named: "reversed",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: progressionType,
-            externalLinkName: "kk_ulong_range_reversed",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toList",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_ulong_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "firstOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_firstOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "lastOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_lastOrNull",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1524: contains/isEmpty and the aggregate/membership helpers are
+        // bundled Kotlin declarations. Keep only the synthetic members that
+        // have no source-backed replacement in this stub.
         registerProgressionMethod(
             named: "take",
             ownerSymbol: classSymbol,
@@ -324,26 +260,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [types.intType],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "__kk_ulong_range_drop",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "average",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.doubleType,
-            externalLinkName: "kk_ulong_range_average",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "sorted",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_ulong_range_sorted",
             symbols: symbols,
             interner: interner
         )
