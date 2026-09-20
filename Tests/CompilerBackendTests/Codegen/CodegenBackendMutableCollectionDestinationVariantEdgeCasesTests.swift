@@ -64,6 +64,17 @@ struct CodegenBackendMutableCollectionDestinationVariantEdgeCasesTests {
     }
 
     @Test
+    func testMapToInfersEmptyMutableListFromTargetType() throws {
+        let source = """
+        fun main() {
+            val dest: MutableList<Int> = listOf(1, 2).mapTo(mutableListOf()) { it * 2 }
+            println(dest)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_MAP_TO_EMPTY_MUTABLE_LIST", expected: "[2, 4]\n")
+    }
+
+    @Test
     func testFlatMapToAppendsToDestination() throws {
         let source = """
         fun main() {

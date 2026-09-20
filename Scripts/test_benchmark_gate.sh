@@ -8,6 +8,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 
 BASELINE="$TEMP_DIR/baseline.tsv"
 MEASURED_PASS="$TEMP_DIR/measured-pass.tsv"
+MEASURED_IMPROVEMENT="$TEMP_DIR/measured-improvement.tsv"
 MEASURED_FAIL="$TEMP_DIR/measured-fail.tsv"
 SUMMARY="$TEMP_DIR/summary.md"
 
@@ -31,6 +32,21 @@ fi
 grep -q $'execution\tfixture\truntime_ms\t100\t109.99' "$TEMP_DIR/pass-report.tsv"
 grep -q 'Result: PASS' "$SUMMARY"
 
+cat >"$MEASURED_IMPROVEMENT" <<'EOF'
+kind	case	metric	value_ms
+execution	fixture	runtime_ms	75
+compile	hello	TOTAL	150
+EOF
+
+if ! bash "$GATE" --compare-only --baseline "$BASELINE" --measured "$MEASURED_IMPROVEMENT" \
+    --output "$TEMP_DIR/improvement-report.tsv" --summary "$TEMP_DIR/improvement-summary.md" --tolerance 10; then
+    echo "FAIL: benchmark gate rejected an improvement" >&2
+    exit 1
+fi
+grep -q $'execution\tfixture\truntime_ms\t100\t75\t-25.00\t-25.00\tPASS' "$TEMP_DIR/improvement-report.tsv"
+grep -q 'Regression tolerance: +10%' "$TEMP_DIR/improvement-summary.md"
+grep -q 'Result: PASS' "$TEMP_DIR/improvement-summary.md"
+
 cat >"$MEASURED_FAIL" <<'EOF'
 kind	case	metric	value_ms
 execution	fixture	runtime_ms	111
@@ -46,4 +62,4 @@ grep -q $'execution\tfixture\truntime_ms\t100\t111' "$TEMP_DIR/fail-report.tsv"
 grep -q $'\tFAIL$' "$TEMP_DIR/fail-report.tsv"
 grep -q 'Result: FAIL' "$TEMP_DIR/fail-summary.md"
 
-echo 'OK: benchmark gate enforces the configured tolerance and reports regressions'
+echo 'OK: benchmark gate accepts improvements and reports regressions beyond the configured tolerance'

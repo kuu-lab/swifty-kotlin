@@ -2319,7 +2319,33 @@ extension CallTypeChecker {
                 "filterIndexedTo", "mapKeysTo", "mapValuesTo",
             ]
             if destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
-                let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                // A destination factory such as `mutableListOf()` has no
+                // argument from which to infer its element type.  When the
+                // enclosing destination HOF is itself target-typed, propagate
+                // an exact MutableList target into that argument so the
+                // factory contributes `MutableList<R>` rather than
+                // `MutableList<Nothing>`/`Any?` to the generic `C` constraint.
+                let destinationExpectedType: TypeID? = if let expectedType,
+                                                            case let .classType(expectedClassType) = sema.types.kind(
+                                                                of: sema.types.makeNonNullable(expectedType)
+                                                            ),
+                                                            let expectedClassSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                            expectedClassSymbol.fqName == [
+                                                                interner.intern("kotlin"),
+                                                                interner.intern("collections"),
+                                                                interner.intern("MutableList"),
+                                                            ]
+                {
+                    expectedType
+                } else {
+                    nil
+                }
+                let destinationType = driver.inferExpr(
+                    args[0].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: destinationExpectedType
+                )
                 let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
                 let destinationElementType: TypeID = if case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
                                                         destClassType.args.count >= 1

@@ -868,7 +868,24 @@ package final class MetadataEncoder {
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
             valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
-            valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
+            // KUU-655: an override with an inheritance link
+            // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
+            // flags copied from the overridden declaration in-memory
+            // (`OverrideDefaultArgumentInheritance`), but never gets a
+            // `$default` stub of its own -- only the base declaration does.
+            // Serializing the effective (true) flags here without a stub
+            // link would make a separately-compiled consumer believe this
+            // symbol owns a stub that was never emitted. Serialize this
+            // override's own (pre-inheritance) flags instead, exactly as if
+            // it had been compiled without this fix; the consumer's own
+            // `OverrideDefaultArgumentInheritance` pass re-derives the same
+            // link independently once it sees the (faithfully serialized)
+            // base declaration's defaults and the supertype/parent edges
+            // `LibraryImport` already restores.
+            let hasInheritedDefaultsLink = symbols.overrideDefaultsBaseSymbol(for: symbol.id) != nil
+            valueParameterHasDefaultValues = hasInheritedDefaultsLink
+                ? Array(repeating: false, count: signature.valueParameterHasDefaultValues.count)
+                : signature.valueParameterHasDefaultValues
             canThrow = signature.canThrow
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
@@ -901,7 +918,11 @@ package final class MetadataEncoder {
                 }
             }
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
-            if signature.valueParameterHasDefaultValues.contains(true) {
+            // KUU-655: uses the (already override-corrected) local flag, not
+            // `signature.valueParameterHasDefaultValues` directly, so an
+            // override with an inherited defaults link never looks for a
+            // stub it was never given (see the comment above).
+            if valueParameterHasDefaultValues.contains(true) {
                 let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
                 defaultStubExternalLinkName = functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
             }
