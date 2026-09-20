@@ -247,7 +247,14 @@ extension NativeEmitter {
             }
         }
 
-        let shouldSpillID = Set(assignmentTargetCounts.filter { $0.value > 1 }.map(\.key))
+        // KIR temporaries are not strict SSA values: inline expansion and
+        // throw-aware control flow can route multiple predecessor blocks to a
+        // later use even when the temporary has only one syntactic assignment.
+        // Keeping such a result as an LLVM SSA value produces invalid IR when
+        // its defining block does not dominate the merge block. Materialize
+        // assignment targets in entry-block slots; optimized pipelines promote
+        // the safe cases back to SSA with mem2reg.
+        let shouldSpillID = Set(assignmentTargetCounts.keys)
 
         var copyTargetAllocas: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         for instruction in function.body {
@@ -1721,7 +1728,18 @@ extension NativeEmitter {
                 globalVariables: globalVariables,
                 nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
-                    declareExternalFunction(named: name, argumentCount: argCount, appendThrownChannel: appendThrown)
+                    // Function-address constants use a conservative four-word
+                    // prototype when no call-site signature is available. If
+                    // this body also calls the symbol directly, prefer that
+                    // observed arity so the address materialization cannot
+                    // poison the module's declaration before the direct call.
+                    let observedArgumentCount = maxKIRArgumentCountByExternalCallee[name]
+                        ?? argCount
+                    return declareExternalFunction(
+                        named: name,
+                        argumentCount: observedArgumentCount,
+                        appendThrownChannel: appendThrown
+                    )
                 },
                 interner: interner
             )
@@ -1805,7 +1823,9 @@ extension NativeEmitter {
                 }
                 _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
             }
-            if let alloca = copyTargetAllocas[result.rawValue] {
+            if let alloca = copyTargetAllocas[result.rawValue],
+               !bindings.hasTerminator(currentBlock)
+            {
                 _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)
             }
             values[result.rawValue] = storedValue
@@ -2237,8 +2257,12 @@ extension NativeEmitter {
                     }
                     if let receiveFunction = declareExternalFunction(
                         named: "kk_channel_receive",
-                        argumentCount: 3,
-                        appendThrownChannel: false
+                        parameterTypes: [
+                            int64Type,
+                            int64Type,
+                            outThrownPointerType,
+                        ],
+                        returnType: int64Type
                     ) {
                         var receiveArgs = argumentValues
                         receiveArgs.append(outValueSlot ?? nullThrownPointer)
@@ -3283,11 +3307,13 @@ extension NativeEmitter {
                 guard !raw.isEmpty else { continue }
                 let effective = effectiveExternalCalleeNameForArity(raw, argumentCount: arguments.count)
                 maxCount[effective, default: 0] = max(maxCount[effective, default: 0], arguments.count)
-            case let .virtualCall(_, callee, _, arguments, _, _, _, _):
-                let name = interner.resolve(callee)
-                guard !name.isEmpty else { continue }
-                let receiverPlusArgs = 1 + arguments.count
-                maxCount[name, default: 0] = max(maxCount[name, default: 0], receiverPlusArgs)
+            case .virtualCall:
+                // Generic virtual calls use an arity-qualified declaration
+                // (for example, `size__v1`) solely as the indirect-call type.
+                // Folding their receiver-plus-argument count into the plain
+                // external name can widen an unrelated direct runtime bridge
+                // declaration such as `__kk_map_size(i64)` to four parameters.
+                continue
             default:
                 break
             }
