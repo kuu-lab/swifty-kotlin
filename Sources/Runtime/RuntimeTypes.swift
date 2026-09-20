@@ -634,6 +634,31 @@ final class RuntimeListBox {
         }
     }
 
+    /// Runs `body` on the backing array and returns its result. For `.direct`
+    /// storage the mutation goes through `direct.values`, so the buffer is
+    /// appended/removed in place when uniquely referenced instead of being
+    /// copied on every call; a buffer still shared with a snapshot (e.g. an
+    /// iterator's captured `values`) copy-on-writes inside `body` as usual.
+    /// View-backed storage keeps the materialize–mutate–write-back
+    /// semantics of the `values` setter, and a read-only list still drops
+    /// the write-back.
+    @discardableResult
+    func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
+        guard !isReadOnly else {
+            var values = values
+            return body(&values)
+        }
+        switch storage {
+        case .direct(let direct):
+            return body(&direct.values)
+        case .reversedViewOf, .arrayViewOf, .subList:
+            var values = self.values
+            let result = body(&values)
+            self.values = values
+            return result
+        }
+    }
+
     var elements: [Int] {
         get {
             values.map(\.legacyRawValue)

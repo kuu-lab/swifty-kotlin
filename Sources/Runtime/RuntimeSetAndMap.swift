@@ -255,17 +255,13 @@ public func kk_mutable_set_removeAll(
     if runtimeThrowIfReadOnlySet(set, outThrown) {
         return 0
     }
-    let collectionElements: [Int]
-    if let collection = runtimeListBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else if let collection = runtimeSetBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else {
+    guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return 0
     }
+    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
     let originalCount = set.count
     _ = set.removeAll { elem in
-        collectionElements.contains(where: { runtimeValuesEqual($0, elem.legacyRawValue) })
+        members.contains(RuntimeElementKey(value: elem.legacyRawValue))
     }
     return set.count != originalCount ? 1 : 0
 }
@@ -283,17 +279,13 @@ public func kk_mutable_set_retainAll(
     if runtimeThrowIfReadOnlySet(set, outThrown) {
         return 0
     }
-    let collectionElements: [Int]
-    if let collection = runtimeListBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else if let collection = runtimeSetBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else {
+    guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return 0
     }
+    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
     let originalCount = set.count
     _ = set.removeAll { elem in
-        !collectionElements.contains(where: { runtimeValuesEqual($0, elem.legacyRawValue) })
+        !members.contains(RuntimeElementKey(value: elem.legacyRawValue))
     }
     return set.count != originalCount ? 1 : 0
 }
