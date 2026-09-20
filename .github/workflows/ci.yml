@@ -489,12 +489,17 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-  benchmark-gate:
-    name: Verification (Benchmark Gate)
+  # Use the stored baseline as the fast path. If it fails, compare the PR and
+  # its exact base on a fresh runner so host-level contention cannot look like
+  # a source regression.
+  benchmark-gate-attempt-1:
+    name: Benchmark Gate sample 1
     needs: build-release-kswiftc
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      outcome: ${{ steps.run-gate.outcome }}
     steps:
       - name: Fail when the release compiler build failed
         if: needs.build-release-kswiftc.result != 'success'
@@ -529,34 +534,31 @@ jobs:
           test -x "$install_dir/kswiftc"
           echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
       - name: Run benchmark regression gate
+        id: run-gate
+        continue-on-error: true
         env:
           BENCHMARK_BASELINE: ${{ github.workspace }}/Scripts/benchmark_baseline.tsv
-          BENCHMARK_OUTPUT: ${{ runner.temp }}/benchmark-gate/benchmark-report.tsv
-          BENCHMARK_SUMMARY: ${{ runner.temp }}/benchmark-gate/summary.md
+          BENCHMARK_OUTPUT: ${{ runner.temp }}/benchmark-gate-attempt-1/benchmark-report.tsv
+          BENCHMARK_SUMMARY: ${{ runner.temp }}/benchmark-gate-attempt-1/summary.md
           BENCHMARK_TOLERANCE_PERCENT: "10"
           BENCH_EXECUTION_RUNS: "5"
           BENCH_COMPILE_RUNS: "3"
         run: |
-          mkdir -p "$RUNNER_TEMP/benchmark-gate"
-          run_gate() {
-            bash Scripts/benchmark_gate.sh \
-              --baseline "$BENCHMARK_BASELINE" \
-              --output "$BENCHMARK_OUTPUT" \
-              --summary "$BENCHMARK_SUMMARY" \
-              --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
-              --execution-runs "$BENCH_EXECUTION_RUNS" \
-              --compile-runs "$BENCH_COMPILE_RUNS"
-          }
-          if ! run_gate; then
-            mv "$BENCHMARK_OUTPUT" "$RUNNER_TEMP/benchmark-gate/benchmark-report-attempt-1.tsv"
-            mv "$BENCHMARK_SUMMARY" "$RUNNER_TEMP/benchmark-gate/summary-attempt-1.md"
-            echo "::warning::Benchmark gate failed once; retrying to reject transient hosted-runner contention."
-            run_gate
-          fi
+          mkdir -p "$RUNNER_TEMP/benchmark-gate-attempt-1"
+          bash Scripts/benchmark_gate.sh \
+            --baseline "$BENCHMARK_BASELINE" \
+            --output "$BENCHMARK_OUTPUT" \
+            --summary "$BENCHMARK_SUMMARY" \
+            --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
+            --execution-runs "$BENCH_EXECUTION_RUNS" \
+            --compile-runs "$BENCH_COMPILE_RUNS"
+      - name: Note paired retry
+        if: steps.run-gate.outcome != 'success'
+        run: echo "::warning::Stored baseline failed; retrying against the base compiler on a fresh hosted runner."
       - name: Add benchmark summary
         if: always()
         run: |
-          summary="$RUNNER_TEMP/benchmark-gate/summary.md"
+          summary="$RUNNER_TEMP/benchmark-gate-attempt-1/summary.md"
           if [[ -f "$summary" ]]; then
             cat "$summary" >> "$GITHUB_STEP_SUMMARY"
           else
@@ -564,11 +566,185 @@ jobs:
           fi
       - name: Upload benchmark reports
         if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-gate-${{ github.run_id }}-attempt-1
+          path: ${{ runner.temp }}/benchmark-gate-attempt-1
+          if-no-files-found: error
+          retention-days: 30
+
+  benchmark-gate-attempt-2:
+    name: Benchmark Gate paired retry
+    needs: [build-release-kswiftc, benchmark-gate-attempt-1]
+    if: ${{ always() && needs.build-release-kswiftc.result == 'success' && needs.benchmark-gate-attempt-1.outputs.outcome != 'success' && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      outcome: ${{ steps.run-gate.outcome }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check out benchmark base
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          path: benchmark-base
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Setup LLVM
+        uses: ./.github/actions/setup-llvm
+      - name: Build benchmark base compiler
+        env:
+          SWIFT_BUILD_JOBS: "4"
+          SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: |
+          base_source="$GITHUB_WORKSPACE/benchmark-base"
+          base_scratch="$RUNNER_TEMP/benchmark-base-build"
+          (
+            cd "$base_source"
+            swift build -c release --product kswiftc --scratch-path "$base_scratch" -j "$SWIFT_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+          )
+          base_bin_dir="$(cd "$base_source" && swift build -c release --scratch-path "$base_scratch" --show-bin-path)"
+          test -x "$base_bin_dir/kswiftc"
+          echo "BASE_KSWIFTC=$base_bin_dir/kswiftc" >> "$GITHUB_ENV"
+      - name: Download release compiler artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/kswiftc-release-artifact
+      - name: Verify and extract release compiler artifact
+        run: |
+          artifact_dir="$RUNNER_TEMP/kswiftc-release-artifact"
+          install_dir="$RUNNER_TEMP/kswiftc-release"
+          (
+            cd "$artifact_dir"
+            sha256sum --check kswiftc-release.tar.zst.sha256
+          )
+          rm -rf "$install_dir"
+          mkdir -p "$install_dir"
+          tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
+          test -x "$install_dir/kswiftc"
+          echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
+      - name: Measure benchmark base on the retry runner
+        env:
+          BENCHMARK_BASELINE: ${{ github.workspace }}/Scripts/benchmark_baseline.tsv
+          PAIRED_BASELINE_ALL: ${{ runner.temp }}/benchmark-gate-attempt-2/paired-baseline-all.tsv
+          PAIRED_BASELINE: ${{ runner.temp }}/benchmark-gate-attempt-2/paired-baseline.tsv
+          BENCH_EXECUTION_RUNS: "5"
+          BENCH_COMPILE_RUNS: "3"
+        run: |
+          mkdir -p "$RUNNER_TEMP/benchmark-gate-attempt-2"
+          KSWIFTC="$BASE_KSWIFTC" bash Scripts/benchmark_gate.sh \
+            --measure-only \
+            --output "$PAIRED_BASELINE_ALL" \
+            --execution-runs "$BENCH_EXECUTION_RUNS" \
+            --compile-runs "$BENCH_COMPILE_RUNS"
+          awk -F '\t' '
+            BEGIN { OFS = "\t" }
+            NR == FNR {
+              if ($0 !~ /^#/ && $1 != "kind") gated[$1 FS $2 FS $3] = 1
+              next
+            }
+            FNR == 1 { print; next }
+            (($1 FS $2 FS $3) in gated) { print }
+          ' "$BENCHMARK_BASELINE" "$PAIRED_BASELINE_ALL" > "$PAIRED_BASELINE"
+      - name: Run benchmark regression gate
+        id: run-gate
+        continue-on-error: true
+        env:
+          BENCHMARK_BASELINE: ${{ runner.temp }}/benchmark-gate-attempt-2/paired-baseline.tsv
+          BENCHMARK_OUTPUT: ${{ runner.temp }}/benchmark-gate-attempt-2/benchmark-report.tsv
+          BENCHMARK_SUMMARY: ${{ runner.temp }}/benchmark-gate-attempt-2/summary.md
+          BENCHMARK_TOLERANCE_PERCENT: "10"
+          BENCH_EXECUTION_RUNS: "5"
+          BENCH_COMPILE_RUNS: "3"
+        run: |
+          mkdir -p "$RUNNER_TEMP/benchmark-gate-attempt-2"
+          bash Scripts/benchmark_gate.sh \
+            --baseline "$BENCHMARK_BASELINE" \
+            --output "$BENCHMARK_OUTPUT" \
+            --summary "$BENCHMARK_SUMMARY" \
+            --tolerance "$BENCHMARK_TOLERANCE_PERCENT" \
+            --execution-runs "$BENCH_EXECUTION_RUNS" \
+            --compile-runs "$BENCH_COMPILE_RUNS"
+      - name: Add benchmark summary
+        if: always()
+        run: |
+          summary="$RUNNER_TEMP/benchmark-gate-attempt-2/summary.md"
+          if [[ -f "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Benchmark summary was not produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload benchmark reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-gate-${{ github.run_id }}-attempt-2
+          path: ${{ runner.temp }}/benchmark-gate-attempt-2
+          if-no-files-found: error
+          retention-days: 30
+
+  benchmark-gate:
+    name: Verification (Benchmark Gate)
+    needs: [build-release-kswiftc, benchmark-gate-attempt-1, benchmark-gate-attempt-2]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fail when the release compiler build failed
+        if: needs.build-release-kswiftc.result != 'success'
+        run: |
+          echo "Release compiler build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
+          exit 1
+      - name: Verify benchmark result
+        env:
+          ATTEMPT_1_OUTCOME: ${{ needs.benchmark-gate-attempt-1.outputs.outcome }}
+          ATTEMPT_2_OUTCOME: ${{ needs.benchmark-gate-attempt-2.outputs.outcome }}
+        run: |
+          if [[ "$ATTEMPT_1_OUTCOME" == "success" ]]; then
+            echo "Benchmark gate passed on the first hosted runner." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$ATTEMPT_2_OUTCOME" == "success" ]]; then
+            echo "Benchmark gate passed against the base compiler on a fresh hosted runner." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Benchmark gate failed against both the stored baseline and a same-runner base compiler." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - name: Download first benchmark report
+        if: ${{ always() && needs.benchmark-gate-attempt-1.outputs.outcome != '' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: benchmark-gate-${{ github.run_id }}-attempt-1
+          path: ${{ runner.temp }}/benchmark-gate/attempt-1
+      - name: Download second benchmark report
+        if: ${{ always() && needs.benchmark-gate-attempt-2.outputs.outcome != '' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: benchmark-gate-${{ github.run_id }}-attempt-2
+          path: ${{ runner.temp }}/benchmark-gate/attempt-2
+      - name: Add benchmark summaries
+        if: always()
+        continue-on-error: true
+        run: |
+          for summary in "$RUNNER_TEMP"/benchmark-gate/attempt-*/summary.md; do
+            [[ -f "$summary" ]] || continue
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Upload benchmark reports
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: benchmark-gate-${{ github.run_id }}
           path: ${{ runner.temp }}/benchmark-gate
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
   verify-diff:
