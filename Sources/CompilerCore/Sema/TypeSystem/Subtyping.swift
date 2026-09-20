@@ -518,6 +518,45 @@ extension TypeSystem {
         return result
     }
 
+    /// Retains a common `Comparable<*>` while inferring from lower bounds.
+    ///
+    /// `lub` intentionally keeps its conservative `Any` fallback for callers
+    /// that need the existing nominal-only behavior. This is deliberately not
+    /// a general common-supertype search: generic argument inference only
+    /// retains the platform-neutral built-in interface needed for mixed
+    /// comparable values. Other nominal LUB work remains with `lub`.
+    func inferenceLubRetainingCommonComparable(_ types: [TypeID]) -> TypeID {
+        let fallback = lub(types)
+        guard fallback == anyType || fallback == nullableAnyType else {
+            return fallback
+        }
+
+        let filtered = types.filter {
+            kind(of: $0) != .error
+                && kind(of: $0) != .nothing(.nonNull)
+                && kind(of: $0) != .nothing(.nullable)
+        }
+        guard filtered.count > 1 else {
+            return fallback
+        }
+
+        let resultNullability: Nullability = types.contains { nullability(of: $0) == .nullable }
+            ? .nullable
+            : .nonNull
+        guard let comparableSymbol = comparableInterfaceSymbol else {
+            return fallback
+        }
+        let comparable = make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: resultNullability
+        )))
+        guard filtered.allSatisfy({ isSubtype($0, comparable) }) else {
+            return fallback
+        }
+        return comparable
+    }
+
     public func glb(_ types: [TypeID]) -> TypeID {
         guard let first = types.first else {
             return errorType

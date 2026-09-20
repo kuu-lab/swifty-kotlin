@@ -1,6 +1,54 @@
 import Dispatch
 import Foundation
 
+// Primitive boxes emitted at a statically-known ABI boundary keep the current
+// ARC/object model, but use a reserved handle marker plus the low alignment
+// bits as a fast-path tag. The underlying Swift object remains registered in
+// `objectPointers`; only the handle is tagged. This avoids changing the
+// representation used by the rest of the runtime.
+let runtimePrimitiveBoxTag: UInt = 0xA500_0000_0000_0005
+let runtimePrimitiveBoxTagMask: UInt = 0xFF00_0000_0000_0007
+
+// This is a pure bit-pattern check with no registry lookup: `tryCast` calls
+// it while sometimes already holding `withGCLock` (e.g. `runtimeKClassBox`),
+// and `NSLock` is not reentrant, so acquiring the GC lock here would
+// deadlock those callers. The tag pattern alone is not collision-proof — an
+// unrelated Int (a hash code, uninitialized memory, ...) can coincidentally
+// match it — so a call site that receives an unverified raw handle straight
+// from the ABI boundary (`runtimeStaticUnbox`, not any of `tryCast`'s
+// existing callers, which already confirm registry membership themselves
+// before calling it) must additionally check `objectPointers` itself.
+@inline(__always)
+func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPointer? {
+    let bits = UInt(bitPattern: rawValue)
+    guard bits & runtimePrimitiveBoxTagMask == runtimePrimitiveBoxTag else {
+        return nil
+    }
+    let baseBits = bits & ~runtimePrimitiveBoxTagMask
+    guard baseBits != 0 else {
+        return nil
+    }
+    return UnsafeMutableRawPointer(bitPattern: baseBits)
+}
+
+@inline(__always)
+func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
+    let pointer = Unmanaged.passRetained(box).toOpaque()
+    let bits = UInt(bitPattern: pointer)
+    precondition(
+        bits & runtimePrimitiveBoxTagMask == 0,
+        "Swift object pointer is not representable by primitive box tagging"
+    )
+    let taggedBits = bits | runtimePrimitiveBoxTag
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(taggedBits)
+    }
+    guard let taggedPointer = UnsafeMutableRawPointer(bitPattern: taggedBits) else {
+        preconditionFailure("Tagged primitive box pointer must be non-null")
+    }
+    return Int(bitPattern: taggedPointer)
+}
+
 // Coroutine handles (continuation / scope / job / task) are resolved against the
 // liveness registry: generated code and the runtime keep raw handles past the
 // point where the runtime releases the object, and casting a freed pointer either
@@ -85,6 +133,33 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
     return runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[UInt(bitPattern: ptr)]
+    }
+}
+
+func runtimeRegisterArrayType(rawValue: Int, typeID: Int64) {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
+        return
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr), default: []].insert(typeID)
+    }
+}
+
+func runtimeArrayHasType(rawValue: Int, typeID: Int64) -> Bool {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
+        return false
+    }
+    return runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)]?.contains(typeID) == true
+    }
+}
+
+func runtimeArrayTypeIDs(rawValue: Int) -> Set<Int64> {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return []
+    }
+    return runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)] ?? []
     }
 }
 
@@ -252,7 +327,8 @@ func runtimeAllocateCancellationException(message: String? = "CancellationExcept
 }
 
 func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
-    let unmanaged = Unmanaged<AnyObject>.fromOpaque(ptr)
+    let normalized = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: ptr)) ?? ptr
+    let unmanaged = Unmanaged<AnyObject>.fromOpaque(normalized)
     let anyObject = unmanaged.takeUnretainedValue()
     return anyObject as? T
 }

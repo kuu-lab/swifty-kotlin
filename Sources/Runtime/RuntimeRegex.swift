@@ -454,6 +454,17 @@ private func boundedMatches(
     return timedOut ? nil : matches
 }
 
+/// Builds a regex that requires the match to cover the entire input string.
+///
+/// Wrapping the effective compiled pattern makes alternation backtrack when an
+/// earlier branch only matches a prefix (for example, `a|ab` against `ab`).
+/// The multiline and literal matching options must not affect the wrapper.
+private func entireStringMatchRegex(for regexBox: RuntimeRegexBox) -> NSRegularExpression? {
+    let effectivePattern = "\\A(?:\(regexBox.regex.pattern))\\z"
+    let anchoredOptions = regexBox.regex.options.subtracting([.anchorsMatchLines, .ignoreMetacharacters])
+    return try? NSRegularExpression(pattern: effectivePattern, options: anchoredOptions)
+}
+
 // MARK: - STDLIB-100: Regex constructor, matches, contains
 
 @_cdecl("__kk_regex_create_flat")
@@ -499,10 +510,12 @@ public func kk_string_matches_regex_flat(
 private func runtimeStringMatchesRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let str = regexBox.normalizeIfNeeded(rawStr)
+    guard let anchoredRegex = entireStringMatchRegex(for: regexBox) else {
+        return kk_box_bool(0)
+    }
     let range = NSRange(str.startIndex..., in: str)
-    let match = boundedFirstMatch(regexBox.regex, in: str, options: [.anchored], range: range)
-    let fullMatch = match != nil && match!.range.length == range.length
-    return kk_box_bool(fullMatch ? 1 : 0)
+    let match = boundedFirstMatch(anchoredRegex, in: str, options: [], range: range)
+    return kk_box_bool(match != nil ? 1 : 0)
 }
 
 @_cdecl("__kk_string_contains_regex_flat")
@@ -726,8 +739,11 @@ public func kk_regex_matchEntire_flat(
 private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
     let str = regexBox.normalizeIfNeeded(rawStr)
+    guard let anchoredRegex = entireStringMatchRegex(for: regexBox) else {
+        return runtimeNullSentinelInt
+    }
     let range = NSRange(str.startIndex..., in: str)
-    guard let result = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range) else {
+    guard let result = boundedFirstMatch(anchoredRegex, in: str, options: [], range: range) else {
         return runtimeNullSentinelInt
     }
     guard let matchRange = Range(result.range, in: str) else {
@@ -1185,17 +1201,7 @@ public func kk_regex_matches_flat(
 private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
-    // Use the effective (compiled) pattern stored in the NSRegularExpression. For
-    // LITERAL regexes this is already the pre-escaped form, so embedding it directly
-    // inside \A(?:...)\z is safe. Strip .anchorsMatchLines so \A/\z bind to the
-    // string boundaries rather than line boundaries, and strip .ignoreMetacharacters
-    // (defensive) so the wrapper syntax is always interpreted as real regex syntax.
-    let effectivePattern = "\\A(?:\(regexBox.regex.pattern))\\z"
-    let anchoredOptions = regexBox.regex.options.subtracting([.anchorsMatchLines, .ignoreMetacharacters])
-    guard let anchoredRegex = try? NSRegularExpression(
-        pattern: effectivePattern,
-        options: anchoredOptions
-    ) else { return kk_box_bool(0) }
+    guard let anchoredRegex = entireStringMatchRegex(for: regexBox) else { return kk_box_bool(0) }
     let range = NSRange(input.startIndex..., in: input)
     let matched = boundedFirstMatch(anchoredRegex, in: input, options: [], range: range) != nil
     return kk_box_bool(matched ? 1 : 0)
