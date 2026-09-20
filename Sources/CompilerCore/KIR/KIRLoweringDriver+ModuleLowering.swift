@@ -72,23 +72,31 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
 
-        emitSyntheticTopLevelExternalPropertyInitializers(
-            arena: arena,
-            sema: sema,
-            interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
-        )
-
+        // Object and companion handles must exist before any top-level
+        // initializer can trigger their lazy bodies. Keep these allocation-only
+        // calls ahead of user-visible property initialization.
+        var orderedTopLevelInitInstructions: KIRLoweringEmitContext = []
         appendCompanionInitializerCalls(
             arena: arena, sema: sema,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         appendImportedLibraryInitializerCalls(
             arena: arena,
             sema: sema,
             interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
+        )
+
+        orderedTopLevelInitInstructions.appendRelocatingLabels(
+            contentsOf: allTopLevelInitInstructions
+        )
+
+        emitSyntheticTopLevelExternalPropertyInitializers(
+            arena: arena,
+            sema: sema,
+            interner: compilationCtx.interner,
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         postProcessTopLevelInitializersAndDelegates(
@@ -96,7 +104,7 @@ extension KIRLoweringDriver {
             sema: sema,
             compilationCtx: compilationCtx,
             arena: arena,
-            allTopLevelInitInstructions: allTopLevelInitInstructions,
+            allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
         let module = KIRModule(files: files, arena: arena)

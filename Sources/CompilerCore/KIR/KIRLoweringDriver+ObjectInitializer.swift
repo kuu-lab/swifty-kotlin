@@ -34,23 +34,32 @@ extension KIRLoweringDriver {
     /// BUG-274: emits a call to `objectSymbol`'s lazy initializer immediately
     /// before its state (a stored property, its own value crossing an Any
     /// boundary, or a member-function receiver) is touched -- mirroring the
-    /// JVM's clinit-on-first-static-access trigger. A no-op when this
-    /// compilation did not itself synthesize a lazy initializer for
-    /// `objectSymbol`: imported-library singletons already ran their (eager)
-    /// clinit-equivalent when their own `.kklib` was compiled, and
-    /// compiler-synthetic pseudo-objects (`Dispatchers`, `Charsets`, ...)
-    /// never get one.
+    /// JVM's clinit-on-first-static-access trigger. Imported-library objects
+    /// restore the same guarded function from metadata; compiler-synthetic
+    /// pseudo-objects (`Dispatchers`, `Charsets`, ...) have neither entry.
     func emitObjectLazyInitGuardIfNeeded(
         objectSymbol: SymbolID,
         arena: KIRArena,
         sema: SemaModule,
         instructions: inout [KIRInstruction]
     ) {
-        guard let lazyInit = ctx.objectLazyInit(for: objectSymbol) else { return }
+        let lazyInitSymbol: SymbolID
+        let lazyInitName: InternedString
+        if let lazyInit = ctx.objectLazyInit(for: objectSymbol) {
+            lazyInitSymbol = lazyInit.ensureInitSymbol
+            lazyInitName = lazyInit.ensureInitName
+        } else if let importedLazyInit = sema.symbols.objectLazyInitializerSymbol(for: objectSymbol),
+                  let importedSymbol = sema.symbols.symbol(importedLazyInit)
+        {
+            lazyInitSymbol = importedLazyInit
+            lazyInitName = importedSymbol.name
+        } else {
+            return
+        }
         let result = arena.appendTemporary(type: sema.types.unitType)
         instructions.append(.call(
-            symbol: lazyInit.ensureInitSymbol,
-            callee: lazyInit.ensureInitName,
+            symbol: lazyInitSymbol,
+            callee: lazyInitName,
             arguments: [],
             result: result,
             canThrow: false,

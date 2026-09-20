@@ -85,9 +85,9 @@ extension CallLowerer {
         }
         // BUG-274: reading any other object-member property is a real
         // access to the object's state, so it must trigger the object's
-        // lazy clinit-equivalent first (a no-op for objects this compilation
-        // did not itself synthesize one for, e.g. `Dispatchers`/`Charsets`
-        // below or an imported-library singleton).
+        // lazy clinit-equivalent first. Imported-library objects restore the
+        // guard through metadata; compiler pseudo-objects such as
+        // `Dispatchers`/`Charsets` below remain no-ops.
         driver.emitObjectLazyInitGuardIfNeeded(
             objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
         )

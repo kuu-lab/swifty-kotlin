@@ -95,10 +95,8 @@ final class KIRLoweringContext {
     /// symbol to its lazily-run "ensure initialized" function and its
     /// `$initialized` flag global. Populated only for objects synthesized in
     /// THIS compilation via `synthesizeObjectInitializer`/
-    /// `synthesizeCompanionInitializerIfNeeded` -- an imported-library
-    /// object's clinit-equivalent already ran (eagerly) when its own .kklib
-    /// was compiled, so it deliberately has no entry here and call sites
-    /// that consult this map leave those references untouched.
+    /// `synthesizeCompanionInitializerIfNeeded`. Imported-library entries
+    /// live in `SymbolTable` after metadata restoration instead.
     private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
     // MARK: - Structured Scope Management
@@ -535,9 +533,8 @@ final class KIRLoweringContext {
     }
 
     /// Returns `objectSymbol`'s lazy-init entry, or `nil` for any object this
-    /// compilation did not itself synthesize an initializer for (imported
-    /// library singletons, compiler-synthetic pseudo-objects such as
-    /// `Dispatchers`/`Charsets`, or any symbol that isn't an object at all).
+    /// compilation did not itself synthesize an initializer for. Imported
+    /// library singletons are restored separately in `SymbolTable`.
     func objectLazyInit(for objectSymbol: SymbolID) -> ObjectLazyInit? {
         objectLazyInitBySymbol[objectSymbol]
     }
