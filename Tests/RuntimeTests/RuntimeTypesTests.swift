@@ -167,6 +167,28 @@ struct RuntimeTypesTests {
     }
 
     @Test
+    func runtimeListBoxSubscriptMapsThroughSubList() {
+        let base = RuntimeListBox(values: [
+            RuntimeValue(raw: 10, anyFallbackTag: 9),
+            RuntimeValue(raw: 20, anyFallbackTag: 10),
+            RuntimeValue(raw: 30, anyFallbackTag: 11),
+            RuntimeValue(raw: 40, anyFallbackTag: 12),
+        ])
+        let subList = RuntimeListBox(subListOf: base, fromIndex: 1, toIndex: 3)
+
+        #expect(subList.count == 2)
+        #expect(subList[0] == 20)
+        #expect(subList[1] == 30)
+
+        subList[0] = 21
+        subList.setValue(RuntimeValue(raw: 31), at: 1)
+
+        #expect(base.elements == [10, 21, 31, 40])
+        #expect(base.values[1].anyFallbackTag == 10)
+        #expect(base.values[2].anyFallbackTag == 11)
+    }
+
+    @Test
     func runtimeListIteratorSetPreservesAnyFallbackTags() {
         let list = RuntimeListBox(values: [
             RuntimeValue(raw: 1, anyFallbackTag: 9),

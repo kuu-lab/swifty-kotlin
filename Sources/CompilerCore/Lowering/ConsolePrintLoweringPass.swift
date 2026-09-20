@@ -10,6 +10,8 @@
 /// are inlined.
 final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ConsolePrintLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         _ = module

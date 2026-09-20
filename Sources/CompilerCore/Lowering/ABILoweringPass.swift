@@ -1,6 +1,8 @@
 
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
+    static let requiredStage: KIRStage = .integerNarrowed
+    static let producedStage: KIRStage = .abiLowered
 
     static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
         guard let callee = BoxingCalleeTable(interner: interner).boxCallee(for: primitive) else {

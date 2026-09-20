@@ -774,6 +774,37 @@ struct MathOverloadResolutionTests {
         }
     }
 
+    @Test func testMathExtensionsRequireExplicitImport() throws {
+        let source = """
+        fun roundToIntWithoutImport(x: Double): Int = x.roundToInt()
+        fun roundToLongWithoutImport(x: Double): Long = x.roundToLong()
+        fun absoluteValueWithoutImport(x: Int): Int = x.absoluteValue
+        fun absWithoutImport(x: Double): Double = abs(x)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("roundToInt") },
+                "roundToInt must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("roundToLong") },
+                "roundToLong must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("absoluteValue") },
+                "absoluteValue must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("abs") },
+                "abs must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
     // MARK: - Unofficial rounding mode helpers
 
     @Test func testUnofficialRoundingModeHelpersAreNotResolvedFromKotlinMath() throws {

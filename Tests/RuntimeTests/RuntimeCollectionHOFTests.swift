@@ -305,6 +305,33 @@ private let firstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePo
 @Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: { gHOFState.reset() }))
 struct RuntimeCollectionHOFTests {
     @Test
+    func testListWindowedRejectsNonPositiveSizeAndStep() {
+        let source = makeList([1, 2, 3])
+
+        var thrown = 0
+        _ = kk_list_bridge_windowed(source, 0, 1, 0, &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+        _ = kk_list_bridge_windowed(source, -1, 1, 0, &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+        _ = kk_list_bridge_windowed(source, 2, 0, 0, &thrown)
+        #expect(thrown != 0)
+
+        thrown = 0
+        _ = kk_list_bridge_windowed_transform(
+            source,
+            0,
+            1,
+            0,
+            unsafeBitCast(identityMapValue, to: Int.self),
+            0,
+            &thrown
+        )
+        #expect(thrown != 0)
+    }
+
+    @Test
     func testMapIndexedNotNullFiltersNullResults() {
         let source = makeList([10, 20, 30, 40])
         let mapped = kk_list_mapIndexedNotNull(

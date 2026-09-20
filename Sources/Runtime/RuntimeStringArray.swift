@@ -1188,16 +1188,7 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return result
     }
     if winner != result {
-        guard let opaque = UnsafeMutableRawPointer(bitPattern: result) else {
-            return winner
-        }
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.remove(UInt(bitPattern: opaque))
-        }
-        runtimeStorage.withMetadataLock { state in
-            state.objectTypeByPointer.removeValue(forKey: UInt(bitPattern: opaque))
-        }
-        Unmanaged<RuntimeKClassBox>.fromOpaque(opaque).release()
+        _ = runtimeReleaseObject(result)
     }
     return winner
 }
