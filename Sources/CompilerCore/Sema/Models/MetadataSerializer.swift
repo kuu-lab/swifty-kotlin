@@ -20,6 +20,10 @@ package struct MetadataRecord {
     package let isOperator: Bool
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
+    /// Nominal owner of a callable/property receiver. The indexed metadata
+    /// path keeps this compact routing key available without decoding the
+    /// declaration body, so synthetic stdlib overlap guards can run eagerly.
+    let receiverOwnerFQName: String?
     let typeSignature: String?
     /// Upper-bound type signatures for callable type parameters, in declaration order.
     /// Empty entries preserve alignment when only a later type parameter is bounded.
@@ -129,6 +133,7 @@ package struct MetadataRecord {
         isInline: Bool = false,
         isOperator: Bool = false,
         isOverride: Bool = false,
+        receiverOwnerFQName: String? = nil,
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
         valueParameterIsVararg: [Bool] = [],
@@ -180,6 +185,7 @@ package struct MetadataRecord {
         self.isInline = isInline
         self.isOperator = isOperator
         self.isOverride = isOverride
+        self.receiverOwnerFQName = receiverOwnerFQName
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
         self.valueParameterIsVararg = valueParameterIsVararg
@@ -838,6 +844,7 @@ package final class MetadataEncoder {
         var isInline = false
         var isOperator = false
         var isOverride = false
+        var receiverOwnerFQName: String?
         var typeSignature: String?
         var typeParameterUpperBoundsSignatures: [[String]] = []
         var valueParameterIsVararg: [Bool] = []
@@ -867,6 +874,14 @@ package final class MetadataEncoder {
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
             }
             reifiedTypeParameterIndices = signature.reifiedTypeParameterIndices
+            receiverOwnerFQName = signature.receiverType.flatMap { receiverType in
+                BundledDeclarationIndex.receiverOwnerFQName(
+                    for: receiverType,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )?.map { interner.resolve($0) }.joined(separator: ".")
+            }
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
@@ -937,6 +952,14 @@ package final class MetadataEncoder {
                     mangler: mangler,
                     nameResolver: { interner.resolve($0) }
                 )
+            }
+            receiverOwnerFQName = symbols.extensionPropertyReceiverType(for: symbol.id).flatMap { receiverType in
+                BundledDeclarationIndex.receiverOwnerFQName(
+                    for: receiverType,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )?.map { interner.resolve($0) }.joined(separator: ".")
             }
             // Property accessors are lowered as functions in the artifact
             // objects. Record the getter link even for abstract properties:
@@ -1139,6 +1162,7 @@ package final class MetadataEncoder {
             isInline: isInline,
             isOperator: isOperator,
             isOverride: isOverride,
+            receiverOwnerFQName: receiverOwnerFQName,
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
             valueParameterIsVararg: valueParameterIsVararg,
@@ -1393,6 +1417,9 @@ package final class MetadataEncoder {
                     fields.append("const=\(constValue)")
                 }
             }
+            if let receiverOwnerFQName = record.receiverOwnerFQName, !receiverOwnerFQName.isEmpty {
+                fields.append("receiverFq=\(receiverOwnerFQName)")
+            }
             if record.kind == .typeAlias {
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
@@ -1531,6 +1558,9 @@ package final class MetadataEncoder {
                 fields.append("link=\(linkName)")
             }
         }
+        if let receiverOwnerFQName = record.receiverOwnerFQName, !receiverOwnerFQName.isEmpty {
+            fields.append("receiverFq=\(receiverOwnerFQName)")
+        }
         if record.kind == .property || record.kind == .field {
             if let receiver = record.propertyReceiverTypeSignature {
                 fields.append("recv=\(receiver)")
@@ -1544,6 +1574,12 @@ package final class MetadataEncoder {
            let typeParamsSig = record.nominalTypeParametersSignature
         {
             fields.append("typeParamsSig=\(typeParamsSig)")
+        }
+        if Self.nominalKinds.contains(record.kind),
+           let companionFQName = record.companionObjectFQName,
+           !companionFQName.isEmpty
+        {
+            fields.append("companionFq=\(companionFQName)")
         }
         if record.isDataClass { fields.append("dataClass=1") }
         if record.isOpenClass { fields.append("openClass=1") }
@@ -1812,6 +1848,7 @@ final class MetadataDecoder {
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
                 isOverride: rec.isOverride,
+                receiverOwnerFQName: rec.receiverOwnerFQName,
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
@@ -1869,6 +1906,7 @@ final class MetadataDecoder {
         var isInline: Bool = false
         var isOperator: Bool = false
         var isOverride: Bool = false
+        var receiverOwnerFQName: String?
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
@@ -1928,6 +1966,8 @@ final class MetadataDecoder {
             record.isOperator = value == "1" || value == "true"
         case "override":
             record.isOverride = value == "1" || value == "true"
+        case "receiverFq":
+            record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "nonLocal":

@@ -481,6 +481,7 @@ public final class SymbolTable {
     /// ARCH-029: imported library declarations are registered from a compact
     /// metadata index and materialized the first time semantic data is queried.
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
+    private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
@@ -494,8 +495,12 @@ public final class SymbolTable {
     /// Installs the per-compilation loader used by indexed `.kklib` metadata.
     /// The loader is intentionally callback-based so the metadata reader stays
     /// outside the symbol model and can reuse the normal import application path.
-    func setLazyImportedMetadataLoader(_ loader: ((SymbolID) -> Void)?) {
+    func setLazyImportedMetadataLoader(
+        alreadyLoaded: Set<SymbolID> = [],
+        _ loader: ((SymbolID) -> Void)?
+    ) {
         lazyImportedMetadataLoader = loader
+        lazyImportedMetadataLoaded = alreadyLoaded
         lazyImportedMetadataLoadInProgress.removeAll()
     }
 
@@ -505,6 +510,7 @@ public final class SymbolTable {
 
     private func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
         guard let loader = lazyImportedMetadataLoader,
+              !lazyImportedMetadataLoaded.contains(symbol),
               !lazyImportedMetadataLoadInProgress.contains(symbol)
         else {
             return
@@ -512,6 +518,7 @@ public final class SymbolTable {
         lazyImportedMetadataLoadInProgress.insert(symbol)
         loader(symbol)
         lazyImportedMetadataLoadInProgress.remove(symbol)
+        lazyImportedMetadataLoaded.insert(symbol)
     }
 
     public var count: Int {

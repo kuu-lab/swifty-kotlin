@@ -70,6 +70,10 @@ extension DataFlowSemaPhase {
             let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
             return parsed.isEmpty ? nil : parsed
         }
+        let receiverOwnerFQName: [InternedString]? = metadataRecord.receiverOwnerFQName.flatMap { value in
+            let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
+            return parsed.isEmpty ? nil : parsed
+        }
         let fieldOffsets: [ImportedFieldOffsetEntry] = if let fieldOffsetsStr = metadataRecord.fieldOffsets {
             parseImportedFieldOffsets(
                 token: fieldOffsetsStr,
@@ -118,6 +122,7 @@ extension DataFlowSemaPhase {
                 isInline: metadataRecord.isInline,
                 isOperator: metadataRecord.isOperator,
                 isOverride: metadataRecord.isOverride,
+                receiverOwnerFQName: receiverOwnerFQName,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,

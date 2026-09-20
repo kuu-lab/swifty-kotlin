@@ -1159,7 +1159,15 @@ extension CallTypeChecker {
                     )
                 }
             }()
-            let memberCandidates = sourceBackedOverloads + standardMemberCandidates
+            // Imported extensions can be reached both through the explicit
+            // source-backed overload path above and through ordinary member
+            // collection after the compact index restores their receiver
+            // owner. Keep one instance of the same symbol so overload
+            // resolution does not report a self-ambiguity.
+            var seenMemberCandidates: Set<SymbolID> = []
+            let memberCandidates = (sourceBackedOverloads + standardMemberCandidates).filter {
+                seenMemberCandidates.insert($0).inserted
+            }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.

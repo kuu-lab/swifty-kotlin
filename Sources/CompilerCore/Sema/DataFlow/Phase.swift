@@ -175,10 +175,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
                 bundledIndex: bundledIndex,
                 stdlibModuleName: stdlibModuleName,
+                importedBindings: importDeferredWork.importedBindings,
                 symbols: symbols,
                 types: types,
                 interner: ctx.interner
             )
+            importDeferredWork.lazyLoaderState?.bundledIndex = bundledIndex
             // STDLIB-SHARED-002: SemaModule was created before imported symbols were
             // merged into the bundled index, so update it before any type-checker
             // queries rely on source-backed stdlib declarations.
@@ -366,15 +368,58 @@ final class DataFlowSemaPhase: CompilerPhase {
     func mergeImportedStdlibSymbolsIntoBundledIndex(
         bundledIndex: BundledDeclarationIndex,
         stdlibModuleName: InternedString,
+        importedBindings: [ImportedLibraryBinding] = [],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
         if symbols.hasLazyImportedMetadataLoader {
-            // Resolving every imported signature here would turn the indexed
-            // metadata path back into an eager full-body decode. The artifact
-            // path has no bundled source declarations requiring this merge.
-            return bundledIndex
+            // The compact index carries the receiver's nominal FQ name so the
+            // synthetic overlap gate can be restored without decoding every
+            // callable signature. This preserves the eager artifact path's
+            // routing while keeping declaration bodies lazy.
+            var indexedKeys: Set<BundledMemberKey> = []
+            for binding in importedBindings {
+                guard let symbol = symbols.symbol(binding.symbol),
+                      symbol.flags.contains(.importedLibrary),
+                      symbols.moduleFQN(for: symbol.id) == stdlibModuleName,
+                      symbol.kind == .function || symbol.kind == .property || symbol.kind == .field
+                else {
+                    continue
+                }
+                let ownerFQName = binding.record.receiverOwnerFQName
+                    ?? Array(symbol.fqName.dropLast())
+                let arity = symbol.kind == .function ? binding.record.arity : 0
+                let key = BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: symbol.name,
+                    arity: arity
+                )
+                indexedKeys.insert(key)
+
+                guard symbol.kind == .function,
+                      !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(
+                        key,
+                        interner: interner
+                      ),
+                      let receiverFQName = binding.record.receiverOwnerFQName,
+                      let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
+                        guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+                        switch candidateSymbol.kind {
+                        case .class, .interface, .object, .enumClass, .annotationClass:
+                            return true
+                        default:
+                            return false
+                        }
+                      })
+                else {
+                    continue
+                }
+                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            }
+            var updatedIndex = bundledIndex
+            updatedIndex.insertImportedStdlibSymbols(keys: indexedKeys, interner: interner)
+            return updatedIndex
         }
         var importedStdlibKeys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {

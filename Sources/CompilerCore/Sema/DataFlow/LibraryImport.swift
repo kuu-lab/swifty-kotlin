@@ -27,6 +27,7 @@ extension DataFlowSemaPhase {
     final class ImportedLibraryLazyLoaderState {
         var importedInlineFunctions: [SymbolID: KIRFunction]
         var inlineFunctionSink: ((SymbolID, KIRFunction) -> Void)?
+        var bundledIndex: BundledDeclarationIndex = .empty
 
         init(importedInlineFunctions: [SymbolID: KIRFunction] = [:]) {
             self.importedInlineFunctions = importedInlineFunctions
@@ -233,6 +234,24 @@ extension DataFlowSemaPhase {
         for binding in importedBindings {
             restoreImportedParentSymbol(binding.record, symbol: binding.symbol, symbols: symbols)
         }
+        // Class-name receiver resolution needs the companion edge before it
+        // asks for any declaration body. The compact index carries only the
+        // companion FQ name, which is enough to restore that structural link
+        // without materializing either nominal record.
+        for binding in importedBindings {
+            guard let companionFQName = binding.record.companionObjectFQName,
+                  let companionSymbol = symbols.lookupAll(fqName: companionFQName)
+                    .first(where: { candidate in
+                        guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+                        return candidateSymbol.kind == .object
+                            || candidateSymbol.kind == .class
+                            || candidateSymbol.kind == .interface
+                    })
+            else {
+                continue
+            }
+            symbols.setCompanionObjectSymbol(companionSymbol, for: binding.symbol)
+        }
 
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
         var importedSymbolByFQName: [String: SymbolID] = [:]
@@ -342,9 +361,9 @@ extension DataFlowSemaPhase {
         // record before returning the requested value.
         let bindingsBySymbol = Dictionary(uniqueKeysWithValues: importedBindings.map { ($0.symbol, $0) })
         if lazyMetadataEnabled {
-            symbols.setLazyImportedMetadataLoader { [self] symbol in
+            symbols.setLazyImportedMetadataLoader(alreadyLoaded: preloadedGetterBindingSymbols) { [self] symbol in
             guard let binding = bindingsBySymbol[symbol] else { return }
-            let previousInlineFunctions = lazyLoaderState.importedInlineFunctions
+            var loadedInlineFunctions: [SymbolID: KIRFunction] = [:]
             var bindingEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
             self.applyImportedBinding(
                 binding,
@@ -352,7 +371,7 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &lazyLoaderState.importedInlineFunctions,
+                importedInlineFunctions: &loadedInlineFunctions,
                 pendingSupertypeEdges: &bindingEdges,
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
@@ -367,11 +386,10 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                bundledIndex: .empty
+                bundledIndex: lazyLoaderState.bundledIndex
             )
-            for (inlineSymbol, function) in lazyLoaderState.importedInlineFunctions
-                where previousInlineFunctions[inlineSymbol] == nil
-            {
+            for (inlineSymbol, function) in loadedInlineFunctions {
+                lazyLoaderState.importedInlineFunctions[inlineSymbol] = function
                 lazyLoaderState.inlineFunctionSink?(inlineSymbol, function)
             }
             }
@@ -886,33 +904,6 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // Class-name member lookup also accepts a direct static shell. The
-            // lowering pass still redirects this property to the companion's
-            // synthesized getter, so both lookup shapes share one body.
-            if let enumEntriesSymbol {
-                let entriesName = interner.intern("entries")
-                let directEntriesFQName = enumFQName + [entriesName]
-                if symbols.lookupAll(fqName: directEntriesFQName)
-                    .compactMap({ symbols.symbol($0) })
-                    .allSatisfy({ $0.kind != .property })
-                {
-                    let entriesType = types.make(.classType(ClassType(
-                        classSymbol: enumEntriesSymbol,
-                        args: [.invariant(enumType)],
-                        nullability: .nonNull
-                    )))
-                    let entriesSymbol = symbols.define(
-                        kind: .property,
-                        name: entriesName,
-                        fqName: directEntriesFQName,
-                        declSite: nil,
-                        visibility: .public,
-                        flags: [.synthetic, .static]
-                    )
-                    symbols.setParentSymbol(enumSymbol, for: entriesSymbol)
-                    symbols.setPropertyType(entriesType, for: entriesSymbol)
-                }
-            }
         }
     }
 
@@ -1193,6 +1184,7 @@ extension DataFlowSemaPhase {
         let isInline: Bool
         let isOperator: Bool
         let isOverride: Bool
+        let receiverOwnerFQName: [InternedString]?
         let valueParameterIsVararg: [Bool]
         let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
@@ -1252,6 +1244,7 @@ extension DataFlowSemaPhase {
             isInline: Bool = false,
             isOperator: Bool = false,
             isOverride: Bool = false,
+            receiverOwnerFQName: [InternedString]? = nil,
             valueParameterIsVararg: [Bool] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
@@ -1305,6 +1298,7 @@ extension DataFlowSemaPhase {
             self.isInline = isInline
             self.isOperator = isOperator
             self.isOverride = isOverride
+            self.receiverOwnerFQName = receiverOwnerFQName
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -1550,14 +1544,11 @@ extension DataFlowSemaPhase {
 
         let ownerFQName = Array(record.fqName.dropLast())
         let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
-        if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
+        if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
+            symbols.setParentSymbol(ownerSymbol, for: symbol)
+        } else if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
             symbols.setParentSymbol(packageOwner.id, for: symbol)
-            return
         }
-        guard let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id else {
-            return
-        }
-        symbols.setParentSymbol(ownerSymbol, for: symbol)
     }
 
     private func applyImportedCallableMetadata(
@@ -1996,10 +1987,10 @@ extension DataFlowSemaPhase {
         if record.fqName.count >= 2 {
             let ownerFQName = Array(record.fqName.dropLast())
             let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
-            if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
-                symbols.setParentSymbol(packageOwner.id, for: binding.symbol)
-            } else if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
+            if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
                 symbols.setParentSymbol(ownerSymbol, for: binding.symbol)
+            } else if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
+                symbols.setParentSymbol(packageOwner.id, for: binding.symbol)
             }
         }
 
