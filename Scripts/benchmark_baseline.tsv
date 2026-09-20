@@ -1,4 +1,4 @@
-# KUU-516 benchmark baseline. Values are milliseconds; compare with ±10%.
+# KUU-516 benchmark baseline. Values are milliseconds; fail regressions above +10%.
 # This baseline matches the CI gate: Linux GitHub runner, release kswiftc
 # artifact, 5 execution runs, and 3 compile runs (run 35392963123).
 # Refresh this file with benchmark_gate.sh --measure-only after an intentional
