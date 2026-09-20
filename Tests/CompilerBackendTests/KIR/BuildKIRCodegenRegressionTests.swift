@@ -172,6 +172,31 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    @Test
+    func testBuildKIRMarksListChunkedBridgesAsThrowing() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.chunked(2)
+            values.chunked(2) { chunk -> chunk.sum() }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+
+            #expect(callNames.contains("__kk_list_chunked"))
+            #expect(callNames.contains("__kk_list_chunked_transform"))
+            #expect(throwFlags["__kk_list_chunked"]?.allSatisfy { $0 } == true)
+            #expect(throwFlags["__kk_list_chunked_transform"]?.allSatisfy { $0 } == true)
+        }
+    }
+
     /// KSP-626: `withIndex`/`forEachIndexed` are bundled Kotlin source, so they
     /// must lower to the source-backed declaration instead of a runtime bridge.
     @Test
@@ -225,9 +250,9 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KSP-977: only exact/custom Iterable receivers bind to the bundled
-    /// Iterable.forEach declaration; receiver-specific forEach families keep
-    /// their existing lowering paths.
+    /// KSP-977 / KUU-604: exact/custom Iterable and concrete List receivers
+    /// bind to the bundled inline Iterable.forEach declaration. Other
+    /// receiver-specific forEach families keep their existing lowering paths.
     @Test
     func testBuildKIRLowersIterableForEachWithoutHijackingOtherReceivers() throws {
         let source = """
@@ -269,7 +294,10 @@ struct BuildKIRCodegenRegressionTests {
 
             let familyBody = try findKIRFunctionBody(named: "receiverFamilies", in: module, interner: ctx.interner)
             let familyCallees = extractCallees(from: familyBody, interner: ctx.interner)
-            #expect(familyCallees.contains("kk_list_forEach"))
+            // List.forEach is source-backed and inline so a non-local return
+            // in its lambda can escape the enclosing function (KUU-604).
+            #expect(containsKotlinCallee("forEach", in: familyCallees))
+            #expect(!(familyCallees.contains("kk_list_forEach")))
             // No kk_sequence_forEach intrinsic exists; Sequence.forEach is bundled Kotlin source (see CodegenBackendSequenceForEachTests).
             #expect(!(familyCallees.contains("kk_sequence_forEach")))
             #expect(containsKotlinCallee("forEach", in: familyCallees))
@@ -642,8 +670,8 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_box_int"))
-            #expect(callNames.contains("kk_box_bool"))
+            #expect(callNames.contains("kk_box_int_static"))
+            #expect(callNames.contains("kk_box_bool_static"))
         }
     }
 
@@ -665,7 +693,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let boxingThrowFlags = ["kk_box_int", "kk_box_bool", "kk_unbox_int", "kk_unbox_bool"]
+            let boxingThrowFlags = ["kk_box_int_static", "kk_box_bool_static", "kk_unbox_int_static", "kk_unbox_bool_static"]
                 .flatMap { throwFlags[$0] ?? [] }
             #expect(!(boxingThrowFlags.isEmpty))
             #expect(boxingThrowFlags.allSatisfy { $0 == false })

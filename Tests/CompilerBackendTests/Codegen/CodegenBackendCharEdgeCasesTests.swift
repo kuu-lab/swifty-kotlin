@@ -66,7 +66,7 @@ struct CodegenBackendCharEdgeCasesTests {
                 SS
                 ß
                 i\u{0307}
-                i
+                İ
                 ǅ
                 ß
                 true

@@ -92,20 +92,18 @@ extension CollectionLiteralConstructionLoweringPass {
                     return true
                 }
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
+                    if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                        // ULongRange.count() is bundled Kotlin source.
+                        return false
+                    }
                     // KSP-1523: UIntRange never reaches this branch — its
                     // constructing callee (e.g. __kk_uint_rangeTo) is never
                     // added to state.rangeExprIDs during PreScan, so the old
                     // isUIntRangeExpr arm was unreachable regardless of that
                     // local helper's own always-false type comparison.
-                    let countCallee: InternedString
-                    if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                        countCallee = lookup.kkULongRangeCountName
-                    } else {
-                        countCallee = lookup.kkRangeCountName
-                    }
                     loweredBody.append(.call(
                         symbol: nil,
-                        callee: countCallee,
+                        callee: lookup.kkRangeCountName,
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
@@ -233,13 +231,14 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 // STDLIB-637: UIntRange/ULongRange isEmpty
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
+                    if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                        // ULongRange.isEmpty() is bundled Kotlin source.
+                        return false
+                    }
                     // KSP-1523: see the count() branch above — same unreachable arm.
-                    let isEmptyName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
-                        ? lookup.kkULongRangeIsEmptyName
-                        : lookup.kkRangeIsEmptyName
                     loweredBody.append(.call(
                         symbol: nil,
-                        callee: isEmptyName,
+                        callee: lookup.kkRangeIsEmptyName,
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
@@ -255,6 +254,10 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
+                    if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                        // ULongRange.sum() is bundled Kotlin source.
+                        return false
+                    }
                     // KSP-1523: see the count() branch above — same unreachable arm.
                     loweredBody.append(.call(
                         symbol: nil,

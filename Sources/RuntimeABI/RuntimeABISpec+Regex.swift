@@ -73,10 +73,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
                 RuntimeABIParameter(name: "replacement", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_split_regex_flat",
@@ -326,10 +326,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
                 RuntimeABIParameter(name: "replacement", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         // STDLIB-317: String.asSequence / asIterable
         RuntimeABIFunctionSpec(

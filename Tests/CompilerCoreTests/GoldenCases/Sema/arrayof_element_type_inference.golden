@@ -2,8 +2,8 @@ symbol fq=__local_0.ints[kind=local] kind=local vis=private flags=_ type=kotlin.
 symbol fq=__local_1.checked[kind=local] kind=local vis=private flags=_ type=kotlin.Array<Int>
 symbol fq=__local_2.strings[kind=local] kind=local vis=private flags=_ type=kotlin.Array<String>
 symbol fq=__local_3.checked[kind=local] kind=local vis=private flags=_ type=kotlin.Array<String>
-symbol fq=__local_4.mixed[kind=local] kind=local vis=private flags=_ type=kotlin.Array<Any>
-symbol fq=__local_5.checked[kind=local] kind=local vis=private flags=_ type=kotlin.Array<Any>
+symbol fq=__local_4.mixed[kind=local] kind=local vis=private flags=_ type=kotlin.Array<kotlin.Comparable<*>>
+symbol fq=__local_5.checked[kind=local] kind=local vis=private flags=_ type=kotlin.Array<kotlin.Comparable<*>>
 symbol fq=arrayOfInts[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=arrayOfMixed[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=arrayOfStrings[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -27,7 +27,7 @@ expr e@10:5 localDecl checked mutable=0 type=Array<String> init=e@10:34 type=Uni
 expr e@14:25 int(1) type=Int
 expr e@14:28 string(two) type=String
 expr e@14:35 double(3.0) type=Double
-expr e@14:17 call callee=e@14:17#1 args=[_:e@14:25,_:e@14:28,_:e@14:35] type=kotlin.Array<Any> call=kotlin.arrayOf[kind=fun;params=*T0;gen=1] targs=[Any]
+expr e@14:17 call callee=e@14:17#1 args=[_:e@14:25,_:e@14:28,_:e@14:35] type=kotlin.Array<kotlin.Comparable<*>> call=kotlin.arrayOf[kind=fun;params=*T0;gen=1] targs=[kotlin.Comparable<*>]
 expr e@14:5 localDecl mixed mutable=0 type=_ init=e@14:17 type=Unit ref=__local_4.mixed[kind=local]
-expr e@15:31 name(mixed) type=kotlin.Array<Any> ref=__local_4.mixed[kind=local]
-expr e@15:5 localDecl checked mutable=0 type=Array<Any> init=e@15:31 type=Unit ref=__local_5.checked[kind=local]
+expr e@15:41 name(mixed) type=kotlin.Array<kotlin.Comparable<*>> ref=__local_4.mixed[kind=local]
+expr e@15:5 localDecl checked mutable=0 type=Array<Comparable<*>> init=e@15:41 type=Unit ref=__local_5.checked[kind=local]

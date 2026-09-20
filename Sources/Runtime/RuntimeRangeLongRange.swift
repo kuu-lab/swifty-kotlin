@@ -159,13 +159,6 @@ public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
 
 // MARK: - ULongRange count, iterator, hasNext, next (STDLIB-RANGE-037)
 
-@_cdecl("kk_ulong_range_count")
-public func kk_ulong_range_count(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_count") { range in
-        runtimeUnsignedRangeCount(range)
-    }
-}
-
 @_cdecl("__kk_ulong_range_iterator")
 public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {

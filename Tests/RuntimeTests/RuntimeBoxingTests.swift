@@ -149,5 +149,76 @@ struct RuntimeBoxingTests {
         #expect(kk_unbox_int(boxed1) == 10)
         #expect(kk_unbox_int(boxed2) == 20)
     }
+
+    // MARK: - Statically-known primitive fast paths
+
+    @Test
+    func testStaticIntBoxUsesTaggedHandleAndLegacyUnbox() {
+        let boxed = kk_box_int_static(42)
+
+        #expect(runtimePrimitiveBoxBasePointer(from: boxed) != nil)
+        #expect(kk_unbox_int_static(boxed) == 42)
+        #expect(kk_unbox_int(boxed) == 42)
+        #expect(kk_unbox_int_static(5) == 5)
+        #expect(runtimeElementToString(boxed) == "42")
+        #expect(runtimeValuesEqual(boxed, kk_box_int(42)))
+    }
+
+    @Test
+    func testStaticPrimitiveBoxesPreserveTypedPayloads() {
+        let longBox = kk_box_long_nonnull_static(Int.min)
+        let doubleBits = Int(bitPattern: UInt(0x8000_0000_0000_0000))
+        let doubleBox = kk_box_double_nonnull_static(doubleBits)
+        let boolBox = kk_box_bool_static(1)
+        let charBox = kk_box_char_static(0x1F600)
+
+        #expect(kk_unbox_long_static(longBox) == Int.min)
+        #expect(kk_unbox_double_static(doubleBox) == doubleBits)
+        #expect(kk_unbox_bool_static(boolBox) == 1)
+        #expect(kk_unbox_char_static(charBox) == 0x1F600)
+    }
+
+    @Test
+    func testStaticNullableBoxesKeepNullSentinel() {
+        let sentinel = Int(Int64.min)
+
+        #expect(kk_box_int_static(sentinel) == sentinel)
+        #expect(kk_box_long_static(sentinel) == sentinel)
+        #expect(kk_box_double_static(sentinel) == sentinel)
+        #expect(kk_unbox_int_static(sentinel) == 0)
+        #expect(kk_unbox_long_static(sentinel) == Int.min)
+        #expect(kk_unbox_double_static(sentinel) == 0)
+    }
+
+    @Test
+    func testStaticBoxPreservesRegisteredRuntimeObjectHandle() {
+        let range = kk_op_rangeTo(1, 3)
+
+        #expect(kk_box_int_static(range) == range)
+        #expect(kk_range_first(range) == 1)
+        #expect(kk_range_last(range) == 3)
+    }
+
+    /// An Int that never went through `kk_box_*_static` can still match the
+    /// tagged-handle bit pattern (a hash code, uninitialized memory, or any
+    /// other value flowing through a static unbox call site) — the pattern
+    /// alone is not collision-proof, so `runtimePrimitiveBoxBasePointer`
+    /// returns a non-nil pointer for it. `kk_unbox_*_static` must still
+    /// reject it via the registry check rather than treat it as a live
+    /// handle: doing otherwise reinterprets unrelated bits as an
+    /// `Unmanaged<AnyObject>` and crashes (observed as `swift_retain`
+    /// faulting on a bogus pointer during a stdlib companion's static init
+    /// in CI). Without the registry check, this test crashes the process
+    /// rather than failing an expectation — `fakeBaseBits` is deliberately an
+    /// unmapped address, not an arbitrary choice.
+    @Test
+    func testUnboxStaticRejectsUnregisteredTagCollision() {
+        let fakeBaseBits: UInt = 0x0000_1234_5678_0000
+        let fakeTagged = Int(bitPattern: fakeBaseBits | runtimePrimitiveBoxTag)
+
+        #expect(runtimePrimitiveBoxBasePointer(from: fakeTagged) != nil)
+        #expect(kk_unbox_int_static(fakeTagged) == fakeTagged)
+        #expect(kk_unbox_double_static(fakeTagged) == fakeTagged)
+    }
 }
 #endif

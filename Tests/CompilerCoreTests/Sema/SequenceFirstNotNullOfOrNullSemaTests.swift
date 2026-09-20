@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct SequenceFirstNotNullOfOrNullSemaTests {
-    @Test func testSequenceFirstNotNullOfOrNullInfersNullableTransformResult() throws {
+    @Test func testSequenceFirstNotNullOfOrNullResolvesToBundledSourceAndInfersNullableTransformResult() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val result: String? = values.firstNotNullOfOrNull { if (it > 1) "hit" else null }
@@ -13,7 +13,10 @@ struct SequenceFirstNotNullOfOrNullSemaTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                allowDefaultStdlibLibrary: false
+            )
             try runSema(ctx)
 
             #expect(
@@ -32,16 +35,18 @@ struct SequenceFirstNotNullOfOrNullSemaTests {
                 sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.stringType)
             )
 
-            let fqName = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("sequences"),
-                ctx.interner.intern("Sequence"),
-                ctx.interner.intern("firstNotNullOfOrNull"),
-            ]
-            let v = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_sequence_firstNotNullOfOrNull"
-            }
-            #expect(v)
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected firstNotNullOfOrNull call binding"
+            )
+            let chosenFQName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
+                .map(ctx.interner.resolve)
+            #expect(
+                chosenFQName == ["kotlin", "sequences", "firstNotNullOfOrNull"],
+                "Expected the Sequence extension declaration, got \(chosenFQName)"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 }
