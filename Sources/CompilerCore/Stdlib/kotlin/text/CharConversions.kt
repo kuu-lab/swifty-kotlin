@@ -21,7 +21,7 @@ internal external fun __charTitlecaseString(code: Int): String
 @KsSymbolName("__kk_char_uppercase_code")
 internal external fun __charUppercaseCode(code: Int): Int
 
-/// One-to-one lowercase mapping; returns -1 for undefined mappings.
+/// One-to-one lowercase mapping; returns -1 for multi-scalar or undefined mappings.
 @KsSymbolName("__kk_char_lowercase_code")
 internal external fun __charLowercaseCode(code: Int): Int
 
@@ -70,6 +70,16 @@ public fun Char.titlecaseChar(): Char {
     val mapped = __charTitlecaseCode(this.code)
     return if (mapped < 0) uppercaseChar() else __charFromCode(mapped)
 }
+
+/**
+ * Returns this character incremented by one UTF-16 code unit.
+ */
+public operator fun Char.inc(): Char = __charFromCode(this.code + 1)
+
+/**
+ * Returns this character decremented by one UTF-16 code unit.
+ */
+public operator fun Char.dec(): Char = __charFromCode(this.code - 1)
 
 public fun Char.digitToInt(): Int = digitToInt(10)
 

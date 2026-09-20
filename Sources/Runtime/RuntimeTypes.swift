@@ -442,6 +442,7 @@ final class RuntimeListBox {
         case direct([RuntimeValue])
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
+        case subList(RuntimeListSlice)
     }
 
     private var storage: Storage
@@ -469,6 +470,10 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
+    init(subListOf base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
+    }
+
     var values: [RuntimeValue] {
         get {
             switch storage {
@@ -478,6 +483,8 @@ final class RuntimeListBox {
                 return Array(base.values.reversed())
             case .arrayViewOf(let base):
                 return base.values
+            case .subList(let slice):
+                return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
             }
         }
         set {
@@ -489,6 +496,11 @@ final class RuntimeListBox {
                 base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
                 base.values = newValue
+            case .subList(let slice):
+                var baseValues = slice.base.values
+                baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
+                slice.toIndex = slice.fromIndex + newValue.count
+                slice.base.values = baseValues
             }
         }
     }
@@ -504,6 +516,18 @@ final class RuntimeListBox {
         set {
             values = newValue.map { RuntimeValue(raw: $0) }
         }
+    }
+}
+
+private final class RuntimeListSlice {
+    let base: RuntimeListBox
+    let fromIndex: Int
+    var toIndex: Int
+
+    init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        self.base = base
+        self.fromIndex = fromIndex
+        self.toIndex = toIndex
     }
 }
 

@@ -307,8 +307,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // `kk_map_count` branch that used to sit here. It was unreachable:
         // `Stdlib/kotlin/collections/MapHOF.kt` provides
         // `Map<K, V>.count(predicate)` as bundled Kotlin source, and
-        // `registerMapHigherOrderMembers`'s `registerMember` helper
-        // (`HeaderHelpers+SyntheticMapStubs.swift`) skips registering the
+        // The historical synthetic Map registration path also skipped the
         // competing synthetic `count` member whenever
         // `bundledIndex.contains(ownerFQName: mapFQName, name: "count",
         // arity: 1)` is true, which it is here — so there is no non-source-backed

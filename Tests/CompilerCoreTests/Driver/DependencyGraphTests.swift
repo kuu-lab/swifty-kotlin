@@ -111,6 +111,32 @@ struct DependencyGraphTests {
     }
 
     @Test
+    func testRecompilationSetIncludesPackageWildcardDependents() {
+        let graph = DependencyGraph()
+        graph.recordProvided(filePath: "p.kt", symbols: ["Foo"], package: "pkg")
+        graph.recordWildcardImport(filePath: "q.kt", package: "pkg")
+
+        let result = graph.recompilationSet(
+            changedFiles: ["p.kt"],
+            allFiles: ["p.kt", "q.kt"]
+        )
+        #expect(result == ["p.kt", "q.kt"])
+    }
+
+    @Test
+    func testRecompilationSetDoesNotMatchWildcardFromAnotherPackage() {
+        let graph = DependencyGraph()
+        graph.recordProvided(filePath: "p.kt", symbols: ["Foo"], package: "pkg")
+        graph.recordWildcardImport(filePath: "q.kt", package: "other")
+
+        let result = graph.recompilationSet(
+            changedFiles: ["p.kt"],
+            allFiles: ["p.kt", "q.kt"]
+        )
+        #expect(result == ["p.kt"])
+    }
+
+    @Test
     func testRecompilationSetPreservesAllFilesOrder() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["X"])
@@ -129,14 +155,16 @@ struct DependencyGraphTests {
     @Test
     func testSerializeAndDeserializeRoundTrip() throws {
         let graph = DependencyGraph()
-        graph.recordProvided(filePath: "a.kt", symbols: ["Foo", "Bar"])
+        graph.recordProvided(filePath: "a.kt", symbols: ["Foo", "Bar"], package: "pkg")
         graph.recordDepended(filePath: "b.kt", symbols: ["Foo"])
+        graph.recordWildcardImport(filePath: "b.kt", package: "pkg")
 
         let data = try graph.serialize()
         let restored = try DependencyGraph.deserialize(from: data)
 
         #expect(restored.provided(by: "a.kt") == ["Foo", "Bar"])
         #expect(restored.depended(by: "b.kt") == ["Foo"])
+        #expect(restored.wildcardImportedPackages(by: "b.kt") == ["pkg"])
         #expect(restored.trackedFiles == ["a.kt", "b.kt"])
     }
 

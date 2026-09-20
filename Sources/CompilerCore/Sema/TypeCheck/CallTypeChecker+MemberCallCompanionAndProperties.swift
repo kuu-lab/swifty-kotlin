@@ -76,6 +76,28 @@ extension CallTypeChecker {
                 getterCandidates.append(getterAccessor)
             }
         }
+        func isUnavailableKotlinMathProperty(_ candidate: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            let kotlinMathPackage = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("math"),
+            ]
+            guard Array(symbol.fqName.dropLast()) == kotlinMathPackage else {
+                return false
+            }
+            guard let sourceFile = ctx.currentASTFile else {
+                return true
+            }
+            if sourceFile.packageFQName == kotlinMathPackage {
+                return false
+            }
+            return !sourceFile.imports.contains { importDecl in
+                importDecl.path == kotlinMathPackage
+                    || importDecl.path == symbol.fqName
+            }
+        }
         // Canonical and legacy atomic aliases expand to the same runtime class,
         // so a source-backed extension property must be selected by the package
         // imported at the call site rather than by nominal type alone.
@@ -113,7 +135,9 @@ extension CallTypeChecker {
         // their synthetic accessors by short name when scope lookup found none;
         // the receiver check keeps this fallback type-directed.
         if getterCandidates.isEmpty {
-            for candidate in sema.symbols.lookupByShortName(calleeName) {
+            for candidate in sema.symbols.lookupByShortName(calleeName)
+                where !isUnavailableKotlinMathProperty(candidate)
+            {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)
             }
         }
@@ -123,6 +147,7 @@ extension CallTypeChecker {
         if getterCandidates.isEmpty {
             for candidate in sema.symbols.lookupByShortName(calleeName)
                 where sema.symbols.isSourceBackedSymbol(candidate)
+                    && !isUnavailableKotlinMathProperty(candidate)
             {
                 collectGetterCandidate(from: candidate, requireSynthetic: false)
             }
