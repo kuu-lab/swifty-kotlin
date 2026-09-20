@@ -55,6 +55,35 @@ public extension TypeSystem {
         }
     }
 
+    /// Renders well-known inference types without leaking internal symbol IDs
+    /// into user-facing constraint diagnostics.
+    internal func renderConstraintType(_ type: TypeID) -> String {
+        switch kind(of: type) {
+        case let .classType(classType) where classType.classSymbol == comparableInterfaceSymbol:
+            let args = classType.args.isEmpty
+                ? ""
+                : "<" + classType.args.map(renderConstraintTypeArg).joined(separator: ", ") + ">"
+            return "Comparable\(args)\(nullabilitySuffix(classType.nullability))"
+        case let .intersection(parts):
+            return parts.map(renderConstraintType).joined(separator: " & ")
+        default:
+            return renderType(type)
+        }
+    }
+
+    private func renderConstraintTypeArg(_ arg: TypeArg) -> String {
+        switch arg {
+        case let .invariant(type):
+            renderConstraintType(type)
+        case let .out(type):
+            "out \(renderConstraintType(type))"
+        case let .in(type):
+            "in \(renderConstraintType(type))"
+        case .star:
+            "*"
+        }
+    }
+
     private func renderTypeArg(_ arg: TypeArg) -> String {
         switch arg {
         case let .invariant(type):

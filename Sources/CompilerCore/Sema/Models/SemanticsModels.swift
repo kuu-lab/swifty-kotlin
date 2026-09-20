@@ -482,6 +482,19 @@ public final class SymbolTable {
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
 
+    /// KUU-655: an `override` whose own declaration carries no default value
+    /// expressions still accepts calls that omit the overridden parameter
+    /// (Kotlin inherits the base's default). `OverrideDefaultArgumentInheritance`
+    /// copies the base's `valueParameterHasDefaultValues` flags onto such an
+    /// override's `FunctionSignature` so overload resolution accepts the
+    /// call, and records the link here so KIR call-site lowering knows to
+    /// route through the base's `$default` stub (the override itself never
+    /// gets one -- its AST has no default expressions to evaluate).
+    /// Key = override symbol, Value = the overridden symbol that actually
+    /// owns the default value expressions (possibly several levels up an
+    /// override chain).
+    private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
+
     /// Thread safety lock for concurrent access
     private let lock = NSLock()
 
@@ -782,6 +795,15 @@ public final class SymbolTable {
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
         functionSignatures[symbol]
+    }
+
+    /// KUU-655: see `overrideDefaultsBaseSymbols` above.
+    public func setOverrideDefaultsBaseSymbol(_ base: SymbolID, for symbol: SymbolID) {
+        overrideDefaultsBaseSymbols[symbol] = base
+    }
+
+    public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
+        overrideDefaultsBaseSymbols[symbol]
     }
 
     public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {

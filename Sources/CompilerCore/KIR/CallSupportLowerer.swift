@@ -48,6 +48,16 @@ final class CallSupportLowerer {
             for item in objectDecl.memberFunctions + objectDecl.nestedClasses + objectDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
             }
+        case let .interfaceDecl(interfaceDecl):
+            // KUU-655: an interface method's own default value expressions
+            // (e.g. `interface I { fun m(x: Int = 5): String }`) were never
+            // collected at all -- this case was missing entirely, so no
+            // `m$default` stub was ever generated and any call through it
+            // (directly, or via an override that omits the argument) failed
+            // at link time with an undefined `_m$default` symbol.
+            for item in interfaceDecl.memberFunctions + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects {
+                collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
+            }
         default:
             break
         }
@@ -89,6 +99,18 @@ final class CallSupportLowerer {
 
     func defaultStubMaskSymbol(for originalSymbol: SymbolID) -> SymbolID {
         SyntheticSymbolScheme.defaultMaskSymbol(for: originalSymbol)
+    }
+
+    /// KUU-655: resolves the symbol whose `$default` stub a call site must
+    /// actually route through. An `override` that inherits its defaults from
+    /// an overridden declaration (`OverrideDefaultArgumentInheritance`) never
+    /// gets a stub generated for itself -- its own AST has no default value
+    /// expressions to evaluate -- only the overridden declaration that
+    /// actually owns them does. Every call-site consumer of
+    /// `defaultStubSymbol(for:)`/`externalLinkName(for:)` must resolve
+    /// through this first, or it looks up a stub that was never emitted.
+    func defaultStubOwnerSymbol(for symbol: SymbolID, sema: SemaModule) -> SymbolID {
+        sema.symbols.overrideDefaultsBaseSymbol(for: symbol) ?? symbol
     }
 
     func generateDefaultStubFunction(
@@ -218,9 +240,10 @@ final class CallSupportLowerer {
             }
         }
 
+        let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
         var callArgs: [KIRExprID] = []
-        if let receiverExpr = driver.ctx.activeImplicitReceiverExprID() {
-            callArgs.append(receiverExpr)
+        if let receiverExprForCall {
+            callArgs.append(receiverExprForCall)
         }
         callArgs.append(contentsOf: resolvedParamExprs)
         for tokenSym in reifiedTokenSymbols {
@@ -230,14 +253,81 @@ final class CallSupportLowerer {
         }
 
         let result = arena.appendTemporary(type: signature.returnType)
-        body.append(.call(
+        let directCallInstruction = KIRInstruction.call(
             symbol: originalSymbol,
             callee: originalName,
             arguments: callArgs,
             result: result,
             canThrow: false,
             thrownResult: nil
-        ))
+        )
+        // KUU-655: `a.f()` reached through a base-typed receiver must still
+        // dispatch to the *runtime* type's override -- Kotlin/JVM's own
+        // `$default` synthesizes `this.f(...)` as an ordinary (virtual) call,
+        // not a direct call to the declaring class's own implementation.
+        // Attempt the same virtual dispatch the ordinary (non-default) call
+        // path already uses; `tryEmitVirtualDispatch` itself returns nil
+        // (falling back to `directCallInstruction`, unchanged from before
+        // this fix) whenever virtual dispatch does not apply here: a
+        // constructor (never virtual -- its symbol kind is `.constructor`,
+        // not `.function`), a top-level function (no receiver), or a class
+        // with no subtypes at all in this compilation (the vtable slot could
+        // only ever resolve back to itself).
+        //
+        // `super.f()` with an omitted default argument is the one caller
+        // that must bypass this and always reach `originalSymbol` directly.
+        // Kotlin's own `$default` takes an extra marker parameter for
+        // exactly this; here the caller instead sets a reserved high bit
+        // (30) of the existing mask parameter (see the `isSuperCall`
+        // mask-bit edits in `CallLowerer+MemberCallEmission.swift` and
+        // `CallLowerer+SafeMemberCalls.swift`). Bit 30 stays clear of the
+        // sign bit and leaves bits 0..29 for up to 30 defaultable
+        // parameters, matching the pre-existing (unenforced) limit of this
+        // Int64-mask scheme.
+        if let receiverExprForCall, signature.receiverType != nil,
+           let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+               chosenCallee: originalSymbol,
+               calleeName: originalName,
+               receiverExpr: nil,
+               loweredReceiverID: receiverExprForCall,
+               isSuperCall: false,
+               // `tryEmitVirtualDispatch` strips the leading receiver from
+               // `finalArguments` itself (see its `vcArguments.removeFirst()`)
+               // -- the convention every other call site follows is to pass
+               // it *with* the receiver still included, matching the direct
+               // `.call` ABI's own argument list (`callArgs` here). Passing
+               // it already-stripped double-strips and shifts every real
+               // argument off by one.
+               finalArguments: callArgs,
+               result: result,
+               sema: sema,
+               arena: arena,
+               interner: interner
+           )
+        {
+            let superCallBitValue = Int64(1) << 30
+            let superCallDivisorExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: intType)
+            body.append(.constValue(result: superCallDivisorExpr, value: .intLiteral(superCallBitValue)))
+            let superCallDividedExpr = arena.appendTemporary(type: intType)
+            body.append(.binary(op: .divide, lhs: maskExpr, rhs: superCallDivisorExpr, result: superCallDividedExpr))
+            let superCallTwoExpr = arena.appendExpr(.intLiteral(2), type: intType)
+            body.append(.constValue(result: superCallTwoExpr, value: .intLiteral(2)))
+            let superCallBitExpr = arena.appendTemporary(type: intType)
+            body.append(.binary(op: .modulo, lhs: superCallDividedExpr, rhs: superCallTwoExpr, result: superCallBitExpr))
+            let superCallOneExpr = arena.appendExpr(.intLiteral(1), type: intType)
+            body.append(.constValue(result: superCallOneExpr, value: .intLiteral(1)))
+
+            let directDispatchLabel = driver.ctx.makeLoopLabel()
+            let afterDispatchLabel = driver.ctx.makeLoopLabel()
+            body.append(.jumpIfEqual(lhs: superCallBitExpr, rhs: superCallOneExpr, target: directDispatchLabel))
+            body.append(virtualInstruction)
+            body.append(.jump(afterDispatchLabel))
+            body.append(.label(directDispatchLabel))
+            body.append(directCallInstruction)
+            body.append(.label(afterDispatchLabel))
+        } else {
+            body.append(directCallInstruction)
+        }
         body.append(.returnValue(result))
         body.append(.endBlock)
 

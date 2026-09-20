@@ -4,38 +4,38 @@ import Foundation
 
 /// Backing storage for kotlin.concurrent.AtomicInt.
 final class AtomicIntBox {
-    private var storage: Int
+    private var storage: Int32
     private let lock = NSLock()
 
     init(initial: Int) {
-        self.storage = initial
+        self.storage = atomicInt32Value(initial)
     }
 
     func load() -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return storage
+        return Int(storage)
     }
 
     func store(_ value: Int) {
         lock.lock()
         defer { lock.unlock() }
-        storage = value
+        storage = atomicInt32Value(value)
     }
 
     func exchange(_ new: Int) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        let old = storage
-        storage = new
+        let old = Int(storage)
+        storage = atomicInt32Value(new)
         return old
     }
 
     func compareAndSet(expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        if storage == expect {
-            storage = update
+        if storage == atomicInt32Value(expect) {
+            storage = atomicInt32Value(update)
             return true
         }
         return false
@@ -44,9 +44,9 @@ final class AtomicIntBox {
     func compareAndExchange(expect: Int, update: Int) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        let old = storage
-        if old == expect {
-            storage = update
+        let old = Int(storage)
+        if storage == atomicInt32Value(expect) {
+            storage = atomicInt32Value(update)
         }
         return old
     }
@@ -54,17 +54,22 @@ final class AtomicIntBox {
     func fetchAndAdd(_ delta: Int) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        let old = storage
-        storage = old &+ delta
+        let old = Int(storage)
+        storage = storage &+ atomicInt32Value(delta)
         return old
     }
 
     func addAndFetch(_ delta: Int) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        storage = storage &+ delta
-        return storage
+        storage = storage &+ atomicInt32Value(delta)
+        return Int(storage)
     }
+}
+
+/// Kotlin `Int` arithmetic and storage are defined over signed 32-bit values.
+private func atomicInt32Value(_ value: Int) -> Int32 {
+    Int32(truncatingIfNeeded: value)
 }
 
 private func atomicIntBox(from raw: Int) -> AtomicIntBox? {
@@ -480,7 +485,7 @@ public func __kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _
 /// All accesses are serialized through the same lock to provide
 /// consistent atomicity and acquire/release visibility between operations.
 final class AtomicIntArrayBox {
-    private var storage: [Int]
+    private var storage: [Int32]
     private let lock = NSLock()
 
     init(size: Int) {
@@ -497,22 +502,22 @@ final class AtomicIntArrayBox {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
-        return storage[index]
+        return Int(storage[index])
     }
 
     func store(at index: Int, value: Int) {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return }
-        storage[index] = value
+        storage[index] = atomicInt32Value(value)
     }
 
     func exchange(at index: Int, newValue: Int) -> Int {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = newValue
+        let old = Int(storage[index])
+        storage[index] = atomicInt32Value(newValue)
         return old
     }
 
@@ -520,8 +525,8 @@ final class AtomicIntArrayBox {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return false }
-        if storage[index] == expect {
-            storage[index] = update
+        if storage[index] == atomicInt32Value(expect) {
+            storage[index] = atomicInt32Value(update)
             return true
         }
         return false
@@ -531,9 +536,9 @@ final class AtomicIntArrayBox {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        if old == expect {
-            storage[index] = update
+        let old = Int(storage[index])
+        if storage[index] == atomicInt32Value(expect) {
+            storage[index] = atomicInt32Value(update)
         }
         return old
     }
@@ -542,8 +547,8 @@ final class AtomicIntArrayBox {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = old &+ delta
+        let old = Int(storage[index])
+        storage[index] = storage[index] &+ atomicInt32Value(delta)
         return old
     }
 
@@ -551,8 +556,8 @@ final class AtomicIntArrayBox {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
-        storage[index] = storage[index] &+ delta
-        return storage[index]
+        storage[index] = storage[index] &+ atomicInt32Value(delta)
+        return Int(storage[index])
     }
 }
 
