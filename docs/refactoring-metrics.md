@@ -218,10 +218,11 @@ measurements use `-Xfrontend time-phases`, and all medians are emitted as TSV.
 The committed reference is [`Scripts/benchmark_baseline.tsv`](../Scripts/benchmark_baseline.tsv).
 `TOTAL` rows are the enforced metrics; individual phase rows are retained in
 the report as diagnostic `UNBASELINED` rows so adding or splitting a compiler
-phase does not silently invalidate the gate. A deviation outside ±10% on an
-enforced row fails the job. The job uploads the detailed TSV and mirrors a
-compact Markdown comparison table to the PR summary. The tolerance behavior,
-including an intentional +11% failure, is verified by:
+phase does not silently invalidate the gate. A slowdown above +10% on an
+enforced row fails the job; improvements remain green. The job uploads the
+detailed TSV and mirrors a compact Markdown comparison table to the PR
+summary. The tolerance behavior, including an accepted improvement and an
+intentional +11% failure, is verified by:
 
 ```bash
 bash Scripts/test_benchmark_gate.sh
