@@ -51,6 +51,15 @@ struct RuntimeEncodeDecodeTests {
         return registerRuntimeObject(box)
     }
 
+    private func expectMalformedInputException(_ thrown: Int) throws {
+        let box = try #require(runtimeThrowableBox(from: thrown))
+        #expect(box.exceptionFQName == "java.nio.charset.MalformedInputException")
+        #expect(box.message == runtimeMalformedInputExceptionDefaultMessage)
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeMalformedInputExceptionBox.self))
+        #expect(box.exceptionHierarchyFQNames.contains("kotlin.text.CharacterCodingException"))
+        #expect(box.exceptionHierarchyFQNames.contains("kotlin.Exception"))
+    }
+
     // MARK: - encodeToByteArray: basic ASCII round-trip
 
     @Test
@@ -291,11 +300,19 @@ struct RuntimeEncodeDecodeTests {
     }
 
     @Test
-    func testDecodeToStringRangeStrictMalformedUTF8Throws() {
+    func testDecodeToStringRangeStrictMalformedUTF8Throws() throws {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
         _ = __kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 1, &thrown)
-        #expect(thrown != 0)
+        try expectMalformedInputException(thrown)
+    }
+
+    @Test
+    func testToKStringStrictMalformedUTF8ThrowsMalformedInputException() throws {
+        var thrown = 0
+        let byteArray = makeArrayRaw([0x61, Int(Int8(bitPattern: 0xE9)), 0x62])
+        _ = __kk_byteArray_toKString(byteArray, 0, 3, 1, &thrown)
+        try expectMalformedInputException(thrown)
     }
 
     @Test

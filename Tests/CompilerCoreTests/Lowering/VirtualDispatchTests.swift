@@ -276,7 +276,7 @@ import Testing
                 return nil
             }
         }
-        #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing in virtualCall arg, got: \(callees)")
+        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static call for Int -> Any? boxing in virtualCall arg, got: \(callees)")
         #expect(callees.contains("vc:virtualAcceptAny"), "Expected virtualCall to remain after lowering, got: \(callees)")
     }
 }

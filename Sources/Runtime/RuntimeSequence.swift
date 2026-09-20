@@ -2548,10 +2548,15 @@ public func kk_sequence_single(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<
         return 0
     }
     guard count == 1 else {
-        let message = count == 0
-            ? kEmptySequenceNoSuchElement
-            : "NoSuchElementException: Sequence has more than one element."
-        outThrown?.pointee = runtimeAllocateThrowable(message: message)
+        if count == 0 {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(
+                message: kEmptySequenceNoSuchElement
+            )
+        } else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Sequence has more than one element."
+            )
+        }
         return 0
     }
     return result

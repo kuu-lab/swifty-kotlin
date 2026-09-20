@@ -422,7 +422,8 @@ extension BuildASTPhase {
         let parser = ExpressionParser(
             tokens: (tokens + [Token(kind: .eof, range: eofRange)])[...],
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
         guard let lambdaExprID = parser.parseLambdaLiteral(),
               let lambdaExpr = astArena.expr(lambdaExprID),
@@ -754,7 +755,9 @@ extension BuildASTPhase {
             .filter({ $0.kind != .symbol(.semicolon) }),
             !defaultTokens.isEmpty
         {
-            let parser = ExpressionParser(tokens: defaultTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: defaultTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             defaultValueExpr = parser.parse()
         } else {
             defaultValueExpr = nil

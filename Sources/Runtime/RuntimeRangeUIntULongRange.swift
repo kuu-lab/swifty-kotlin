@@ -137,6 +137,28 @@ public func kk_uint_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: 
                                functionName: "kk_uint_range_findLast", orNull: true)
 }
 
+@_cdecl("kk_uint_range_first_orThrow")
+public func kk_uint_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "kk_uint_range_first_orThrow"
+    )
+}
+
+@_cdecl("kk_uint_range_last_orThrow")
+public func kk_uint_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "kk_uint_range_last_orThrow"
+    )
+}
+
 @_cdecl("kk_uint_range_first_predicate")
 public func kk_uint_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
@@ -275,20 +297,6 @@ public func __kk_uint_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeM
 
 // MARK: - ULong HOFs (STDLIB-RANGE-037/039)
 
-@_cdecl("kk_ulong_range_firstOrNull")
-public func kk_ulong_range_firstOrNull(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_firstOrNull") { range in
-        RuntimeUnsignedRangeHOFKind.firstOrNull(range)
-    }
-}
-
-@_cdecl("kk_ulong_range_lastOrNull")
-public func kk_ulong_range_lastOrNull(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_lastOrNull") { range in
-        RuntimeUnsignedRangeHOFKind.lastOrNull(range)
-    }
-}
-
 @_cdecl("__kk_ulong_range_randomOrNull")
 public func __kk_ulong_range_randomOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
@@ -369,20 +377,6 @@ public func __kk_ulong_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: Unsafe
     }
 }
 
-@_cdecl("kk_ulong_range_average")
-public func kk_ulong_range_average(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_average") { range in
-        RuntimeUnsignedRangeHOFKind.average(range)
-    }
-}
-
-@_cdecl("kk_ulong_range_sorted")
-public func kk_ulong_range_sorted(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_sorted") { range in
-        RuntimeUnsignedRangeHOFKind.sorted(range)
-    }
-}
-
 // MARK: - ULongProgression operations (STDLIB-RANGE-039)
 
 @_cdecl("__kk_ulong_rangeTo")
@@ -398,22 +392,6 @@ public func __kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
 @_cdecl("__kk_ulong_step")
 public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     runtimeUnsignedStep(rangeRaw, stepValue)
-}
-
-@_cdecl("kk_ulong_range_reversed")
-public func kk_ulong_range_reversed(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_reversed") { range in
-        runtimeUnsignedRangeReversed(range)
-    }
-}
-
-// MARK: - ULongRange toList (STDLIB-524)
-
-@_cdecl("kk_ulong_range_toList")
-public func kk_ulong_range_toList(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_toList") { range in
-        RuntimeUnsignedRangeHOFKind.toList(range)
-    }
 }
 
 @_cdecl("kk_range_step")
@@ -468,15 +446,6 @@ private func runtimeUnsignedStep(_ rangeRaw: Int, _ stepValue: Int) -> Int {
         first: range.first,
         last: alignedLast,
         step: nextStep,
-        kind: range.kind.progressionKind
-    ))
-}
-
-private func runtimeUnsignedRangeReversed(_ range: RuntimeRangeBox) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(
-        first: range.last,
-        last: range.first,
-        step: 0 &- range.step,
         kind: range.kind.progressionKind
     ))
 }

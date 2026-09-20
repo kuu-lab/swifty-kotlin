@@ -55,7 +55,7 @@ expr e@7:40#1 binary(add) lhs=e@7:40 rhs=e@7:47 type=kotlin.collections.List<Int
 expr e@7:5 localDecl byElementOperator mutable=0 type=List<Int> init=e@7:40#1 type=Unit ref=__local_5.byElementOperator[kind=local]
 expr e@8:41 name(ints) type=kotlin.collections.Iterable<Int> ref=__local_0.ints[kind=local]
 expr e@8:59 int(10) type=Int
-expr e@8:48 call callee=e@8:48#1 args=[_:e@8:59] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@8:48 call callee=e@8:48#1 args=[_:e@8:59] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;gen=1] targs=[Int]
 expr e@8:41#1 binary(add) lhs=e@8:41 rhs=e@8:48 type=kotlin.collections.List<Int> call=kotlin.collections.plus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.sequences.Sequence<T0>;gen=1] targs=[Int]
 expr e@8:5 localDecl bySequenceOperator mutable=0 type=List<Int> init=e@8:41#1 type=Unit ref=__local_6.bySequenceOperator[kind=local]
 expr e@9:38 name(ints) type=kotlin.collections.Iterable<Int> ref=__local_0.ints[kind=local]
@@ -123,8 +123,8 @@ expr e@25:51 name(subtypeArray) type=kotlin.Array<String> ref=__local_19.subtype
 expr e@25:38#1 memberCall recv=e@25:38 callee=plus args=[_:e@25:51] type=kotlin.collections.List<Any?> call=kotlin.collections.plus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.Array<out T0>;gen=1] targs=[Any?]
 expr e@25:5 localDecl widenedByArray mutable=0 type=List<Any?> init=e@25:38#1 type=Unit ref=__local_20.widenedByArray[kind=local]
 expr e@27:50 int(13) type=Int
-expr e@27:39 call callee=e@27:39#1 args=[_:e@27:50] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@27:39 call callee=e@27:39#1 args=[_:e@27:50] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;gen=1] targs=[Int]
 expr e@27:67 int(14) type=Int
-expr e@27:56 call callee=e@27:56#1 args=[_:e@27:67] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@27:56 call callee=e@27:56#1 args=[_:e@27:67] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;gen=1] targs=[Int]
 expr e@27:39#2 binary(add) lhs=e@27:39 rhs=e@27:56 type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.plus[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.sequences.Sequence<T0>;gen=1] targs=[Int]
 expr e@27:5 localDecl sequencePlus mutable=0 type=Sequence<Int> init=e@27:39#2 type=Unit ref=__local_21.sequencePlus[kind=local]
