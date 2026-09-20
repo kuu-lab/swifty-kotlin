@@ -899,6 +899,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        if runtimeArrayHasType(rawValue: value, typeID: payload) {
+            return 1
+        }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
         }
@@ -943,6 +946,15 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     default:
         return 0
     }
+}
+
+@_cdecl("kk_array_tag_type")
+public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {
+    guard runtimeArrayBox(from: arrayRaw) != nil else {
+        return arrayRaw
+    }
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: Int64(typeID))
+    return arrayRaw
 }
 
 @_cdecl("kk_op_cast")

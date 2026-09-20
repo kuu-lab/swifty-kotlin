@@ -385,7 +385,9 @@ extension BuildASTPhase {
         if exprTokens.isEmpty {
             delegateExpr = nil
         } else {
-            let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             delegateExpr = parser.parse()
         }
 
@@ -485,7 +487,9 @@ extension BuildASTPhase {
 
         func flush() {
             guard !current.isEmpty else { return }
-            let parser = ExpressionParser(tokens: current, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: current, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             if let exprID = parser.parse() {
                 args.append(CallArgument(expr: exprID))
             }
@@ -688,7 +692,9 @@ extension BuildASTPhase {
         guard !exprTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 }
