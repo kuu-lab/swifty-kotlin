@@ -46,6 +46,7 @@ struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
+    var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
@@ -512,6 +513,7 @@ func kk_runtime_reset_metadata() {
         let boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
         state.kClassBoxCache.removeAll(keepingCapacity: false)
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
+        state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
@@ -534,6 +536,7 @@ func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
             UInt(bitPattern: raw) != key
         }
         state.objectTypeByPointer.removeValue(forKey: key)
+        state.arrayTypeIDsByPointer.removeValue(forKey: key)
         state.objectVtableMethods.removeValue(forKey: key)
         state.objectEqualsOverrides.removeValue(forKey: key)
         state.objectAnyToStringMethods.removeValue(forKey: key)
