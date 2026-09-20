@@ -281,6 +281,39 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
     return raw
 }
 
+/// Returns a mutable view over a list range. ArrayList constructors are
+/// lowered to RuntimeListBox values, so ArrayList must bypass
+/// AbstractMutableList's field-backed default `subList` implementation.
+@_cdecl("kk_list_subList")
+public func kk_list_subList(
+    _ listRaw: Int,
+    _ fromIndex: Int,
+    _ toIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
+        return 0
+    }
+    guard fromIndex >= 0,
+          toIndex <= list.elements.count,
+          fromIndex <= toIndex
+    else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIndexOutOfBoundsException(
+                message: "fromIndex: \(fromIndex), toIndex: \(toIndex), size: \(list.elements.count)"
+            )
+        )
+        return 0
+    }
+    return registerRuntimeObject(
+        RuntimeListBox(subListOf: list, fromIndex: fromIndex, toIndex: toIndex),
+        typeID: listRuntimeTypeID
+    )
+}
+
 @_cdecl("kk_list_iterator_hasNext")
 public func kk_list_iterator_hasNext(_ iterRaw: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {

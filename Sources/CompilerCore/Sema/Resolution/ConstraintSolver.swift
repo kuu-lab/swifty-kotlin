@@ -117,7 +117,17 @@ final class ConstraintSolver {
                     appendUnique(boundType, to: &upperBounds[variable, default: []])
 
                 case let (.type(boundType), .variable(variable)):
-                    appendUnique(boundType, to: &lowerBounds[variable, default: []])
+                    // Keep equivalent or weaker lower bounds out of the set.
+                    // In particular, a covariant projection such as
+                    // `List<out Int>` and its invariant spelling `List<Int>`
+                    // are mutually subtypes. Retaining both makes the LUB
+                    // widen to `Any`, which can then conflict with the
+                    // expected return-type upper bound.
+                    _ = appendNonRedundantLowerBound(
+                        boundType,
+                        to: &lowerBounds[variable, default: []],
+                        typeSystem: typeSystem
+                    )
 
                 case let (.variable(leftVar), .variable(rightVar)):
                     varRelations.append((leftVar, rightVar, relation.blame))

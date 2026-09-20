@@ -591,6 +591,36 @@ extension LambdaLowerer {
         {
             return receiverExprID
         }
+        // KSP-CAP-001: object-literal member functions may capture an
+        // immutable stored property of their enclosing class. The enclosing
+        // receiver is still active while the object is constructed, so copy
+        // the property's value into the literal's capture field before the
+        // receiver switches to the literal itself.
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .property,
+           !semanticSymbol.flags.contains(.mutable),
+           !sema.symbols.propertyHasCustomGetter(for: symbol),
+           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+           sema.symbols.symbol(ownerSymbol)?.kind == .class,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+           ]
+        {
+            let symbolType = typeForSymbolReference(symbol, sema: sema)
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let valueExpr = arena.appendTemporary(type: symbolType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExprID, offsetExpr],
+                result: valueExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return boxRawSuspendFunctionValue(valueExpr)
+        }
         guard let semanticSymbol = sema.symbols.symbol(symbol),
               semanticSymbol.kind == .valueParameter
         else {

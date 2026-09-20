@@ -180,6 +180,20 @@ struct RuntimeComparatorTests {
         )
     }
 
+    // KUU-626: Kotlin compares strings by UTF-16 code units. The high
+    // surrogate of a supplementary character therefore sorts before a BMP
+    // character at U+E000, even though the Unicode scalar value is larger.
+    @Test
+    func testStringCompareToOrdersSupplementaryCharacterBeforePrivateUseBMP() {
+        let supplementary = makeRuntimeString("𐀀")
+        let bmp = makeRuntimeString("")
+
+        #expect(__kk_string_compareTo_member(supplementary, bmp) == -2048)
+        #expect(__kk_string_compareTo_member(bmp, supplementary) == 2048)
+        #expect(__kk_comparable_compareTo(supplementary, bmp) == -2048)
+        #expect(__kk_comparable_compareTo(bmp, supplementary) == 2048)
+    }
+
     // Regression (KSP-659): only the null sentinel counts as `null`, so a real
     // null orders strictly below a boxed zero (previously they compared equal).
     @Test

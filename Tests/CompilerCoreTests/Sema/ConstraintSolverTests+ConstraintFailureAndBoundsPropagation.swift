@@ -54,6 +54,40 @@ extension ConstraintSolverTests {
         #expect(solution.substitution[t0] == comparableNullable)
     }
 
+    @Test func testSolveEliminatesEquivalentProjectedLowerBounds() {
+        let (solver, types) = makeDeps()
+        let listSymbol = SymbolID(rawValue: 290)
+        types.setNominalTypeParameterVariances([.out], for: listSymbol)
+        let intType = types.make(.primitive(.int, .nonNull))
+        let projectedList = types.make(.classType(ClassType(
+            classSymbol: listSymbol,
+            args: [.out(intType)],
+            nullability: .nonNull
+        )))
+        let invariantList = types.make(.classType(ClassType(
+            classSymbol: listSymbol,
+            args: [.invariant(intType)],
+            nullability: .nonNull
+        )))
+        let t0 = TypeVarID(rawValue: 290)
+
+        // This is the shape produced by `arrayOf(listOf(1), ...)` assigned to
+        // `Array<List<Int>>`: the argument contributes List<out Int>, while
+        // the expected Array element type contributes List<Int>.
+        let solution = solver.solve(
+            vars: [t0],
+            constraints: [
+                VariableConstraint(kind: .subtype, left: .type(projectedList), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(invariantList), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .variable(t0), right: .type(invariantList)),
+            ],
+            typeSystem: types
+        )
+
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == projectedList)
+    }
+
     @Test func testSolveHandlesUnregisteredVariablesInConstraints() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
