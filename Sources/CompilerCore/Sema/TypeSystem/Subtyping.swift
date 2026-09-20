@@ -539,7 +539,7 @@ extension TypeSystem {
             return fallback
         }
 
-        let nullability: Nullability = types.contains { nullability(of: $0) != .nonNull }
+        let resultNullability: Nullability = types.contains { nullability(of: $0) != .nonNull }
             ? .nullable
             : .nonNull
         var candidates: [TypeID] = []
@@ -548,7 +548,7 @@ extension TypeSystem {
             let comparable = make(.classType(ClassType(
                 classSymbol: comparableSymbol,
                 args: [.star],
-                nullability: nullability
+                nullability: resultNullability
             )))
             if filtered.allSatisfy({ isSubtype($0, comparable) }) {
                 candidates.append(comparable)
@@ -559,7 +559,7 @@ extension TypeSystem {
             let number = make(.classType(ClassType(
                 classSymbol: numberSymbol,
                 args: [],
-                nullability: nullability
+                nullability: resultNullability
             )))
             if filtered.allSatisfy({ isSubtype($0, number) }) {
                 candidates.append(number)
