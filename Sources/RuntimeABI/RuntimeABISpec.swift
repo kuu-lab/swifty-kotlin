@@ -140,6 +140,7 @@ public enum RuntimeABISpec {
         resultFunctions,
         runtimeOnlyBridgeFunctions,
         sequenceFunctions,
+        staticPrimitiveBoxingFunctions,
         stringBridgeFunctions,
         stringBuilderFunctions,
         stringFunctions,

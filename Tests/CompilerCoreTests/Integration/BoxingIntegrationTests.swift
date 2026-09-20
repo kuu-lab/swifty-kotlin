@@ -158,13 +158,13 @@ struct BoxingIntegrationTests {
 
             do {
                 let callees = try calleeNames(of: "pairTripleBoxing")
-                let boxingCalls = callees.filter { $0 == "kk_box_int" }
+                let boxingCalls = callees.filter { $0 == "kk_box_int_static" }
                 #expect(boxingCalls.count >= 4, "Should have boxed primitive arguments for Pair and Triple. Found \(boxingCalls.count)")
             }
 
             do {
                 let callees = try calleeNames(of: "mutableListAdd")
-                let boxingCalls = callees.filter { $0 == "kk_box_int" }
+                let boxingCalls = callees.filter { $0 == "kk_box_int_static" }
                 #expect(boxingCalls.count == 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
             }
 
