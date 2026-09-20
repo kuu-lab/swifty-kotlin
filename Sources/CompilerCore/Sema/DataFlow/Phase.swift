@@ -582,6 +582,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
+        // KUU-655: after delegation forwarders exist (so a `by`-delegated
+        // interface method's forwarder inherits its defaults too), before
+        // vtable/itable layout (layout only keys off arity/suspend, not
+        // default flags, so ordering relative to it doesn't matter).
+        inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
         synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
         attachCompilerMetadataAnnotations(
             symbols: symbols,

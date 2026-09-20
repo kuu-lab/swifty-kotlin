@@ -34,8 +34,15 @@ extension CollectionLiteralConstructionLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
+            let taggedArray = tagArrayValueIfNeeded(
+                copiedArray,
+                type: result.flatMap { module.arena.exprType($0) } ?? argumentType,
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
             if let result {
-                loweredBody.append(.copy(from: copiedArray, to: result))
+                loweredBody.append(.copy(from: taggedArray, to: result))
             }
             return true
         }
@@ -69,8 +76,15 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             }
-            if result != nil {
-                loweredBody.append(.copy(from: arrayExpr, to: result!))
+            let taggedArray = tagArrayValueIfNeeded(
+                arrayExpr,
+                type: result.flatMap { module.arena.exprType($0) },
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
+            if let result {
+                loweredBody.append(.copy(from: taggedArray, to: result))
             }
             return true
         }
@@ -335,6 +349,33 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         return false
+    }
+
+    private func tagArrayValueIfNeeded(
+        _ array: KIRExprID,
+        type: TypeID?,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard let sema = ctx.sema,
+              let typeID = runtimeArrayNominalTypeID(type, sema: sema, interner: ctx.interner)
+        else {
+            return array
+        }
+        let intType = sema.types.intType
+        let typeIDExpr = module.arena.appendExpr(.intLiteral(typeID), type: intType)
+        loweredBody.append(.constValue(result: typeIDExpr, value: .intLiteral(typeID)))
+        let taggedArray = module.arena.appendTemporary(type: module.arena.exprType(array))
+        loweredBody.append(.call(
+            symbol: nil,
+            callee: ctx.interner.intern("kk_array_tag_type"),
+            arguments: [array, typeIDExpr],
+            result: taggedArray,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return taggedArray
     }
 
     /// Emits a `kk_list_iterator_next`-style call and, when the result expression

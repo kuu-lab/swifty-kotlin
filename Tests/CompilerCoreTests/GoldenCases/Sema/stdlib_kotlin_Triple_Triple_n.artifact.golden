@@ -101,3 +101,6 @@ expr e@31:13 name(nullableChanged) type=kotlin.Triple<Int?, String?, Boolean?> r
 expr e@31:5 call callee=e@31:5#1 args=[_:e@31:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@32:12 name(copied) type=kotlin.Triple<Int, String, Boolean> ref=__local_1.copied[kind=local]
 expr e@32:5 return value=e@32:12 type=Nothing
+section stdlib-targets
+target fq=kotlin.Triple.<init>[kind=ctor;recv=kotlin.Triple<T0,T1,T2>;params=T0,T1,T2;gen=3] origin=importedLibrary kind=constructor vis=public flags=synthetic sig=recv=kotlin.Triple<T0, T1, T2> params=[T0,T1,T2] ret=kotlin.Triple<T0, T1, T2> tparams=[T0,T1,T2] annotations=[@KsSymbolName("__kk_triple_new")]
+target fq=kotlin.Triple[kind=class;gen=3] origin=importedLibrary kind=class vis=public flags=synthetic tparams=[T0(out),T1(out),T2(out)] supertypes=[kotlin.Any]

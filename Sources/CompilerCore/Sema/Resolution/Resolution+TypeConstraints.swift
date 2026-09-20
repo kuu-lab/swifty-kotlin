@@ -412,9 +412,16 @@ extension OverloadResolver {
         {
             if typeParam.nullability != .nonNull {
                 if case .nothing(.nullable) = typeSystem.kind(of: subtype) {
-                    // `null` / `Nothing?` is compatible with `T?` but does not
-                    // constrain the underlying non-null type variable.
-                    return []
+                    // `null` has type `Nothing?`. Although it is compatible
+                    // with every nullable `T?`, it still provides the bottom
+                    // type as the lower bound, so unconstrained calls such as
+                    // `requireNotNull(null)` infer T = Nothing.
+                    return [VariableConstraint(
+                        kind: .subtype,
+                        left: .type(typeSystem.nothingType),
+                        right: .variable(variable),
+                        blameRange: blameRange
+                    )]
                 }
                 let nonNullSubtype = typeSystem.makeNonNullable(subtype)
                 return [VariableConstraint(

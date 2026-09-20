@@ -27,10 +27,11 @@ extension BuildKIRRegressionTests {
         let sizedCallees = extractCallees(from: sizedBody, interner: ctx.interner)
         #expect(initializedCallees.contains("kk_array_new_checked"))
         #expect(initializedCallees.contains("kk_array_set"))
-        #expect(sizedCallees == ["kk_array_new_checked"])
+        #expect(sizedCallees == ["kk_array_new_checked", "kk_array_tag_type"])
 
         let throwFlags = extractThrowFlags(from: sizedBody, interner: ctx.interner)
         #expect(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 } == true)
+        #expect(throwFlags["kk_array_tag_type"]?.allSatisfy { !$0 } == true)
     }
 }
 #endif
