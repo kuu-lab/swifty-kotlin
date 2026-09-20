@@ -427,7 +427,32 @@ extension KotlinParser {
     /// line (`if (a)\n    if (b) 1\n    else 2\nelse 3`).
     func endsWithControlFlowCondition(_ children: [SyntaxChild]) -> Bool {
         let trailing = trailingTokens(of: children, limit: 64)
-        return Self.endsWithControlFlowCondition(trailing[...])
+        guard Self.endsWithControlFlowCondition(trailing[...]) else {
+            return false
+        }
+        // A labeled braced do-while is parsed by the generic statement path:
+        // `label@ do`, the body block node, then `while (...)`. `trailingTokens`
+        // deliberately stops at that block node, so the static token-only check
+        // cannot see the earlier `do` and would treat the closing condition as a
+        // standalone while whose body continues on the next line.
+        if let opener = Self.trailingControlFlowConditionOpener(trailing[...]),
+           opener.kind == .keyword(.while),
+           containsDirectDoKeyword(children)
+        {
+            return false
+        }
+        return true
+    }
+
+    private func containsDirectDoKeyword(_ children: [SyntaxChild]) -> Bool {
+        children.contains { child in
+            guard case let .token(tokenID) = child,
+                  let token = arena.token(tokenID)
+            else {
+                return false
+            }
+            return token.kind == .keyword(.do)
+        }
     }
 
     static func endsWithControlFlowCondition<C: BidirectionalCollection>(_ tokens: C) -> Bool
