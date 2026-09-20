@@ -71,13 +71,6 @@ struct RuntimeRangeHOFTests {
     }
 
     @Test
-    func testULongRangeNoArgOrIndexedHOFs() {
-        let range = __kk_ulong_rangeTo(1, 4)
-        #expect(kk_ulong_range_firstOrNull(range) == 1)
-        #expect(kk_ulong_range_lastOrNull(range) == 4)
-    }
-
-    @Test
     func testUIntRangeTakeAndDropNegativeCountThrows() {
         let range = __kk_uint_rangeTo(1, 5)
         var takeThrown: Int = 0

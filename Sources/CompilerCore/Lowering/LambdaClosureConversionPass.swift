@@ -21,6 +21,8 @@
 /// to `kk_lambda_invoke` for backward compatibility.
 final class LambdaClosureConversionPass: LoweringPass {
     static let name = "LambdaClosureConversion"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     // MARK: - Analysis types
 
