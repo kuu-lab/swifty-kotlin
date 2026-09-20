@@ -117,6 +117,7 @@ struct MathOverloadResolutionTests {
     fun fqnSqrtDouble(x: Double): Double = kotlin.math.sqrt(x)
     fun fqnPI(): Double = kotlin.math.PI
     fun fqnIntMax(): Int = kotlin.Int.MAX_VALUE
+    fun fqnDurationZero(): kotlin.time.Duration = kotlin.time.Duration.ZERO
     """#
 
     private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
@@ -929,9 +930,19 @@ struct MathOverloadResolutionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
 
+        let durationSymbol = try #require(
+            sema.symbols.lookup(fqName: ["kotlin", "time", "Duration"].map(ctx.interner.intern))
+        )
+        let durationType = sema.types.make(.classType(ClassType(
+            classSymbol: durationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
         for (functionName, propertyName, expectedType) in [
             ("fqnPI", "PI", sema.types.doubleType),
             ("fqnIntMax", "MAX_VALUE", sema.types.intType),
+            ("fqnDurationZero", "ZERO", durationType),
         ] {
             let functionRange = try functionBodyRange(
                 named: functionName,

@@ -1,0 +1,3 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.collections.Iterable
