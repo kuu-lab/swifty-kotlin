@@ -60,6 +60,7 @@ struct LibMetadataSerializationTests {
         """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
 
         let records = [
+            MetadataRecord(kind: .package, mangledName: "_", fqName: "lazy"),
             MetadataRecord(
                 kind: .function,
                 mangledName: "_kk_used",
@@ -94,13 +95,16 @@ struct LibMetadataSerializationTests {
 
         let used = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "used" })
         let unused = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "unused" })
+        let package = try #require(work.importedBindings.first { $0.record.kind == .package })
         #expect(work.lazyLoaderState != nil)
         #expect(!used.isMaterialized)
         #expect(!unused.isMaterialized)
         #expect(used.record.receiverOwnerFQName?.map { ctx.interner.resolve($0) } == ["lazy", "Receiver"])
+        #expect(symbols.parentSymbol(for: used.symbol) == package.symbol)
         #expect(symbols.functionSignature(for: used.symbol)?.parameterTypes.count == 1)
         #expect(used.isMaterialized)
         #expect(!unused.isMaterialized)
+        #expect(symbols.parentSymbol(for: unused.symbol) == nil)
         #expect(!diagnostics.hasError)
     }
 

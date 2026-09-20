@@ -1546,7 +1546,12 @@ extension DataFlowSemaPhase {
         let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
         if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
             symbols.setParentSymbol(ownerSymbol, for: symbol)
-        } else if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
+        } else if (record.receiverOwnerFQName != nil || record.propertyReceiverTypeSignature != nil),
+                  let packageOwner = ownerCandidates.first(where: { $0.kind == .package })
+        {
+            // A package parent is semantically required for extension lookup.
+            // Ordinary top-level declarations intentionally stay parentless,
+            // matching eager import where package shells do not exist yet.
             symbols.setParentSymbol(packageOwner.id, for: symbol)
         }
     }
