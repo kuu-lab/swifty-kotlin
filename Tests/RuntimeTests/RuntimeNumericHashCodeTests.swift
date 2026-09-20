@@ -108,6 +108,23 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
+    func testBoxedDurationHashCodeMatchesLongXorFold() {
+        // 5 seconds = 5_000_000_000 ns. `toInt()` is 705_032_704; Long.hashCode
+        // xor-fold is 705_032_705. Duration.hashCode() and the boxed/Any path
+        // must agree on the xor-fold (KUU-645).
+        let fiveSeconds = 5_000_000_000
+        let boxed = registerRuntimeObject(RuntimeDurationBox(nanoseconds: Int64(fiveSeconds)))
+        #expect(kk_any_hashCode(boxed, 0) == kk_any_hashCode(fiveSeconds, 8))
+        #expect(kk_any_hashCode(boxed, 0) == 705_032_705)
+
+        let zero = registerRuntimeObject(RuntimeDurationBox(nanoseconds: 0))
+        #expect(kk_any_hashCode(zero, 0) == kk_any_hashCode(0, 8))
+
+        let infinite = registerRuntimeObject(RuntimeDurationBox(nanoseconds: Int64.max))
+        #expect(kk_any_hashCode(infinite, 0) == kk_any_hashCode(Int(Int64.max), 8))
+    }
+
+    @Test
     func testResultHashCodeUsesWrappedValue() {
         let intResult = runtimeResultSuccess(registerRuntimeObject(RuntimeIntBox(1)))
         let stringResult = runtimeResultSuccess(registerRuntimeObject(RuntimeStringBox("abc")))

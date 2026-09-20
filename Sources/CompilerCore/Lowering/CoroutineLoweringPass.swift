@@ -2,6 +2,8 @@
 final class CoroutineLoweringPass: LoweringPass {
     /// Internal visibility is required for cross-file extension decomposition
     static let name = "CoroutineLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     typealias LoweredSuspendFunction = (name: InternedString, symbol: SymbolID)
 
