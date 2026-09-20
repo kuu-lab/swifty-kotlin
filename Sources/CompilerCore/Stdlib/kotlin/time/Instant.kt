@@ -81,7 +81,7 @@ public fun Instant.toString(): String = instantFormatIso(this)
 
 private fun instantLongMaxValue(): Long = 9223372036854775807L
 
-private fun instantLongMinValue(): Long = 0x8000000000000000L
+private fun instantLongMinValue(): Long = -9223372036854775807L - 1L
 
 private class InstantLocalDateTime(
     val year: Long,

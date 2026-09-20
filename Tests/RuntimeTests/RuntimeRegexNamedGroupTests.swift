@@ -116,21 +116,24 @@ struct RuntimeRegexNamedGroupTests {
         let resultRaw = kk_string_replace_regex(
             makeStringRaw("2024-05"),
             regexRaw,
-            makeStringRaw("${month}/${year}")
+            makeStringRaw("${month}/${year}"),
+            nil
         )
         #expect(runtimeString(resultRaw) == "05/2024")
 
         let numberedRaw = kk_string_replace_regex(
             makeStringRaw("2024-05"),
             regexRaw,
-            makeStringRaw("$2/$1")
+            makeStringRaw("$2/$1"),
+            nil
         )
         #expect(runtimeString(numberedRaw) == "05/2024")
 
         let firstRaw = kk_string_replaceFirst_regex(
             makeStringRaw("2024-05 2025-06"),
             regexRaw,
-            makeStringRaw("${year}")
+            makeStringRaw("${year}"),
+            nil
         )
         #expect(runtimeString(firstRaw) == "2024 2025-06")
     }

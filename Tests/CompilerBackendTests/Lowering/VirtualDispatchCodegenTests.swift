@@ -352,7 +352,7 @@ struct VirtualDispatchCodegenTests {
                 return nil
             }
         }
-        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing after virtualCall, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static call for Any? -> Int unboxing after virtualCall, got: \(callees)")
     }
 
     // MARK: - 4. virtualCall preserved through lowering (not converted to .call)

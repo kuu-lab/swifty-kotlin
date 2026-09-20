@@ -339,7 +339,7 @@ struct RuntimeRegexTests {
             kk_regex_create_flat(data, length, byteCount, hash, &thrown)
         }
         #expect(thrown == 0)
-        let resultRaw = kk_string_replace_regex(makeStringRaw("ab"), regexRaw, makeStringRaw("-"))
+        let resultRaw = kk_string_replace_regex(makeStringRaw("ab"), regexRaw, makeStringRaw("-"), nil)
         #expect(runtimeString(resultRaw) == "-a-b-")
     }
 

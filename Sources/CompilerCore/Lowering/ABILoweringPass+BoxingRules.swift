@@ -111,7 +111,8 @@ extension ABILoweringPass {
         interner: StringInterner,
         boxingCalleeTable: BoxingCalleeTable,
         symbols: SymbolTable? = nil,
-        boxTypeParamBoundary: Bool = false
+        boxTypeParamBoundary: Bool = false,
+        preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
@@ -181,13 +182,18 @@ extension ABILoweringPass {
             {
                 return boxingCalleeTable.boxCallee(
                     for: .primitive(argPrimitive, .nonNull),
-                    requireNonNull: true
+                    requireNonNull: true,
+                    preferStaticPrimitive: preferStaticPrimitive
                 )
             }
             return nil
         }
 
-        return boxingCalleeTable.boxCallee(for: argKind, requireNonNull: false)
+        return boxingCalleeTable.boxCallee(
+            for: argKind,
+            requireNonNull: false,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 
     func unboxingCallee(
@@ -195,7 +201,8 @@ extension ABILoweringPass {
         targetKind: TypeKind,
         boxingCalleeTable: BoxingCalleeTable,
         types: TypeSystem? = nil,
-        symbols: SymbolTable? = nil
+        symbols: SymbolTable? = nil,
+        preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         let resolvedTargetKind: TypeKind = if let types, let symbols {
             resolveValueClassKind(targetKind, types: types, symbols: symbols)
@@ -206,7 +213,11 @@ extension ABILoweringPass {
             return nil
         }
 
-        return boxingCalleeTable.unboxCallee(for: resolvedTargetKind, requireNonNull: true)
+        return boxingCalleeTable.unboxCallee(
+            for: resolvedTargetKind,
+            requireNonNull: true,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 
     func intrinsicArgType(
@@ -365,7 +376,8 @@ extension ABILoweringPass {
         guard needsUnboxing(sourceKind: operandKind, targetKind: resultKind, symbols: symbols),
               let callee = unboxingCallee(
                   sourceKind: operandKind, targetKind: resultKind,
-                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
+                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                  preferStaticPrimitive: true
               )
         else {
             return operand
@@ -434,7 +446,8 @@ extension ABILoweringPass {
         guard needsUnboxing(sourceKind: sourceKind, targetKind: targetKind, symbols: symbols),
               let callee = unboxingCallee(
                   sourceKind: sourceKind, targetKind: targetKind,
-                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
+                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                  preferStaticPrimitive: true
               )
         else {
             return operand
@@ -452,10 +465,15 @@ extension ABILoweringPass {
 
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         // Unit is a builtin value rather than a PrimitiveType, but it still
         // needs a heap representation when it crosses an erased Any boundary.
-        boxingCalleeTable.boxCallee(for: kind, requireNonNull: true)
+        boxingCalleeTable.boxCallee(
+            for: kind,
+            requireNonNull: true,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 }

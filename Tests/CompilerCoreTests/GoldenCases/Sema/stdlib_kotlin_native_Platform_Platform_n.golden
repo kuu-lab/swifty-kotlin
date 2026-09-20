@@ -73,7 +73,7 @@ expr e@21:37#1 binary(equal) lhs=e@21:37 rhs=e@21:56 type=Boolean call=kotlin.En
 expr e@21:13#2 binary(logicalAnd) lhs=e@21:13#1 rhs=e@21:37#1 type=Boolean
 expr e@21:75 name(memoryModel) type=kotlin.native.MemoryModel ref=__local_4.memoryModel[kind=local]
 expr e@21:90 name(memoryModel) type=kotlin.native.MemoryModel ref=__local_4.memoryModel[kind=local]
-expr e@21:75#1 binary(equal) lhs=e@21:75 rhs=e@21:90 type=Boolean
+expr e@21:75#1 binary(equal) lhs=e@21:75 rhs=e@21:90 type=Boolean call=kotlin.Enum.equals[kind=fun;recv=kotlin.Enum<T0>;params=Any?;gen=1] targs=[kotlin.native.MemoryModel]
 expr e@21:13#3 binary(logicalAnd) lhs=e@21:13#2 rhs=e@21:75#1 type=Boolean
 expr e@21:103 int(1) type=Int
 expr e@21:110 int(0) type=Int

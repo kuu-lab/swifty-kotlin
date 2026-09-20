@@ -180,6 +180,76 @@ extension DataFlowSemaPhase {
         let typeArgs: [TypeArg]
     }
 
+    /// Builds the candidate FQNs used by inheritance resolution for a type
+    /// reference. Inheritance is bound before file scopes are built, so this
+    /// mirrors the relevant file-scope lookup rules explicitly instead of
+    /// falling back to the global short-name index.
+    private func inheritanceCandidatePaths(
+        for path: [InternedString],
+        currentPackage: [InternedString],
+        imports: [ImportDecl],
+        symbols: SymbolTable
+    ) -> [[InternedString]] {
+        guard !path.isEmpty else {
+            return []
+        }
+
+        var candidates: [[InternedString]] = []
+        var seen: Set<[InternedString]> = []
+        func append(_ candidate: [InternedString]) {
+            guard seen.insert(candidate).inserted else {
+                return
+            }
+            candidates.append(candidate)
+        }
+
+        if path.count == 1 {
+            // Keep same-package lookup ahead of imports, matching the existing
+            // inheritance behavior. Explicit imports must still precede the
+            // root-package fallback, which is not visible from a packaged file.
+            if !currentPackage.isEmpty {
+                append(currentPackage + path)
+            }
+
+            let simpleName = path[0]
+            for importDecl in imports {
+                if let alias = importDecl.alias {
+                    if alias == simpleName {
+                        append(importDecl.path)
+                    }
+                } else if importDecl.path.last == simpleName {
+                    append(importDecl.path)
+                }
+            }
+
+            // `extractQualifiedPath` removes the `*` from wildcard imports.
+            // A package symbol therefore identifies the imports that should
+            // contribute a member named by this simple reference.
+            for importDecl in imports where importDecl.alias == nil {
+                let isPackageImport = symbols.lookupAll(fqName: importDecl.path).contains { symbolID in
+                    symbols.symbol(symbolID)?.kind == .package
+                }
+                if isPackageImport {
+                    append(importDecl.path + path)
+                }
+            }
+
+            // A root-package declaration is not a file-scoped import. Keep it
+            // as a fallback for compatibility with root-package source files,
+            // but never let it shadow an explicit import above.
+            append(path)
+        } else {
+            append(path)
+            if !currentPackage.isEmpty {
+                // Allow nested/package-relative supertypes such as
+                // `TimeSource.WithComparableMarks` inside `kotlin.time`.
+                append(currentPackage + path)
+            }
+        }
+
+        return candidates
+    }
+
     private func resolveNominalSymbolAndTypeArgs(
         _ typeRefID: TypeRefID,
         currentPackage: [InternedString],
@@ -212,6 +282,7 @@ extension DataFlowSemaPhase {
             if let receiverRefID {
                 guard let receiverType = resolveTypeRefForInheritance(
                     receiverRefID, currentPackage: currentPackage,
+                    imports: imports,
                     enclosingTypeParameters: enclosingTypeParameters, ast: ast,
                     symbols: symbols, types: types, interner: interner
                 ) else { return nil }
@@ -220,6 +291,7 @@ extension DataFlowSemaPhase {
             for paramRef in paramRefIDs {
                 guard let paramType = resolveTypeRefForInheritance(
                     paramRef, currentPackage: currentPackage,
+                    imports: imports,
                     enclosingTypeParameters: enclosingTypeParameters, ast: ast,
                     symbols: symbols, types: types, interner: interner
                 ) else { return nil }
@@ -227,6 +299,7 @@ extension DataFlowSemaPhase {
             }
             guard let returnType = resolveTypeRefForInheritance(
                 returnRefID, currentPackage: currentPackage,
+                imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters, ast: ast,
                 symbols: symbols, types: types, interner: interner
             ) else { return nil }
@@ -249,40 +322,12 @@ extension DataFlowSemaPhase {
             return nil
         }
 
-        var candidatePaths: [[InternedString]]
-        if path.count == 1, !currentPackage.isEmpty {
-            // An unqualified name resolves in the current package before the
-            // root package. This matters when bundled `kotlin` declarations
-            // coexist with a root-package declaration of the same name.
-            candidatePaths = [currentPackage + path, path]
-        } else {
-            candidatePaths = [path]
-            if !currentPackage.isEmpty {
-                // Allow nested/package-relative supertypes such as
-                // `TimeSource.WithComparableMarks` inside `kotlin.time`.
-                candidatePaths.append(currentPackage + path)
-            }
-        }
-        // Also try matching against imports: if the simple name matches
-        // the last component of an import path, use the full import path.
-        if path.count == 1 {
-            let simpleName = path[0]
-            for importDecl in imports {
-                if let alias = importDecl.alias {
-                    if alias == simpleName {
-                        candidatePaths.append(importDecl.path)
-                    }
-                } else if let lastComponent = importDecl.path.last, lastComponent == simpleName {
-                    candidatePaths.append(importDecl.path)
-                }
-            }
-            // Kotlin default imports (e.g. kotlin.collections.Iterator) are not
-            // present in file.imports, so expand the search to the standard
-            // default-import packages.
-            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
-                candidatePaths.append(defaultPackage + path)
-            }
-        }
+        let candidatePaths = inheritanceCandidatePaths(
+            for: path,
+            currentPackage: currentPackage,
+            imports: imports,
+            symbols: symbols
+        )
 
         for candidatePath in candidatePaths {
             if let symbol = symbols.lookupAll(fqName: candidatePath)
@@ -292,6 +337,7 @@ extension DataFlowSemaPhase {
                 let resolvedArgs = resolveTypeArgRefsForInheritance(
                     argRefs,
                     currentPackage: currentPackage,
+                    imports: imports,
                     enclosingTypeParameters: enclosingTypeParameters,
                     ast: ast,
                     symbols: symbols,
@@ -300,6 +346,32 @@ extension DataFlowSemaPhase {
                 )
                 let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
                 return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
+            }
+        }
+
+        // Kotlin default imports are considered after primitive/builtin names
+        // in resolveTypeRefForInheritance. Supertype roots have no primitive
+        // representation, so they can use the default-import packages here.
+        if path.count == 1 {
+            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                let candidatePath = defaultPackage + path
+                if let symbol = symbols.lookupAll(fqName: candidatePath)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
+                {
+                    let resolvedArgs = resolveTypeArgRefsForInheritance(
+                        argRefs,
+                        currentPackage: currentPackage,
+                        imports: imports,
+                        enclosingTypeParameters: enclosingTypeParameters,
+                        ast: ast,
+                        symbols: symbols,
+                        types: types,
+                        interner: interner
+                    )
+                    let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
+                    return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
+                }
             }
         }
         return nil
@@ -329,6 +401,7 @@ extension DataFlowSemaPhase {
     private func resolveTypeArgRefsForInheritance(
         _ argRefs: [TypeArgRef],
         currentPackage: [InternedString],
+        imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
@@ -342,17 +415,17 @@ extension DataFlowSemaPhase {
         for argRef in argRefs {
             switch argRef {
             case let .invariant(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
                     return []
                 }
                 result.append(.invariant(resolved))
             case let .out(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
                     return []
                 }
                 result.append(.out(resolved))
             case let .in(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
                     return []
                 }
                 result.append(.in(resolved))
@@ -366,6 +439,7 @@ extension DataFlowSemaPhase {
     private func resolveTypeRefForInheritance(
         _ typeRefID: TypeRefID,
         currentPackage: [InternedString],
+        imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
@@ -389,23 +463,18 @@ extension DataFlowSemaPhase {
                     nullability: nullability
                 )))
             }
-            // Resolve an unqualified name in the current package before the
-            // root package, matching resolveNominalSymbolAndTypeArgs.
-            var candidatePaths: [[InternedString]]
-            if path.count == 1, !currentPackage.isEmpty {
-                candidatePaths = [currentPackage + path, path]
-            } else {
-                candidatePaths = [path]
-                if !currentPackage.isEmpty {
-                    candidatePaths.append(currentPackage + path)
-                }
-            }
+            let candidatePaths = inheritanceCandidatePaths(
+                for: path,
+                currentPackage: currentPackage,
+                imports: imports,
+                symbols: symbols
+            )
             for candidatePath in candidatePaths {
                 if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
                     .compactMap({ symbols.symbol($0) })
                     .first(where: { isNominalTypeSymbol($0.kind) })
                 {
-                    let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
+                    let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
                     return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                 }
             }
@@ -431,7 +500,7 @@ extension DataFlowSemaPhase {
                         .compactMap({ symbols.symbol($0) })
                         .first(where: { isNominalTypeSymbol($0.kind) })
                     {
-                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
+                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
                         return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                     }
                 }
@@ -441,16 +510,17 @@ extension DataFlowSemaPhase {
             return resolveFunctionTypeForInheritance(
                 contextReceiverRefIDs: contextReceiverRefIDs,
                 receiverRefID: receiverRefID, paramRefIDs: paramRefIDs, returnRefID: returnRefID, isSuspend: isSuspend, nullable: nullable,
-                currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
             )
         case let .intersection(partRefs):
-            let partTypes = partRefs.compactMap { resolveTypeRefForInheritance($0, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) }
+            let partTypes = partRefs.compactMap { resolveTypeRefForInheritance($0, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) }
             guard partTypes.count == partRefs.count else { return nil }
             return types.make(.intersection(partTypes))
         case let .annotated(base, annotations):
             guard let baseType = resolveTypeRefForInheritance(
                 base,
                 currentPackage: currentPackage,
+                imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters,
                 ast: ast,
                 symbols: symbols,
@@ -478,6 +548,7 @@ extension DataFlowSemaPhase {
         isSuspend: Bool,
         nullable: Bool,
         currentPackage: [InternedString],
+        imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
@@ -488,26 +559,26 @@ extension DataFlowSemaPhase {
         var contextReceiverTypes: [TypeID] = []
         for contextReceiverRef in contextReceiverRefIDs {
             guard let contextReceiverType = resolveTypeRefForInheritance(
-                contextReceiverRef, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                contextReceiverRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
         var receiverType: TypeID?
         if let receiverRefID {
             guard let resolved = resolveTypeRefForInheritance(
-                receiverRefID, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                receiverRefID, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
             ) else { return nil }
             receiverType = resolved
         }
         var paramTypes: [TypeID] = []
         for paramRef in paramRefIDs {
             guard let paramType = resolveTypeRefForInheritance(
-                paramRef, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                paramRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
             ) else { return nil }
             paramTypes.append(paramType)
         }
         guard let returnType = resolveTypeRefForInheritance(
-            returnRefID, currentPackage: currentPackage, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+            returnRefID, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
         ) else { return nil }
         return types.make(.functionType(FunctionType(
             contextReceivers: contextReceiverTypes,
