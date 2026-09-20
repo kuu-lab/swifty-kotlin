@@ -101,10 +101,10 @@ public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_copyOf")
     }
-    let box = RuntimeArrayBox(length: array.elements.count)
-    for (i, elem) in array.elements.enumerated() {
-        box.elements[i] = elem
-    }
+    // Copy storage wholesale so element anyFallbackTags survive; routing
+    // through `elements` would drop them (and cost O(n²) per-element writes).
+    let box = RuntimeArrayBox(length: array.count)
+    box.values = array.values
     return registerRuntimeObject(box)
 }
 
@@ -113,8 +113,8 @@ public func kk_array_fill(_ arrayRaw: Int, _ value: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_fill")
     }
-    for i in 0 ..< array.elements.count {
-        array.elements[i] = value
+    for i in 0 ..< array.count {
+        array[i] = value
     }
     return 0
 }
@@ -147,7 +147,7 @@ private func runtimeArrayBoxesDeepEqual(
     rhs: RuntimeArrayBox,
     visited: inout Set<RuntimeArrayDeepEqualityPair>
 ) -> Bool {
-    guard lhs.elements.count == rhs.elements.count else {
+    guard lhs.count == rhs.count else {
         return false
     }
     let pair = RuntimeArrayDeepEqualityPair(lhs: lhsRaw, rhs: rhsRaw)
@@ -156,9 +156,11 @@ private func runtimeArrayBoxesDeepEqual(
     }
     defer { visited.remove(pair) }
 
-    for index in lhs.elements.indices {
+    let lhsElements = lhs.elements
+    let rhsElements = rhs.elements
+    for index in lhsElements.indices {
         // swiftlint:disable:next for_where
-        if !runtimeValuesDeepEqual(lhs.elements[index], rhs.elements[index], visited: &visited) {
+        if !runtimeValuesDeepEqual(lhsElements[index], rhsElements[index], visited: &visited) {
             return false
         }
     }

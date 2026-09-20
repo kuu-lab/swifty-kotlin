@@ -226,6 +226,7 @@ private func runtimeRegisterFlowHandle(_ flow: RuntimeFlowHandle) -> Int {
     let key = UInt(bitPattern: ptr)
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(key)
+        state.borrowedObjectPointers.insert(key)
     }
     runtimeStorage.withFlowLock { state in
         state.flowHandles[key] = flow
@@ -1476,6 +1477,7 @@ public func __kk_flow_stopped() -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(runtimeStorage.flowStopSentinelBox).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
+        state.borrowedObjectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
 }
@@ -1605,6 +1607,7 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
     if shouldRemoveFromGC {
         runtimeStorage.withGCLock { state in
             state.objectPointers.remove(key)
+            state.borrowedObjectPointers.remove(key)
         }
     }
     return 0

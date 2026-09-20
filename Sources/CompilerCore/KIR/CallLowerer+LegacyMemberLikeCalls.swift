@@ -457,6 +457,51 @@ extension CallLowerer {
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let calleeText = interner.resolve(calleeName)
+            // Property `.first`/`.last` keep the non-throwing getters. Explicit
+            // `first()`/`last()` must throw `NoSuchElementException` on empty,
+            // including `IntRange` (Sema binds those calls to the property).
+            // Explicit `first()`/`last()` on a *Progression* is excluded here:
+            // it is bundled Kotlin source (RangeHOF.kt) that already throws
+            // with the exact kotlinc message
+            // ("Progression ${xxxProgressionDescription(this)} is empty."),
+            // and is handled by the `isExplicitProgressionSourceCall` gate
+            // below. Reconstructing a Runtime bridge call here would shadow
+            // that source-backed implementation with a generic-message one.
+            let progressionKinds: Set<MemberDispatchReceiverKind> = [
+                .intProgression, .longProgression, .charProgression,
+                .uintProgression, .ulongProgression,
+            ]
+            if (calleeText == "first" || calleeText == "last"),
+               let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+                   receiverExpr: receiverExpr,
+                   receiverType: receiverType,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                let usesThrowingFunction = ast.arena.isExplicitCall(exprID)
+                if !(usesThrowingFunction && progressionKinds.contains(rangeKind)) {
+                    let runtimeName = usesThrowingFunction
+                        ? MemberRuntimeDispatch.rangeFirstLastOrThrowLinkName(
+                            kind: rangeKind,
+                            wantLast: calleeText == "last"
+                        )
+                        : MemberRuntimeDispatch.rangeFirstLastPropertyLinkName(
+                            kind: rangeKind,
+                            wantLast: calleeText == "last"
+                        )
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeName),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: usesThrowingFunction,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
             let isRangeLikeReceiver = sema.bindings.isRangeExpr(receiverExpr) || {
                 guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                     return false
@@ -493,32 +538,20 @@ extension CallLowerer {
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
             if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
-                // KSP-1523: `first`/`last` (and their `start`/`end`/`endInclusive`
-                // aliases) can use the shared `__kk_range_first`/`__kk_range_last`
-                // bridge for UInt too, same as signed ranges: both operate on the
-                // same RuntimeRangeBox, and UInt's full value range always fits the
-                // non-negative half of the box's Int64 fields. ULong keeps its own
-                // bridge below (values above Int64.max need unsigned comparisons).
+                // KSP-1524: range first/last values are raw bits at this ABI
+                // boundary, so ULong can use the shared getter as well.
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
-                    interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
-                        ? "kk_ulong_range_first"
-                        : "__kk_range_first")
+                    interner.intern("__kk_range_first")
                 // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
                 case "end", "endInclusive":
-                    interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
-                        ? "kk_ulong_range_last"
-                        : "__kk_range_last")
+                    interner.intern("__kk_range_last")
                 case "endExclusive":
                     interner.intern("__kk_range_endExclusive")
                 case "first":
-                    interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
-                        ? "kk_ulong_range_first"
-                        : "__kk_range_first")
+                    interner.intern("__kk_range_first")
                 case "last":
-                    interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
-                        ? "kk_ulong_range_last"
-                        : "__kk_range_last")
+                    interner.intern("__kk_range_last")
                 case "step":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_step"
@@ -1942,7 +1975,11 @@ extension CallLowerer {
 
                 switch interner.resolve(calleeName) {
                 case "chunked" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
-                    return appendBridgeCall("__kk_list_chunked", [loweredReceiverID, normalizedArgIDs[0]])
+                    return appendBridgeCall(
+                        "__kk_list_chunked",
+                        [loweredReceiverID, normalizedArgIDs[0]],
+                        canThrow: true
+                    )
                 case "chunked" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
                     let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
                         normalizedArgIDs[1],
@@ -1960,7 +1997,11 @@ extension CallLowerer {
                     let sizeArg = normalizedArgIDs[0]
                     let stepArg = normalizedArgIDs.count >= 2 ? normalizedArgIDs[1] : intLiteral(1)
                     let partialArg = normalizedArgIDs.count >= 3 ? normalizedArgIDs[2] : intLiteral(0)
-                    return appendBridgeCall("__kk_list_windowed", [loweredReceiverID, sizeArg, stepArg, partialArg])
+                    return appendBridgeCall(
+                        "__kk_list_windowed",
+                        [loweredReceiverID, sizeArg, stepArg, partialArg],
+                        canThrow: true
+                    )
                 case "windowed" where hasHOFLambdaArg:
                     guard let runtimeArguments = windowedTransformRuntimeArguments() else {
                         break

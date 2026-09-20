@@ -1,6 +1,8 @@
 
 final class DataEnumSealedSynthesisPass: LoweringPass {
     static let name = "DataEnumSealedSynthesis"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         module.arena.transformFunctions { function in

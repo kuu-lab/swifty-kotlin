@@ -151,6 +151,17 @@ struct RuntimeAtomicIntArrayTests {
         #expect(new == 60)
     }
 
+    @Test func int32OverflowKeepsCompareAndExchangeValueInSync() {
+        let handle = kk_atomic_int_array_create(1)
+        let intMax = Int(Int32.max)
+        let intMin = Int(Int32.min)
+        _ = __kk_atomic_int_array_store(handle, 0, intMax)
+
+        #expect(__kk_atomic_int_array_addAndFetch(handle, 0, 1) == intMin)
+        #expect(__kk_atomic_int_array_compareAndExchange(handle, 0, intMin, 5) == intMin)
+        #expect(__kk_atomic_int_array_load(handle, 0) == 5)
+    }
+
     @Test func zeroSizeArrayHasZeroSize() {
         let handle = kk_atomic_int_array_create(0)
         #expect(kk_atomic_int_array_size(handle) == 0)
