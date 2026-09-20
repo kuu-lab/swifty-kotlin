@@ -280,8 +280,8 @@ final class SequenceTraversalState {
     var limitReached = false
     var takeCounts: [Int: Int] = [:]
     var dropCounts: [Int: Int] = [:]
-    var distinctSeen: [Int: [Int]] = [:]
-    var distinctBySeen: [Int: [Int]] = [:]
+    var distinctSeen: [Int: Set<RuntimeElementKey>] = [:]
+    var distinctBySeen: [Int: Set<RuntimeElementKey>] = [:]
     var zipIndices: [Int: Int] = [:]
     var chunkedBuffers: [Int: [Int]] = [:]
 }
@@ -442,12 +442,13 @@ private func runtimeSequenceTransformElement(
             yield: yield
         )
     case .distinctStep:
-        var seen = state.distinctSeen[stepIndex] ?? []
-        if seen.contains(where: { runtimeValuesEqual($0, element) }) {
+        // Mutating through the dictionary subscript avoids a COW copy of the
+        // stored set on every element.
+        guard state.distinctSeen[stepIndex, default: []]
+            .insert(RuntimeElementKey(value: element)).inserted
+        else {
             return
         }
-        seen.append(element)
-        state.distinctSeen[stepIndex] = seen
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -465,12 +466,11 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        var seen = state.distinctBySeen[stepIndex] ?? []
-        if seen.contains(where: { runtimeValuesEqual($0, key) }) {
+        guard state.distinctBySeen[stepIndex, default: []]
+            .insert(RuntimeElementKey(value: key)).inserted
+        else {
             return
         }
-        seen.append(key)
-        state.distinctBySeen[stepIndex] = seen
         runtimeSequenceTransformElement(
             element,
             steps: steps,
