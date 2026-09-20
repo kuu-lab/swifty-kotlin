@@ -125,3 +125,5 @@ expr e@38:13 name(safeRemoveAll) type=Boolean? ref=__local_17.safeRemoveAll[kind
 expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@39:13 name(safeReverse) type=Unit ref=__local_18.safeReverse[kind=local]
 expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+section stdlib-targets
+target fq=kotlin.collections.MutableCollection[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0] supertypes=[kotlin.collections.Collection<out kotlin.collections.MutableCollection.E>,kotlin.collections.MutableIterable<kotlin.collections.MutableCollection.E>]

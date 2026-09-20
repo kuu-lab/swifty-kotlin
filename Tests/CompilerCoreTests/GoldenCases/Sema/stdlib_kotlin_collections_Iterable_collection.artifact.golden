@@ -12,3 +12,5 @@ expr e@8:12 name(values) type=kotlin.collections.Iterable<String?> ref=collectio
 expr e@8:43 int(17) type=Int
 expr e@8:12#1 memberCall recv=e@8:12 callee=collectionSizeOrDefault args=[_:e@8:43] type=Int call=kotlin.collections.collectionSizeOrDefault[kind=fun;recv=kotlin.collections.Iterable<T0>;params=Int;gen=1] targs=[String?]
 expr e@8:5 return value=e@8:12#1 type=Nothing
+section stdlib-targets
+target fq=kotlin.collections.Iterable[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0(out)]
