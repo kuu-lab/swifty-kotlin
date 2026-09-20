@@ -315,14 +315,7 @@ struct CollectionLiteralLookupTables {
     var kkBoxCharName: InternedString { rangeLookup.kkBoxCharName }
     var kkCharRangeToListName: InternedString { rangeLookup.kkCharRangeToListName }
     var kkCharRangeForEachName: InternedString { rangeLookup.kkCharRangeForEachName }
-    var kkULongRangeToListName: InternedString { rangeLookup.kkULongRangeToListName }
-    var kkULongRangeContainsName: InternedString { rangeLookup.kkULongRangeContainsName }
-    var kkULongRangeFirstName: InternedString { rangeLookup.kkULongRangeFirstName }
-    var kkULongRangeLastName: InternedString { rangeLookup.kkULongRangeLastName }
     var kkULongRangeStepName: InternedString { rangeLookup.kkULongRangeStepName }
-    var kkULongRangeIsEmptyName: InternedString { rangeLookup.kkULongRangeIsEmptyName }
-    var kkULongRangeReversedName: InternedString { rangeLookup.kkULongRangeReversedName }
-    var kkULongRangeCountName: InternedString { rangeLookup.kkULongRangeCountName }
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }

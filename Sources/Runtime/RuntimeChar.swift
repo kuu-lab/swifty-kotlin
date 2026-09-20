@@ -4,10 +4,6 @@ private func runtimeUnicodeScalar(_ value: Int) -> UnicodeScalar? {
     UnicodeScalar(value)
 }
 
-private func runtimeFirstUnicodeScalarValue(_ string: String, fallback: Int) -> Int {
-    string.unicodeScalars.first.map { Int($0.value) } ?? fallback
-}
-
 private func runtimeSingleUnicodeScalarValue(_ string: String) -> Int? {
     var iterator = string.unicodeScalars.makeIterator()
     guard let first = iterator.next(), iterator.next() == nil else {
@@ -104,13 +100,13 @@ public func __kk_char_uppercase_code(_ code: Int) -> Int {
     return runtimeSingleUnicodeScalarValue(scalar.properties.uppercaseMapping) ?? -1
 }
 
-/// One-to-one lowercase mapping; returns -1 for undefined mappings.
+/// One-to-one lowercase mapping; returns -1 for multi-scalar or undefined mappings.
 @_cdecl("__kk_char_lowercase_code")
 public func __kk_char_lowercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
         return -1
     }
-    return runtimeFirstUnicodeScalarValue(String(scalar).lowercased(), fallback: -1)
+    return runtimeSingleUnicodeScalarValue(String(scalar).lowercased()) ?? -1
 }
 
 /// One-to-one titlecase mapping; returns -1 for multi-scalar or undefined mappings.
