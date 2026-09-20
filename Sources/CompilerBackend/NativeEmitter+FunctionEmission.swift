@@ -529,6 +529,7 @@ extension NativeEmitter {
                 : nil
             _ = bindings.buildCondBr(builder, condition: isNull, thenBlock: throwBlock, elseBlock: okBlock)
 
+            currentBlock = throwBlock
             bindings.positionBuilder(builder, at: throwBlock)
             let exceptionHandle = bindings.buildCall(
                 builder, functionType: npeFunction.type, callee: npeFunction.value, arguments: [],
@@ -546,6 +547,7 @@ extension NativeEmitter {
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
             }
 
+            currentBlock = okBlock
             bindings.positionBuilder(builder, at: okBlock)
             storeResult(result, fields[1])
             if usesThrownChannel, let thrownResult {
