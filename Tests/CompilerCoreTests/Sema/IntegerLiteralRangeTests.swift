@@ -89,5 +89,34 @@ struct IntegerLiteralRangeTests {
         let overflowDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LEX-0002" }
         #expect(overflowDiagnostics.count == 3, "Expected one overflow diagnostic per out-of-range literal, got: \(overflowDiagnostics)")
     }
+
+    @Test
+    func minimumIntLiteralsRemainValidAcrossRadices() throws {
+        let source = """
+        fun probe() {
+            val decimal: Int = -2147483648
+            val hexadecimal: Int = -0x80000000
+            val binary: Int = -0b10000000000000000000000000000000
+        }
+        """
+        let (ctx, ast, fileID) = try buildFrontend(source)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+
+        let initializers = localInitializers(in: ast, fileID: fileID, interner: ctx.interner)
+        for name in ["decimal", "hexadecimal", "binary"] {
+            let initializer = try #require(initializers[name])
+            guard case .intLiteral(Int64(Int32.min), _) = ast.arena.expr(initializer) else {
+                Issue.record("Expected \(name) to fold to Int.MIN_VALUE")
+                continue
+            }
+        }
+
+        try SemaPhase().run(ctx)
+        let sema = try #require(ctx.sema)
+        for name in ["decimal", "hexadecimal", "binary"] {
+            let initializer = try #require(initializers[name])
+            #expect(sema.bindings.exprType(for: initializer) == sema.types.intType)
+        }
+    }
 }
 #endif
