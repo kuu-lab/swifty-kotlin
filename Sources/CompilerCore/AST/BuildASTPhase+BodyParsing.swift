@@ -30,7 +30,9 @@ extension BuildASTPhase {
             return .unit
         }
         let exprTokens = tokens[bodyStartIndex...]
-        let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let exprID = parser.parse() else {
             return .unit
         }
@@ -253,7 +255,9 @@ extension BuildASTPhase {
         if let expr = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
-        let parser = ExpressionParser(tokens: filtered, interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: filtered, interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 
