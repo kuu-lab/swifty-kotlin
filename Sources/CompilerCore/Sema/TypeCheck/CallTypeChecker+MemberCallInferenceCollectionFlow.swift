@@ -2959,10 +2959,13 @@ extension CallTypeChecker {
                         let didBindListSource = bindBundledListSourceFunction(
                             typeArguments: [collectionElementType]
                         )
-                        if !didBindListSource, ["first", "last"].contains(calleeStr) {
+                        if !didBindListSource,
+                           ["first", "last"].contains(calleeStr),
+                           !(calleeStr == "first" && isSetReceiver)
+                        {
                             // Collection<T> and map.values use the generic
-                            // Iterable<T> source implementation when no
-                            // List-specific overload is applicable.
+                            // Iterable<T> source implementation when no more
+                            // specific List/Set overload is applicable.
                             _ = bindBundledIterableSourceFunction(
                                 typeArguments: [collectionElementType]
                             )

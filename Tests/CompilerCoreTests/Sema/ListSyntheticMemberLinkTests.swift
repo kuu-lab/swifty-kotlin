@@ -1990,6 +1990,52 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testSetFirstKeepsSetSourceWhileLastUsesIterableSource() throws {
+        let source = """
+        fun firstValue(values: Set<Int>): Int = values.first()
+        fun lastValue(values: Set<Int>): Int = values.last()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else {
+                    return false
+                }
+                let name = ctx.interner.resolve(callee)
+                return name == "first" || name == "last"
+            }
+
+            #expect(calls.count == 2)
+            for call in calls {
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                let chosen = try #require(sema.symbols.symbol(binding.chosenCallee))
+                let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+                let receiverType = try #require(signature.receiverType)
+                guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
+                    Issue.record("Expected first/last to use a nominal receiver")
+                    continue
+                }
+                let receiverSymbol = try #require(sema.symbols.symbol(receiverClassType.classSymbol))
+                let receiverName = receiverSymbol.fqName.map(ctx.interner.resolve)
+                let calleeName = ctx.interner.resolve(chosen.name)
+                if calleeName == "first" {
+                    #expect(receiverName == ["kotlin", "collections", "Set"])
+                } else {
+                    #expect(receiverName == ["kotlin", "collections", "Iterable"])
+                }
+                #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+                #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+            }
+        }
+    }
+
+    @Test
     func testPrimitiveIteratorSurfacesAreRegistered() throws {
         let ctx = try sharedListSemaContext()
 
