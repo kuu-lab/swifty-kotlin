@@ -266,6 +266,16 @@ struct RuntimeAtomicIntNativeConcurrentTests {
         _ = __kk_atomic_int_decrementAndFetch(handle)
         #expect(__kk_atomic_int_load(handle) == 0)
     }
+
+    @Test
+    func int32OverflowKeepsCompareAndSetValueInSync() {
+        let handle = kk_atomic_int_create(Int(Int32.max))
+        let intMin = Int(Int32.min)
+
+        #expect(__kk_atomic_int_incrementAndFetch(handle) == intMin)
+        #expect(kk_atomic_int_compareAndSet(handle, intMin, 5) == 1)
+        #expect(__kk_atomic_int_load(handle) == 5)
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -77,4 +77,4 @@ expr e@34:5 name(range) type=kotlin.ranges.IntRange ref=golden.sema.intRangeCont
 expr e@34:20 name(value) type=Byte? ref=golden.sema.intRangeContainsNullableByte.$8.value[kind=vparam]
 expr e@34:5#1 memberCall recv=e@34:5 callee=contains args=[_:e@34:20] type=<error>
 diagnostic severity=error code=KSWIFTK-SEMA-0002 at=31:5 msg=No viable overload found for call.
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=34:5 msg=Conflicting bounds for type variable #0: inferred Class#5307? is not a subtype of Int. lower=[Byte?, Int], upper=[Int]
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=34:5 msg=Conflicting bounds for type variable #0: inferred Number? is not a subtype of Int. lower=[Byte?, Int], upper=[Int]

@@ -22,6 +22,16 @@ public extension RuntimeABISpec {
             section: "Array"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_array_tag_type",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "typeID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_of_nulls",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),

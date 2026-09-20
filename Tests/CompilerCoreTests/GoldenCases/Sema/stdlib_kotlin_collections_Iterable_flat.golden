@@ -54,7 +54,7 @@ expr e@12:20#2 binary(add) lhs=e@12:20#1 rhs=e@12:39 type=String
 expr e@12:45 name(value) type=Int ref=s-5
 expr e@12:45#1 memberCall recv=e@12:45 callee=toString args=[] type=String
 expr e@12:20#3 binary(add) lhs=e@12:20#2 rhs=e@12:45#1 type=String
-expr e@12:9 call callee=e@12:9#1 args=[_:e@12:20#3] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[String]
+expr e@12:9 call callee=e@12:9#1 args=[_:e@12:20#3] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;gen=1] targs=[String]
 expr e@11:63 lambda params=[index,value] body=e@12:9 label=flatMapIndexed type=(Int, Int) -> Any
 expr e@11:41#1 memberCall recv=e@11:41 callee=flatMapIndexed args=[_:e@11:63] type=kotlin.collections.List<String> call=kotlin.collections.flatMapIndexed[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=Int,T0;ret=kotlin.sequences.Sequence<T1>};gen=2] targs=[Int,String]
 expr e@11:5 localDecl sequenceIndexed mutable=0 type=List<String> init=e@11:41#1 type=Unit ref=__local_3.sequenceIndexed[kind=local]
@@ -70,7 +70,7 @@ expr e@18:41 name(values) type=kotlin.collections.Iterable<Int> ref=iterableFlat
 expr e@18:78 string(seed-s) type=String
 expr e@18:58 call callee=e@18:58#1 args=[_:e@18:78] type=kotlin.collections.MutableList<Any?> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;gen=1] targs=[Any?]
 expr e@19:20 name(value) type=Int ref=s-7
-expr e@19:9 call callee=e@19:9#1 args=[_:e@19:20] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@19:9 call callee=e@19:9#1 args=[_:e@19:20] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;gen=1] targs=[Int]
 expr e@18:89 lambda params=[value] body=e@19:9 label=flatMapTo type=(Int) -> Any
 expr e@18:41#1 memberCall recv=e@18:41 callee=flatMapTo args=[_:e@18:58,_:e@18:89] type=kotlin.collections.MutableList<Any?> call=kotlin.collections.flatMapTo[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T2,fn{p=T0;ret=kotlin.sequences.Sequence<T1>};gen=3] targs=[Int,Int,kotlin.collections.MutableList<Any?>]
 expr e@18:5 localDecl sequenceTo mutable=0 type=MutableList<Any?> init=e@18:41#1 type=Unit ref=__local_5.sequenceTo[kind=local]

@@ -14,6 +14,20 @@ struct GoldenHarnessInventoryTests {
     private static let requiredTargetedCases: Set<String> = [
         "Sema/stdlib_kotlin_Any_n_n.kt",
         "Sema/stdlib_kotlin_Pair_n_n.kt",
+        "Sema/stdlib_kotlin_Triple_Triple_n.kt",
+        "Sema/stdlib_kotlin_collections_Iterable_collection.kt",
+        "Sema/stdlib_kotlin_collections_MutableList_n.kt",
+        "Sema/stdlib_kotlin_collections_n_List_interface.kt",
+        "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
+    ]
+
+    private static let requiredArtifactTargetedCases: Set<String> = [
+        "Sema/stdlib_kotlin_Any_n_n.kt",
+        "Sema/stdlib_kotlin_Pair_n_n.kt",
+        "Sema/stdlib_kotlin_Triple_Triple_n.kt",
+        "Sema/stdlib_kotlin_collections_Iterable_collection.kt",
+        "Sema/stdlib_kotlin_collections_MutableList_n.kt",
+        "Sema/stdlib_kotlin_collections_n_List_interface.kt",
     ]
 
     private static let requiredTargetContracts: Set<String> = [
@@ -21,6 +35,12 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlin.Any.<init>[kind=ctor;params=]",
         "artifact|kotlin.Pair[kind=class;gen=2]",
         "artifact|kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;gen=2]",
+        "artifact|kotlin.Triple[kind=class;gen=3]",
+        "artifact|kotlin.Triple.<init>[kind=ctor;recv=kotlin.Triple<T0,T1,T2>;params=T0,T1,T2;gen=3]",
+        "artifact|kotlin.collections.Iterable[kind=iface;gen=1]",
+        "artifact|kotlin.collections.List[kind=iface;gen=1]",
+        "artifact|kotlin.collections.MutableCollection[kind=iface;gen=1]",
+        "source|kotlin.sequences.Sequence.shuffled[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]",
     ]
 
     @Test
@@ -30,7 +50,8 @@ struct GoldenHarnessInventoryTests {
         #expect(inventory.caseCountBySuite.count == GoldenHarnessGoldenSuite.allCases.count)
         #expect(inventory.caseCount > 0)
         #expect(inventory.caseCountByProfile["implicit"] ?? 0 > 0)
-        #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredTargetedCases.count)
+        #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredArtifactTargetedCases.count)
+        #expect((inventory.caseCountByProfile["source"] ?? 0) == 1)
         #expect(inventory.targetedCaseKeys == Self.requiredTargetedCases)
         #expect(inventory.targetContracts == Self.requiredTargetContracts)
 
