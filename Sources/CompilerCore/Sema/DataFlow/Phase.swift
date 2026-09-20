@@ -59,6 +59,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        predeclareBundledMapHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1520: `Comparator.kt` is source-backed, but comparator-typed
         // synthetic signatures are registered before the normal bundled header
         // collection pass. Predeclare its nominal so those signatures resolve
@@ -236,6 +241,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        patchSourceBackedNativeUnhandledExceptionHookContract(
+            symbols: symbols,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
         // KSP-704: the Set/MutableSet nominal headers are only predeclared
         // before residual registration; their type parameters become available
         // when the complete bundled headers are collected. Register the

@@ -121,7 +121,7 @@ import Testing
         })
         let callRecursiveSignature = try #require(sema.symbols.functionSignature(for: callRecursiveSymbol))
         #expect(callRecursiveSignature.parameterTypes.count == 1)
-        #expect(!(callRecursiveSignature.isSuspend))
+        #expect(callRecursiveSignature.isSuspend)
 
         let functionExtensionSymbol = try #require(callRecursiveSymbols.first { symbolID in
             sema.symbols.externalLinkName(for: symbolID) == "__kk_deep_recursive_function_callRecursive"

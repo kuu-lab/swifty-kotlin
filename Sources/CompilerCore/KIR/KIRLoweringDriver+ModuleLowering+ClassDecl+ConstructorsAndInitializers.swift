@@ -113,8 +113,7 @@ extension KIRLoweringDriver {
                 shared: shared, compilationCtx: compilationCtx, body: &body
             )
             emitClassBodyInitializers(
-                classDecl: classDecl, shared: shared,
-                compilationCtx: compilationCtx, body: &body
+                classDecl: classDecl, shared: shared, body: &body
             )
         }
         if isSecondary {
@@ -501,7 +500,6 @@ extension KIRLoweringDriver {
     func emitClassBodyInitializers(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         for member in classDecl.classBodyInitOrder {
@@ -512,7 +510,6 @@ extension KIRLoweringDriver {
                 emitPropertyInitializer(
                     propDeclID: propDeclID,
                     shared: shared,
-                    compilationCtx: compilationCtx,
                     body: &body
                 )
             case let .initBlock(index):
@@ -542,7 +539,6 @@ extension KIRLoweringDriver {
     func emitPropertyInitializer(
         propDeclID: DeclID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let ast = shared.ast
@@ -567,7 +563,6 @@ extension KIRLoweringDriver {
                 propSymbol: propSymbol,
                 sema: sema,
                 arena: arena,
-                compilationCtx: compilationCtx,
                 shared: shared,
                 body: &body
             )
@@ -585,7 +580,7 @@ extension KIRLoweringDriver {
             emitFieldStore(
                 propSymbol: propSymbol, targetSymbol: targetSymbol,
                 value: initValue, valueType: backingFieldType,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
@@ -594,7 +589,7 @@ extension KIRLoweringDriver {
                 emitFieldStore(
                     propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: propInitValue, valueType: propType,
-                    shared: shared, compilationCtx: compilationCtx, body: &body
+                    shared: shared, body: &body
                 )
             }
             return
@@ -609,7 +604,7 @@ extension KIRLoweringDriver {
                 emitFieldStore(
                     propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: nullExpr, valueType: propType,
-                    shared: shared, compilationCtx: compilationCtx, body: &body
+                    shared: shared, body: &body
                 )
             }
             return
@@ -623,7 +618,7 @@ extension KIRLoweringDriver {
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: targetSymbol,
             value: initValue, valueType: propType,
-            shared: shared, compilationCtx: compilationCtx, body: &body
+            shared: shared, body: &body
         )
     }
 
@@ -643,7 +638,6 @@ extension KIRLoweringDriver {
         value: KIRExprID,
         valueType: TypeID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -659,7 +653,7 @@ extension KIRLoweringDriver {
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
-                callee: compilationCtx.interner.intern("kk_array_set"),
+                callee: shared.interner.intern("kk_array_set"),
                 arguments: [receiverID, offsetExpr, value],
                 result: unusedResult,
                 canThrow: false,
@@ -715,8 +709,7 @@ extension KIRLoweringDriver {
             // delegating to `this(...)` inherit them from the target instead.
             if secondaryCtor.delegationCall?.kind != .this {
                 emitClassBodyInitializers(
-                    classDecl: classDecl, shared: shared,
-                    compilationCtx: compilationCtx, body: &body
+                    classDecl: classDecl, shared: shared, body: &body
                 )
             }
             switch secondaryCtor.body {
@@ -733,12 +726,19 @@ extension KIRLoweringDriver {
         }
     }
 
-    private func emitDelegatePropertyInitializer(
+    /// Emits the delegate-expression initialization for a `by` member
+    /// property: lowers the delegate expression (or synthesizes the `LazyImpl`
+    /// construction for `lazy`), wraps it in `provideDelegate` when the
+    /// delegate type declares that operator, and stores the resulting delegate
+    /// instance into the `$delegate_<name>` field at its layout offset.
+    /// Also used by `ObjectLiteralLowerer` for object-expression members —
+    /// there is no constructor to run inside, so it is invoked inline at the
+    /// construction site with the object literal as the implicit receiver.
+    func emitDelegatePropertyInitializer(
         propertyDecl: PropertyDecl,
         propSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
-        compilationCtx: CompilationContext,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) {
@@ -752,7 +752,7 @@ extension KIRLoweringDriver {
             emitLazyDelegatePropertyInitializer(
                 propertyDecl: propertyDecl, propSymbol: propSymbol,
                 delegateStorageSym: delegateStorageSym, sema: sema, arena: arena,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             return
         }
@@ -766,7 +766,7 @@ extension KIRLoweringDriver {
             emitProvideDelegateCall(
                 delegateValue: delegateValue, storageSym: storageSym,
                 propSymbol: propSymbol, sema: sema, arena: arena,
-                compilationCtx: compilationCtx, shared: shared, body: &body
+                shared: shared, body: &body
             )
         } else {
             delegateValue
@@ -775,7 +775,7 @@ extension KIRLoweringDriver {
             emitFieldStore(
                 propSymbol: propSymbol, targetSymbol: storageSym,
                 value: valueToStore, valueType: sema.types.anyType,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
         }
     }
@@ -790,7 +790,6 @@ extension KIRLoweringDriver {
         sema: SemaModule,
         arena: KIRArena,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         guard let storageSym = delegateStorageSym else { return }
@@ -809,7 +808,7 @@ extension KIRLoweringDriver {
         ).map { lowerExpr($0, shared: shared, emit: &body) }
         let modeExpr = lowerLazyModeExpr(
             delegateExpression: propertyDecl.delegateExpression,
-            shared: shared, compilationCtx: compilationCtx, emit: &body
+            shared: shared, emit: &body
         )
         let lockArgument: KIRExprID
         if let lockValue {
@@ -842,7 +841,7 @@ extension KIRLoweringDriver {
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: storageSym,
             value: createResult, valueType: delegateType,
-            shared: shared, compilationCtx: compilationCtx, body: &body
+            shared: shared, body: &body
         )
     }
 
@@ -852,7 +851,6 @@ extension KIRLoweringDriver {
         propSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
-        compilationCtx: CompilationContext,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
@@ -865,10 +863,10 @@ extension KIRLoweringDriver {
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: storageSym,
             value: delegateValue, valueType: delegateType,
-            shared: shared, compilationCtx: compilationCtx, body: &body
+            shared: shared, body: &body
         )
         let propertyName = sema.symbols.symbol(propSymbol)?.name
-            ?? compilationCtx.interner.intern("")
+            ?? shared.interner.intern("")
         let thisRefExprID: KIRExprID
         if let receiver = ctx.activeImplicitReceiverExprID() {
             thisRefExprID = receiver
@@ -882,7 +880,7 @@ extension KIRLoweringDriver {
             propertyType: sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType,
             shared: shared, emit: &body
         )
-        let provideDelegateName = compilationCtx.interner.intern("provideDelegate")
+        let provideDelegateName = shared.interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(

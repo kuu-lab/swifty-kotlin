@@ -9,6 +9,53 @@ import Testing
 @Suite
 struct BundledStdlibExecutionTests {
     @Test
+    func testNullOnlyPreconditionCallsInferBottomTypeAndThrow() throws {
+        try compileAndRunKotlin(
+            """
+            fun requireWithoutMessage() {
+                try {
+                    requireNotNull(null)
+                } catch (x: IllegalArgumentException) {
+                    println("req")
+                }
+            }
+
+            fun requireWithMessage() {
+                try {
+                    requireNotNull(null) { "lazy-req" }
+                } catch (x: IllegalArgumentException) {
+                    println(x.message)
+                }
+            }
+
+            fun checkWithoutMessage() {
+                try {
+                    checkNotNull(null)
+                } catch (x: IllegalStateException) {
+                    println("check")
+                }
+            }
+
+            fun checkWithMessage() {
+                try {
+                    checkNotNull(null) { "lazy-check" }
+                } catch (x: IllegalStateException) {
+                    println(x.message)
+                }
+            }
+
+            fun main() {
+                requireWithoutMessage()
+                requireWithMessage()
+                checkWithoutMessage()
+                checkWithMessage()
+            }
+            """,
+            expectedOutput: "req\nlazy-req\ncheck\nlazy-check\n"
+        )
+    }
+
+    @Test
     func testHelloWorldPrintsExpectedOutput() throws {
         try compileAndRunKotlin(
             """
@@ -261,6 +308,46 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KUU-642: callRecursive must trampoline through the runtime rather than
+    // consuming a native stack frame per step, and block exceptions must
+    // propagate to the invoke caller instead of fatalError.
+    @Test
+    func testDeepRecursiveFunctionTrampolineAndExceptionPropagation() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val sumTo = DeepRecursiveFunction<Int, Int> {
+                    if (it <= 0) 0 else it + callRecursive(it - 1)
+                }
+                println(sumTo(20_000))
+
+                val boom = DeepRecursiveFunction<Int, Int> { throw RuntimeException("boom") }
+                try {
+                    boom(0)
+                } catch (e: RuntimeException) {
+                    println("caught")
+                }
+
+                val deepBoom = DeepRecursiveFunction<Int, Int> { n ->
+                    if (n <= 0) throw RuntimeException("deep") else callRecursive(n - 1) + 1
+                }
+                try {
+                    deepBoom(64)
+                } catch (e: RuntimeException) {
+                    println("deep-caught")
+                }
+
+                val identity = DeepRecursiveFunction<Int, Int> { it }
+                val hop = DeepRecursiveFunction<Int, Int> { n ->
+                    if (n <= 0) 0 else identity.callRecursive(n - 1) + 1
+                }
+                println(hop(8))
+            }
+            """,
+            expectedOutput: "200010000\ncaught\ndeep-caught\n8\n"
+        )
+    }
+
     // KSP-661: Char 判定系は bundled Kotlin (kotlin.text.CharPredicates) で実装され、
     // Unicode テーブル参照だけを __kk_char_* ブリッジ経由で行う。移行後の述語が
     // 実際にコンパイル・実行され正しい結果を返すことを end-to-end で検証する。
@@ -436,6 +523,49 @@ struct BundledStdlibExecutionTests {
             A
             invalid-digit
             invalid-radix
+
+            """
+        )
+    }
+
+    // KUU-623: Int.toString(radix) and Long.toString(radix) must reject
+    // radices outside Kotlin's valid 2..36 range instead of clamping them.
+    @Test
+    func testSignedToStringRadixRejectsInvalidRadix() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                try {
+                    42.toString(1)
+                    println("missing-int-low")
+                } catch (e: IllegalArgumentException) {
+                    println("int-low: ${e.message}")
+                }
+                try {
+                    42.toString(37)
+                    println("missing-int-high")
+                } catch (e: IllegalArgumentException) {
+                    println("int-high: ${e.message}")
+                }
+                try {
+                    42L.toString(1)
+                    println("missing-long-low")
+                } catch (e: IllegalArgumentException) {
+                    println("long-low: ${e.message}")
+                }
+                try {
+                    42L.toString(37)
+                    println("missing-long-high")
+                } catch (e: IllegalArgumentException) {
+                    println("long-high: ${e.message}")
+                }
+            }
+            """,
+            expectedOutput: """
+            int-low: radix 1 was not in valid range 2..36
+            int-high: radix 37 was not in valid range 2..36
+            long-low: radix 1 was not in valid range 2..36
+            long-high: radix 37 was not in valid range 2..36
 
             """
         )

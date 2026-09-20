@@ -84,4 +84,40 @@ exit label とは別物で、同一 cursor 由来のため衝突しない）。
 `callerRoute(for:thrownSlot:dispatchLabel:)` に集約し、`thrownResult == nil` だけを
 判定根拠にして `canThrow` の意味や例外 ABI は変更しない。
 
+RF-LOWER-INLINE-009 以降、展開対象の index と依存スケジューリングは分離
+している。`Sources/CompilerCore/Lowering/InlineExpansionIndex.swift` の
+`InlineExpansionIndex` が `SymbolID` 主キーのスナップショットと分類・
+依存問い合わせを担う:
+
+- `inlineFunctionsBySymbol` — 展開ターゲット（module `inline` 宣言 +
+  imported inline 本体）。`.call` site でsplice対象になり得るのはこの表
+  だけで、lambda 本体はここには入らない。
+- `allFunctionsBySymbol` — module 宣言の全関数（通常 / inline /
+  lambda 本体）。lambda 解決が使う lookup で、imported 本体は入らない。
+- `origins` — 各展開ターゲットの出所（`.module` / `.imported`）。
+- `bodylessInlineSymbols` — object ファイルに本体が残らない callee
+  （module `isInlineOnly` + imported 全件）。ここへの呼び出しは必ず
+  展開しなければならない。
+- `originalBodies` — 凍結済みの展開前本体（両表の union、衝突時は
+  module 宣言優先）。各ラウンドはこれを再展開し、二重展開しない。
+
+依存情報は `bodylessCallees(of:)`（解決済み symbol の `.call` のみを辺
+とし、名前のみの呼び出し・自己呼び出しは辺にしない）と
+`pendingBodylessCallers(interner:)`（`snapshotExpansionOrder` — 名前・
+パラメータ数・source range・symbol raw value の全順序 — で辞書列挙順
+に依存しない処理順を返す）に抽出した。symbol 既知 call の束縛規則は
+`inlineTarget(callSymbol:callee:inlineFunctionsByName:)` が持ち、既知
+symbol は自身の snapshot にのみ束縛され同名 fallback へは流れない
+（KSP-1011）。symbol 不明 call のみ一意な by-name 候補を使う。
+`recordExpansion` が module 表・ターゲット表への書き戻しを一元化する。
+
+スケジューリングは `InlineLoweringPass+Scheduling.swift` の
+`expandNestedBodylessInlineCalls`（bodyless snapshot 4ラウンド、
+`maxBodylessExpansionRounds`）と `inlineTransform`（caller 8ラウンド
+再走査、`maxInlineExpansionRounds`）だけが担い、既存の回数制御は維持
+する。ラウンド内で by-name 表を固定しつつ by-symbol 表は最新を参照する
+逐次意味、pending が現在本体・展開が凍結 original を見る規則も不変。
+固定回数の撤廃・循環検出・展開量制限は INLINE-010 以降の対象であり、
+本PRでは変更しない。
+
 全Swift・Golden・全Kotlin差分の結果はPRの検証欄に記録し、共通RFゲートが未完了ならTODOは `[~]` とする。

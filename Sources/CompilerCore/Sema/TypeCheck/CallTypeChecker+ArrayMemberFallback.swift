@@ -14,8 +14,9 @@ extension CallTypeChecker {
         "indices", "lastIndex", "iterator", "withIndex", "sort",
     ]
 
-    private static let arraySourceConversionNames: Set<String> = [
+    private static let arraySourceBackedNames: Set<String> = [
         "sliceArray", "reversedArray", "asList", "toTypedArray",
+        "asIterable", "sumOf",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import
@@ -60,17 +61,17 @@ extension CallTypeChecker {
     }
 
     /// Finds the exact bundled source overload for an Array or primitive-array
-    /// conversion. These functions are top-level extensions in
+    /// source-backed member. These functions are top-level extensions in
     /// kotlin.collections, so member lookup can otherwise select a synthetic
     /// array stub or a same-named generic collection extension first.
-    func collectArraySourceConversionCandidates(
+    func collectArraySourceBackedCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
         let memberName = interner.resolve(calleeName)
-        guard Self.arraySourceConversionNames.contains(memberName),
+        guard Self.arraySourceBackedNames.contains(memberName),
               let receiverClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
               let receiverSymbol = sema.symbols.symbol(receiverClass),
               receiverSymbol.fqName.count == 2,
@@ -137,7 +138,7 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
-        if !collectArraySourceConversionCandidates(
+        if !collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: sema.bindings.exprTypes[receiverID] ?? sema.types.anyType,
             sema: sema,
