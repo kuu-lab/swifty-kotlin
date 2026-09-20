@@ -243,6 +243,26 @@ struct RuntimeAssertionsTests {
                 "Throwable should be last in hierarchy")
     }
 
+    // MARK: - RuntimeMalformedInputExceptionBox
+
+    @Test
+    func testMalformedInputExceptionBoxRuntimeIdentity() {
+        let message = runtimeMalformedInputExceptionDefaultMessage
+        let box = RuntimeMalformedInputExceptionBox(message: message)
+        #expect(box.exceptionFQName == "java.nio.charset.MalformedInputException")
+        #expect(box.message == message)
+        #expect(box.cause == 0)
+        #expect(box.renderedMessage == "MalformedInputException: \(message)")
+        #expect(box.exceptionHierarchyFQNames == [
+            "java.nio.charset.MalformedInputException",
+            "java.nio.charset.CharacterCodingException",
+            "kotlin.text.CharacterCodingException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ])
+        #expect(runtimeValueIsThrowableBox(box))
+    }
+
     // MARK: - RuntimeInvalidMutabilityExceptionBox
 
     @Test

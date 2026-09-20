@@ -855,6 +855,12 @@ final class CallTypeChecker {
         if let calleeName,
            (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicIntArray",
+           !hasSourceBackedAtomicArrayFactory(
+               calleeName,
+               className: "AtomicIntArray",
+               argumentCount: args.count,
+               ctx: ctx
+           ),
            !isShadowedByNonSyntheticSymbol(
                calleeName,
                locals: locals,
@@ -907,6 +913,12 @@ final class CallTypeChecker {
         if let calleeName,
            (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicLongArray",
+           !hasSourceBackedAtomicArrayFactory(
+               calleeName,
+               className: "AtomicLongArray",
+               argumentCount: args.count,
+               ctx: ctx
+           ),
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
            let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
@@ -1718,13 +1730,30 @@ final class CallTypeChecker {
             }
             var resolvedFromLocalShadow = false
             if let local = locals[calleeName],
-               let sym = ctx.cachedSymbol(local.symbol),
-               sym.kind == .function
+               let sym = ctx.cachedSymbol(local.symbol)
             {
-                // Local function declarations shadow imported and top-level functions
-                // of the same name, so use the local symbol as the sole candidate.
-                candidates = [local.symbol]
-                resolvedFromLocalShadow = true
+                let localIsCallableValue: Bool = {
+                    if case .functionType = sema.types.kind(of: local.type) {
+                        return true
+                    }
+                    let invokeName = interner.intern("invoke")
+                    return driver.helpers.collectMemberFunctionCandidates(
+                        named: invokeName,
+                        receiverType: local.type,
+                        sema: sema,
+                        interner: interner
+                    ).contains { candidateID in
+                        sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+                    }
+                }()
+                if sym.kind == .function || localIsCallableValue || local.type == sema.types.errorType {
+                    // Callable local declarations shadow imported and top-level
+                    // callables of the same name. Non-callable values do not:
+                    // `val emptyList = emptyList<Int>()` must not hide a later
+                    // `emptyList<String>()` call.
+                    candidates = sym.kind == .function ? [local.symbol] : []
+                    resolvedFromLocalShadow = true
+                }
             }
             // KSP-CAP-006: a class/enum/annotation-class/object may coexist
             // with a top-level function of the same name (e.g. `class Random`
@@ -1968,8 +1997,65 @@ final class CallTypeChecker {
             }
         }
 
+        if let calleeName,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           ["removeAll", "retainAll"].contains(interner.resolve(calleeName)),
+           args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true })
+        {
+            let preferredCandidates = preferImplicitReceiverPredicateCandidates(
+                candidates,
+                args: args,
+                receiverType: implicitReceiverType,
+                ctx: ctx
+            )
+            if !preferredCandidates.isEmpty {
+                candidates = preferredCandidates
+            }
+        }
+
+        if let calleeName,
+           let implicitReceiverResult = tryBindImplicitReceiverCollectionMemberCall(
+               id,
+               calleeName: calleeName,
+               args: args,
+               range: range,
+               ctx: ctx,
+               locals: &locals,
+               expectedType: expectedType,
+               explicitTypeArgs: explicitTypeArgs
+           )
+        {
+            return implicitReceiverResult
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
+        // A generic destination parameter can be constrained from the call's
+        // expected result type even when its argument is an empty factory call:
+        // `fun <T, C : MutableCollection<T>> f(destination: C, value: T): C`
+        // must contextualize `f(mutableListOf(), 1)` as `C = MutableList<Int>`.
+        // The first eager pass intentionally keeps ordinary arguments cheap,
+        // so add a targeted override for parameters that are the same type
+        // variable returned by the sole viable candidate. The contextual pass
+        // then re-infers the nested factory with the concrete target.
+        if let expectedType,
+           expectedType != sema.types.errorType,
+           candidates.count == 1,
+           let candidate = candidates.first,
+           let signature = sema.symbols.functionSignature(for: candidate),
+           case let .typeParam(returnTypeParam) = sema.types.kind(of: signature.returnType)
+        {
+            for (index, parameterType) in signature.parameterTypes.enumerated()
+                where index < args.count
+            {
+                guard case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+                      parameterTypeParam.symbol == returnTypeParam.symbol
+                else {
+                    continue
+                }
+                expectedTypeOverrides[index] = expectedType
+            }
+        }
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType
         {
@@ -1989,6 +2075,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
+            receiverType: ctx.implicitReceiverType,
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
@@ -2120,21 +2207,37 @@ final class CallTypeChecker {
                     keyType = sema.types.nothingType
                     valueType = sema.types.nothingType
                 }
-                let resultType = name == "mapOf" || name == "emptyMap"
-                    ? makeSyntheticMapType(
+                let resultType: TypeID
+                if name == "mapOf" || name == "emptyMap" {
+                    resultType = makeSyntheticMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         keyType: keyType,
                         valueType: valueType
                     )
-                    : makeSyntheticMutableMapType(
+                } else if name == "linkedMapOf" {
+                    // KUU-556: linkedMapOf() is declared to return LinkedHashMap<K,
+                    // V> (linked.kt), now a real HashMap subclass -- give call
+                    // sites that same nominal type instead of the generic
+                    // MutableMap hashMapOf/mutableMapOf still get, matching how
+                    // linkedSetOf already gets makeSyntheticLinkedHashSetType above.
+                    resultType = makeSourceBackedLinkedHashMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         keyType: keyType,
                         valueType: valueType
                     )
+                } else {
+                    resultType = makeSyntheticMutableMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                }
                 return (resultType, [keyType, valueType])
 
             default:
@@ -2312,7 +2415,7 @@ final class CallTypeChecker {
                         keyType: keyType,
                         valueType: valueType
                     )
-                    : makeSyntheticMutableMapType(
+                    : makeSourceBackedLinkedHashMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
@@ -2623,7 +2726,7 @@ final class CallTypeChecker {
                     "__kk_op_rangeUntil",
                     "__kk_uint_rangeTo",
                     "__kk_ulong_rangeTo",
-                    "kk_char_rangeTo",
+                    "__kk_char_rangeTo",
                     "__kk_int_progression_fromClosedRange",
                     "__kk_long_progression_fromClosedRange",
                     "__kk_uint_progression_fromClosedRange",

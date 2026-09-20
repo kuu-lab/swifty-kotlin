@@ -412,9 +412,16 @@ extension OverloadResolver {
         {
             if typeParam.nullability != .nonNull {
                 if case .nothing(.nullable) = typeSystem.kind(of: subtype) {
-                    // `null` / `Nothing?` is compatible with `T?` but does not
-                    // constrain the underlying non-null type variable.
-                    return []
+                    // `null` has type `Nothing?`. Although it is compatible
+                    // with every nullable `T?`, it still provides the bottom
+                    // type as the lower bound, so unconstrained calls such as
+                    // `requireNotNull(null)` infer T = Nothing.
+                    return [VariableConstraint(
+                        kind: .subtype,
+                        left: .type(typeSystem.nothingType),
+                        right: .variable(variable),
+                        blameRange: blameRange
+                    )]
                 }
                 let nonNullSubtype = typeSystem.makeNonNullable(subtype)
                 return [VariableConstraint(
@@ -473,10 +480,21 @@ extension OverloadResolver {
             )
         }
 
-        // Case 2: supertype is a class type with type args containing type variables.
+        // Case 2: supertype is a generic class type with inferable variables or
+        // use-site projections. Projections such as `Comparator<in Char>` are
+        // otherwise left to the nominal subtype check, which cannot distinguish
+        // a valid projected argument from an invariant one.
         if case let .classType(superClass) = supertypeKind,
            !superClass.args.isEmpty,
-           containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+           (containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+               || superClass.args.contains(where: { arg in
+                   switch arg {
+                   case .in, .out:
+                       true
+                   case .invariant, .star:
+                       false
+                   }
+               }))
         {
             let subtypeKind = typeSystem.kind(of: subtype)
             // Kotlin function types are represented as `Function<R>` in source
@@ -609,9 +627,17 @@ extension OverloadResolver {
             )
         }
 
-        // Case 3: supertype is a function type with type variables in params/return.
+        // Case 3: either side is a function type with type variables in
+        // params/return. Invariant generic arguments decompose in both
+        // directions. The reverse direction can place the variable-bearing
+        // function on the subtype side, for example:
+        // `(T) -> Unit <: (String) -> Unit` from
+        // `Box<(String) -> Unit> <: Box<(T) -> Unit>`.
+        // Leaving that as a type-to-type constraint asks isSubtype to compare
+        // the unresolved T before the solver applies its bounds.
         if case let .functionType(superFunc) = supertypeKind,
-           containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+           containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+               || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
             let receiverShapesMatch: Bool = {

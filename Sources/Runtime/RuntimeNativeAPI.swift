@@ -110,7 +110,7 @@ public func kk_cpointer_toKStringFromUtf16(_ handle: Int) -> Int {
         units.append(utf16[index])
         index += 1
     }
-    return registerRuntimeObject(RuntimeStringBox(String(decoding: units, as: UTF16.self)))
+    return registerRuntimeObject(RuntimeStringBox(runtimeKotlinStringFromUTF16CodeUnits(units)))
 }
 
 @_cdecl("kk_copaque_pointer_new")
@@ -200,10 +200,12 @@ private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
         return hookRaw
     }
 
-    func set(_ raw: Int) {
+    func set(_ raw: Int) -> Int {
         lock.lock()
+        let previous = hookRaw
         hookRaw = raw == 0 || raw == runtimeNullSentinelInt ? runtimeNullSentinelInt : raw
         lock.unlock()
+        return previous
     }
 }
 
@@ -217,7 +219,6 @@ public func kk_native_getUnhandledExceptionHook() -> Int {
 @_cdecl("kk_native_setUnhandledExceptionHook")
 public func kk_native_setUnhandledExceptionHook(_ hookRaw: Int) -> Int {
     runtimeUnhandledExceptionHookRegistry.set(hookRaw)
-    return 0
 }
 
 @_cdecl("kk_native_processUnhandledException")
@@ -234,7 +235,7 @@ public func kk_native_processUnhandledException(
 }
 
 @_cdecl("kk_native_terminateWithUnhandledException")
-public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
+public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Never {
     _ = kk_native_processUnhandledException(throwableRaw, nil)
     runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
@@ -251,13 +252,13 @@ private func runtimeNativeByteArrayLoadUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.count else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
     var value: UInt64 = 0
     for byteOffset in 0..<byteCount {
-        let byte = UInt8(truncatingIfNeeded: array.elements[index + byteOffset])
+        let byte = UInt8(truncatingIfNeeded: array[index + byteOffset])
         value |= UInt64(byte) << UInt64(byteOffset * 8)
     }
     return value
@@ -274,13 +275,13 @@ private func runtimeNativeByteArrayStoreUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.count else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
     for byteOffset in 0..<byteCount {
         let byte = UInt8(truncatingIfNeeded: value >> UInt64(byteOffset * 8))
-        array.elements[index + byteOffset] = Int(Int8(bitPattern: byte))
+        array[index + byteOffset] = Int(Int8(bitPattern: byte))
     }
     return 0
 }
@@ -672,14 +673,13 @@ public func kk_unpin_object(_ pinnedHandle: Int) -> Int {
     guard box.tryUnpin() else {
         return box.objectRaw
     }
-    let unmanaged = Unmanaged<RuntimePinnedBox>.fromOpaque(ptr)
+    let objectRaw = box.objectRaw
     // Drop GC root registration so the object can be collected again; see kk_pin_object.
     runtimeStorage.withGCLock { state in
-        state.pinnedObjects.remove(UInt(bitPattern: box.objectRaw))
-        state.objectPointers.remove(UInt(bitPattern: ptr))
+        state.pinnedObjects.remove(UInt(bitPattern: objectRaw))
     }
-    unmanaged.release()
-    return box.objectRaw
+    _ = runtimeReleaseObject(pinnedHandle)
+    return objectRaw
 }
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP-FN-009/042 (pin() / usePinned())
@@ -692,6 +692,74 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
         return 0
     }
     return box.objectRaw
+}
+
+// MARK: - StableRef<T>
+
+/// Runtime backing for `kotlinx.cinterop.StableRef<T>`.
+///
+/// Same GC-root-pinning mechanism as `Pinned<T>` above (KSwiftK never moves
+/// heap objects, so pinning is a reachability hold rather than a real pin),
+/// but refcounted per target object rather than a plain membership set:
+/// unlike `Pinned<T>`, the public StableRef contract allows the same target
+/// to be wrapped by several independent handles at once (e.g.
+/// `kotlin.native.concurrent.Continuation1.invoke` creates a fresh
+/// `StableRef` per call while the block's own StableRef stays alive across
+/// many calls), and disposing one handle must never unpin a sibling handle
+/// to the same object.
+///
+/// The resulting pointer is boxed through the existing `RuntimeCOpaquePointerBox`
+/// (`kk_copaque_pointer_new`/`kk_copaque_pointer_address`) so `StableRef.stablePtr`
+/// is a regular `COpaquePointer` value, matching `StableRef.asCPointer()`'s
+/// contract of handing back something safe to pass to native code.
+@_cdecl("kk_stable_ref_create")
+public func kk_stable_ref_create(_ objectRaw: Int) -> Int {
+    guard objectRaw != 0 else {
+        return 0
+    }
+    runtimeStorage.withGCLock { state in
+        state.stableRefCounts[UInt(bitPattern: objectRaw), default: 0] += 1
+    }
+    return kk_copaque_pointer_new(objectRaw)
+}
+
+@_cdecl("kk_stable_ref_deref")
+public func kk_stable_ref_deref(_ pointerHandle: Int) -> Int {
+    let objectRaw = kk_copaque_pointer_address(pointerHandle)
+    guard objectRaw != 0 else {
+        return runtimeNullSentinelInt
+    }
+    let isLive = runtimeStorage.withGCLock { state in
+        (state.stableRefCounts[UInt(bitPattern: objectRaw)] ?? 0) > 0
+    }
+    // Guards against a COpaquePointer that was never a StableRef (or was
+    // already disposed): kk_copaque_pointer_address would otherwise return
+    // its raw address unchecked, and `get()`'s `as T` would then fault on
+    // garbage instead of throwing a clean ClassCastException.
+    guard isLive else {
+        return runtimeNullSentinelInt
+    }
+    return objectRaw
+}
+
+@_cdecl("kk_stable_ref_dispose")
+public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
+    let objectRaw = kk_copaque_pointer_address(pointerHandle)
+    guard objectRaw != 0 else {
+        return 0
+    }
+    return runtimeStorage.withGCLock { state in
+        let key = UInt(bitPattern: objectRaw)
+        guard let count = state.stableRefCounts[key], count > 0 else {
+            return 0
+        }
+        if count == 1 {
+            state.stableRefCounts.removeValue(forKey: key)
+        } else {
+            state.stableRefCounts[key] = count - 1
+        }
+        return objectRaw
+    }
 }
 
 // MARK: - WeakReference<T>
@@ -931,6 +999,17 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         return frozen.contains(UInt(bitPattern: raw))
     }
 
+    func remove(_ raw: Int) {
+        guard raw != 0 else { return }
+        lock.lock()
+        frozen.remove(UInt(bitPattern: raw))
+        lock.unlock()
+    }
+
+}
+
+func runtimeForgetFrozenObject(_ raw: Int) {
+    runtimeFrozenSet.remove(raw)
 }
 
 @discardableResult

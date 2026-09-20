@@ -31,8 +31,10 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
             // entire string is delimiter
             println(",".split(","))
 
-            // empty delimiter returns list containing original string
+            // empty delimiter matches at every UTF-16 boundary
             println("abc".split(""))
+            println("abc".split("", limit = 2))
+            println("abc".split("", ignoreCase = true))
         }
         """
 
@@ -48,7 +50,9 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
                 [, a, b, ]
                 [a, , b]
                 [, ]
-                [abc]
+                [, a, b, c, ]
+                [, abc]
+                [, a, b, c, ]
                 """
                 + "\n"
         )
@@ -88,7 +92,7 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
             // normal split
             println("a,b,c".splitToSequence(",").toList())
 
-            // empty delimiter returns original string wrapped
+            // empty delimiter matches at every UTF-16 boundary
             println("abc".splitToSequence("").toList())
         }
         """
@@ -101,7 +105,40 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
                 []
                 [hello]
                 [a, b, c]
-                [abc]
+                [, a, b, c, ]
+                """
+                + "\n"
+        )
+    }
+
+    @Test func testKotlinTextSplitVarargAndCharSequenceReceivers() throws {
+        let source = """
+        fun main() {
+            val source: CharSequence = "a,b;c:d"
+            val stringDelimiters = arrayOf(",", ";", ":")
+            val charDelimiters = charArrayOf(',', ';', ':')
+            println(source.split(",", ";", ":"))
+            println(source.split(',', ';', ':'))
+            println(source.splitToSequence(",", ";", ":").toList())
+            println(source.split(*stringDelimiters))
+            println(source.split(*charDelimiters))
+            println(source.splitToSequence(*stringDelimiters).toList())
+            println(source.splitToSequence(*charDelimiters).toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSplitVarargs",
+            expected:
+                """
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
+                [a, b, c, d]
                 """
                 + "\n"
         )

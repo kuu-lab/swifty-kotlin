@@ -1,0 +1,29 @@
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSet.$0.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSet.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSet.$0.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSet[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>,String,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.FreezableAtomicReference<String>,String,String] ret=Boolean
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSwap.$1.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSwap.$1.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSwap.$1.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceCompareAndSwap[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>,String,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.FreezableAtomicReference<String>,String,String] ret=String
+symbol fq=golden.sema.freezableAtomicReferenceToString.$2.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceToString[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.FreezableAtomicReference<String>] ret=String
+symbol fq=golden.sema.freezableAtomicReferenceValue.$3.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.freezableAtomicReferenceValue[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.FreezableAtomicReference<String>] ret=String
+file fstdlib_kotlin_native_concurrent_FreezableAtomicReference_FreezableAtomicReference_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.freezableAtomicReferenceValue[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>] fun freezableAtomicReferenceValue sym=golden.sema.freezableAtomicReferenceValue[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>]
+  decl golden.sema.freezableAtomicReferenceCompareAndSet[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>,String,String] fun freezableAtomicReferenceCompareAndSet sym=golden.sema.freezableAtomicReferenceCompareAndSet[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>,String,String]
+  decl golden.sema.freezableAtomicReferenceCompareAndSwap[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>,String,String] fun freezableAtomicReferenceCompareAndSwap sym=golden.sema.freezableAtomicReferenceCompareAndSwap[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>,String,String]
+  decl golden.sema.freezableAtomicReferenceToString[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>] fun freezableAtomicReferenceToString sym=golden.sema.freezableAtomicReferenceToString[kind=fun;params=kotlin.native.concurrent.FreezableAtomicReference<String>]
+expr e@7:90 name(reference) type=kotlin.native.concurrent.FreezableAtomicReference<String> ref=golden.sema.freezableAtomicReferenceValue.$3.reference[kind=vparam]
+expr e@7:90#1 memberCall recv=e@7:90 callee=value args=[] type=String ref=kotlin.native.concurrent.FreezableAtomicReference.value[kind=prop]
+expr e@13:14 name(reference) type=kotlin.native.concurrent.FreezableAtomicReference<String> ref=golden.sema.freezableAtomicReferenceCompareAndSet.$0.reference[kind=vparam]
+expr e@13:38 name(expected) type=String ref=golden.sema.freezableAtomicReferenceCompareAndSet.$0.expected[kind=vparam]
+expr e@13:48 name(newValue) type=String ref=golden.sema.freezableAtomicReferenceCompareAndSet.$0.newValue[kind=vparam]
+expr e@13:14#1 memberCall recv=e@13:14 callee=compareAndSet args=[_:e@13:38,_:e@13:48] type=Boolean call=kotlin.native.concurrent.FreezableAtomicReference.compareAndSet[kind=fun;recv=kotlin.native.concurrent.FreezableAtomicReference<T0>;params=T0,T0;gen=1] targs=[String]
+expr e@19:13 name(reference) type=kotlin.native.concurrent.FreezableAtomicReference<String> ref=golden.sema.freezableAtomicReferenceCompareAndSwap.$1.reference[kind=vparam]
+expr e@19:38 name(expected) type=String ref=golden.sema.freezableAtomicReferenceCompareAndSwap.$1.expected[kind=vparam]
+expr e@19:48 name(newValue) type=String ref=golden.sema.freezableAtomicReferenceCompareAndSwap.$1.newValue[kind=vparam]
+expr e@19:13#1 memberCall recv=e@19:13 callee=compareAndSwap args=[_:e@19:38,_:e@19:48] type=String call=kotlin.native.concurrent.FreezableAtomicReference.compareAndSwap[kind=fun;recv=kotlin.native.concurrent.FreezableAtomicReference<T0>;params=T0,T0;gen=1] targs=[String]
+expr e@21:93 name(reference) type=kotlin.native.concurrent.FreezableAtomicReference<String> ref=golden.sema.freezableAtomicReferenceToString.$2.reference[kind=vparam]
+expr e@21:93#1 memberCall recv=e@21:93 callee=toString args=[] type=String call=kotlin.native.concurrent.FreezableAtomicReference.toString[kind=fun;recv=kotlin.native.concurrent.FreezableAtomicReference<T0>;params=;gen=1] targs=[String]

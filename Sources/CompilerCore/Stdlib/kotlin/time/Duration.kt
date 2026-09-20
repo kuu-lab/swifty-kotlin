@@ -1,5 +1,11 @@
 package kotlin.time
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+
 // KSP-683
 // Duration's public representation and pure operations are Kotlin source. The
 // runtime only owns parsing and platform interop; the value class payload is the
@@ -16,10 +22,72 @@ public value class Duration internal constructor(internal val rawValue: Long) {
         return rawValue == that.rawValue
     }
 
-    public override fun hashCode(): Int = rawValue.toInt()
+    // Long.hashCode() of the nanosecond payload. `toInt()` only keeps the low
+    // 32 bits, so a typed call disagreed with the boxed/Any path and broke the
+    // equals/hashCode contract (KUU-645).
+    public override fun hashCode(): Int = rawValue.hashCode()
 
     public override fun toString(): String = durationToString(rawValue)
+
+    public companion object {
+        // Companion-scope numeric extensions are part of the public kotlin.time API.
+        // The package-level aliases below remain for existing source files that use
+        // the short form without importing Duration.Companion.*.
+        public fun convert(value: Double, sourceUnit: DurationUnit, targetUnit: DurationUnit): Double {
+            val sourceScale = durationUnitScale(sourceUnit).toDouble()
+            val targetScale = durationUnitScale(targetUnit).toDouble()
+            return value * sourceScale / targetScale
+        }
+
+        public val Int.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
+        public val Long.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
+        public val Double.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
+        public val Int.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
+        public val Long.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
+        public val Double.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
+        public val Int.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
+        public val Long.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
+        public val Double.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
+        public val Int.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
+        public val Long.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
+        public val Double.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
+        public val Int.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
+        public val Long.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
+        public val Double.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
+        public val Int.hours: Duration get() = toDuration(DurationUnit.HOURS)
+        public val Long.hours: Duration get() = toDuration(DurationUnit.HOURS)
+        public val Double.hours: Duration get() = toDuration(DurationUnit.HOURS)
+        public val Int.days: Duration get() = toDuration(DurationUnit.DAYS)
+        public val Long.days: Duration get() = toDuration(DurationUnit.DAYS)
+        public val Double.days: Duration get() = toDuration(DurationUnit.DAYS)
+    }
 }
+
+// Keep the legacy package-level spelling available to bundled implementation
+// sources. The public Kotlin API exposes the same extensions through
+// `Duration.Companion`; these aliases are a source-compatibility bridge for
+// code that predates that migration.
+public val Int.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
+public val Long.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
+public val Double.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
+public val Int.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
+public val Long.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
+public val Double.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
+public val Int.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
+public val Long.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
+public val Double.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
+public val Int.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
+public val Long.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
+public val Double.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
+public val Int.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
+public val Long.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
+public val Double.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
+public val Int.hours: Duration get() = toDuration(DurationUnit.HOURS)
+public val Long.hours: Duration get() = toDuration(DurationUnit.HOURS)
+public val Double.hours: Duration get() = toDuration(DurationUnit.HOURS)
+public val Int.days: Duration get() = toDuration(DurationUnit.DAYS)
+public val Long.days: Duration get() = toDuration(DurationUnit.DAYS)
+public val Double.days: Duration get() = toDuration(DurationUnit.DAYS)
 
 private const val NANOS_PER_MICROSECOND: Long = 1_000L
 private const val NANOS_PER_MILLISECOND: Long = 1_000_000L
@@ -70,7 +138,7 @@ private fun durationUnitScale(unit: DurationUnit): Long = when (unit) {
 }
 
 private fun durationFromDouble(value: Double, scale: Long): Duration {
-    if (value.isNaN()) return Duration(0L)
+    require(!value.isNaN()) { "Duration value cannot be NaN." }
     if (value.isInfinite()) return Duration(if (value < 0.0) Long.MIN_VALUE else Long.MAX_VALUE)
     val scaled = value * scale.toDouble()
     if (scaled >= Long.MAX_VALUE.toDouble()) return Duration(Long.MAX_VALUE)
@@ -82,6 +150,48 @@ private fun durationToDouble(value: Long): Double = when {
     value == Long.MAX_VALUE -> Double.POSITIVE_INFINITY
     value == Long.MIN_VALUE -> Double.NEGATIVE_INFINITY
     else -> value.toDouble()
+}
+
+private fun durationUnitShortName(unit: DurationUnit): String = when (unit) {
+    DurationUnit.NANOSECONDS -> "ns"
+    DurationUnit.MICROSECONDS -> "us"
+    DurationUnit.MILLISECONDS -> "ms"
+    DurationUnit.SECONDS -> "s"
+    DurationUnit.MINUTES -> "m"
+    DurationUnit.HOURS -> "h"
+    DurationUnit.DAYS -> "d"
+}
+
+private fun durationFormatToDecimals(value: Double, decimals: Int): String {
+    if (decimals == 0) return value.roundToLong().toString()
+
+    var factor = 1L
+    var factorAsDouble = 1.0
+    var index = 0
+    while (index < decimals) {
+        factor *= 10L
+        factorAsDouble *= 10.0
+        index += 1
+    }
+
+    // Fixed-point formatting is only exact while the scaled value fits in Long.
+    // Very large finite values are still represented meaningfully by Double.toString.
+    if (value > Long.MAX_VALUE.toDouble() / factorAsDouble ||
+        value < Long.MIN_VALUE.toDouble() / factorAsDouble
+    ) {
+        return value.toString()
+    }
+
+    val rounded = (value * factorAsDouble).roundToLong()
+    val negative = rounded < 0L
+    val absolute = if (negative) -rounded else rounded
+    val whole = absolute / factor
+    val fraction = (absolute % factor).toString().let {
+        var padded = it
+        while (padded.length < decimals) padded = "0" + padded
+        padded
+    }
+    return (if (negative) "-" else "") + whole + "." + fraction
 }
 
 private fun durationFraction(value: Long, width: Int): String {
@@ -164,6 +274,12 @@ public operator fun Duration.minus(other: Duration): Duration =
 public operator fun Duration.times(scale: Int): Duration =
     Duration(saturatingMultiply(rawValue, scale.toLong()))
 
+public operator fun Duration.times(scale: Double): Duration {
+    val intScale = scale.roundToInt()
+    if (intScale.toDouble() == scale) return this * intScale
+    return durationFromDouble(durationToDouble(rawValue) * scale, 1L)
+}
+
 public operator fun Duration.div(scale: Int): Duration =
     if (scale == 0) {
         Duration(if (rawValue < 0L) Long.MIN_VALUE else Long.MAX_VALUE)
@@ -172,6 +288,12 @@ public operator fun Duration.div(scale: Int): Duration =
     } else {
         Duration(rawValue / scale.toLong())
     }
+
+public operator fun Duration.div(scale: Double): Duration {
+    val intScale = scale.roundToInt()
+    if (intScale.toDouble() == scale && intScale != 0) return this / intScale
+    return durationFromDouble(durationToDouble(rawValue) / scale, 1L)
+}
 
 public operator fun Duration.div(other: Duration): Double =
     durationToDouble(rawValue) / durationToDouble(other.rawValue)
@@ -208,6 +330,54 @@ val Duration.inWholeMinutes: Long get() = rawValue / NANOS_PER_MINUTE
 val Duration.inWholeHours: Long get() = rawValue / NANOS_PER_HOUR
 
 val Duration.inWholeDays: Long get() = rawValue / NANOS_PER_DAY
+
+public val Duration.hoursComponent: Int
+    get() = if (durationIsInfinite(rawValue)) 0 else (inWholeHours % 24L).toInt()
+
+public val Duration.minutesComponent: Int
+    get() = if (durationIsInfinite(rawValue)) 0 else (inWholeMinutes % 60L).toInt()
+
+public val Duration.secondsComponent: Int
+    get() = if (durationIsInfinite(rawValue)) 0 else (inWholeSeconds % 60L).toInt()
+
+public val Duration.nanosecondsComponent: Int
+    get() = if (durationIsInfinite(rawValue)) 0 else (rawValue % NANOS_PER_SECOND).toInt()
+
+public fun Duration.toDouble(unit: DurationUnit): Double {
+    return when (rawValue) {
+        Long.MAX_VALUE -> Double.POSITIVE_INFINITY
+        Long.MIN_VALUE -> Double.NEGATIVE_INFINITY
+        else -> rawValue.toDouble() / durationUnitScale(unit).toDouble()
+    }
+}
+
+public fun Duration.toLong(unit: DurationUnit): Long {
+    return when (rawValue) {
+        Long.MAX_VALUE -> Long.MAX_VALUE
+        Long.MIN_VALUE -> Long.MIN_VALUE
+        else -> rawValue / durationUnitScale(unit)
+    }
+}
+
+public fun Duration.toInt(unit: DurationUnit): Int {
+    val wholeValue = when (rawValue) {
+        Long.MAX_VALUE -> Long.MAX_VALUE
+        Long.MIN_VALUE -> Long.MIN_VALUE
+        else -> rawValue / durationUnitScale(unit)
+    }
+    return wholeValue.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
+}
+
+public fun Duration.toString(unit: DurationUnit, decimals: Int = 0): String {
+    require(decimals >= 0) { "decimals must be not negative, but was $decimals" }
+    val number = when (rawValue) {
+        Long.MAX_VALUE -> Double.POSITIVE_INFINITY
+        Long.MIN_VALUE -> Double.NEGATIVE_INFINITY
+        else -> rawValue.toDouble() / durationUnitScale(unit).toDouble()
+    }
+    if (number.isInfinite()) return number.toString()
+    return durationFormatToDecimals(number, decimals.coerceAtMost(12)) + durationUnitShortName(unit)
+}
 
 fun Duration.toIsoString(): String {
     val ns = rawValue
@@ -255,59 +425,70 @@ fun Duration.toIsoString(): String {
     return sb.toString()
 }
 
-fun <T> Duration.toComponents(action: (Long, Int) -> T): T {
-    val totalNs = inWholeNanoseconds
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> Duration.toComponents(action: (Long, Int) -> T): T {
+    contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
+    val totalNs = rawValue
     if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
         return action(totalNs, 0)
     }
-    val s = totalNs / 1_000_000_000L
-    val n = (totalNs % 1_000_000_000L).toInt()
-    return action(s, n)
+    return action(totalNs / NANOS_PER_SECOND, (totalNs % NANOS_PER_SECOND).toInt())
 }
 
-fun <T> Duration.toComponents(action: (Long, Int, Int) -> T): T {
-    val totalNs = inWholeNanoseconds
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> Duration.toComponents(action: (Long, Int, Int) -> T): T {
+    contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
+    val totalNs = rawValue
     if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
         return action(totalNs, 0, 0)
     }
-    var rem = totalNs
-    val m = rem / 60_000_000_000L
-    rem %= 60_000_000_000L
-    val s = (rem / 1_000_000_000L).toInt()
-    val n = (rem % 1_000_000_000L).toInt()
-    return action(m, s, n)
+    var remaining = totalNs
+    val minutes = remaining / NANOS_PER_MINUTE
+    remaining %= NANOS_PER_MINUTE
+    return action(minutes, (remaining / NANOS_PER_SECOND).toInt(), (remaining % NANOS_PER_SECOND).toInt())
 }
 
-fun <T> Duration.toComponents(action: (Long, Int, Int, Int) -> T): T {
-    val totalNs = inWholeNanoseconds
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> Duration.toComponents(action: (Long, Int, Int, Int) -> T): T {
+    contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
+    val totalNs = rawValue
     if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
         return action(totalNs, 0, 0, 0)
     }
-    var rem = totalNs
-    val h = rem / 3_600_000_000_000L
-    rem %= 3_600_000_000_000L
-    val m = (rem / 60_000_000_000L).toInt()
-    rem %= 60_000_000_000L
-    val s = (rem / 1_000_000_000L).toInt()
-    val n = (rem % 1_000_000_000L).toInt()
-    return action(h, m, s, n)
+    var remaining = totalNs
+    val hours = remaining / NANOS_PER_HOUR
+    remaining %= NANOS_PER_HOUR
+    val minutes = (remaining / NANOS_PER_MINUTE).toInt()
+    remaining %= NANOS_PER_MINUTE
+    return action(
+        hours,
+        minutes,
+        (remaining / NANOS_PER_SECOND).toInt(),
+        (remaining % NANOS_PER_SECOND).toInt()
+    )
 }
 
-fun <T> Duration.toComponents(action: (Long, Int, Int, Int, Int) -> T): T {
-    val totalNs = inWholeNanoseconds
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> Duration.toComponents(action: (Long, Int, Int, Int, Int) -> T): T {
+    contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
+    val totalNs = rawValue
     if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
         return action(totalNs, 0, 0, 0, 0)
     }
-    var rem = totalNs
-    val d = rem / 86_400_000_000_000L
-    rem %= 86_400_000_000_000L
-    val h = (rem / 3_600_000_000_000L).toInt()
-    rem %= 3_600_000_000_000L
-    val m = (rem / 60_000_000_000L).toInt()
-    rem %= 60_000_000_000L
-    val s = (rem / 1_000_000_000L).toInt()
-    val n = (rem % 1_000_000_000L).toInt()
-    return action(d, h, m, s, n)
+    var remaining = totalNs
+    val days = remaining / NANOS_PER_DAY
+    remaining %= NANOS_PER_DAY
+    val hours = (remaining / NANOS_PER_HOUR).toInt()
+    remaining %= NANOS_PER_HOUR
+    val minutes = (remaining / NANOS_PER_MINUTE).toInt()
+    remaining %= NANOS_PER_MINUTE
+    return action(
+        days,
+        hours,
+        minutes,
+        (remaining / NANOS_PER_SECOND).toInt(),
+        (remaining % NANOS_PER_SECOND).toInt()
+    )
 }
 
 public fun Int.toDuration(unit: DurationUnit): Duration =
@@ -318,34 +499,6 @@ public fun Long.toDuration(unit: DurationUnit): Duration =
 
 public fun Double.toDuration(unit: DurationUnit): Duration =
     durationFromDouble(this, durationUnitScale(unit))
-
-// Duration factory extension properties (Int/Long/Double receivers).
-// Not Companion-scoped: the receiver is a numeric value, not the Duration class
-// name, so an ordinary top-level extension property resolves correctly without
-// needing Companion short-form dispatch.
-public val Int.nanoseconds: Duration get() = this.toDuration(DurationUnit.NANOSECONDS)
-public val Int.microseconds: Duration get() = this.toDuration(DurationUnit.MICROSECONDS)
-public val Int.milliseconds: Duration get() = this.toDuration(DurationUnit.MILLISECONDS)
-public val Int.seconds: Duration get() = this.toDuration(DurationUnit.SECONDS)
-public val Int.minutes: Duration get() = this.toDuration(DurationUnit.MINUTES)
-public val Int.hours: Duration get() = this.toDuration(DurationUnit.HOURS)
-public val Int.days: Duration get() = this.toDuration(DurationUnit.DAYS)
-
-public val Long.nanoseconds: Duration get() = this.toDuration(DurationUnit.NANOSECONDS)
-public val Long.microseconds: Duration get() = this.toDuration(DurationUnit.MICROSECONDS)
-public val Long.milliseconds: Duration get() = this.toDuration(DurationUnit.MILLISECONDS)
-public val Long.seconds: Duration get() = this.toDuration(DurationUnit.SECONDS)
-public val Long.minutes: Duration get() = this.toDuration(DurationUnit.MINUTES)
-public val Long.hours: Duration get() = this.toDuration(DurationUnit.HOURS)
-public val Long.days: Duration get() = this.toDuration(DurationUnit.DAYS)
-
-public val Double.nanoseconds: Duration get() = this.toDuration(DurationUnit.NANOSECONDS)
-public val Double.microseconds: Duration get() = this.toDuration(DurationUnit.MICROSECONDS)
-public val Double.milliseconds: Duration get() = this.toDuration(DurationUnit.MILLISECONDS)
-public val Double.seconds: Duration get() = this.toDuration(DurationUnit.SECONDS)
-public val Double.minutes: Duration get() = this.toDuration(DurationUnit.MINUTES)
-public val Double.hours: Duration get() = this.toDuration(DurationUnit.HOURS)
-public val Double.days: Duration get() = this.toDuration(DurationUnit.DAYS)
 
 // Companion-scoped constants and parsing entry points. These use the Companion
 // short-form dispatch fallback (CallTypeChecker+MemberCallInferenceRegularResolution)

@@ -398,6 +398,106 @@ struct RuntimeDurationTests {
         #expect(invalid == runtimeNullSentinelInt)
     }
 
+    // MARK: - parse grammar (KUU-639 / kotlin-stdlib Duration.parse)
+
+    private func parseDurationOrThrown(_ input: String) -> Int? {
+        var thrown = 0
+        let handle = kk_duration_parse(stringHandle(input), &thrown)
+        if thrown != 0 {
+            return nil
+        }
+        return handle
+    }
+
+    private func parseIsoDurationOrThrown(_ input: String) -> Int? {
+        var thrown = 0
+        let handle = kk_duration_parseIsoString(stringHandle(input), &thrown)
+        if thrown != 0 {
+            return nil
+        }
+        return handle
+    }
+
+    @Test func testParseAcceptsConcatenatedDefaultComponents() throws {
+        let parsed = try #require(parseDurationOrThrown("1h30m"))
+        #expect(durationInWholeMinutes(parsed) == 90)
+        #expect(stringFromHandle(kk_duration_toString(parsed)) == "1h 30m")
+    }
+
+    @Test func testParseRejectsScientificNotationAndIncompleteDecimals() {
+        for input in ["1e3s", "1.s", ".5s", "0x10s"] {
+            #expect(parseDurationOrThrown(input) == nil, "expected rejection of \(input)")
+            #expect(kk_duration_parseOrNull(stringHandle(input)) == runtimeNullSentinelInt)
+        }
+    }
+
+    @Test func testParseRejectsSurroundingWhitespace() {
+        for input in [" 1h 30m ", "1h 30m ", " 1h30m"] {
+            #expect(parseDurationOrThrown(input) == nil, "expected rejection of \(input)")
+        }
+        #expect(parseIsoDurationOrThrown(" PT1H ") == nil)
+        #expect(parseIsoDurationOrThrown("PT1H ") == nil)
+        #expect(kk_duration_parseIsoStringOrNull(stringHandle(" PT1H ")) == runtimeNullSentinelInt)
+    }
+
+    @Test func testParseAcceptsZeroIntegerAndDoubleSpaces() throws {
+        let halfSecond = try #require(parseDurationOrThrown("0.5s"))
+        let doubleSpace = try #require(parseDurationOrThrown("1h  30m"))
+        let leadingZeros = try #require(parseDurationOrThrown("0001h"))
+        let zeroHours = try #require(parseDurationOrThrown("0h30m"))
+        #expect(durationInWholeMilliseconds(halfSecond) == 500)
+        #expect(durationInWholeMinutes(doubleSpace) == 90)
+        #expect(durationInWholeHours(leadingZeros) == 1)
+        #expect(durationInWholeMinutes(zeroHours) == 30)
+    }
+
+    @Test func testParseSignedDefaultFormatAllowsSpacesOnlyInsideParens() throws {
+        let concatenated = try #require(parseDurationOrThrown("-1h30m"))
+        let parenthesized = try #require(parseDurationOrThrown("-(1h 30m)"))
+        #expect(durationInWholeMinutes(concatenated) == -90)
+        #expect(durationInWholeMinutes(parenthesized) == -90)
+        #expect(parseDurationOrThrown("+1h 30m") == nil)
+        #expect(parseDurationOrThrown("-1h 30m") == nil)
+    }
+
+    @Test func testParseRejectsAscendingComponentOrderAndNonSpaceSeparators() {
+        #expect(parseDurationOrThrown("30m 1h") == nil)
+        #expect(parseDurationOrThrown("1m1h") == nil)
+        #expect(parseDurationOrThrown("1h\t30m") == nil)
+        #expect(parseDurationOrThrown("1µs") == nil)
+        #expect(parseDurationOrThrown("1H") == nil)
+    }
+
+    @Test func testParseInfinityIsCaseInsensitiveAndUntrimmed() throws {
+        let inf = try #require(parseDurationOrThrown("Infinity"))
+        let infLower = try #require(parseDurationOrThrown("infinity"))
+        let infPlus = try #require(parseDurationOrThrown("+Infinity"))
+        let infMinus = try #require(parseDurationOrThrown("-Infinity"))
+        #expect(kk_duration_isInfinite(inf) == 1)
+        #expect(kk_duration_isInfinite(infLower) == 1)
+        #expect(kk_duration_isInfinite(infPlus) == 1)
+        #expect(kk_duration_isInfinite(infMinus) == 1)
+        #expect(kk_duration_isNegative(infMinus) == 1)
+        #expect(parseDurationOrThrown(" Infinity") == nil)
+        #expect(parseDurationOrThrown("Infinity ") == nil)
+        #expect(parseIsoDurationOrThrown("Infinity") == nil)
+    }
+
+    @Test func testParseIsoStringAcceptsComponentSignsAndRejectsNonSecondFractions() throws {
+        let componentMinus = try #require(parseIsoDurationOrThrown("PT-1H"))
+        let componentPlus = try #require(parseIsoDurationOrThrown("PT+1H"))
+        let leadingMinus = try #require(parseIsoDurationOrThrown("-PT1H"))
+        let mixed = try #require(parseIsoDurationOrThrown("P-1DT2H"))
+        let fractionalSeconds = try #require(parseIsoDurationOrThrown("PT1.5S"))
+        #expect(durationInWholeHours(componentMinus) == -1)
+        #expect(durationInWholeHours(componentPlus) == 1)
+        #expect(durationInWholeHours(leadingMinus) == -1)
+        #expect(durationInWholeHours(mixed) == -22)
+        #expect(parseIsoDurationOrThrown("PT1.5H") == nil)
+        #expect(parseIsoDurationOrThrown("PT.5S") == nil)
+        #expect(durationInWholeMilliseconds(fractionalSeconds) == 1_500)
+    }
+
     // MARK: - Multiple independent durations
 
     @Test func testMultipleDurationsAreIndependent() {

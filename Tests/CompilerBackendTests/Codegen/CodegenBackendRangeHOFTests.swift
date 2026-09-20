@@ -8,6 +8,30 @@ import Testing
 struct CodegenBackendRangeHOFTests {
 
     @Test
+    func testCodegenIntProgressionPositiveStepHOFs() throws {
+        let source = """
+        fun main() {
+            println((1..10 step 3).map { it })
+            println((1..10 step 3).filter { it > 4 })
+            val progression = 1..10 step 3
+            progression.forEach { print(it) }
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntProgressionPositiveStepHOFs",
+            expected:
+                """
+                [1, 4, 7, 10]
+                [7, 10]
+                14710
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapIndexed() throws {
         let source = """
         fun main() {
@@ -374,18 +398,59 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testCodegenULongRangeMapFilterHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1uL..5uL).map { it * 2uL })
+            println((1uL..5uL).mapIndexed { index, value -> index.toULong() + value })
+            println((1uL..5uL).mapNotNull { if (it % 2uL == 0uL) null else it })
+            println((1uL..5uL).filter { it % 2uL == 1uL })
+            println((1uL..5uL).filterIndexed { index, _ -> index % 2 == 0 })
+            println((1uL..5uL).filterNot { it % 2uL == 0uL })
+            println((5uL..1uL).mapNotNull { it })
+            println((5uL..1uL).filterIndexed { index, _ -> index == 0 })
+            println((5uL downTo 1uL).mapIndexed { index, value -> index.toULong() + value })
+            println((5uL downTo 1uL).filterNot { it % 2uL == 0uL })
+            println((1uL..9uL step 2).mapIndexed { index, value -> index.toULong() + value })
+            println((1uL..9uL step 2).filterNot { it > 4uL })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeMapFilterHOFExecution",
+            expected:
+                """
+                [2, 4, 6, 8, 10]
+                [1, 3, 5, 7, 9]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                []
+                []
+                [5, 5, 5, 5, 5]
+                [5, 3, 1]
+                [1, 4, 7, 10, 13]
+                [1, 3]
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenULongRangeIteratorStepAndWindowingExecution() throws {
         let source = """
         fun main() {
-            println((1uL..5uL).take(3))
-            println((1uL..5uL).drop(2))
-            println((1uL..5uL).chunked(2))
-            println((1uL..5uL).windowed(3))
-            println((1uL..5uL).windowed(3, 2, true))
-            println((1uL..5uL step 2).take(2))
-            println((5uL downTo 1uL).windowed(2, 2, true))
-            for (value in 1uL..5uL) print("$value ")
+            println((1UL..5UL).take(3))
+            println((1UL..5UL).drop(2))
+            println((1UL..5UL).chunked(2))
+            println((1UL..5UL).windowed(3))
+            println((1UL..5UL).windowed(3, 2, true))
+            println((1UL..5UL step 2).take(2))
+            println((5UL downTo 1UL).windowed(2, 2, true))
+            for (value in 1UL..5UL) print("$value ")
             println()
+            println((0UL..ULong.MAX_VALUE step 3).last)
         }
         """
 
@@ -401,7 +466,7 @@ struct CodegenBackendRangeHOFTests {
                 [[1, 2, 3], [3, 4, 5], [5]]
                 [1, 3]
                 [[5, 4], [3, 2], [1]]
-                """ + "\n1 2 3 4 5 \n"
+                """ + "\n1 2 3 4 5 \n18446744073709551615\n"
         )
     }
 
@@ -435,6 +500,106 @@ struct CodegenBackendRangeHOFTests {
                 [[18446744073709551611], [18446744073709551614]]
                 [[18446744073709551611, 18446744073709551614], [18446744073709551614]]
                 """ + "\n18446744073709551611 18446744073709551614 \n"
+        )
+    }
+
+    @Test
+    func testCodegenEmptyRangeFirstLastThrowNoSuchElementException() throws {
+        let source = """
+        fun firstOf(range: IntRange): Int = range.first()
+        fun lastOf(range: IntRange): Int = range.last()
+
+        fun main() {
+            println((1..4).first())
+            println((1..4).last())
+            println((1..0).first)
+            println((1..0).last)
+
+            try {
+                println((1..0).first())
+            } catch (e: NoSuchElementException) {
+                println("empty-first")
+            }
+            try {
+                println((1..0).last())
+            } catch (e: NoSuchElementException) {
+                println("empty-last")
+            }
+            try {
+                println((0 until 0).first())
+            } catch (e: NoSuchElementException) {
+                println("until-first")
+            }
+            try {
+                println(firstOf(1..0))
+            } catch (e: NoSuchElementException) {
+                println("param-first")
+            }
+            try {
+                println(lastOf(1..0))
+            } catch (e: NoSuchElementException) {
+                println("param-last")
+            }
+
+            println((1..0).firstOrNull())
+            println((1..0).lastOrNull())
+            try {
+                println((1..0).first { it > 0 })
+            } catch (e: NoSuchElementException) {
+                println("pred-first")
+            }
+            try {
+                println((1..0).last { it > 0 })
+            } catch (e: NoSuchElementException) {
+                println("pred-last")
+            }
+
+            try {
+                println((1L..0L).first())
+            } catch (e: NoSuchElementException) {
+                println("long-first")
+            }
+            try {
+                println(('b'..'a').first())
+            } catch (e: NoSuchElementException) {
+                println("char-first")
+            }
+            try {
+                println((1u..0u).first())
+            } catch (e: NoSuchElementException) {
+                println("uint-first")
+            }
+            try {
+                println((1uL..0uL).last())
+            } catch (e: NoSuchElementException) {
+                println("ulong-last")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EmptyRangeFirstLast",
+            expected:
+                """
+                1
+                4
+                1
+                0
+                empty-first
+                empty-last
+                until-first
+                param-first
+                param-last
+                null
+                null
+                pred-first
+                pred-last
+                long-first
+                char-first
+                uint-first
+                ulong-last
+                """ + "\n"
         )
     }
 }

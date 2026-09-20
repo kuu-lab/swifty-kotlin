@@ -72,7 +72,9 @@ extension BuildASTPhase {
         guard !exprTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: exprTokens[...], interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: exprTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 
@@ -148,6 +150,23 @@ extension BuildASTPhase {
             }
         }
         if hasAccessorNode {
+            // A semicolon can split accessors asymmetrically: the first inline
+            // accessor remains as direct tokens on the property node while a
+            // following accessor is wrapped in its own `.propertyAccessor`
+            // child. Parse that direct-token prefix as well, otherwise a
+            // `var` with `get() ...; set(...) ...` loses its getter entirely.
+            let directTokens = collectDirectTokens(from: nodeID, in: arena)
+            if let accessorStart = inlineAccessorStartIndex(in: directTokens) {
+                let directAccessorTokens = Array(directTokens[accessorStart...])
+                let directResult = parseInlineAccessors(
+                    from: directAccessorTokens,
+                    nodeRange: arena.node(nodeID).range,
+                    interner: interner,
+                    astArena: astArena
+                )
+                if getter == nil { getter = directResult.getter }
+                if setter == nil { setter = directResult.setter }
+            }
             if !accessorTokens.isEmpty {
                 let inlineResult = parseInlineAccessors(from: accessorTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
                 if getter == nil { getter = inlineResult.getter }
@@ -345,7 +364,10 @@ extension BuildASTPhase {
                 }
                 let exprTokens = remaining[exprStart ..< exprEnd].filter { $0.kind != .symbol(.semicolon) }
                 if !exprTokens.isEmpty {
-                    let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+                    let parser = ExpressionParser(
+                        tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena,
+                        diagnostics: diagnostics
+                    )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
                     {
@@ -372,7 +394,8 @@ extension BuildASTPhase {
                     .filter { $0.kind != .symbol(.semicolon) }
                 if !bodyTokens.isEmpty {
                     let parser = ExpressionParser(
-                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena
+                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena,
+                        diagnostics: diagnostics
                     )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
@@ -513,7 +536,7 @@ extension BuildASTPhase {
                 break
             }
             if let name = internedIdentifier(from: token, interner: interner),
-               TypeRefParserCore.isTypeLikeNameToken(token.kind)
+               TypeRefParserCore.isDeclarationNameToken(token.kind)
             {
                 return name
             }
@@ -554,7 +577,9 @@ extension BuildASTPhase {
         guard !exprTokens.isEmpty else {
             return .unit
         }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let exprID = parser.parse(),
               let range = astArena.exprRange(exprID)
         else {
@@ -649,7 +674,9 @@ extension BuildASTPhase {
         // Parse initializer expression
         let exprTokens = tokens[index...].filter { $0.kind != .symbol(.semicolon) }
         guard !exprTokens.isEmpty else { return nil }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let initExpr = parser.parse() else { return nil }
 
         return ExplicitBackingField(type: fieldType, initializer: initExpr)

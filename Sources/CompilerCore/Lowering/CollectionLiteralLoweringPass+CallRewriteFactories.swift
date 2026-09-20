@@ -252,9 +252,13 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         if lookup.mutableMapConstructorNames.contains(callee) {
+            // KUU-556: LinkedHashMap is now a real HashMap subclass, so its
+            // constructor gets its own runtime tag (kkLinkedHashMapOfName)
+            // instead of sharing the generic kkMapOfName every other mutable
+            // map factory still uses.
             let constructorCallee = callee == lookup.hashMapName
                 ? lookup.kkHashMapOfName
-                : lookup.kkMapOfName
+                : lookup.kkLinkedHashMapOfName
             // Create an empty mutable map first
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -299,36 +303,26 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // map.count(predicate) on map literals (skip when Map.count is source-backed)
-        if callee == lookup.countName && (arguments.count == 2 || arguments.count == 3),
-           !isSourceBackedBundledFunction(symbol: symbol, ctx: ctx) {
-            let receiverID = arguments[0]
-            let lambdaID = arguments[1]
-            if state.mapExprIDs.contains(receiverID.rawValue) {
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkMapCountName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
-        }
+        // RF-LOWER-CALL-012 follow-up dropped the `map.count(predicate)` ->
+        // `kk_map_count` branch that used to sit here. It was unreachable:
+        // `Stdlib/kotlin/collections/MapHOF.kt` provides
+        // `Map<K, V>.count(predicate)` as bundled Kotlin source, and
+        // The historical synthetic Map registration path also skipped the
+        // competing synthetic `count` member whenever
+        // `bundledIndex.contains(ownerFQName: mapFQName, name: "count",
+        // arity: 1)` is true, which it is here — so there is no non-source-backed
+        // symbol this call could ever resolve to. This branch runs inside
+        // `rewriteFactoryAndBuilderCall`, which `lowerCallInstruction` calls
+        // *before* the source-backed preservation gate, so unlike the
+        // Map HOF branches CALL-012 removed, this one could not rely on that
+        // later short-circuit and instead carried its own inline
+        // `isSourceBackedBundledFunction` check — which was therefore always
+        // true for a resolved call, keeping the branch itself dead the same
+        // way. `kk_map_count` has no `@_cdecl` in `Sources/Runtime` (only a
+        // `Tests/RuntimeTests/RuntimeCollectionHOF430MapShims.swift` test
+        // shim, like the other RF-LOWER-CALL-012 targets), so reaching it
+        // would have broken at runtime. `MapCountLoweringRoutingTests` pins
+        // the routing.
 
         // --- Rewrite set factories to runtime helpers. ---
         if lookup.setFactoryNames.contains(callee),
@@ -459,7 +453,12 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // mutableMapOf()/hashMapOf()/linkedMapOf() -> fresh instance via kk_map_of(null, null, 0)
+                // mutableMapOf()/hashMapOf() -> fresh instance via kk_map_of(null, null, 0).
+                // linkedMapOf() -> kk_linked_hash_map_of instead (KUU-556: it's
+                // declared to return LinkedHashMap<K, V>, now a real HashMap
+                // subclass with its own runtime tag; hashMapOf()/mutableMapOf()
+                // keep the pre-existing generic tag -- a known, separately
+                // tracked gap, not introduced by this change).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -468,7 +467,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.constValue(result: nullValsExpr, value: .intLiteral(0)))
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkMapOfName,
+                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
                     arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -544,7 +543,9 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkMapOfName,
+                    // KUU-556: linkedMapOf(pairs) also gets its own runtime tag;
+                    // see the count == 0 branch above for the rationale.
+                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
                     arguments: [keysArrayExpr, valuesArrayExpr, countExpr],
                     result: result,
                     canThrow: false,
@@ -559,17 +560,9 @@ extension CollectionLiteralConstructionLoweringPass {
         // The builder DSL rewrite to `__kk_build_*` runtime helpers (STDLIB-002)
         // is gone: RF-LOWER-CALL-004 (list), -005 (set) and -006 (map) removed
         // every arm, so `buildList` / `buildSet` / `buildMap` all lower through
-        // `CollectionBuilders.kt`.  `isStdlibBuilderDSLCall` itself still has a
-        // caller in `scanBuilderLambdaEntries`; retiring the shared predicate
-        // and `BuilderDSLLookupNames` is RF-LOWER-CALL-015.
+        // `CollectionBuilders.kt`; no legacy Builder DSL predicate or lookup
+        // is needed at this entry point anymore.
 
         return false
-    }
-
-    private func isSourceBackedBundledFunction(symbol: SymbolID?, ctx: KIRContext) -> Bool {
-        guard let symbol, let sema = ctx.sema, sema.symbols.symbol(symbol) != nil else {
-            return false
-        }
-        return sema.symbols.isSourceBackedSymbol(symbol)
     }
 }

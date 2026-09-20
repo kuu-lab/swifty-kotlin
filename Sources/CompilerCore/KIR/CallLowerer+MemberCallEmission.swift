@@ -194,6 +194,32 @@ extension CallLowerer {
         sourceArgLabels: [InternedString?] = []
     ) {
         var finalArguments = arguments
+        // Enum entry implementations are stored as ordinary functions whose
+        // first argument is the ordinal-backed enum value. Route the resolved
+        // enum member through the predeclared ordinal dispatcher before any
+        // runtime-name or virtual-dispatch rewriting can select the abstract
+        // declaration itself.
+        if normalized.defaultMask == 0,
+           !isSuperCall,
+           let chosenCallee,
+           let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
+           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
+           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
+           !dispatchSignature.isSuspend,
+           finalArguments.first == receiver.loweredID
+        {
+            instructions.append(.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: finalArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without
@@ -259,39 +285,52 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           let chosenCallee,
-           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
-            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
+           let chosenCallee
         {
-            appendReifiedTypeTokens(
-                chosenCallee: chosenCallee,
-                callBinding: callBinding,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            appendDefaultMaskArgument(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            let stubName = interner.intern(interner.resolve(calleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)
-            instructions.append(.call(
-                symbol: stubSym,
-                callee: stubName,
-                arguments: finalArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: isSuperCall,
-                qualifiedSuperType: qualifiedSuperType
-            ))
-            return
+            // KUU-655: an override that inherits its defaults never has its
+            // own stub; resolve to the base declaration's stub instead (see
+            // `defaultStubOwnerSymbol`).
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema)
+            if sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+                sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
+            {
+                appendReifiedTypeTokens(
+                    chosenCallee: chosenCallee,
+                    callBinding: callBinding,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                // KUU-655: a `super.f()` call that omits a defaulted
+                // argument must resolve the default *and* dispatch
+                // statically to the overridden implementation, never
+                // virtually to the runtime type's own override -- see the
+                // reserved mask bit 30 decoded in
+                // `CallSupportLowerer.generateDefaultStubFunction`.
+                let effectiveMask = isSuperCall ? (normalized.defaultMask | (Int64(1) << 30)) : normalized.defaultMask
+                appendDefaultMaskArgument(
+                    effectiveMask,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                let stubName = interner.intern(interner.resolve(calleeName) + "$default")
+                let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
+                instructions.append(.call(
+                    symbol: stubSym,
+                    callee: stubName,
+                    arguments: finalArguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                return
+            }
         }
 
         appendReifiedTypeTokens(
@@ -314,6 +353,43 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        if loweredCallee == interner.intern("__kk_double_range_contains"),
+           sourceArgExprs.count == 1,
+           finalArguments.count >= 2,
+           sema.types.makeNonNullable(
+               sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+           ) == sema.types.floatType
+        {
+            // OpenEndRange<Double>.contains(Float) widens the argument before
+            // reaching the Double range ABI; the raw Float bits are not a valid
+            // Double bit pattern and must not be passed through unchanged.
+            let converted = arena.appendTemporary(type: sema.types.doubleType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_float_to_double_bits"),
+                arguments: [finalArguments[1]],
+                result: converted,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArguments[1] = converted
+        }
+        // KUU-600: Regex.replace's transform uses the runtime callback ABI.
+        // Its Kotlin function-value argument must be split into the raw
+        // function pointer and closure environment expected by the bridge.
+        if loweredCallee == interner.intern("__kk_regex_replace_lambda"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
+        }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
         // reference is finalArguments[1]; inject the lambda's captures after it so the
@@ -333,6 +409,7 @@ extension CallLowerer {
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
             memberName: interner.resolve(calleeName),
             receiverType: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
+            chosenCallee: chosenCallee,
             sema: sema,
             interner: interner
         )
@@ -746,6 +823,12 @@ extension CallLowerer {
             interner.intern("__kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
+            interner.intern("__kk_range_first_orThrow"),
+            interner.intern("__kk_range_last_orThrow"),
+            interner.intern("kk_uint_range_first_orThrow"),
+            interner.intern("kk_uint_range_last_orThrow"),
+            interner.intern("kk_ulong_range_first_orThrow"),
+            interner.intern("kk_ulong_range_last_orThrow"),
             interner.intern("__kk_range_random"),
             interner.intern("__kk_range_random_random"),
             interner.intern("__kk_char_range_random"),
@@ -847,13 +930,13 @@ extension CallLowerer {
         switch (interner.resolve(calleeName), argumentCount) {
         case ("chunked", 2):
             callee = "__kk_list_chunked"
-            canThrow = false
+            canThrow = true
         case ("chunked", 4):
             callee = "__kk_list_chunked_transform"
             canThrow = true
         case ("windowed", 4):
             callee = "__kk_list_windowed"
-            canThrow = false
+            canThrow = true
         case ("windowed", 6):
             callee = "__kk_list_windowed_transform"
             canThrow = true

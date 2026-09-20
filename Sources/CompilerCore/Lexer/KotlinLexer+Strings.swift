@@ -28,7 +28,11 @@ extension KotlinLexer {
                 continue
             }
 
-            if ch == 0x24, offset + 1 < byteCount(), isIdentifierStart(byte(at: offset + 1)) {
+            if ch == 0x24,
+               offset + 1 < byteCount(),
+               isIdentifierStart(byte(at: offset + 1)),
+               byte(at: offset + 1) != 0x24
+            {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
                     Token(
@@ -111,6 +115,28 @@ extension KotlinLexer {
                 let templateExpr = scanTemplateExpression()
                 tokens.append(contentsOf: templateExpr.tokens)
                 tokens.append(Token(kind: .templateExprEnd, range: templateExpr.closeRange, leadingTrivia: []))
+                segmentStart = offset
+                continue
+            }
+            if byte(at: offset) == 0x24,
+               offset + 1 < byteCount(),
+               isIdentifierStart(byte(at: offset + 1)),
+               byte(at: offset + 1) != 0x24
+            {
+                appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
+                tokens.append(
+                    Token(
+                        kind: .templateSimpleNameStart,
+                        range: makeRange(start: offset, end: offset + 1),
+                        leadingTrivia: []
+                    )
+                )
+                offset += 1
+                if let templateName = scanTemplateName(leadingTrivia: [], start: offset) {
+                    tokens.append(templateName)
+                    segmentStart = offset
+                    continue
+                }
                 segmentStart = offset
                 continue
             }

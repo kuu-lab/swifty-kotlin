@@ -11,6 +11,9 @@ import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
 // KSP-1055: HashMap receiver members are source-backed.
+// KUU-556: open, so LinkedHashMap.kt can be a real subclass (matching the
+// diff oracle's kotlinc-jvm reference, where java.util.LinkedHashMap extends
+// java.util.HashMap) instead of a typealias onto an unrelated interface.
 
 private fun <K, V> __hashMapKeys(map: Map<K, V>): MutableSet<K> {
     val result = mutableSetOf<K>()
@@ -28,16 +31,16 @@ private fun <K, V> __hashMapValues(map: Map<K, V>): MutableCollection<V> {
     return result
 }
 
-public class HashMap<K, V> : MutableMap<K, V> {
+public open class HashMap<K, V> : MutableMap<K, V> {
     constructor()
     constructor(initialCapacity: Int)
     constructor(initialCapacity: Int, loadFactor: Float)
     constructor(original: Map<out K, V>)
 
-    @KsSymbolName("kk_map_size")
+    @KsSymbolName("__kk_map_size")
     private external fun __hashMapSize(): Int
 
-    @KsSymbolName("kk_map_is_empty")
+    @KsSymbolName("__kk_map_is_empty")
     private external fun __hashMapIsEmpty(): Boolean
 
     @KsSymbolName("__kk_map_get")

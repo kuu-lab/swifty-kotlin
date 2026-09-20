@@ -80,6 +80,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `uuid_put_uuid.kt`: `java.nio.ByteBuffer.putUuid(index, uuid)` / `ByteBuffer.getUuid(index)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
+- `custom_getter_setter_var.kt`: KUU-595 の `var` に custom getter と setter を同居させた場合も、読み取りが getter を呼び、setter と対称な計算値を返す parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
 - `class_body_property_init.kt`: クラス本体で宣言されたストアドプロパティのインライン初期化子（`var a: Int = 10` の形）が実際に per-instance field へ書き込まれ、読み出せることの parity。primary constructor パラメータ併存クラス・型無注釈プロパティ・`object` singleton・`init` ブロックと交互配置された複数プロパティの組み合わせをカバー
 - `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
@@ -87,6 +88,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `class_and_function_same_name.kt`: クラスと同名のトップレベル関数の共存（`class Point` + `fun Point(value: Int)` / `fun Point(pair: Pair<Int, Int>)`、kotlin-stdlib の `Random(seed)` ファクトリ関数と同型パターン）と、コンストラクタ・関数オーバーロードを跨いだ引数型による呼び出し解決の parity（KSP-CAP-006）
 - `random_xorwow_parity.kt`: `Random(seed)` の Int/Long factory、XorWow の warm-up、`nextInt`/`nextInt(until)`/`nextLong`/`nextBits`/`nextDouble` の固定 seed ビット列 parity（KSP-685）
 - `object_literal_local_capture.kt`: object 式のメンバ関数本体からの外側ローカル変数/パラメータキャプチャ（KSP-CAP-001）。`val` パラメータ・`var` local の複数回呼び出しをまたぐミューテーション・自プロパティによる同名 outer local の shadowing・関数型パラメータ（`() -> Int`）キャプチャの parity
+- `object_literal_primary_constructor_property_capture.kt`: object 式のメンバ関数本体から、外側クラスの primary constructor の immutable property を読むキャプチャ（BUG-243）の parity
 - `contextual_keyword_parameter_names.kt`: コンストラクタ/関数パラメータ名が `inner`/`sealed`/`operator`/`override`/`vararg` 等の modifier keyword と一致する場合の parity。これらは modifier 位置以外では通常の識別子として有効だが、パーサーがパラメータごと無条件に drop していたバグの回帰
 - `vararg_explicit_type_arg_upcast.kt`: 明示的型引数（`mapOf<Any?, Number?>(...)` 等）を伴う vararg 呼び出しで、各要素の実際の型が型引数への upcast を要する場合の parity。型変数の等価制約（明示的型引数由来）を他の下限/上限境界と同じ lub/glb プールに混在させていたため、`Int`/`Nothing?` 等の下限が絡むと lub が `Any?` に暴走し `Conflicting bounds` を誤検出していたバグの回帰
 

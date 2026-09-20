@@ -1,0 +1,10 @@
+symbol fq=golden.sema.testCallContinuation.$0.pointer[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCallContinuation[kind=fun;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>] ret=Unit
+file fstdlib_kotlin_native_concurrent_CPointer_n package=golden.sema
+  decl golden.sema.testCallContinuation[kind=fun;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>] fun testCallContinuation sym=golden.sema.testCallContinuation[kind=fun;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>]
+expr e@9:5 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed> ref=golden.sema.testCallContinuation.$0.pointer[kind=vparam]
+expr e@9:5#1 memberCall recv=e@9:5 callee=callContinuation0 args=[] type=Unit call=kotlin.native.concurrent.callContinuation0[kind=fun;recv=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>;params=]
+expr e@10:5 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed> ref=golden.sema.testCallContinuation.$0.pointer[kind=vparam]
+expr e@10:5#1 memberCall recv=e@10:5 callee=callContinuation1 args=[] type=Unit call=kotlin.native.concurrent.callContinuation1[kind=fun;recv=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>;params=;gen=1] targs=[Int]
+expr e@11:5 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed> ref=golden.sema.testCallContinuation.$0.pointer[kind=vparam]
+expr e@11:5#1 memberCall recv=e@11:5 callee=callContinuation2 args=[] type=Unit call=kotlin.native.concurrent.callContinuation2[kind=fun;recv=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>;params=;gen=2] targs=[Int,String]

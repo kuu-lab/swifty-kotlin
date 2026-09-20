@@ -283,7 +283,8 @@ extension BuildASTPhase.ExpressionParser {
               let typeRef = BuildASTPhase.ExpressionParser(
                   tokens: typeTokens[...],
                   interner: interner,
-                  astArena: astArena
+                  astArena: astArena,
+                  diagnostics: diagnostics
               ).parseTypeReference(typeStart)
         else {
             return nil
@@ -410,7 +411,8 @@ extension BuildASTPhase.ExpressionParser {
         return BuildASTPhase.ExpressionParser(
             tokens: tokens[...],
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ).parse()
     }
 
@@ -419,7 +421,8 @@ extension BuildASTPhase.ExpressionParser {
               let blockExprID = BuildASTPhase.ExpressionParser(
                   tokens: tokens[...],
                   interner: interner,
-                  astArena: astArena
+                  astArena: astArena,
+                  diagnostics: diagnostics
               ).parseBlockExpression(),
               let blockExpr = astArena.expr(blockExprID),
               case let .blockExpr(statements, trailingExpr, range) = blockExpr
@@ -666,7 +669,7 @@ extension BuildASTPhase.ExpressionParser {
             if token.kind == .symbol(.rParen) {
                 break
             }
-            if TypeRefParserCore.isTypeLikeNameToken(token.kind),
+            if TypeRefParserCore.isDeclarationNameToken(token.kind),
                let name = tokenText(token)
             {
                 return name

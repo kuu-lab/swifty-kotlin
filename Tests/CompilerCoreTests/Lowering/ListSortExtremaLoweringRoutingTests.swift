@@ -10,14 +10,16 @@ import Testing
 /// `ListExtremaHOF.kt` and emptied
 /// `CollectionLiteralLoweringPass+CallRewriteHOFExtrema.swift`, but the
 /// matching `kk_list_*` ABI entries in `RuntimeABISpec+CollectionHOF.swift`
-/// were left behind as spec-only registrations: of the 19 names below only
-/// `kk_list_sortedBy` still has a `@_cdecl` in `Sources/Runtime`.  A lowering
+/// were left behind as spec-only registrations: of the 21 names below only
+/// `kk_list_sortedBy` still has a `@_cdecl` in `Sources/Runtime`. KSP-1511
+/// later retired the `shuffled`/`shuffled(Random)` runtime bridge the same
+/// way. A lowering
 /// rewrite that redirected one of the resolved Kotlin declarations to those
 /// names would therefore not fail a Core test — it would fail at link time, or
 /// silently bind to an unrelated symbol.  Nothing pinned that.
 ///
 /// RF-LOWER-CALL-011 then found the 25-name KSP-426 enumeration in
-/// `shouldPreserveSourceBackedAggregateCall` (and its
+/// old direct source-backed preservation gate (and its
 /// `+VirtualCallRewrite.swift` mirror) to be unreachable — every rewrite that
 /// could claim these names sits behind an outer member-name gate that never
 /// listed them — and removed it.  These tests are what keeps that from
@@ -38,14 +40,17 @@ struct ListSortExtremaLoweringRoutingTests {
         "kk_list_maxByOrNull", "kk_list_maxOfOrNull",
         "kk_list_min", "kk_list_minOrNull", "kk_list_minBy",
         "kk_list_minByOrNull", "kk_list_minOfOrNull",
+        // KSP-1511
+        "kk_list_shuffled", "kk_list_shuffled_random",
     ]
 
     /// Every callee name the removed KSP-426 block used to enumerate in the two
-    /// policies (`shouldPreserveSourceBackedAggregateCall` in
-    /// `+CallRewrite.swift` and `shouldPreserveSourceBackedVirtualCall` in
+    /// policies (the direct gate in
+    /// `+CallRewrite.swift` and the virtual gate in
     /// `+VirtualCallRewrite.swift`), exercised on a `List` receiver.
     static let expectedSourceCallees: Set<String> = [
         "sorted", "sortedDescending", "sortedBy", "sortedByDescending", "sortedWith",
+        "shuffled",
         "max", "min", "maxOrNull", "minOrNull",
         "maxBy", "minBy", "maxByOrNull", "minByOrNull",
         "maxOf", "minOf", "maxOfOrNull", "minOfOrNull",
@@ -54,6 +59,8 @@ struct ListSortExtremaLoweringRoutingTests {
     ]
 
     static let listSortExtremaSource = """
+    import kotlin.random.Random
+
     fun main() {
         val nums = listOf(3, 1, 4, 1, 5)
         println(nums.sorted())
@@ -61,6 +68,8 @@ struct ListSortExtremaLoweringRoutingTests {
         println(nums.sortedBy { it })
         println(nums.sortedByDescending { it })
         println(nums.sortedWith { a, b -> a - b })
+        println(nums.shuffled())
+        println(nums.shuffled(Random))
         println(nums.max())
         println(nums.min())
         println(nums.maxOrNull())
@@ -181,6 +190,82 @@ struct ListSortExtremaLoweringRoutingTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
+            #expect(calls.count == 27, "expected 27 sorting/extrema calls; got \(calls.count)")
+
+            let sema = try #require(ctx.sema)
+            for call in calls {
+                let symbolID = try #require(call.symbol, "\(call.name): production KIR must carry a resolved symbol")
+                let symbol = try #require(sema.symbols.symbol(symbolID), "\(call.name): symbol must be in the table")
+
+                #expect(!symbol.flags.contains(.synthetic), "\(call.name) must not resolve to a synthetic stub")
+                #expect(
+                    sema.symbols.externalLinkName(for: symbolID) == nil,
+                    "\(call.name) must not carry an external link name"
+                )
+                #expect(sema.symbols.isSourceBackedSymbol(symbolID), "\(call.name) must be source-backed")
+
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbolID), "\(call.name): missing source file")
+                let sourcePath = ctx.sourceManager.path(of: fileID)
+                #expect(
+                    sourcePath.hasPrefix("__bundled_kotlin/"),
+                    "\(call.name) must resolve into the bundled Kotlin stdlib; got \(sourcePath)"
+                )
+            }
+        }
+    }
+
+    /// KUU-542: `Set` receivers have no Set-specific bundled declarations for
+    /// most of the extrema/sorting family — only `minOrNull` / `maxOrNull` /
+    /// `sorted` / `sortedDescending` exist in `SetHOF.kt`.  Every other call
+    /// must resolve to the generic `Iterable<T>` source declarations.  Before
+    /// the fix these calls stayed unbound and `CallLowerer` emitted the
+    /// spec-only `kk_list_*` bridges, which failed at link time with
+    /// `Undefined symbols`.
+    @Test
+    func setSortAndExtremaCallsResolveToBundledKotlinSource() throws {
+        let source = """
+        fun main() {
+            val nums = setOf(3, 1, 4, 1, 5)
+            println(nums.sorted())
+            println(nums.sortedDescending())
+            println(nums.sortedBy { it })
+            println(nums.sortedByDescending { it })
+            println(nums.sortedWith { a, b -> a - b })
+            println(nums.max())
+            println(nums.min())
+            println(nums.maxOrNull())
+            println(nums.minOrNull())
+            println(nums.maxBy { it })
+            println(nums.minBy { it })
+            println(nums.maxByOrNull { it })
+            println(nums.minByOrNull { it })
+            println(nums.maxOf { it })
+            println(nums.minOf { it })
+            println(nums.maxOfOrNull { it })
+            println(nums.minOfOrNull { it })
+            println(nums.maxWith { a, b -> a - b })
+            println(nums.minWith { a, b -> a - b })
+            println(nums.maxWithOrNull(naturalOrder()))
+            println(nums.minWithOrNull(naturalOrder()))
+            println(nums.maxOfWith(naturalOrder()) { it })
+            println(nums.minOfWith(naturalOrder()) { it })
+            println(nums.maxOfWithOrNull(naturalOrder()) { it })
+            println(nums.minOfWithOrNull(naturalOrder()) { it })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "SetSortExtremaSymbols",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
             #expect(calls.count == 25, "expected 25 sorting/extrema calls; got \(calls.count)")
 
             let sema = try #require(ctx.sema)
@@ -200,6 +285,127 @@ struct ListSortExtremaLoweringRoutingTests {
                 #expect(
                     sourcePath.hasPrefix("__bundled_kotlin/"),
                     "\(call.name) must resolve into the bundled Kotlin stdlib; got \(sourcePath)"
+                )
+            }
+
+            let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
+            let redirects = callees.intersection(Self.legacyListSortExtremaRuntimeCallees)
+            #expect(
+                redirects.isEmpty,
+                "no spec-only kk_list_* sorting/extrema bridge may reach lowered KIR; got \(redirects.sorted())"
+            )
+        }
+    }
+
+    /// KUU-542: a statically `Collection<T>`-typed receiver took the same
+    /// broken path — the whole min-family fell through to `kk_list_*` /
+    /// bare-member-name fallbacks.  These must also bind the bundled
+    /// `Iterable<T>` declarations.
+    @Test
+    func collectionTypedExtremaCallsResolveToBundledKotlinSource() throws {
+        let source = """
+        fun main() {
+            val nums: Collection<Int> = setOf(3, 1, 4, 1, 5)
+            println(nums.min())
+            println(nums.minOrNull())
+            println(nums.minBy { it })
+            println(nums.minByOrNull { it })
+            println(nums.minOf { it })
+            println(nums.minOfOrNull { it })
+            println(nums.minWith { a, b -> a - b })
+            println(nums.minWithOrNull(naturalOrder()))
+            println(nums.minOfWith(naturalOrder()) { it })
+            println(nums.minOfWithOrNull(naturalOrder()) { it })
+            println(nums.maxByOrNull { it })
+            println(nums.maxOfOrNull { it })
+            println(nums.sortedByDescending { it })
+            println(nums.sortedWith(naturalOrder()))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionTypedExtremaSymbols",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
+            #expect(calls.count == 14, "expected 14 sorting/extrema calls; got \(calls.count)")
+
+            let sema = try #require(ctx.sema)
+            for call in calls {
+                let symbolID = try #require(call.symbol, "\(call.name): production KIR must carry a resolved symbol")
+                let symbol = try #require(sema.symbols.symbol(symbolID), "\(call.name): symbol must be in the table")
+
+                #expect(!symbol.flags.contains(.synthetic), "\(call.name) must not resolve to a synthetic stub")
+                #expect(
+                    sema.symbols.externalLinkName(for: symbolID) == nil,
+                    "\(call.name) must not carry an external link name"
+                )
+                #expect(sema.symbols.isSourceBackedSymbol(symbolID), "\(call.name) must be source-backed")
+
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbolID), "\(call.name): missing source file")
+                let sourcePath = ctx.sourceManager.path(of: fileID)
+                #expect(
+                    sourcePath.hasPrefix("__bundled_kotlin/"),
+                    "\(call.name) must resolve into the bundled Kotlin stdlib; got \(sourcePath)"
+                )
+            }
+
+            let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
+            let redirects = callees.intersection(Self.legacyListSortExtremaRuntimeCallees)
+            #expect(
+                redirects.isEmpty,
+                "no spec-only kk_list_* sorting/extrema bridge may reach lowered KIR; got \(redirects.sorted())"
+            )
+        }
+    }
+
+    /// KUU-553: the non-generic Float/Double Iterable overloads preserve
+    /// NaN and signed-zero semantics. A List receiver must not be captured by
+    /// the generic List<T> min declarations before those overloads are tried.
+    @Test
+    func floatingPointListMinCallsResolveToIterableSpecializations() throws {
+        let source = """
+        fun main() {
+            println(listOf(3.0, 1.0).min())
+            println(listOf(3.0f, 1.0f).min())
+            println(listOf(3.0, 1.0).minOrNull())
+            println(listOf(3.0f, 1.0f).minOrNull())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "FloatingPointListMinSymbols",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
+            #expect(calls.count == 4, "expected four floating-point min calls; got \(calls.count)")
+
+            for call in calls {
+                let symbolID = try #require(call.symbol, "\(call.name): missing resolved symbol")
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbolID))
+                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                #expect(
+                    ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/Iterables.kt",
+                    "\(call.name) must resolve to the specialized Iterable declaration"
+                )
+                #expect(
+                    signature.typeParameterSymbols.isEmpty,
+                    "\(call.name) must resolve to the non-generic Float/Double overload"
                 )
             }
         }
@@ -246,13 +452,16 @@ struct ListSortExtremaLoweringRoutingTests {
 
     // MARK: - the receivers whose rewrites are still live
 
-    /// `maxByOrNull` / `minByOrNull` are the two extrema names still listed in
-    /// both policies, because they are shared with the Map group that
-    /// RF-LOWER-CALL-012 owns.  They are as unreachable as the rest —
-    /// `mapHOFRuntimeName` in `+CallRewriteHandlers.swift` maps them to
-    /// `kk_map_maxByOrNull` / `kk_map_minByOrNull`, but `isCollectionHOFMemberName`
-    /// gates that function and never lists them, and neither export has a
-    /// `@_cdecl` anyway.  Either way the Map source call must survive.
+    /// `maxByOrNull` / `minByOrNull` were the two extrema names shared with the
+    /// Map group; RF-LOWER-CALL-012 removed them from both policies
+    /// (the direct / virtual source-backed preservation gates) since the branch they used to
+    /// short-circuit — the Map block in `+CallRewriteHOFCore.swift` that
+    /// mapped them to `kk_map_maxByOrNull` / `kk_map_minByOrNull` — was itself
+    /// deleted as unreachable (`isCollectionHOFMemberName` never listed them,
+    /// and neither export has a `@_cdecl` anyway). Removing the now-redundant
+    /// policy entries changes nothing observable: with no rewrite left to
+    /// claim these names, the call falls through to the same preserved-call
+    /// outcome either way. This test keeps pinning that outcome directly.
     @Test
     func mapExtremaKeepTheirSourceCallAndNotTheMapRuntimeRewrite() throws {
         let source = """

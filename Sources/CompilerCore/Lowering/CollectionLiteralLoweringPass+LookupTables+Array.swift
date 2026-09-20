@@ -24,22 +24,10 @@ struct ArrayLookupNames {
     let kkArraySetName: InternedString
     // Array conversion / utility ABI names (STDLIB-087/089)
     let kkArrayToListName: InternedString
-    let kkArrayToMutableListName: InternedString
-
     let kkArrayCopyOfName: InternedString
-    let kkArrayFillName: InternedString
     let kkListAsSequenceName: InternedString
     let kkArrayAsSequenceName: InternedString
     let kkArrayOfName: InternedString
-    // Array member names (STDLIB-087/088/089)
-    let toMutableListName: InternedString
-    let toTypedArrayName: InternedString
-    let sliceArrayName: InternedString
-    let reversedArrayName: InternedString
-    let asListName: InternedString
-    let copyOfName: InternedString
-    let copyOfRangeName: InternedString
-    let fillName: InternedString
     let arrayOfFactoryNames: Set<InternedString>
 
     init(interner: StringInterner) {
@@ -62,21 +50,10 @@ struct ArrayLookupNames {
         kkArrayNewName = interner.intern("kk_array_new")
         kkArraySetName = interner.intern("kk_array_set")
         kkArrayToListName = interner.intern("__kk_array_toList")
-        kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
-
         kkArrayCopyOfName = interner.intern("__kk_array_copyOf")
-        kkArrayFillName = interner.intern("kk_array_fill")
         kkListAsSequenceName = interner.intern("kk_list_asSequence")
         kkArrayAsSequenceName = interner.intern("kk_array_asSequence")
         kkArrayOfName = interner.intern("kk_array_of")
-        toMutableListName = interner.intern("toMutableList")
-        toTypedArrayName = interner.intern("toTypedArray")
-        sliceArrayName = interner.intern("sliceArray")
-        reversedArrayName = interner.intern("reversedArray")
-        asListName = interner.intern("asList")
-        copyOfName = interner.intern("copyOf")
-        copyOfRangeName = interner.intern("copyOfRange")
-        fillName = interner.intern("fill")
         arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, ubyteArrayOfName, ushortArrayOfName, uintArrayOfName, ulongArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
     }
 }

@@ -1,6 +1,7 @@
 package kotlin.sequences
 
 import kotlin.internal.KsSymbolName
+import kotlin.random.Random
 
 // KSP-443: Sequence 変換・集合演算を Kotlin 化
 
@@ -30,6 +31,31 @@ public inline fun <T> Sequence<T>.findLast(predicate: (T) -> Boolean): T? {
         if (predicate(element)) last = element
     }
     return last
+}
+
+// KSP-1344: Sequence firstNotNullOf-family migrated to bundled Kotlin source.
+// Materialize once so the transform is evaluated in encounter order and the
+// result follows the same sequence terminal-operation path as first/firstOrNull.
+public inline fun <T, R : Any> Sequence<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
+    val elements = this.toList()
+    var i = 0
+    while (i < elements.size) {
+        val result = transform(elements[i])
+        if (result != null) return result
+        i += 1
+    }
+    return null
+}
+
+public inline fun <T, R : Any> Sequence<T>.firstNotNullOf(transform: (T) -> R?): R {
+    val elements = this.toList()
+    var i = 0
+    while (i < elements.size) {
+        val result = transform(elements[i])
+        if (result != null) return result
+        i += 1
+    }
+    throw NoSuchElementException("No element of the sequence was transformed to a non-null value.")
 }
 
 // KSP-1346: Sequence fold-family APIs are source-backed with the Kotlin 2.3.10
@@ -477,6 +503,16 @@ public fun <T> Sequence<T>.constrainOnce(): Sequence<T> {
         }
     }
 }
+
+// KSP-1356: migrated off the SyntheticSequenceResidualStubs registration
+// (HeaderHelpers+SyntheticSequenceResidualStubs.swift) onto bundled Kotlin
+// source. Mirrors the upstream formula (toMutableList().shuffled(random).asSequence())
+// so the result is a fixed one-time shuffle, not a per-iterator reshuffle.
+@KsSymbolName("kk_sequence_shuffled")
+public fun <T> Sequence<T>.shuffled(): Sequence<T> = shuffled(Random.Default)
+
+@KsSymbolName("kk_sequence_shuffled_random")
+public fun <T> Sequence<T>.shuffled(random: Random): Sequence<T> = toMutableList().shuffled(random).asSequence()
 
 public fun <T> Sequence<T>?.orEmpty(): Sequence<T> = this ?: emptySequence()
 

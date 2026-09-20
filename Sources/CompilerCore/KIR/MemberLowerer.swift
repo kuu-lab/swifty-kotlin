@@ -269,10 +269,24 @@ final class MemberLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     compilationCtx: compilationCtx
                 )
+                var nestedAllDecls = nestedAll
+                if sema.symbols.symbol(symbol)?.kind == .enumClass {
+                    nestedAllDecls.append(contentsOf: lowerEnumEntryMemberFunctions(
+                        classDecl: nested,
+                        shared: KIRLoweringSharedContext(
+                            ast: ast,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            propertyConstantInitializers: propertyConstantInitializers
+                        ),
+                        compilationCtx: compilationCtx
+                    ))
+                }
                 let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
-                allDecls.append(contentsOf: nestedAll)
+                allDecls.append(contentsOf: nestedAllDecls)
 
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
@@ -359,10 +373,22 @@ final class MemberLowerer {
             // itable dispatch. Without this, a source-backed extension such as
             // TimeSource.measureTime reaches TimeSource.markNow() with an object
             // that has no registered interface entry.
-            let hasInterfaceSupertypes = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
-                sema.symbols.symbol(superSymbol)?.kind == .interface
+            // A non-Any class superclass needs it too: the implicit `super(...)`
+            // call and the superclass's field storage only exist once the
+            // singleton is actually allocated (BUG-264). Companions are
+            // excluded — `synthesizeCompanionInitializerIfNeeded` already owns
+            // their allocation and super delegation.
+            let isCompanion = nested.modifiers.contains(.companion)
+            let needsRuntimeInitialization = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
+                let kind = sema.symbols.symbol(superSymbol)?.kind
+                if kind == .interface {
+                    return true
+                }
+                return !isCompanion
+                    && (kind == .class || kind == .enumClass)
+                    && superSymbol != sema.types.anyClassSymbol
             }
-            if hasInterfaceSupertypes {
+            if needsRuntimeInitialization {
                 let objectType = sema.types.make(.classType(ClassType(
                     classSymbol: symbol, args: [], nullability: .nonNull
                 )))
@@ -382,6 +408,30 @@ final class MemberLowerer {
         }
 
         return (directMembers, allDecls)
+    }
+
+    /// Lowers functions declared in enum entry bodies as ordinary functions
+    /// whose receiver is the ordinal-backed enum value. They are emitted as
+    /// module declarations, but are intentionally not added to the enum's
+    /// direct member list because entry bodies are reached through the enum
+    /// dispatch helpers synthesized later.
+    func lowerEnumEntryMemberFunctions(
+        classDecl: ClassDecl,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext?
+    ) -> [KIRDeclID] {
+        var declIDs: [KIRDeclID] = []
+        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty {
+            declIDs.append(contentsOf: lowerMemberDecls(
+                memberFunctions: entry.memberFunctions,
+                memberProperties: [],
+                nestedClasses: [],
+                nestedObjects: [],
+                shared: shared,
+                compilationCtx: compilationCtx
+            ).allDecls)
+        }
+        return declIDs
     }
 
     private func lowerSingleMemberFunction(

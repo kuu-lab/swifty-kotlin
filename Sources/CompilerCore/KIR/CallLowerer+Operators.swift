@@ -79,6 +79,22 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        if (op == .rangeTo || op == .rangeUntil),
+           let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
+        {
+            let callee = floatingPointElementType == sema.types.floatType
+                ? interner.intern(op == .rangeTo ? "__kk_float_rangeTo" : "__kk_float_rangeUntil")
+                : interner.intern(op == .rangeTo ? "__kk_double_rangeTo" : "__kk_double_rangeUntil")
+            instructions.append(.call(
+                symbol: nil,
+                callee: callee,
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let isKClassEquality = (op == .equal || op == .notEqual)
             && (
                 isKClassReceiverType(
@@ -103,6 +119,59 @@ extension CallLowerer {
             ))
             return result
         }
+        let isRangeEquality = (op == .equal || op == .notEqual)
+            && (sema.bindings.isRangeExpr(lhs) || sema.bindings.isRangeExpr(rhs))
+        if isRangeEquality {
+            // Range expressions are duck-typed as their scalar element type
+            // during semantic analysis. Their raw values are still heap
+            // handles, so the scalar kk_op_eq path would unbox the handle and
+            // compare pointer bits. Preserve Kotlin's nominal range value
+            // equality through the runtime structural bridge instead.
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .equal ? "kk_structural_eq" : "kk_structural_ne"),
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        // Resolve String operators before the generic call-binding path. The
+        // bundled stdlib exposes `String` APIs as ordinary Kotlin wrappers,
+        // so Sema may bind `+`/`==` to those source declarations. String is a
+        // flat runtime aggregate, however, and the generic member-call path
+        // would emit a bare `plus`/`equals` call (or compare raw words) rather
+        // than the corresponding flat runtime ABI.
+        let lhsType = sema.bindings.exprTypes[lhs]
+        let rhsType = sema.bindings.exprTypes[rhs]
+        let nullableStringType = sema.types.makeNullable(stringType)
+        let lhsIsString = lhsType == stringType || lhsType == nullableStringType
+        let rhsIsString = rhsType == stringType || rhsType == nullableStringType
+        // Null literals get type nothing(.nullable), not stringStruct. Detect
+        // them so the flat-string equality ABI receives a typed null aggregate.
+        let lhsIsNullLiteral: Bool = {
+            guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let rhsIsNullLiteral: Bool = {
+            guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
+            || (rhsIsString && lhsIsNullLiteral)
+        let isStringComparison: Bool = if isStringOperand {
+            switch op {
+            case .equal, .notEqual, .identityEqual, .notIdentityEqual,
+                 .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+        } else {
+            false
+        }
+        let isStringAdd = op == .add && sema.bindings.exprTypes[exprID] == stringType
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -116,6 +185,8 @@ extension CallLowerer {
         let isEqualsDesugaring: Bool = op == .notEqual
             && sema.bindings.callBindings[exprID] != nil
         if let callBinding = sema.bindings.callBindings[exprID],
+           !isStringAdd,
+           !isStringComparison,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee)
         {
             let isNominalMemberOperator = if let owner = sema.symbols.parentSymbol(for: callBinding.chosenCallee),
@@ -210,7 +281,13 @@ extension CallLowerer {
                     let stubName = interner.intern(
                         (sema.symbols.symbol(callBinding.chosenCallee).map { interner.resolve($0.name) } ?? "unknown") + "$default"
                     )
-                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: callBinding.chosenCallee)
+                    // KUU-655: an override that inherits its defaults never
+                    // has its own stub; resolve to the base declaration's
+                    // stub instead (see `defaultStubOwnerSymbol`). Operators
+                    // have no `super.`-qualified call syntax, so there is no
+                    // mask "super call" bit to set here.
+                    let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: callBinding.chosenCallee, sema: sema)
+                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
                     instructions.append(.call(
                         symbol: stubSym,
                         callee: stubName,
@@ -308,12 +385,11 @@ extension CallLowerer {
         if case .add = op, sema.bindings.exprTypes[exprID] == stringType {
             // Kotlin String.plus(other: Any?) calls toString() on the RHS
             // when it is not already a String. Insert a kk_any_to_string
-            // coercion so that kk_string_concat_flat always receives two string
+            // coercion so that __kk_string_concat_flat always receives two string
             // aggregate values.
             let rhsExprType = sema.bindings.exprTypes[rhs]
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
             let effectiveRHS: KIRExprID
-            if rhsExprType == stringType || rhsExprType == nullableStringType {
+            if rhsExprType == stringType {
                 effectiveRHS = rhsID
             } else {
                 effectiveRHS = emitAnyToStringWithNullGuard(
@@ -328,7 +404,7 @@ extension CallLowerer {
             // Similarly coerce LHS if it is not a String (e.g. Any + String).
             let lhsExprType = sema.bindings.exprTypes[lhs]
             let effectiveLHS: KIRExprID
-            if lhsExprType == stringType || lhsExprType == nullableStringType {
+            if lhsExprType == stringType {
                 effectiveLHS = lhsID
             } else {
                 effectiveLHS = emitAnyToStringWithNullGuard(
@@ -343,7 +419,7 @@ extension CallLowerer {
             instructions.append(
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: result,
                     canThrow: false,
@@ -355,23 +431,6 @@ extension CallLowerer {
         // String comparison desugaring: route <, <=, >, >= on String operands
         // through kk_string_compareTo_flat (content comparison) instead of the default
         // kk_op_lt/le/gt/ge path which compares raw pointer addresses.
-        let lhsType = sema.bindings.exprTypes[lhs]
-        let rhsType = sema.bindings.exprTypes[rhs]
-        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-        let lhsIsString = lhsType == stringType || lhsType == nullableStringType
-        let rhsIsString = rhsType == stringType || rhsType == nullableStringType
-        // null literals get type nothing(.nullable), not stringStruct — detect them so
-        // we can pass a properly-typed null string aggregate to kk_string_equals_flat.
-        let lhsIsNullLiteral: Bool = {
-            guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
-            return true
-        }()
-        let rhsIsNullLiteral: Bool = {
-            guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
-            return true
-        }()
-        let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
-            || (rhsIsString && lhsIsNullLiteral)
         if isStringOperand {
             // When one side is a null literal, we need an expression typed as
             // nullableStringType so the flat-string codegen generates a null string
@@ -393,7 +452,7 @@ extension CallLowerer {
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_equals_flat"),
+                    callee: interner.intern("__kk_string_equals_flat"),
                     arguments: [actualLhsID, actualRhsID],
                     result: result,
                     canThrow: false,
@@ -406,7 +465,7 @@ extension CallLowerer {
                 let eqResult = arena.appendTemporary(type: boolType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_equals_flat"),
+                    callee: interner.intern("__kk_string_equals_flat"),
                     arguments: [actualLhsID, actualRhsID],
                     result: eqResult,
                     canThrow: false,
@@ -447,14 +506,36 @@ extension CallLowerer {
         // to return true.  The typed kk_op_d*/kk_op_f* runtime functions use Swift
         // operators that are IEEE-754 compliant.
         switch op {
+        // .notEqual reaches here only with matching floating-point operands
+        // in practice -- a mixed Double/Int `!=` is rejected by real kotlinc
+        // (this compiler currently accepts it too; tracked separately as
+        // BUG-262), so the widening below is a no-op for legal `!=` sources.
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual, .notEqual:
-            let floatTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
-                           ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
-            if let typeID = floatTypeID, isFloatingPointPrimitiveType(typeID, types: sema.types) {
-                let isDouble: Bool = switch sema.types.kind(of: typeID) {
-                case .primitive(.double, _): true
-                default: false
+            let lhsTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+            let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
+            let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
+            if lhsIsFloatingPoint || rhsIsFloatingPoint {
+                // BUG-258: a mixed comparison (e.g. `aDouble <= 1`) must widen
+                // the non-floating-point side to the same floating-point type
+                // before comparing -- kk_op_d*/kk_op_f* interpret both
+                // arguments as that type's raw IEEE-754 bit pattern, so an
+                // un-widened Int/Long operand's bit pattern gets misread as
+                // an unrelated (near-zero denormal) double/float value
+                // instead of the numeric value it actually holds.
+                let isDouble = [lhsTypeID, rhsTypeID].contains { typeID in
+                    guard let typeID else { return false }
+                    if case .primitive(.double, _) = sema.types.kind(of: typeID) { return true }
+                    return false
                 }
+                let effectiveLhsID = widenIntegerOperandToFloatingPoint(
+                    lhsID, operandTypeID: lhsTypeID, isFloatingPoint: lhsIsFloatingPoint, toDouble: isDouble,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                let effectiveRhsID = widenIntegerOperandToFloatingPoint(
+                    rhsID, operandTypeID: rhsTypeID, isFloatingPoint: rhsIsFloatingPoint, toDouble: isDouble,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 let prefix = isDouble ? "d" : "f"
                 let suffix: String = switch op {
                 case .lessThan: "lt"
@@ -467,7 +548,7 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_op_\(prefix)\(suffix)"),
-                    arguments: [lhsID, rhsID],
+                    arguments: [effectiveLhsID, effectiveRhsID],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -618,17 +699,27 @@ extension CallLowerer {
         case .elvis:
             preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
-            // kk_op_rangeTo / __kk_uint_rangeTo / __kk_ulong_rangeTo are residual
-            // operator-core helpers.
+            // Range expressions are duck-typed to their scalar element type,
+            // but the runtime needs the exact nominal range class for equality
+            // and hashCode semantics.
             let rangeToCallee: InternedString
-            if sema.bindings.isFloatingPointRangeExpr(exprID) {
-                let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
-                let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeToCallee = interner.intern("__kk_char_rangeTo")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeToCallee = interner.intern("__kk_long_rangeTo")
+            } else if sema.bindings.isFloatingPointRangeExpr(exprID) {
                 if lhsType == sema.types.floatType || rhsType == sema.types.floatType {
                     rangeToCallee = interner.intern("__kk_float_rangeTo")
                 } else {
                     rangeToCallee = interner.intern("__kk_double_rangeTo")
                 }
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 rangeToCallee = interner.intern("__kk_uint_rangeTo")
             } else if sema.bindings.isULongRangeExpr(exprID) {
@@ -646,10 +737,29 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
-            let rangeUntilCallee = if sema.bindings.isULongRangeExpr(exprID) {
-                interner.intern("__kk_op_ulong_rangeUntil")
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            let rangeUntilCallee: InternedString
+            if sema.bindings.isFloatingPointRangeExpr(exprID) {
+                let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
+                if elementType == sema.types.floatType {
+                    rangeUntilCallee = interner.intern("__kk_float_rangeUntil")
+                } else {
+                    rangeUntilCallee = interner.intern("__kk_double_rangeUntil")
+                }
+            } else if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeUntilCallee = interner.intern("__kk_char_rangeUntil")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeUntilCallee = interner.intern("__kk_long_rangeUntil")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_op_ulong_rangeUntil")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_uint_rangeUntil")
             } else {
-                interner.intern("__kk_op_rangeUntil")
+                rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
             instructions.append(.call(
                 symbol: nil,
@@ -680,7 +790,9 @@ extension CallLowerer {
             return result
         case .step:
             let stepCallee: InternedString
-            if sema.bindings.isULongRangeExpr(exprID) {
+            if sema.bindings.isCharRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_char_range_step")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_ulong_step")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_uint_step")
@@ -877,6 +989,67 @@ extension CallLowerer {
         }
     }
 
+    /// BUG-258: widens an integer-typed comparison operand to the raw
+    /// IEEE-754 bit pattern of `toDouble: true ? Double : Float` so it can be
+    /// compared against a genuine floating-point operand by `kk_op_d*`/
+    /// `kk_op_f*` -- both interpret their arguments as that type's bit
+    /// pattern, so an un-widened Int/Long/Short/Byte value would otherwise be
+    /// misread as an unrelated floating-point value. A value that is already
+    /// the target floating-point type (or of unknown type) passes through
+    /// unchanged.
+    private func widenIntegerOperandToFloatingPoint(
+        _ operandID: KIRExprID,
+        operandTypeID: TypeID?,
+        isFloatingPoint: Bool,
+        toDouble: Bool,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let operandTypeID else { return operandID }
+        let types = sema.types
+        let nonNullType = types.makeNonNullable(operandTypeID)
+        if isFloatingPoint {
+            // Already floating-point; a Float still needs widening when
+            // compared against a Double (real Kotlin defines
+            // Float.compareTo(Double)), since kk_op_d* reads its arguments
+            // as Double bit patterns.
+            guard toDouble, nonNullType == types.floatType else { return operandID }
+            let widened = arena.appendTemporary(type: types.doubleType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_float_to_double_bits"),
+                arguments: [operandID],
+                result: widened,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return widened
+        }
+        let calleeName: InternedString
+        if nonNullType == types.longType {
+            calleeName = interner.intern(toDouble ? "kk_long_to_double" : "kk_long_to_float")
+        } else if nonNullType == types.intType || nonNullType == types.shortType || nonNullType == types.byteType {
+            calleeName = interner.intern(toDouble ? "kk_int_to_double_bits" : "kk_int_to_float_bits")
+        } else {
+            // Not a recognized integer primitive (e.g. already the other
+            // floating-point width, or a non-numeric type reached via the
+            // `Any`-erasure fallback below) -- leave it unchanged.
+            return operandID
+        }
+        let widened = arena.appendTemporary(type: toDouble ? types.doubleType : types.floatType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: calleeName,
+            arguments: [operandID],
+            result: widened,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return widened
+    }
+
     // MARK: - Array Operations
 
     func lowerIndexedAccessExpr(
@@ -910,8 +1083,14 @@ extension CallLowerer {
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let receiverUsesFlatStringABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+        let chosenGetIsSourceBacked = if let chosenGet = callBinding?.chosenCallee {
+            sema.symbols.isSourceBackedSymbol(chosenGet)
+        } else {
+            false
+        }
         if indices.count == 1,
-           receiverUsesFlatStringABI
+           receiverUsesFlatStringABI,
+           !chosenGetIsSourceBacked
         {
             let indexID = driver.lowerExpr(
                 indices[0],
@@ -927,7 +1106,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_get_flat"),
+                callee: interner.intern("__kk_string_get_flat"),
                 arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,
@@ -1296,7 +1475,7 @@ extension CallLowerer {
             return unit
         }
         // Determine the runtime op stub.
-        // Use kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
+        // Use __kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
         // otherwise use the appropriate numeric op stub.
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
@@ -1316,7 +1495,7 @@ extension CallLowerer {
             nil
         }
         let opName = if op == .plusAssign, isStringElement {
-            "kk_string_concat_flat"
+            "__kk_string_concat_flat"
         } else if let floatingPointPrefix {
             // Compound assignment on Array<Double>/Array<Float> must use the
             // floating-point runtime ABI. The generic integer stubs reinterpret

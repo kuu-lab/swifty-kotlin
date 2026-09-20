@@ -44,7 +44,9 @@ extension BuildASTPhase.ExpressionParser {
                 statements.append(localDecl)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
                 statements.append(localAssign)
-            } else if let expr = BuildASTPhase.ExpressionParser(tokens: group, interner: interner, astArena: astArena).parse() {
+            } else if let expr = BuildASTPhase.ExpressionParser(
+                tokens: group, interner: interner, astArena: astArena, diagnostics: diagnostics
+            ).parse() {
                 statements.append(expr)
             }
         }
@@ -130,7 +132,8 @@ extension BuildASTPhase.ExpressionParser {
         if let destructuring = BuildASTPhase.parseDestructuringDeclarationStatement(
             from: Array(tokens),
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ) {
             return destructuring
         }
@@ -138,7 +141,9 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(tokens: slice, interner: interner, astArena: astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { typeTokens in
                 guard let first = typeTokens.first else {
@@ -147,12 +152,13 @@ extension BuildASTPhase.ExpressionParser {
                 let parser = BuildASTPhase.ExpressionParser(
                     tokens: typeTokens,
                     interner: interner,
-                    astArena: astArena
+                    astArena: astArena,
+                    diagnostics: self.diagnostics
                 )
                 return parser.parseTypeReference(first.range)
             },
             resolveDeclarationName: { token, interner in
-                guard TypeRefParserCore.isTypeLikeNameToken(token.kind) else {
+                guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
                     return nil
                 }
                 switch token.kind {
@@ -181,7 +187,9 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(tokens: slice, interner: interner, astArena: astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }

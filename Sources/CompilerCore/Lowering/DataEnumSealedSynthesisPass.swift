@@ -1,6 +1,8 @@
 
 final class DataEnumSealedSynthesisPass: LoweringPass {
     static let name = "DataEnumSealedSynthesis"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         module.arena.transformFunctions { function in
@@ -493,6 +495,14 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             interner: ctx.interner
         )
         appendSyntheticEnumOrdinalToNameIfNeeded(
+            owner: nominalSymbol,
+            entries: entries,
+            module: module,
+            sema: sema,
+            existingFunctionSymbols: existingFunctionSymbols,
+            interner: ctx.interner
+        )
+        appendSyntheticEnumEntryDispatchesIfNeeded(
             owner: nominalSymbol,
             entries: entries,
             module: module,

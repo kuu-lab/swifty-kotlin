@@ -406,7 +406,11 @@ struct NativeRefRuntimeSemaTests {
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.GC to be registered"
         )
-        #expect(sema.symbols.symbol(symbol)?.kind == .object, "GC should be an object")
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .object, "GC should be an object")
+        #expect(!info.flags.contains(.synthetic), "GC should be source-backed, not a synthetic stub")
+        #expect(info.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(symbol))
     }
 
     @Test
@@ -444,10 +448,21 @@ struct NativeRefRuntimeSemaTests {
     func testGCHasRuntimeTuningProperties() throws {
         let (sema, interner) = try sharedSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
-        let expected: [(name: String, type: TypeID, link: String)] = [
-            ("targetHeapBytes", sema.types.longType, "kk_gc_target_heap_bytes"),
-            ("targetHeapUtilization", sema.types.doubleType, "kk_gc_target_heap_utilization"),
-            ("maxHeapBytes", sema.types.longType, "kk_gc_max_heap_bytes"),
+        // These properties are now plain computed `var`s backed by private
+        // external fun bridges (matching Platform.kt), so the externalLinkName
+        // lives on the bridge symbol rather than the property symbol itself.
+        // Assert it is wired up *somewhere* in the symbol table instead of
+        // pinning the private bridge function's name.
+        let allExternalLinkNames = Set(sema.symbols.allSymbols().compactMap { symbol in
+            sema.symbols.externalLinkName(for: symbol.id)
+        })
+        let expected: [(name: String, type: TypeID, getterLink: String, setterLink: String)] = [
+            ("targetHeapBytes", sema.types.longType, "kk_gc_target_heap_bytes", "kk_gc_target_heap_bytes_set"),
+            (
+                "targetHeapUtilization", sema.types.doubleType,
+                "kk_gc_target_heap_utilization", "kk_gc_target_heap_utilization_set"
+            ),
+            ("maxHeapBytes", sema.types.longType, "kk_gc_max_heap_bytes", "kk_gc_max_heap_bytes_set"),
         ]
 
         for property in expected {
@@ -457,8 +472,131 @@ struct NativeRefRuntimeSemaTests {
                 "GC should have \(property.name)"
             )
             #expect(sema.symbols.propertyType(for: symbol) == property.type)
-            #expect(sema.symbols.externalLinkName(for: symbol) == property.link)
+            #expect(
+                allExternalLinkNames.contains(property.getterLink),
+                "\(property.name) should be backed by \(property.getterLink)"
+            )
+            #expect(
+                allExternalLinkNames.contains(property.setterLink),
+                "\(property.name) should be settable via \(property.setterLink)"
+            )
         }
+    }
+
+    @Test
+    func testGCHasSourceBackedTuningPropertiesWithoutRuntimeBacking() throws {
+        let (sema, interner) = try sharedSema()
+        let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
+        // These tuning knobs don't influence this runtime's mark-and-sweep GC
+        // (same as the pre-existing targetHeapBytes/targetHeapUtilization/
+        // maxHeapBytes trio), so they are plain Kotlin-backed vars with no
+        // external link.
+        let expected: [(name: String, type: TypeID)] = [
+            ("autotune", sema.types.booleanType),
+            ("minHeapBytes", sema.types.longType),
+            ("heapTriggerCoefficient", sema.types.doubleType),
+            ("pauseOnTargetHeapOverflow", sema.types.booleanType),
+        ]
+        for property in expected {
+            let propertyFQName = objectFQName + [interner.intern(property.name)]
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: propertyFQName),
+                "GC should have \(property.name)"
+            )
+            #expect(sema.symbols.propertyType(for: symbol) == property.type)
+        }
+    }
+
+    @Test
+    func testGCHasRegularGCIntervalProperty() throws {
+        let (sema, interner) = try sharedSema()
+        let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
+        let symbol = try #require(
+            sema.symbols.lookup(fqName: objectFQName + [interner.intern("regularGCInterval")]),
+            "GC should have regularGCInterval"
+        )
+        let type = try #require(sema.symbols.propertyType(for: symbol))
+        #expect(try className(for: type, sema: sema, interner: interner) == "Duration")
+    }
+
+    @Test
+    func testGCHasDeprecatedNoOpTuningProperties() throws {
+        let (sema, interner) = try sharedSema()
+        let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
+        let expected: [(name: String, type: TypeID)] = [
+            ("threshold", sema.types.intType),
+            ("collectCyclesThreshold", sema.types.longType),
+            ("thresholdAllocations", sema.types.longType),
+            ("cyclicCollectorEnabled", sema.types.booleanType),
+        ]
+        for property in expected {
+            let propertyFQName = objectFQName + [interner.intern(property.name)]
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: propertyFQName),
+                "GC should have \(property.name)"
+            )
+            #expect(sema.symbols.propertyType(for: symbol) == property.type)
+            #expect(
+                hasOptInAnnotation(on: symbol, markerContaining: "Deprecated", sema: sema),
+                "\(property.name) should carry @Deprecated"
+            )
+        }
+    }
+
+    @Test
+    func testGCHasDeprecatedNoOpControlFunctions() throws {
+        let (sema, interner) = try sharedSema()
+        let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
+        for name in ["collectCyclic", "suspend", "resume", "stop", "start"] {
+            let fqName = objectFQName + [interner.intern(name)]
+            let members = sema.symbols.lookupAll(fqName: fqName)
+            #expect(!(members.isEmpty), "GC should have a \(name)() member")
+            let member = try #require(members.first)
+            let sig = try #require(sema.symbols.functionSignature(for: member))
+            #expect(sig.returnType == sema.types.unitType, "GC.\(name)() should return Unit")
+            #expect(sig.parameterTypes.isEmpty, "GC.\(name)() should take no parameters")
+            #expect(
+                hasOptInAnnotation(on: member, markerContaining: "Deprecated", sema: sema),
+                "\(name) should carry @Deprecated"
+            )
+        }
+    }
+
+    @Test
+    func testGCHasCycleDetectionFunctions() throws {
+        let (sema, interner) = try sharedSema()
+        let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
+
+        let detectCyclesFQName = objectFQName + [interner.intern("detectCycles")]
+        let detectCyclesMember = try #require(sema.symbols.lookupAll(fqName: detectCyclesFQName).first)
+        let detectCyclesSignature = try #require(sema.symbols.functionSignature(for: detectCyclesMember))
+        #expect(detectCyclesSignature.parameterTypes.isEmpty)
+        #expect(sema.types.nullability(of: detectCyclesSignature.returnType) == .nullable)
+        #expect(
+            try className(
+                for: sema.types.makeNonNullable(detectCyclesSignature.returnType),
+                sema: sema, interner: interner
+            ) == "Array"
+        )
+
+        let findCycleFQName = objectFQName + [interner.intern("findCycle")]
+        let findCycleMember = try #require(sema.symbols.lookupAll(fqName: findCycleFQName).first)
+        let findCycleSignature = try #require(sema.symbols.functionSignature(for: findCycleMember))
+        #expect(findCycleSignature.parameterTypes == [sema.types.anyType])
+        #expect(sema.types.nullability(of: findCycleSignature.returnType) == .nullable)
+    }
+
+    @Test
+    func testGCHasLastGCInfoProperty() throws {
+        let (sema, interner) = try sharedSema()
+        let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
+        let symbol = try #require(
+            sema.symbols.lookup(fqName: objectFQName + [interner.intern("lastGCInfo")]),
+            "GC should have lastGCInfo"
+        )
+        let type = try #require(sema.symbols.propertyType(for: symbol))
+        #expect(sema.types.nullability(of: type) == .nullable)
+        #expect(try className(for: sema.types.makeNonNullable(type), sema: sema, interner: interner) == "GCInfo")
     }
 
     @Test
@@ -501,11 +639,16 @@ struct NativeRefRuntimeSemaTests {
         ]
 
         for property in expectedProperties {
-            let symbol = try #require(
+            let propertySymbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)]),
                 "RootSetStatistics should expose \(property)"
             )
-            #expect(sema.symbols.propertyType(for: symbol) == sema.types.longType)
+            let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
+            #expect(!propertyInfo.flags.contains(.synthetic))
+            #expect(!propertyInfo.flags.contains(.mutable))
+            #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
+            #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
+            #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.longType)
         }
 
         let ctor = try #require(

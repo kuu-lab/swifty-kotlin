@@ -266,6 +266,19 @@ extension KIRLoweringDriver {
             // this standalone function has no way to see that one.
             ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverExpr)
         }
+        // BUG-267: a delegate body on an object-literal member (e.g.
+        // `object { val x by lazy { outerLocal } }`) is lowered as its own KIR
+        // function, so outer locals it references must be reloaded from the
+        // capture fields materialized on the object instance — the same
+        // mechanism object-literal member functions use. No-op for named-class
+        // and top-level delegates (no objectLiteralCaptureSymbols registered).
+        objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody.instructions
+        )
         // Names the callback lambda declared for its parameters
         // (`{ property, old, new -> ... }`) must resolve to the synthetic
         // parameters below while the body is lowered. `resetScopeForFunction`/
@@ -427,6 +440,7 @@ extension KIRLoweringDriver {
         case 2: interner.intern("kk_function_create_2")
         case 3: interner.intern("kk_function_create_3")
         case 4: interner.intern("kk_function_create_4")
+        case 5: interner.intern("kk_function_create_5")
         default: preconditionFailure("Unsupported delegate callback arity: \(paramCount)")
         }
         let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
@@ -552,6 +566,7 @@ extension KIRLoweringDriver {
         case 2: interner.intern("kk_function_create_2")
         case 3: interner.intern("kk_function_create_3")
         case 4: interner.intern("kk_function_create_4")
+        case 5: interner.intern("kk_function_create_5")
         default: preconditionFailure("Unsupported delegate callback arity: \(adapterNumberedParams.count)")
         }
         instructions.append(.call(

@@ -37,7 +37,7 @@ expr e@27:5 name(list) type=kotlin.collections.List<Int> ref=golden.sema.receive
 expr e@27:28 name(it) type=Int ref=s-2
 expr e@27:20 call callee=e@27:20#1 args=[_:e@27:28] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@27:18 lambda params=[] body=e@27:20 label=forEach type=(Int) -> Unit
-expr e@27:5#1 memberCall recv=e@27:5 callee=forEach args=[_:e@27:18] type=Unit
+expr e@27:5#1 memberCall recv=e@27:5 callee=forEach args=[_:e@27:18] type=Unit call=kotlin.collections.forEach[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Unit};gen=1] targs=[Int]
 expr e@28:5 name(array) type=kotlin.Array<Int> ref=golden.sema.receiverResolution.$2.array[kind=vparam]
 expr e@28:29 name(it) type=Int ref=s-3
 expr e@28:21 call callee=e@28:21#1 args=[_:e@28:29] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

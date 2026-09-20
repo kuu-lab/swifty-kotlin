@@ -1,6 +1,12 @@
 package kotlin.collections
 
-// KSP-946: keep the MutableMap nominal declaration in bundled Kotlin source.
-// Its mutation members and Map query views remain compiler/runtime-backed
-// residuals until their dedicated API migration tasks are completed.
-public interface MutableMap<K, V> : Map<K, V>
+import kotlin.internal.KsSymbolName
+
+public interface MutableMap<K, V> : Map<K, V> {
+    @IgnorableReturnValue
+    @KsSymbolName("__kk_mutable_map_remove")
+    public fun remove(key: K): V?
+
+    @KsSymbolName("__kk_mutable_map_clear")
+    public fun clear()
+}

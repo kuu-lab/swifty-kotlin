@@ -7,8 +7,8 @@ import Testing
 //
 // This file adds extended runtime coverage not addressed by
 // RuntimeNativeConcurrentTests.swift, which covers Worker lifecycle,
-// freeze/isFrozen, Worker.id, Future<T>, TransferMode, FreezableAtomicReference,
-// Worker.executeAfter, and basic AtomicInt/Long/Reference CAS.
+// freeze/isFrozen, Worker.id, Future<T>, TransferMode, Worker.executeAfter,
+// and basic AtomicInt/Long/Reference CAS.
 //
 // Implemented APIs tested here:
 //   AtomicBoolean  : kk_atomic_bool_create / load / store / exchange /
@@ -149,6 +149,17 @@ struct RuntimeAtomicIntArrayTests {
         _ = __kk_atomic_int_array_store(handle, 0, 50)
         let new = __kk_atomic_int_array_addAndFetch(handle, 0, 10)
         #expect(new == 60)
+    }
+
+    @Test func int32OverflowKeepsCompareAndExchangeValueInSync() {
+        let handle = kk_atomic_int_array_create(1)
+        let intMax = Int(Int32.max)
+        let intMin = Int(Int32.min)
+        _ = __kk_atomic_int_array_store(handle, 0, intMax)
+
+        #expect(__kk_atomic_int_array_addAndFetch(handle, 0, 1) == intMin)
+        #expect(__kk_atomic_int_array_compareAndExchange(handle, 0, intMin, 5) == intMin)
+        #expect(__kk_atomic_int_array_load(handle, 0) == 5)
     }
 
     @Test func zeroSizeArrayHasZeroSize() {

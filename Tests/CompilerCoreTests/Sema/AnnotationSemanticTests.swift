@@ -1369,5 +1369,86 @@ struct AnnotationSemanticTests {
         )
     }
 
+
+    // KUU-547: annotation arguments are stored as raw source text, so a
+    // `const val` used as a string argument must resolve to the constant's
+    // value in the diagnostic instead of rendering the identifier.
+    @Test func testDeprecatedMessageResolvesConstValReference() throws {
+        let source = """
+        package test
+
+        private const val DEP_MSG = "Use the replacement instead"
+        private const val RW_EXPR = "newApi()"
+        val NOT_A_CONST = "Not a compile-time constant"
+
+        object Holder {
+            const val QUALIFIED_MSG = "Qualified deprecation message"
+        }
+
+        @Deprecated(DEP_MSG)
+        fun oldApi(): Int = 1
+
+        @Deprecated(message = DEP_MSG, level = DeprecationLevel.WARNING)
+        fun namedArgApi(): Int = 2
+
+        @Deprecated(DEP_MSG, replaceWith = ReplaceWith(expression = RW_EXPR))
+        fun withReplaceWith(): Int = 3
+
+        @Deprecated(Holder.QUALIFIED_MSG)
+        fun qualifiedApi(): Int = 4
+
+        @Deprecated(NOT_A_CONST)
+        fun nonConstApi(): Int = 5
+
+        fun caller(): Int = oldApi() + namedArgApi() + withReplaceWith() + qualifiedApi() + nonConstApi()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
+
+        #expect(
+            diagnostics.count == 5,
+            "Expected one deprecated diagnostic per call, got: \(ctx.diagnostics.diagnostics)"
+        )
+        #expect(
+            diagnostics.allSatisfy(isWarning),
+            "Expected all deprecated diagnostics to be warnings, got: \(diagnostics)"
+        )
+
+        let oldApi = diagnostics.first { $0.message.contains("'test.oldApi'") }
+        #expect(
+            oldApi?.message.contains("Use the replacement instead") == true,
+            "const val message should render its value, got: \(String(describing: oldApi))"
+        )
+        #expect(
+            oldApi?.message.contains("DEP_MSG") == false,
+            "Diagnostic should not render the const identifier, got: \(String(describing: oldApi))"
+        )
+
+        let namedArgApi = diagnostics.first { $0.message.contains("'test.namedArgApi'") }
+        #expect(
+            namedArgApi?.message.contains("Use the replacement instead") == true,
+            "named const val message should render its value, got: \(String(describing: namedArgApi))"
+        )
+
+        let withReplaceWith = diagnostics.first { $0.message.contains("'test.withReplaceWith'") }
+        #expect(
+            withReplaceWith?.message.contains("Replace with: newApi()") == true,
+            "const val replaceWith expression should render its value, got: \(String(describing: withReplaceWith))"
+        )
+
+        let qualifiedApi = diagnostics.first { $0.message.contains("'test.qualifiedApi'") }
+        #expect(
+            qualifiedApi?.message.contains("Qualified deprecation message") == true,
+            "qualified const val message should render its value, got: \(String(describing: qualifiedApi))"
+        )
+
+        let nonConstApi = diagnostics.first { $0.message.contains("'test.nonConstApi'") }
+        #expect(
+            nonConstApi?.message.contains("NOT_A_CONST") == true,
+            "non-const reference should fall back to the raw argument text, got: \(String(describing: nonConstApi))"
+        )
+    }
+
 }
 #endif

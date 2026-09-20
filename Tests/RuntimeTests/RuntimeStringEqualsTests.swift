@@ -19,6 +19,32 @@ struct RuntimeStringEqualsTests {
         kk_unbox_bool(raw) != 0
     }
 
+    private func withFlatStrings<T>(
+        _ lhs: String,
+        _ rhs: String,
+        _ body: (
+            UnsafePointer<UInt8>?, Int, Int, Int,
+            UnsafePointer<UInt8>?, Int, Int, Int
+        ) -> T
+    ) -> T {
+        let lhsBytes = Array(lhs.utf8)
+        let rhsBytes = Array(rhs.utf8)
+        return lhsBytes.withUnsafeBufferPointer { lhsBuffer in
+            rhsBytes.withUnsafeBufferPointer { rhsBuffer in
+                body(
+                    lhsBuffer.baseAddress,
+                    lhs.unicodeScalars.count,
+                    lhsBytes.count,
+                    0,
+                    rhsBuffer.baseAddress,
+                    rhs.unicodeScalars.count,
+                    rhsBytes.count,
+                    0
+                )
+            }
+        }
+    }
+
     @Test
     func testEqualsSameContent() {
         #expect(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("hello"))))
@@ -48,6 +74,27 @@ struct RuntimeStringEqualsTests {
     func testEqualsUnicode() {
         #expect(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("こんにちは"))))
         #expect(!boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("さようなら"))))
+    }
+
+    @Test
+    func testEqualsUsesUTF16CodeUnitsInsteadOfCanonicalEquivalence() {
+        let composed = runtimeString("é")
+        let decomposed = runtimeString("e\u{301}")
+        #expect(!boolValue(kk_string_equals(composed, decomposed)))
+
+        withFlatStrings("Å", "Å") { lhsData, lhsLength, lhsByteCount, lhsHash,
+                                     rhsData, rhsLength, rhsByteCount, rhsHash in
+            #expect(__kk_string_equals_flat(
+                lhsData,
+                lhsLength,
+                lhsByteCount,
+                lhsHash,
+                rhsData,
+                rhsLength,
+                rhsByteCount,
+                rhsHash
+            ) == 0)
+        }
     }
 }
 #endif

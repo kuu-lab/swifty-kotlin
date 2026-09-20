@@ -85,11 +85,11 @@ Expected: empty diff. Both sides are source-injection IR (see above).
 ## Targeted CompilerBackendTests suites
 
 ```bash
-SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh \
+bash Scripts/swift_test.sh --no-parallel \
   --filter 'BackendDriverOutputTests|LoweringCodegenRegressionTests|VirtualDispatchCodegenTests|NameManglerTests|LinkPhaseIntegrationTests'
 ```
 
-For XCTest suites, `SWIFT_TEST_PARALLEL=0` is what makes the "Executed N tests" summary
+For XCTest suites, `--no-parallel` is what makes the "Executed N tests" summary
 appear, so a filter that matched nothing can be told apart from a pass (see
 [`AGENTS.md`](../../../AGENTS.md)). Swift Testing suites (`@Test` / `#expect`) don't print
 that line either way — check the reported test count.
@@ -113,8 +113,8 @@ For PRs moving `StateFlow`, `MutableStateFlow`, `Flow.stateIn`, `SharedFlow`,
 
 ```bash
 bash Scripts/validate_runtime_abi_links.sh
-SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter SmokeTests
-SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter StdlibArtifactRegressionTests
+bash Scripts/swift_test.sh --no-parallel --filter SmokeTests
+bash Scripts/swift_test.sh --no-parallel --filter StdlibArtifactRegressionTests
 ```
 
 `validate_runtime_abi_links.sh` confirms removed `kk_*` bridges no longer break ABI

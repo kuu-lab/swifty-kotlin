@@ -33,7 +33,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
             symbols: sema.symbols,
             types: sema.types,
             bindings: sema.bindings,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
         )
 
         let lazyBoundDecls = collectLazyBoundObjectLiteralDecls(ast: ast)

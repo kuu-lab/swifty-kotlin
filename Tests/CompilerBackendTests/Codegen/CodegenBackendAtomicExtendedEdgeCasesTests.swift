@@ -96,23 +96,19 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicIntLargePositiveValue() throws {
-        // Note: In this compiler's current implementation, Kotlin Int is mapped to 64-bit
-        // native Int. Int.MAX_VALUE + 1 does not wrap to Int.MIN_VALUE but instead
-        // produces 2147483648 (a valid 64-bit value). This test documents the current
-        // addAndFetch behavior for large positive values.
+    func testCodegenAtomicIntInt32OverflowPreservesCASSemantics() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
 
         fun main() {
             val a = AtomicInt(Int.MAX_VALUE)
+            println(a.incrementAndFetch())
+            println(a.compareAndSet(Int.MIN_VALUE, 5))
             println(a.load())
-            val after = a.addAndFetch(1)
-            println(after > 0)
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicIntLargeValue", expected: "2147483647\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "AtomicIntInt32Overflow", expected: "-2147483648\ntrue\n5\n")
     }
 
     @Test
@@ -555,6 +551,23 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayArithmetic", expected: "5\n5\n8\n8\n9\n10\n10\n10\n9\n8\n8\n")
+    }
+
+    @Test
+    func testCodegenAtomicIntArrayInt32OverflowPreservesCASSemantics() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.AtomicIntArray
+
+        fun main() {
+            val arr = AtomicIntArray(1)
+            arr.storeAt(0, Int.MAX_VALUE)
+            println(arr.incrementAndFetchAt(0))
+            println(arr.compareAndSetAt(0, Int.MIN_VALUE, 5))
+            println(arr.loadAt(0))
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayInt32Overflow", expected: "-2147483648\ntrue\n5\n")
     }
 
     @Test

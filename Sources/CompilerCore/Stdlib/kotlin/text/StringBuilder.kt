@@ -10,6 +10,7 @@ import kotlin.internal.KsSymbolName
 public class StringBuilder : Appendable, CharSequence {
     constructor()
     constructor(content: String)
+    constructor(content: CharSequence)
     constructor(capacity: Int)
 
     override val length: Int
@@ -286,14 +287,33 @@ public class StringBuilder : Appendable, CharSequence {
         __kk_string_builder_clear()
 
     fun reverse(): StringBuilder {
+        val length = this.length
+        if (length <= 1) return this
+
         val current = toString()
-        var result = ""
-        var index = current.length - 1
-        while (index >= 0) {
-            result = result + current[index]
-            index -= 1
+        val chars = CharArray(length)
+        var index = 0
+        while (index < length) {
+            chars[index] = current[length - 1 - index]
+            index += 1
         }
-        return resetTo(result)
+
+        // KUU-641: restore valid surrogate pairs swapped by the unit reversal,
+        // matching Kotlin/JVM AbstractStringBuilder.reverse().
+        index = 0
+        while (index < length - 1) {
+            val first = chars[index]
+            val second = chars[index + 1]
+            if (first.isLowSurrogate() && second.isHighSurrogate()) {
+                chars[index] = second
+                chars[index + 1] = first
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+
+        return clear().append(chars)
     }
 
     fun deleteCharAt(index: Int): StringBuilder {
@@ -336,8 +356,21 @@ public class StringBuilder : Appendable, CharSequence {
         return appendRange(chars, 0, chars.size)
     }
 
-    fun insertRange(index: Int, value: CharSequence, startIndex: Int, endIndex: Int): StringBuilder =
-        insertString(index, (value as String).substring(startIndex, endIndex))
+    fun insertRange(index: Int, value: CharSequence, startIndex: Int, endIndex: Int): StringBuilder {
+        val sourceLength = value.length
+        if (startIndex < 0 || startIndex > sourceLength || endIndex < startIndex || endIndex > sourceLength) {
+            throw IndexOutOfBoundsException(
+                "startIndex=$startIndex, endIndex=$endIndex, length=$sourceLength"
+            )
+        }
+        val chars = CharArray(endIndex - startIndex)
+        var sourceIndex = startIndex
+        while (sourceIndex < endIndex) {
+            chars[sourceIndex - startIndex] = value[sourceIndex]
+            sourceIndex++
+        }
+        return insertRange(index, chars, 0, chars.size)
+    }
 
     fun insertRange(index: Int, value: CharArray, startIndex: Int, endIndex: Int): StringBuilder =
         __kk_string_builder_insert_char_array(index, value, startIndex, endIndex)

@@ -343,11 +343,11 @@ struct CodegenBackendKotlinTextReplaceEdgeCasesTests {
     @Test func testKotlinTextRemovePrefixSuffixCharSequenceEdgeCases() throws {
         let source = """
         fun trimPrefix(value: CharSequence): String {
-            return value.removePrefix("foo")
+            return value.removePrefix("foo").toString()
         }
 
         fun trimAround(value: CharSequence): String {
-            return value.removeSurrounding("foo")
+            return value.removeSurrounding("foo").toString()
         }
 
         fun main() {

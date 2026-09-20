@@ -4,7 +4,9 @@ import Testing
 
 /// KSP-939: List's size/init factory is a bundled Kotlin declaration; the
 /// nominal shell itself is already source-backed via KSP-697 (List.kt).
-/// Indexed access and collection members remain residuals.
+/// KSP-700: `get`, `isEmpty`, and both `listIterator` overloads are source
+/// members with the same `kk_*` link names the synthetic registrations used;
+/// other List extension/HOF dispatch remains residual.
 @Suite
 struct ListInterfaceSourceMigrationTests {
     @Test
@@ -59,8 +61,38 @@ struct ListInterfaceSourceMigrationTests {
         let get = try #require(
             sema.symbols.lookup(fqName: collections + [interner.intern("List"), interner.intern("get")])
         )
-        #expect(sema.symbols.symbol(get)?.flags.contains(.synthetic) == true)
+        // KSP-700: `List.get` is now a source member carrying the same link
+        // name the synthetic registration used to install.
+        #expect(sema.symbols.symbol(get)?.flags.contains(.synthetic) == false)
         #expect(sema.symbols.externalLinkName(for: get) == "__kk_list_get")
+        let getFileID = try #require(sema.symbols.sourceFileID(for: get))
+        #expect(ctx.sourceManager.path(of: getFileID) == "__bundled_kotlin/collections/List.kt")
+
+        let isEmpty = try #require(
+            sema.symbols.lookup(fqName: collections + [interner.intern("List"), interner.intern("isEmpty")])
+        )
+        #expect(sema.symbols.symbol(isEmpty)?.flags.contains(.synthetic) == false)
+        #expect(sema.symbols.externalLinkName(for: isEmpty) == "kk_list_is_empty")
+
+        let listIteratorMembers = sema.symbols.lookupAll(
+            fqName: collections + [interner.intern("List"), interner.intern("listIterator")]
+        ).filter { sema.symbols.parentSymbol(for: $0) == list }
+        #expect(listIteratorMembers.count == 2)
+        #expect(listIteratorMembers.allSatisfy {
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+        })
+        #expect(
+            listIteratorMembers.contains {
+                sema.symbols.externalLinkName(for: $0) == "kk_list_iterator"
+                    && sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty == true
+            }
+        )
+        #expect(
+            listIteratorMembers.contains {
+                sema.symbols.externalLinkName(for: $0) == "kk_list_iterator_at"
+                    && sema.symbols.functionSignature(for: $0)?.parameterTypes.count == 1
+            }
+        )
     }
 }
 #endif

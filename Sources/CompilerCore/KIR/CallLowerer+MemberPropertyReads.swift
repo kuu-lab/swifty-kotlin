@@ -52,10 +52,13 @@ extension CallLowerer {
 
     func tryLowerObjectMemberPropertyRead(
         _ exprID: ExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty else { return nil }
@@ -125,18 +128,46 @@ extension CallLowerer {
             ))
             return result
         }
-        if let parentInfo = sema.symbols.symbol(parent),
-           interner.resolve(parentInfo.name) == "NormalizationForms"
+        // KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are plain Kotlin
+        // property initializers now (Stdlib/kotlin/text/StringNormalize.kt),
+        // so the name-string special case that routed them to
+        // __kk_normalization_form_* is no longer needed.
+        // BUG-257: a property with a real custom getter never gets a backing
+        // global slot -- unlike the cases above, there is no storage for
+        // `loadGlobal` below to read. Route through the real getter accessor
+        // instead, exactly like the equivalent instance-member path
+        // (tryLowerMemberPropertyAccessorRead) and the object-member setter
+        // side (memberPropertyUsesSetterAccessor in
+        // CallLowerer+MemberAssignment.swift) already do.
+        //
+        // Deliberately narrower than `memberPropertyUsesAccessor`: a
+        // delegated property (`by lazy { ... }`) also reports "uses an
+        // accessor" there, but object-member delegated properties don't yet
+        // have a real getter-accessor symbol to call (unlike class-instance
+        // delegates, which resolve through a different path before reaching
+        // here) -- routing them through this branch panics with a vtable/
+        // itable lookup failure. Leave delegated object properties on the
+        // pre-existing `loadGlobal` fallback below until that gap is fixed
+        // (BUG-265).
+        if sema.symbols.propertyHasCustomGetter(for: valueSym)
+            || sema.symbols.extensionPropertyGetterAccessor(for: valueSym) != nil
         {
-            let runtimeCallee = interner.intern("__kk_normalization_form_\(interner.resolve(info.name).lowercased())")
-            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
-                    ?? sema.symbols.propertyType(for: valueSym)
-                    ?? sema.types.anyType
+            let receiverID = driver.lowerExpr(
+                receiverExpr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
             )
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: valueSym)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: valueSym)
+            let propType = sema.bindings.exprTypes[exprID]
+                ?? sema.symbols.propertyType(for: valueSym)
+                ?? sema.types.anyType
+            let result = arena.appendTemporary(type: propType)
             instructions.append(.call(
-                symbol: nil,
-                callee: runtimeCallee,
-                arguments: [],
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [receiverID],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -343,6 +374,28 @@ extension CallLowerer {
             return nil
         }
 
+        // Runtime-backed Set instances are opaque set boxes. Their
+        // source-backed `size` getter must use the set bridge directly; an
+        // itable/vtable getter would require a Kotlin object layout that the
+        // runtime box does not have.
+        if isRuntimeBackedSetSizeProperty(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_set_size"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
         // KSP-928: an abstract/open class property is a getter dispatch point,
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
@@ -356,8 +409,30 @@ extension CallLowerer {
         if case .superRef = ast.arena.expr(receiverExpr) {
             isSuperQualifiedReceiver = true
         }
+        // KUU-556: HashMap.kt is now `open` so LinkedHashMap can subclass it.
+        // That gives HashMap its first-ever direct subtype, which makes the
+        // condition below (KSP-928's abstract/open-property vtable dispatch)
+        // start matching HashMap's own materialized realization of the four
+        // Map interface properties it never overrides in source
+        // (size/keys/values/entries -- @KsSymbolName isn't wired for
+        // `.property` symbols yet, so only Map's original declaration carries
+        // the external link). LayoutSynthesis assigns the HashMap realization
+        // a vtable slot, but every Map-family value shares one RuntimeMapBox
+        // representation with no true per-class vtable. Dispatching through
+        // that slot therefore panics instead of reaching the Map bridge.
+        let isHashMapRealizedRuntimeBridgedMapProperty =
+            ownerInfo.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("HashMap"),
+            ]
+            && [
+                interner.intern("size"), interner.intern("keys"),
+                interner.intern("values"), interner.intern("entries"),
+            ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
+           !isHashMapRealizedRuntimeBridgedMapProperty,
            !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
@@ -383,7 +458,12 @@ extension CallLowerer {
         }
 
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
-            if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            // `tryResolvePropertyAccessorVirtualDispatch` independently
+            // qualifies HashMap's materialized property realization for vtable
+            // dispatch once HashMap has a direct subtype. Keep the same
+            // RuntimeMapBox-backed properties on the bridge path instead.
+            if !isHashMapRealizedRuntimeBridgedMapProperty,
+               let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
                 propertySymbol: propertySymbol,
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
@@ -582,6 +662,23 @@ extension CallLowerer {
             return nil
         }
 
+        if isRuntimeBackedSetSizeProperty(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_set_size"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
         if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
             propertySymbol: propertySymbol,
             receiverExpr: receiverExpr,
@@ -630,6 +727,24 @@ extension CallLowerer {
             thrownResult: nil
         ))
         return result
+    }
+
+    private func isRuntimeBackedSetSizeProperty(
+        _ propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.symbols.symbol(propertySymbol)?.name == interner.intern("size"),
+              let receiverType = sema.bindings.exprTypes[receiverExpr]
+        else {
+            return false
+        }
+        return isSetLikeType(
+            receiverType,
+            sema: sema,
+            interner: interner
+        )
     }
 
     func tryLowerEnumEntryPropertyRead(
@@ -807,11 +922,10 @@ extension CallLowerer {
     /// implicit path used to always take the field load).
     ///
     /// The `getter.body != .unit` test matches that emitter's own condition
-    /// exactly. Delegated properties are included even though the emitter skips
-    /// them: object-literal property delegation is unimplemented end to end
-    /// (the delegate expression is never stored either), and failing loudly at
-    /// link time is preferable to silently reading an unwritten slot. See the
-    /// KSP-CAP-018 ledger entry.
+    /// exactly. Delegated properties are included because the same emitter
+    /// synthesizes their getValue/setValue-forwarding accessors via
+    /// `MemberLowerer.lowerDelegateAccessor` (BUG-267) — keeping them in this
+    /// predicate is what makes explicit and implicit reads agree.
     func objectLiteralPropertyUsesAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,

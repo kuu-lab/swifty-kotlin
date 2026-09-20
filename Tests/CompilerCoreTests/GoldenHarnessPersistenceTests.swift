@@ -6,6 +6,69 @@ import Testing
 @Suite("GoldenHarness.Persistence")
 struct GoldenHarnessPersistenceTests {
     @Test
+    func updateModeUsesProfileGoldenPath() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("profiled.kt")
+        try "package sample\n".write(to: sourceURL, atomically: false, encoding: .utf8)
+        try "version=1\nstdlib-profile=artifact\ntarget=kotlin.Any[kind=class]\n".write(
+            to: GoldenHarnessCaseSpec.specURL(forSourceURL: sourceURL),
+            atomically: false,
+            encoding: .utf8
+        )
+
+        #expect(try GoldenHarness.persistIfUpdating(
+            suiteName: "Sema",
+            sourcePath: sourceURL.path,
+            actual: "section stdlib-targets\n",
+            updateMode: true
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: tempDir.appendingPathComponent("profiled.artifact.golden").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: tempDir.appendingPathComponent("profiled.golden").path
+        ))
+        #expect(!(try GoldenHarness.persistIfUpdating(
+            suiteName: "Sema",
+            sourcePath: sourceURL.path,
+            actual: "section stdlib-targets\n",
+            updateMode: false
+        )))
+    }
+
+    @Test
+    func updateModeRejectsInvalidSpecBeforeWritingLegacyGolden() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("broken.kt")
+        try "package sample\n".write(to: sourceURL, atomically: false, encoding: .utf8)
+        try "version=2\nstdlib-profile=artifact\n".write(
+            to: GoldenHarnessCaseSpec.specURL(forSourceURL: sourceURL),
+            atomically: false,
+            encoding: .utf8
+        )
+
+        #expect(throws: GoldenHarnessCaseDiscoveryError.self) {
+            _ = try GoldenHarness.persistIfUpdating(
+                suiteName: "Sema",
+                sourcePath: sourceURL.path,
+                actual: "legacy output\n",
+                updateMode: true
+            )
+        }
+        #expect(!FileManager.default.fileExists(
+            atPath: tempDir.appendingPathComponent("broken.golden").path
+        ))
+    }
+
+    @Test
     func semaPersistenceWritesNormalizedGolden() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

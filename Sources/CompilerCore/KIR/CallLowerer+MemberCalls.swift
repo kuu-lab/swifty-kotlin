@@ -483,10 +483,29 @@ extension CallLowerer {
         } else {
             calleeName
         }
+        if let typeQualifiedConstructorResult = tryLowerTypeQualifiedConstructorCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) { return typeQualifiedConstructorResult }
         if let objProp = tryLowerObjectMemberPropertyRead(
-            exprID, args: args, sema: sema, arena: arena, interner: interner,
+            exprID, receiverExpr: receiverExpr, args: args, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions.instructions
         ) { return objProp }
+        if let fqnQualifiedValue = tryLowerFQNQualifiedValue(
+            exprID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) { return fqnQualifiedValue }
         if let fqnTopLevelResult = tryLowerFQNTopLevelResolvedCall(
             exprID,
             calleeName: effectiveCalleeName,

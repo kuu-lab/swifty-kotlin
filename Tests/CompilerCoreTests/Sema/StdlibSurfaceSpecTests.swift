@@ -41,6 +41,38 @@ struct StdlibSurfaceSpecTests {
         }
     }
 
+    @Test func testCollectionHOFSpecABIShapesMatchLambdaAndThrowingContracts() throws {
+        let specsByName = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+
+        for surface in StdlibSurfaceSpec.collectionHOFMembers {
+            let runtime = try #require(
+                specsByName[surface.runtimeLinkName],
+                "Expected RuntimeABISpec entry for \(surface.runtimeLinkName)"
+            )
+            #expect(runtime.returnType == .intptr, "Collection HOF \(surface.runtimeLinkName) must return a handle")
+
+            let hasThrownChannel = runtime.parameters.last?.type == .nullableIntptrPointer
+            #expect(
+                runtime.isThrowing == hasThrownChannel,
+                "\(surface.runtimeLinkName) throwing flag must agree with its trailing outThrown parameter"
+            )
+
+            switch surface.lambdaExpectation {
+            case .none:
+                break
+            default:
+                #expect(
+                    runtime.parameters.contains { $0.name == "fnPtr" },
+                    "\(surface.runtimeLinkName) must carry a function pointer for its lambda"
+                )
+                #expect(
+                    runtime.parameters.contains { $0.name == "closureRaw" },
+                    "\(surface.runtimeLinkName) must carry the lambda closure handle"
+                )
+            }
+        }
+    }
+
     @Test func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
             list("forEach", 1),
@@ -73,8 +105,6 @@ struct StdlibSurfaceSpecTests {
             sequence("first", 0),
             sequence("firstOrNull", 0),
             sequence("minOrNull", 0),
-            sequence("firstNotNullOf", 1),
-            sequence("firstNotNullOfOrNull", 1),
             sequence("indexOfLast", 1),
             sequence("intersect", 1),
             sequence("maxOrNull", 0),
@@ -109,8 +139,9 @@ struct StdlibSurfaceSpecTests {
                 // synthetically registered with their runtime links.
                 // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
                 // source, so it no longer registers a synthetic bridge member.
+                // KSP-1344 migrated the Sequence firstNotNullOf family to
+                // bundled Kotlin source as well.
                 // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),

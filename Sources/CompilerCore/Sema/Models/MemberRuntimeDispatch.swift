@@ -220,13 +220,15 @@ enum MemberRuntimeDispatch {
 
         switch key.memberName {
         case "contains":
+            // KSP-1524: ULong membership is source-backed. The signed runtime
+            // bridge cannot compare values whose high bit is set.
+            if kind.isULongRangeLike { return nil }
             // KSP-1523: UIntRange used to special-case its own bridge here,
             // but this is never reached for UInt — `contains`/`isEmpty` are
             // intercepted earlier by `closedRangeInterfaceRuntimeName` in
             // CallLowerer+MemberCallDefaultsAndResolution.swift, which
             // already sends UInt through `__kk_range_contains` (confirmed by
-            // marker probe). Kept for ULong, whose values can exceed Int64.
-            if kind.isULongRangeLike { return "kk_ulong_range_contains" }
+            // marker probe).
             return "__kk_range_contains"
         case "isEmpty":
             return rangeRuntimeName(kind: kind, member: "isEmpty")
@@ -237,7 +239,7 @@ enum MemberRuntimeDispatch {
             // declaration (RangeHOF.kt); `chosenCallee`'s isSourceBackedSymbol
             // check short-circuits before this is ever consulted for UInt
             // (confirmed by marker probe on both receiver shapes).
-            return "__kk_range_sum"
+            return kind.isULongRangeLike ? nil : "__kk_range_sum"
         case "count":
             return rangeRuntimeName(kind: kind, member: "count")
         case "toList":
@@ -280,6 +282,14 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "first_predicate")
             }
+            // KSP-1523/KSP-1529: `MemberDispatchKey` has no notion of
+            // "property read" vs. "explicit call" — only the
+            // isExplicitCall check in CallLowerer+LegacyMemberLikeCalls.swift
+            // can tell them apart, and it intercepts `.first()` before this
+            // dispatch table is ever consulted. Keep routing arity-0 `first`
+            // through the same source-backed-aware lookup as `start` so this
+            // never reconstructs a `kk_uint_range_first`/`_orThrow` name for
+            // a receiver kind whose HOF surface is source-backed.
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
         case "start":
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
@@ -292,6 +302,8 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "last_predicate")
             }
+            // See the "first" case above: same source-backed-aware lookup,
+            // same reason.
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
         case "end":
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
@@ -369,11 +381,11 @@ enum MemberRuntimeDispatch {
         case ("toRegex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toRegex_flat")
         case ("firstOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_lastOrNull_flat")
         case ("get", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_get_flat")
         case ("compareTo", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareTo_flat")
         case ("matches", 1):
@@ -388,6 +400,68 @@ enum MemberRuntimeDispatch {
         }
     }
 
+    /// Members with bundled `RangeHOF.kt` definitions on `UIntRange` /
+    /// `ULongRange` — the two types share the same source-backed HOF
+    /// surface (KSP-1525 / KSP-1527 / KSP-1528).
+    private static let unsignedRangeSourceBackedHOFs: Set<String> = [
+        "iterator", "chunked", "windowed", "take", "drop",
+        "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "forEach",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast",
+        "first_predicate", "firstOrNull_predicate",
+        "last_predicate", "lastOrNull_predicate",
+        "any", "all", "none",
+        "contains", "isEmpty", "firstOrNull", "lastOrNull", "count", "sum",
+        "reversed", "sorted", "toList",
+    ]
+
+    /// Members with bundled `RangeHOF.kt` definitions on `UIntProgression` /
+    /// `ULongProgression`.
+    private static let unsignedProgressionSourceBackedHOFs: Set<String> = [
+        "first", "firstOrNull", "last", "lastOrNull",
+        "iterator", "chunked", "windowed", "take", "drop",
+        "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "contains", "isEmpty", "count", "sum", "reversed", "toList",
+    ]
+
+    /// `Progression.first` / `last` properties (never throw).
+    static func rangeFirstLastPropertyLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
+        rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: false)
+    }
+
+    /// `Progression.first()` / `last()` (0-arg functions). Distinct from the
+    /// `first`/`last` properties, which keep the non-throwing getters.
+    static func rangeFirstLastOrThrowLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
+        rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: true)
+    }
+
+    private static func rangeFirstLastLinkName(
+        kind: MemberDispatchReceiverKind,
+        wantLast: Bool,
+        orThrow: Bool
+    ) -> String {
+        let member = wantLast ? "last" : "first"
+        if orThrow {
+            if kind.isULongRangeLike {
+                return "kk_ulong_range_\(member)_orThrow"
+            }
+            if kind.isUIntRangeLike {
+                return "kk_uint_range_\(member)_orThrow"
+            }
+            return "__kk_range_\(member)_orThrow"
+        }
+        // KSP-1523/KSP-1524: the non-throwing property getter has no
+        // dedicated `kk_uint_range_first`/`kk_ulong_range_first` (or `_last`)
+        // entry point — both UInt and ULong share the common `__kk_range_*`
+        // bridge with signed ranges. The raw bits stored in the box are
+        // reinterpreted by the caller, so no unsigned-specific comparison is
+        // needed for a plain getter (unlike `contains`, which does need one).
+        return "__kk_range_\(member)"
+    }
+
     private static func rangeRuntimeName(
         kind: MemberDispatchReceiverKind,
         member: String,
@@ -396,45 +470,25 @@ enum MemberRuntimeDispatch {
         charProgressionUsesChar: Bool = false
     ) -> String? {
         if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
-            return "kk_char_range_\(charMember)"
+            return "__kk_char_range_\(charMember)"
         }
-        if kind == .ulongRange {
-            let sourceBacked: Set<String> = [
-                "iterator", "chunked", "windowed", "take", "drop",
-                "forEach",
-                "reduce", "reduceIndexed", "fold", "foldIndexed",
-                "find", "findLast",
-                "first_predicate", "firstOrNull_predicate",
-                "last_predicate", "lastOrNull_predicate",
-                "any", "all", "none",
-            ]
-            if sourceBacked.contains(member) {
-                return nil
-            }
+        if kind == .ulongRange && Self.unsignedRangeSourceBackedHOFs.contains(member) {
+            return nil
         }
-        if kind == .ulongProgression {
-            let sourceBacked: Set<String> = [
-                "first", "firstOrNull", "last", "lastOrNull",
-                "iterator", "chunked", "windowed", "take", "drop",
-            ]
-            if sourceBacked.contains(member) {
-                return nil
-            }
+        if (kind == .ulongProgression || kind == .uintProgression)
+            && Self.unsignedProgressionSourceBackedHOFs.contains(member)
+        {
+            return nil
+        }
+        if kind.isULongRangeLike, member == "first" || member == "last" {
+            return "__kk_range_\(member)"
         }
         if kind.isULongRangeLike {
+            if member == "average" { return nil }
             return "kk_ulong_range_\(member)"
         }
         if kind == .uintRange {
-            let sourceBacked: Set<String> = [
-                "iterator", "chunked", "windowed", "take", "drop",
-                "map", "mapIndexed", "mapNotNull",
-                "filter", "filterIndexed", "filterNot",
-                "forEach",
-                "reduce", "reduceIndexed", "fold", "foldIndexed",
-                "find", "findLast",
-                "first_predicate", "firstOrNull", "firstOrNull_predicate",
-                "last_predicate", "lastOrNull", "lastOrNull_predicate",
-                "any", "all", "none",
+            let sourceBacked = Self.unsignedRangeSourceBackedHOFs.union([
                 // KSP-1523: none of these should ever reach the interpolated
                 // fallback below — the isSourceBackedSymbol short-circuit in
                 // CallLowerer+MemberCallDefaultsAndResolution.swift always
@@ -448,19 +502,9 @@ enum MemberRuntimeDispatch {
                 // anyway so the interpolated `"kk_uint_range_\(member)"`
                 // below can never reconstruct a name for a symbol that no
                 // longer exists in Runtime, even in that unreachable case.
-                "isEmpty", "count", "toList", "first", "last", "average", "sorted", "reversed",
-            ]
-            if sourceBacked.contains(member) {
-                return nil
-            }
-        }
-        if kind == .uintProgression {
-            let sourceBacked: Set<String> = [
-                "first", "firstOrNull", "last", "lastOrNull",
-                "iterator", "chunked", "windowed", "take", "drop",
-                "map", "mapIndexed", "mapNotNull",
-                "filter", "filterIndexed", "filterNot",
-            ]
+                "first", "last", "firstOrNull", "lastOrNull",
+                "isEmpty", "count", "toList", "average", "sorted", "reversed",
+            ])
             if sourceBacked.contains(member) {
                 return nil
             }
@@ -501,7 +545,7 @@ enum MemberRuntimeDispatch {
             return "__kk_range_\(member)"
         }
         if kind.isLongRangeLike, let longMember {
-            return "kk_long_range_\(longMember)"
+            return "__kk_long_range_\(longMember)"
         }
         return "kk_range_\(member)"
     }

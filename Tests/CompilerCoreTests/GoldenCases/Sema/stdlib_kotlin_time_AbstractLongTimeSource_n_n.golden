@@ -1,0 +1,13 @@
+symbol fq=Probe.<init>[kind=ctor;recv=Probe;params=] kind=constructor vis=private flags=_ sig=recv=Probe params=[] ret=Probe
+symbol fq=Probe[kind=class] kind=class vis=private flags=_
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_time_AbstractLongTimeSource_n_n package=_ annotations=[@file:Suppress("DEPRECATION","DEPRECATION_ERROR")]
+  decl Probe[kind=class] class Probe sym=Probe[kind=class]
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@9:33 long(12) type=Long
+expr e@8:46 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@8:46#1 memberCall recv=e@8:46 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field]
+expr e@13:13 call callee=e@13:13#1 args=[] type=Probe call=Probe.<init>[kind=ctor;recv=Probe;params=]
+expr e@13:25 name(null) type=Nothing?
+expr e@13:13#2 binary(notIdentityEqual) lhs=e@13:13 rhs=e@13:25 type=Boolean
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

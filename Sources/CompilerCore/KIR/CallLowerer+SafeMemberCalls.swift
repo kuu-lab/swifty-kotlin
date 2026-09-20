@@ -408,9 +408,11 @@ extension CallLowerer {
         // when receiver is null.
 
         // Primitive member function: Int/Long.toString() → kk_any_to_string
-        // and Int/Long.toString(radix: Int) → kk_int_toString_radix (EXPR-003)
+        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
+        // through to the general safe-call lowering below.
         if interner.resolve(effectiveCalleeName) == "toString",
-           args.count <= 1
+           args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -425,31 +427,16 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullExpr, to: result))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(callLabel))
-                if args.isEmpty {
-                    let tagID = arena.appendExpr(.intLiteral(1), type: intType)
-                    instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_any_to_string"),
-                        arguments: [loweredReceiverID, tagID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                } else {
-                    let loweredRadixArg = driver.lowerExpr(
-                        args[0].expr,
-                        shared: shared, emit: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_int_toString_radix"),
-                        arguments: [loweredReceiverID, loweredRadixArg],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
+                let tagID = arena.appendExpr(.intLiteral(1), type: intType)
+                instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [loweredReceiverID, tagID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
                 instructions.append(.label(endLabel))
                 return result
             }
@@ -606,7 +593,15 @@ extension CallLowerer {
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
-            case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
+            case ("toUInt", uintType, uintType): nil // identity
+            // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the
+            // high bits away (kk_ulong_to_uint has no dedicated symbol; reuse
+            // kk_long_to_uint, which already truncates via UInt32(truncatingIfNeeded:)
+            // on the same raw-register representation). Was wrongly treated as
+            // representation-preserving, which left garbage high bits behind
+            // (observed: ULong.MAX_VALUE.toUInt() printed as -1 / 4294967295uL+5
+            // printed as 4294967301 instead of 5).
+            case ("toUInt", ulongType, uintType): interner.intern("kk_long_to_uint")
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
             case ("toLong", ubyteType, longType): interner.intern("kk_ubyte_to_long")
@@ -687,7 +682,6 @@ extension CallLowerer {
             }
             let isRepresentationPreservingConversion =
                 (calleeStr == "toLong" && nonNullReceiverType == ulongType && nonNullResultType == longType)
-                    || (calleeStr == "toUInt" && nonNullReceiverType == ulongType && nonNullResultType == uintType)
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
                     || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
@@ -893,6 +887,10 @@ extension CallLowerer {
            let chosen,
            sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
         {
+            // KUU-655: an override that inherits its defaults never has its
+            // own stub; resolve to the base declaration's stub instead (see
+            // `defaultStubOwnerSymbol`).
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosen, sema: sema)
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
                 callBinding: callBinding,
@@ -902,15 +900,19 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
+            // KUU-655: see the matching comment in
+            // `CallLowerer+MemberCallEmission.swift` -- a `super?.f()` call
+            // that omits a defaulted argument must dispatch statically.
+            let effectiveMask = isSuperCall ? (safeNormalized.defaultMask | (Int64(1) << 30)) : safeNormalized.defaultMask
             appendDefaultMaskArgument(
-                safeNormalized.defaultMask,
+                effectiveMask,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
             let stubName = interner.intern(interner.resolve(effectiveCalleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosen)
+            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
             instructions.append(.call(
                 symbol: stubSym,
                 callee: stubName,

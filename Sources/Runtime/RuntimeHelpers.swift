@@ -1,6 +1,54 @@
 import Dispatch
 import Foundation
 
+// Primitive boxes emitted at a statically-known ABI boundary keep the current
+// ARC/object model, but use a reserved handle marker plus the low alignment
+// bits as a fast-path tag. The underlying Swift object remains registered in
+// `objectPointers`; only the handle is tagged. This avoids changing the
+// representation used by the rest of the runtime.
+let runtimePrimitiveBoxTag: UInt = 0xA500_0000_0000_0005
+let runtimePrimitiveBoxTagMask: UInt = 0xFF00_0000_0000_0007
+
+// This is a pure bit-pattern check with no registry lookup: `tryCast` calls
+// it while sometimes already holding `withGCLock` (e.g. `runtimeKClassBox`),
+// and `NSLock` is not reentrant, so acquiring the GC lock here would
+// deadlock those callers. The tag pattern alone is not collision-proof — an
+// unrelated Int (a hash code, uninitialized memory, ...) can coincidentally
+// match it — so a call site that receives an unverified raw handle straight
+// from the ABI boundary (`runtimeStaticUnbox`, not any of `tryCast`'s
+// existing callers, which already confirm registry membership themselves
+// before calling it) must additionally check `objectPointers` itself.
+@inline(__always)
+func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPointer? {
+    let bits = UInt(bitPattern: rawValue)
+    guard bits & runtimePrimitiveBoxTagMask == runtimePrimitiveBoxTag else {
+        return nil
+    }
+    let baseBits = bits & ~runtimePrimitiveBoxTagMask
+    guard baseBits != 0 else {
+        return nil
+    }
+    return UnsafeMutableRawPointer(bitPattern: baseBits)
+}
+
+@inline(__always)
+func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
+    let pointer = Unmanaged.passRetained(box).toOpaque()
+    let bits = UInt(bitPattern: pointer)
+    precondition(
+        bits & runtimePrimitiveBoxTagMask == 0,
+        "Swift object pointer is not representable by primitive box tagging"
+    )
+    let taggedBits = bits | runtimePrimitiveBoxTag
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(taggedBits)
+    }
+    guard let taggedPointer = UnsafeMutableRawPointer(bitPattern: taggedBits) else {
+        preconditionFailure("Tagged primitive box pointer must be non-null")
+    }
+    return Int(bitPattern: taggedPointer)
+}
+
 // Coroutine handles (continuation / scope / job / task) are resolved against the
 // liveness registry: generated code and the runtime keep raw handles past the
 // point where the runtime releases the object, and casting a freed pointer either
@@ -85,6 +133,33 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
     return runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[UInt(bitPattern: ptr)]
+    }
+}
+
+func runtimeRegisterArrayType(rawValue: Int, typeID: Int64) {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
+        return
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr), default: []].insert(typeID)
+    }
+}
+
+func runtimeArrayHasType(rawValue: Int, typeID: Int64) -> Bool {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
+        return false
+    }
+    return runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)]?.contains(typeID) == true
+    }
+}
+
+func runtimeArrayTypeIDs(rawValue: Int) -> Set<Int64> {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return []
+    }
+    return runtimeStorage.withMetadataLock { state in
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)] ?? []
     }
 }
 
@@ -252,7 +327,8 @@ func runtimeAllocateCancellationException(message: String? = "CancellationExcept
 }
 
 func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
-    let unmanaged = Unmanaged<AnyObject>.fromOpaque(ptr)
+    let normalized = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: ptr)) ?? ptr
+    let unmanaged = Unmanaged<AnyObject>.fromOpaque(normalized)
     let anyObject = unmanaged.takeUnretainedValue()
     return anyObject as? T
 }
@@ -265,15 +341,8 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
 /// Kotlin `StringBuilder.appendRange` and `CharSequence` use UTF-16 code unit indexing.
 /// Swift `String.Index` is based on `Character` (extended grapheme clusters) by default,
 /// which differs for non-BMP characters (emoji, surrogate pairs). This helper bridges the
-/// gap by operating on the `.utf16` view directly.
-///
-/// **Limitation:** Swift `String` cannot represent unpaired UTF-16 surrogates. When
-/// `startIndex` or `endIndex` splits a surrogate pair (e.g., slicing in the middle of
-/// an emoji), `String(decoding:as:)` replaces the ill-formed code unit with U+FFFD
-/// (replacement character). This diverges from JVM Kotlin, where unpaired surrogates
-/// are preserved as `Char` values. For well-formed UTF-16 input (the common case),
-/// behavior is identical. Callers/tests should not assume full fidelity for these
-/// edge cases.
+/// gap by operating on a Kotlin UTF-16 code-unit buffer and restoring isolated
+/// surrogates through the compiler/runtime marker representation.
 ///
 /// - Parameters:
 ///   - source: The Swift string to slice.
@@ -281,14 +350,12 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
 ///   - endIndex: End offset in UTF-16 code units (exclusive).
 /// - Returns: The substring, or triggers `fatalError` on out-of-bounds.
 func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> String {
-    let utf16 = source.utf16
+    let utf16 = runtimeKotlinStringUTF16CodeUnits(source)
     let length = utf16.count
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
         fatalError("StringIndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(length)")
     }
-    let start = utf16.index(utf16.startIndex, offsetBy: startIndex)
-    let end = utf16.index(utf16.startIndex, offsetBy: endIndex)
-    return String(decoding: utf16[start..<end], as: UTF16.self)
+    return runtimeKotlinStringFromUTF16CodeUnits(Array(utf16[startIndex ..< endIndex]))
 }
 
 func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
@@ -308,7 +375,13 @@ func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
 }
 
 /// Text of a value whose static type is `CharSequence`: either a String box or
-/// a StringBuilder box. Returns nil for null sentinels and unrelated handles.
+/// a StringBuilder box, or a source-defined CharSequence implementation with
+/// a registered itable. Returns nil for null sentinels and unrelated handles.
+private let runtimeCharSequenceInterfaceTypeID =
+    runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RuntimeCharSequenceLength = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
 func runtimeCharSequenceText(from raw: Int) -> String? {
     guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
         return nil
@@ -326,7 +399,52 @@ func runtimeCharSequenceText(from raw: Int) -> String? {
     if let builderBox = object as? RuntimeStringBuilderBox {
         return builderBox.value
     }
-    return nil
+
+    // Source-defined CharSequence implementations expose their get/length
+    // methods through the dynamic itable slot assigned at object construction.
+    // Reading those slots here keeps CharSequence-taking APIs (for example
+    // StringBuilder(CharSequence)) faithful for custom implementations instead
+    // of falling back to an opaque object rendering.
+    let lengthPointer = kk_itable_lookup_dynamic(
+        raw,
+        Int(runtimeCharSequenceInterfaceTypeID),
+        2
+    )
+    let getPointer = kk_itable_lookup_dynamic(
+        raw,
+        Int(runtimeCharSequenceInterfaceTypeID),
+        0
+    )
+    guard lengthPointer != 0, getPointer != 0 else {
+        return nil
+    }
+    let lengthGetter = unsafeBitCast(lengthPointer, to: RuntimeCharSequenceLength.self)
+    var lengthThrown = 0
+    let length = lengthGetter(raw, &lengthThrown)
+    guard lengthThrown == 0, length >= 0, length <= 1 << 26 else {
+        return nil
+    }
+    let get = unsafeBitCast(getPointer, to: RuntimeCharSequenceGet.self)
+    var units: [UInt16] = []
+    units.reserveCapacity(length)
+    for index in 0 ..< length {
+        var thrown = 0
+        let characterRaw = get(raw, index, &thrown)
+        guard thrown == 0 else {
+            return nil
+        }
+        let value: UInt32
+        if let characterPointer = UnsafeMutableRawPointer(bitPattern: characterRaw),
+           runtimeIsObjectPointer(characterPointer),
+           let characterBox = tryCast(characterPointer, to: RuntimeCharBox.self)
+        {
+            value = UInt32(truncatingIfNeeded: characterBox.value)
+        } else {
+            value = UInt32(truncatingIfNeeded: characterRaw)
+        }
+        units.append(UInt16(truncatingIfNeeded: value))
+    }
+    return String(decoding: units, as: UTF16.self)
 }
 
 let runtimeNullSentinelInt64 = Int64.min

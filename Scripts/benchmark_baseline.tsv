@@ -1,0 +1,15 @@
+# KUU-516 benchmark baseline. Values are milliseconds; fail regressions above +10%.
+# This baseline matches the CI gate: Linux GitHub runner, release kswiftc
+# artifact, 5 execution runs, and 3 compile runs (run 35392963123).
+# Refresh this file with benchmark_gate.sh --measure-only after an intentional
+# compiler/toolchain or benchmark-fixture change, then review the full diff.
+kind	case	metric	value_ms
+execution	arch010_hash_collections	runtime_ms	799
+execution	compile_medium	runtime_ms	12
+execution	filter	runtime_ms	2311
+execution	for_in_range	runtime_ms	163
+execution	map	runtime_ms	8178
+execution	sort	runtime_ms	31005
+compile	hello	TOTAL	1864.51
+compile	medium	TOTAL	1895.11
+compile	stdlib-only	TOTAL	10098.96

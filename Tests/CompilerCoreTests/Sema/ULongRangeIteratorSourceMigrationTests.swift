@@ -10,23 +10,25 @@ struct ULongRangeIteratorSourceMigrationTests {
         let name: String
         let parameterCount: Int
         let sourceFile: String
-        let expectedCount: Int
+        // ULongRange/ULongProgression.step has both step(Int) and step(Long)
+        // overloads (unlike UInt, which only has step(Int)), so two source-backed
+        // candidates with the same arity are expected there.
+        var expectedOverloadCount: Int = 1
     }
 
     private let migratedMembers = [
-        ExpectedMember(owner: "ULongRange", name: "iterator", parameterCount: 0, sourceFile: "RangeIterators.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongProgression", name: "iterator", parameterCount: 0, sourceFile: "RangeIterators.kt", expectedCount: 1),
-        // `step` has both Int and Long overloads per owner.
-        ExpectedMember(owner: "ULongRange", name: "step", parameterCount: 1, sourceFile: "ProgressionConstructors.kt", expectedCount: 2),
-        ExpectedMember(owner: "ULongProgression", name: "step", parameterCount: 1, sourceFile: "ProgressionConstructors.kt", expectedCount: 2),
-        ExpectedMember(owner: "ULongRange", name: "take", parameterCount: 1, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongRange", name: "drop", parameterCount: 1, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongRange", name: "chunked", parameterCount: 1, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongRange", name: "windowed", parameterCount: 3, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongProgression", name: "take", parameterCount: 1, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongProgression", name: "drop", parameterCount: 1, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongProgression", name: "chunked", parameterCount: 1, sourceFile: "RangeHOF.kt", expectedCount: 1),
-        ExpectedMember(owner: "ULongProgression", name: "windowed", parameterCount: 3, sourceFile: "RangeHOF.kt", expectedCount: 1),
+        ExpectedMember(owner: "ULongRange", name: "iterator", parameterCount: 0, sourceFile: "RangeIterators.kt"),
+        ExpectedMember(owner: "ULongProgression", name: "iterator", parameterCount: 0, sourceFile: "RangeIterators.kt"),
+        ExpectedMember(owner: "ULongRange", name: "step", parameterCount: 1, sourceFile: "ProgressionConstructors.kt", expectedOverloadCount: 2),
+        ExpectedMember(owner: "ULongProgression", name: "step", parameterCount: 1, sourceFile: "ProgressionConstructors.kt", expectedOverloadCount: 2),
+        ExpectedMember(owner: "ULongRange", name: "take", parameterCount: 1, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongRange", name: "drop", parameterCount: 1, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongRange", name: "chunked", parameterCount: 1, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongRange", name: "windowed", parameterCount: 3, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongProgression", name: "take", parameterCount: 1, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongProgression", name: "drop", parameterCount: 1, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongProgression", name: "chunked", parameterCount: 1, sourceFile: "RangeHOF.kt"),
+        ExpectedMember(owner: "ULongProgression", name: "windowed", parameterCount: 3, sourceFile: "RangeHOF.kt"),
     ]
 
     @Test
@@ -61,8 +63,8 @@ struct ULongRangeIteratorSourceMigrationTests {
                 }
 
                 #expect(
-                    sourceSymbols.count == expected.expectedCount,
-                    "Expected \(expected.expectedCount) source-backed \(expected.owner).\(expected.name), got: \(sourceSymbols)"
+                    sourceSymbols.count == expected.expectedOverloadCount,
+                    "Expected \(expected.expectedOverloadCount) source-backed \(expected.owner).\(expected.name), got: \(sourceSymbols)"
                 )
             }
         }

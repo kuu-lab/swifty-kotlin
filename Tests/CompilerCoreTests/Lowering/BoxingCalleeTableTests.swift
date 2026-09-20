@@ -6,9 +6,9 @@ import Testing
 struct BoxingCalleeTableTests {
     private let primitiveExpectations: [(PrimitiveType, String, String)] = [
         (.int, "kk_box_int", "kk_unbox_int"),
-        (.uint, "kk_box_int", "kk_unbox_int"),
-        (.ubyte, "kk_box_int", "kk_unbox_int"),
-        (.ushort, "kk_box_int", "kk_unbox_int"),
+        (.uint, "kk_box_uint", "kk_unbox_int"),
+        (.ubyte, "kk_box_ubyte", "kk_unbox_int"),
+        (.ushort, "kk_box_ushort", "kk_unbox_int"),
         (.long, "kk_box_long", "kk_unbox_long"),
         (.ulong, "kk_box_ulong", "kk_unbox_ulong"),
         (.boolean, "kk_box_bool", "kk_unbox_bool"),
@@ -80,6 +80,45 @@ struct BoxingCalleeTableTests {
         }
         if let callee = table.unboxCallee(for: nullableString, types: types, requireNonNull: true) {
             Issue.record("Nullable String should not satisfy requireNonNull unboxing lookup: \(interner.resolve(callee))")
+        }
+    }
+
+    @Test
+    func testStaticPrimitiveLookupUsesTaggedHandleABI() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let table = BoxingCalleeTable(interner: interner)
+        let expected: [PrimitiveType: (String, String)] = [
+            .int: ("kk_box_int_static", "kk_unbox_int_static"),
+            .uint: ("kk_box_uint_static", "kk_unbox_int_static"),
+            .ubyte: ("kk_box_ubyte_static", "kk_unbox_int_static"),
+            .ushort: ("kk_box_ushort_static", "kk_unbox_int_static"),
+            .long: ("kk_box_long_nonnull_static", "kk_unbox_long_static"),
+            .ulong: ("kk_box_ulong_nonnull_static", "kk_unbox_ulong_static"),
+            .boolean: ("kk_box_bool_static", "kk_unbox_bool_static"),
+            .float: ("kk_box_float_static", "kk_unbox_float_static"),
+            .double: ("kk_box_double_nonnull_static", "kk_unbox_double_static"),
+            .char: ("kk_box_char_static", "kk_unbox_char_static"),
+        ]
+
+        for (primitive, (boxName, unboxName)) in expected {
+            let type = types.make(.primitive(primitive, .nonNull))
+            #expect(
+                table.boxCallee(
+                    for: type,
+                    types: types,
+                    requireNonNull: true,
+                    preferStaticPrimitive: true
+                ).map(interner.resolve) == boxName
+            )
+            #expect(
+                table.unboxCallee(
+                    for: type,
+                    types: types,
+                    requireNonNull: true,
+                    preferStaticPrimitive: true
+                ).map(interner.resolve) == unboxName
+            )
         }
     }
 }

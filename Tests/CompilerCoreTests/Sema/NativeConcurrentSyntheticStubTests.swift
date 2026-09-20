@@ -430,11 +430,19 @@ struct NativeConcurrentSyntheticStubTests {
             let signature = try #require(sema.symbols.functionSignature(for: function))
 
             #expect(sema.symbols.symbol(function)?.kind == .function)
+            #expect(
+                sema.symbols.symbol(function)?.flags.contains(.synthetic) == false,
+                "callContinuation\(arity) should be bundled Kotlin source (KSP-1217), not a synthetic stub"
+            )
+            #expect(
+                sema.symbols.sourceFileID(for: function) != nil,
+                "callContinuation\(arity) should have a bundled source file"
+            )
             #expect(signature.classTypeParameterCount == 0)
             #expect(signature.valueParameterHasDefaultValues == [])
             #expect(
-                sema.symbols.annotations(for: function).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "callContinuation\(arity) must carry Deprecated metadata"
+                sema.symbols.annotations(for: function).contains { $0.annotationFQName == "Deprecated" },
+                "callContinuation\(arity) must carry Deprecated metadata: \(sema.symbols.annotations(for: function).map(\.annotationFQName))"
             )
         }
     }

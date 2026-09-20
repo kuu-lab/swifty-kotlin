@@ -23,11 +23,6 @@ func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
     return raw
 }
 
-@_cdecl("kk_indexed_value_new")
-public func kk_indexed_value_new(_ index: Int, _ value: Int) -> Int {
-    runtimeIndexedValueNew(index: index, value: value)
-}
-
 /// KSP-626: `IndexedValue` is a source-backed Kotlin data class, so its
 /// instances are ordinary heap objects (index@2, value@3). The Any-erased
 /// print/toString paths cannot invoke the generated `toString`, so render such
@@ -321,15 +316,21 @@ public func kk_list_bridge_zip_transform(
 }
 
 @_cdecl("__kk_list_chunked")
-public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int) -> Int {
+public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return runtimeExceptionCaughtSentinel
+    }
     var chunks: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = min(i + size, elements.count)
         let chunk = Array(elements[i ..< end])
         chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
         i = end
@@ -342,13 +343,19 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + clampedSize - 1) / clampedSize
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return runtimeExceptionCaughtSentinel
+    }
+    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + size - 1) / size
     var result: [Int] = []
     result.reserveCapacity(estimatedChunks)
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = min(i + size, elements.count)
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0
@@ -360,22 +367,50 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
+private func validateListWindowedArguments(
+    size: Int,
+    step: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Bool {
+    outThrown?.pointee = 0
+    if size <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return false
+    }
+    if step <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "step must be positive, but was \(step)"
+        )
+        return false
+    }
+    return true
+}
+
 @_cdecl("__kk_list_windowed")
-public func kk_list_bridge_windowed(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+public func kk_list_bridge_windowed(
+    _ listRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
     let partial = partialWindows != 0
     var windows: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        if !partial && end - i < clampedSize { break }
+        let end = min(i + size, elements.count)
+        if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        i += clampedStep
+        i += step
     }
     return registerRuntimeObject(RuntimeListBox(elements: windows))
 }
@@ -390,17 +425,18 @@ public func kk_list_bridge_windowed_transform(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
     let partial = partialWindows != 0
     var result: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        if !partial && end - i < clampedSize { break }
+        let end = min(i + size, elements.count)
+        if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
         var thrown = 0
@@ -412,7 +448,7 @@ public func kk_list_bridge_windowed_transform(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
-        i += clampedStep
+        i += step
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
@@ -493,26 +529,6 @@ public func kk_indexing_iterable_next(_ iterRaw: Int) -> Int {
 
 
 
-
-@_cdecl("kk_list_shuffled_random")
-public func kk_list_shuffled_random(_ listRaw: Int, _ randomRaw: Int) -> Int {
-    guard let listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    var elements = listBox.elements
-    // Fisher-Yates shuffle delegating to runtimeRandomNextIntBelow, which
-    // (KSP-466) currently ignores the Random instance and uses Swift's
-    // SystemRandomNumberGenerator, so seeded Random instances (e.g.
-    // Random(42)) do NOT yet produce deterministic results here. The
-    // randomRaw parameter is threaded through so that adding seeded RNG
-    // support requires changes only in RuntimeRandom.swift.
-    guard elements.count > 1 else {
-        return registerRuntimeObject(RuntimeListBox(elements: elements))
-    }
-    for i in stride(from: elements.count - 1, through: 1, by: -1) {
-        let j = runtimeRandomNextIntBelow(randomRaw, i + 1)
-        elements.swapAt(i, j)
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
-}
 
 @_cdecl("kk_list_random")
 public func kk_list_random(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

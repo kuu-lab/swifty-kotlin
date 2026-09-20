@@ -13,7 +13,7 @@ struct RuntimeRawBooleanPredicateTests {
         "__kk_mutable_set_remove",
         "__kk_mutable_set_removeAll",
         "__kk_mutable_set_retainAll",
-        "kk_map_is_empty",
+        "__kk_map_is_empty",
     ]
 
     @Test

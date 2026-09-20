@@ -406,6 +406,8 @@ extension CallLowerer {
             createCallee = interner.intern("kk_function_create_3")
         case 4:
             createCallee = interner.intern("kk_function_create_4")
+        case 5:
+            createCallee = interner.intern("kk_function_create_5")
         default:
             return loweredArgID
         }
@@ -448,7 +450,8 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
+        arguments: inout [KIRExprID],
+        valueArgOffsetOverride: Int? = nil
     ) {
         guard let chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -469,14 +472,27 @@ extension CallLowerer {
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
         // function-value object. Imported Kotlin functions compiled to .kklib
-        // carry a `kk_fn_` C symbol and still need materialization.
+        // carry a `kk_fn_` C symbol and still need materialization. The
+        // generic-container bridges (Pair/Triple constructors, mutable
+        // collection add/put, ...) are the exception: they store a `typeParam`
+        // argument verbatim with no dedicated closure handling of their own
+        // (KUU-548), so a function-typed argument still needs the ordinary
+        // kk_function_create_N wrapping here, same as ABILoweringPass boxes a
+        // primitive at the same boundary (typeParamBoxingBoundaryCallees).
         if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
            !externalLinkName.isEmpty,
-           !externalLinkName.hasPrefix("kk_fn_") {
+           !externalLinkName.hasPrefix("kk_fn_"),
+           !ABILoweringPass.typeParamBoxingBoundaryCallees.contains(externalLinkName) {
             return
         }
 
-        let valueArgOffset = signature.receiverType == nil ? 0 : 1
+        // Constructor calls normally reach here with `arguments[0]` already the
+        // `kk_object_new`-allocated `this` (see `lowerResolvedCallBody`), hence
+        // the +1 below when the signature carries a receiver. Runtime-factory
+        // constructors (KUU-548) allocate the object themselves and skip that
+        // step entirely, so their caller passes `valueArgOffsetOverride: 0` to
+        // keep `arguments` indexed by plain value-parameter position.
+        let valueArgOffset = valueArgOffsetOverride ?? (signature.receiverType == nil ? 0 : 1)
         // A trailing lambda binds to the callee's LAST parameter regardless of
         // how many defaulted parameters sit before it (e.g. `windowed(3) { ...
         // }` skips `step`/`partialWindows` via their defaults) -- so
@@ -502,7 +518,50 @@ extension CallLowerer {
                 continue
             }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
-            guard case let .functionType(functionType) = sema.types.kind(of: parameterType) else {
+            let functionType: FunctionType
+            switch sema.types.kind(of: parameterType) {
+            case let .functionType(declaredFunctionType):
+                functionType = declaredFunctionType
+            case .typeParam:
+                // The callee's own declaration erases this parameter to a bare
+                // type parameter (e.g. Pair<A, B>'s `first: A`), so a function
+                // value flowing through it is only visible from the argument's
+                // own inferred type, not the signature. It still crosses the
+                // same erased boundary and needs the same wrapping, built from
+                // a fully-erased mirror of its concrete signature so a
+                // primitive parameter still gets unboxed inside the adapter
+                // (see makeCollectionHOFCallableAdapter's erasedFunctionType).
+                //
+                // Prefer the Sema-recorded type of the original source
+                // argument over the lowered KIR expr's arena type: a
+                // non-capturing lambda stored in a `val` and read back here
+                // is constant-folded to a bare `symbolRef` to the lambda's
+                // own function symbol, and that expr's arena type reflects
+                // the lambda body's own inferred type (e.g. the `String`
+                // its last statement produces), not the closure's function
+                // type as a value -- only the Sema binding on the original
+                // argument expression reliably carries that.
+                let functionTypeCandidates = [
+                    sema.bindings.exprTypes[sourceArgExprs[sourceArgExprIndex]],
+                    arena.exprType(arguments[finalArgIndex]),
+                ]
+                guard let concreteFunctionType = functionTypeCandidates.lazy.compactMap({ candidate -> FunctionType? in
+                    guard let candidate,
+                          case let .functionType(ft) = sema.types.kind(of: sema.types.makeNonNullable(candidate))
+                    else {
+                        return nil
+                    }
+                    return ft
+                }).first else {
+                    continue
+                }
+                functionType = FunctionType(
+                    receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
+                    params: concreteFunctionType.params.map { _ in sema.types.anyType },
+                    returnType: sema.types.anyType,
+                    isSuspend: concreteFunctionType.isSuspend
+                )
+            default:
                 continue
             }
             // A non-local return must be expanded into its caller. Wrapping
@@ -979,20 +1038,31 @@ extension CallLowerer {
             )
         }
 
-        // kotlin.DeepRecursiveFunction { block } — expand the callable argument
-        // to (fnPtr, closureRaw) so runtime can retain both the entry point and
-        // the captured environment. Multi-capture lambdas are packed into a
-        // closure object, reusing the same adapter strategy as collection HOFs.
-        if externalLinkName == "__kk_deep_recursive_function_new", loweredArguments.count == 1 {
-            return makeCollectionHOFExpandedArguments(
-                loweredArgID: loweredArguments[0],
-                argExprID: originalArgs[0].expr,
-                adaptOnlyWhenCapturing: true,
+        // DeepRecursiveFunction keeps the original suspend lambda so coroutine
+        // rewrite can find loweredBySymbol. Captures travel as closureRaw.
+        if externalLinkName == "__kk_deep_recursive_function_new",
+           let loweredArgID = loweredArguments.last
+        {
+            var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+            if callableInfo == nil,
+               case let .symbolRef(symbol)? = arena.expr(loweredArgID),
+               let function = arena.function(for: symbol)
+            {
+                callableInfo = KIRCallableValueInfo(
+                    symbol: function.symbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
+                    hasClosureParam: function.params.count >= 3
+                )
+            }
+            let closureRaw = makeClosureRawOrBoxedArgument(
+                callableInfo: callableInfo,
                 sema: sema,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
+            return Array(loweredArguments.dropLast()) + [loweredArgID, closureRaw]
         }
 
         return loweredArguments

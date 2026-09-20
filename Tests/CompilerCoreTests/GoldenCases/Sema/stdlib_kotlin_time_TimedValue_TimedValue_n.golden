@@ -10,7 +10,7 @@ file fstdlib_kotlin_time_TimedValue_TimedValue_n package=golden.sema
   decl golden.sema.exerciseTimedValueMembers[kind=fun;params=] fun exerciseTimedValueMembers sym=golden.sema.exerciseTimedValueMembers[kind=fun;params=]
 expr e@7:25 string(hello) type=String
 expr e@7:34 int(5) type=Int
-expr e@7:34#1 memberCall recv=e@7:34 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=]
+expr e@7:34#1 memberCall recv=e@7:34 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=]
 expr e@7:14 call callee=e@7:14#1 args=[_:e@7:25,_:e@7:34#1] type=kotlin.time.TimedValue<String> call=kotlin.time.TimedValue.<init>[kind=ctor;recv=kotlin.time.TimedValue<T0>;params=T0,kotlin.time.Duration;gen=1] targs=[String]
 expr e@7:5 localDecl tv mutable=0 type=_ init=e@7:14 type=Unit ref=__local_0.tv[kind=local]
 expr e@8:18 name(tv) type=kotlin.time.TimedValue<String> ref=__local_0.tv[kind=local]
@@ -24,13 +24,13 @@ expr e@10:24#1 memberCall recv=e@10:24 callee=copy args=[value:e@10:40] type=kot
 expr e@10:5 localDecl valueChanged mutable=0 type=_ init=e@10:24#1 type=Unit ref=__local_2.valueChanged[kind=local]
 expr e@11:27 name(tv) type=kotlin.time.TimedValue<String> ref=__local_0.tv[kind=local]
 expr e@11:46 int(10) type=Int
-expr e@11:46#1 memberCall recv=e@11:46 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=]
+expr e@11:46#1 memberCall recv=e@11:46 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=]
 expr e@11:27#1 memberCall recv=e@11:27 callee=copy args=[duration:e@11:46#1] type=kotlin.time.TimedValue<String> call=kotlin.time.TimedValue.copy[kind=fun;recv=kotlin.time.TimedValue<T0>;params=T0,kotlin.time.Duration;gen=1] targs=[String]
 expr e@11:5 localDecl durationChanged mutable=0 type=_ init=e@11:27#1 type=Unit ref=__local_3.durationChanged[kind=local]
 expr e@12:23 name(tv) type=kotlin.time.TimedValue<String> ref=__local_0.tv[kind=local]
 expr e@12:31 string(changed) type=String
 expr e@12:42 int(1) type=Int
-expr e@12:42#1 memberCall recv=e@12:42 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=]
+expr e@12:42#1 memberCall recv=e@12:42 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=]
 expr e@12:23#1 memberCall recv=e@12:23 callee=copy args=[_:e@12:31,_:e@12:42#1] type=kotlin.time.TimedValue<String> call=kotlin.time.TimedValue.copy[kind=fun;recv=kotlin.time.TimedValue<T0>;params=T0,kotlin.time.Duration;gen=1] targs=[String]
 expr e@12:5 localDecl bothChanged mutable=0 type=_ init=e@12:23#1 type=Unit ref=__local_4.bothChanged[kind=local]
 expr e@14:13 name(tv) type=kotlin.time.TimedValue<String> ref=__local_0.tv[kind=local]

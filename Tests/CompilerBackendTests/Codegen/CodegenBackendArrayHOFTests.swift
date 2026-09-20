@@ -67,6 +67,26 @@ struct CodegenBackendArrayHOFTests {
         try assertKotlinOutput(source, moduleName: "ArrayFoldIndexed", expected: "8\n")
     }
 
+    @Test func testCodegenArrayAsIterableAndSumOfOverloads() throws {
+        let source = """
+        fun main() {
+            val values = arrayOf("a", "bb", "ccc")
+            println(values.asIterable().joinToString(","))
+            println(values.sumOf { it.length })
+            println(values.sumOf { it.length.toLong() })
+            println(values.sumOf { it.length.toDouble() })
+            println(values.sumOf { it.length.toUInt() })
+            println(values.sumOf { it.length.toULong() })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayAsIterableSumOf",
+            expected: "a,bb,ccc\n6\n6\n6.0\n6\n6\n"
+        )
+    }
+
     @Test func testCodegenArrayFlatMapExpandsElements() throws {
         let source = """
         fun main() {
@@ -84,8 +104,11 @@ struct CodegenBackendArrayHOFTests {
     // These previously failed Sema member resolution outright with
     // "Unresolved member function" on Array receivers, despite the identically
     // named List members already working. See
-    // CallTypeChecker+ArrayMemberFallback.swift, CollectionLiteralLoweringPass+
-    // VirtualCallRewrite+Array.swift, and CallLowerer+UnresolvedMemberCalls.swift.
+    // CallTypeChecker+ArrayMemberFallback.swift and
+    // CallLowerer+UnresolvedMemberCalls.swift (the Lowering-side
+    // CollectionLiteralLoweringPass+VirtualCallRewrite+Array.swift this
+    // comment used to also cite was deleted by RF-LOWER-CALL-013 as dead
+    // code: Array member calls never reach lowering as `.virtualCall`).
 
     @Test func testCodegenArrayMapIndexedComputesIndexedTransform() throws {
         let source = """

@@ -170,6 +170,38 @@ extension CallTypeChecker {
         }
     }
 
+    /// Returns true when a source-backed canonical `AtomicIntArray` /
+    /// `AtomicLongArray` factory with the requested arity is visible. Imported
+    /// library symbols carry the synthetic flag for compatibility, so the
+    /// source-backed provenance check must be used before falling back to the
+    /// runtime factory special path. Legacy `kotlin.concurrent` constructors
+    /// intentionally retain their existing special-call behavior.
+    func hasSourceBackedAtomicArrayFactory(
+        _ name: InternedString,
+        className: String,
+        argumentCount: Int,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let interner = ctx.interner
+        let kotlin = interner.intern("kotlin")
+        let concurrent = interner.intern("concurrent")
+        let classNameString = interner.intern(className)
+        let expectedFQName = [kotlin, concurrent, interner.intern("atomics"), classNameString]
+        return ctx.cachedScopeLookup(name).contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  ctx.sema.symbols.isSourceBackedSymbol(candidate),
+                  symbol.fqName == expectedFQName,
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  signature.receiverType == nil,
+                  signature.parameterTypes.count == argumentCount
+            else {
+                return false
+            }
+            return true
+        }
+    }
+
     /// Returns the visible stdlib function symbol for source-backed stdlib
     /// declarations that still need compiler special-casing.
     ///

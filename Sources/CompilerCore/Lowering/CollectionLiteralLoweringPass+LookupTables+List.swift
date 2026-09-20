@@ -72,14 +72,10 @@ struct ListLookupNames {
     let kkListMaxOfWithOrNullName: InternedString
     let kkListMinOfWithName: InternedString
     let kkListMinOfWithOrNullName: InternedString
-    let kkListSortedName: InternedString
-    let kkListShuffledName: InternedString
-    let kkListShuffledRandomName: InternedString
     let kkListChunkedBridgeName: InternedString
     let kkListChunkedTransformBridgeName: InternedString
     let kkListWindowedBridgeName: InternedString
     let kkListWindowedTransformBridgeName: InternedString
-    let kkListSortedDescendingName: InternedString
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
     let kkListPartitionName: InternedString
@@ -157,14 +153,10 @@ struct ListLookupNames {
         kkListMaxOfWithOrNullName = interner.intern("kk_list_maxOfWithOrNull")
         kkListMinOfWithName = interner.intern("kk_list_minOfWith")
         kkListMinOfWithOrNullName = interner.intern("kk_list_minOfWithOrNull")
-        kkListSortedName = interner.intern("kk_list_sorted")
-        kkListShuffledName = interner.intern("kk_list_shuffled")
-        kkListShuffledRandomName = interner.intern("kk_list_shuffled_random")
         kkListChunkedBridgeName = interner.intern("__kk_list_chunked")
         kkListChunkedTransformBridgeName = interner.intern("__kk_list_chunked_transform")
         kkListWindowedBridgeName = interner.intern("__kk_list_windowed")
         kkListWindowedTransformBridgeName = interner.intern("__kk_list_windowed_transform")
-        kkListSortedDescendingName = interner.intern("kk_list_sortedDescending")
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")
         kkListPartitionName = .invalid

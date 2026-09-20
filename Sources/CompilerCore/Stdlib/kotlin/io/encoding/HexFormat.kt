@@ -7,16 +7,10 @@ package kotlin.text
 // ByteArray,UByteArray}). Sema stub HeaderHelpers+SyntheticHexFormatStubs.swift no
 // longer registers any HexFormat symbol; this file is the sole dispatch path.
 //
-// Simplified surface: HexFormat is a single flat class (no nested NumberHexFormat /
-// BytesHexFormat), matching the pre-existing RuntimeHexFormatBox model. The `bytes`
-// and `number` properties both alias `this` so the real-Kotlin chaining syntax
-// (`format.bytes.byteSeparator = ...`, `format.number.prefix = ...`) still resolves,
-// even though every field lives directly on HexFormat. Custom formats are built via
-// the ordinary named-argument constructor (`HexFormat(upperCase = true, ...)`) rather
-// than a `HexFormat { }` builder lambda: neither a top-level `fun HexFormat(...)`
-// (collides with the class name -- KSWIFTK-SEMA-0001) nor a constructor whose body
-// invokes its own function-typed parameter (codegen emits an undefined `_paramName`
-// symbol) currently works for bundled source. Flagged for follow-up separately.
+// The public surface follows the Kotlin 2.3 stdlib model: HexFormat owns immutable
+// BytesHexFormat and NumberHexFormat values, while Builder owns their mutable builders.
+// The legacy named-argument constructor is retained for existing KSwiftK callers and
+// maps its flat options into the corresponding nested formats.
 //
 // All character scanning below uses index-based `while` loops rather than
 // `for (ch in someString)` or `for (i in 0 until n)`: both mistype the loop-bound
@@ -36,29 +30,152 @@ package kotlin.text
  * Formatting options for [Int.toHexString], [Long.toHexString], [ByteArray.toHexString]
  * and the corresponding `hexTo*` decoding functions.
  */
-public class HexFormat(
-    public var upperCase: Boolean = false,
-    public var byteSeparator: String = "",
-    public var prefix: String = "",
-    public var suffix: String = "",
-    public var removeLeadingZeros: Boolean = false,
+public class HexFormat internal constructor(
+    public val upperCase: Boolean,
+    public val bytes: BytesHexFormat,
+    public val number: NumberHexFormat,
 ) {
-    /** Chaining alias so `format.bytes.byteSeparator = ...` resolves to this instance. */
-    public val bytes: HexFormat
-        get() = this
+    /** Compatibility constructor for the pre-nested KSwiftK HexFormat surface. */
+    public constructor(
+        upperCase: Boolean = false,
+        byteSeparator: String = "",
+        prefix: String = "",
+        suffix: String = "",
+        removeLeadingZeros: Boolean = false,
+    ) : this(
+        upperCase = upperCase,
+        bytes = BytesHexFormat(
+            bytesPerLine = Int.MAX_VALUE,
+            bytesPerGroup = Int.MAX_VALUE,
+            groupSeparator = "  ",
+            byteSeparator = byteSeparator,
+            bytePrefix = "",
+            byteSuffix = "",
+        ),
+        number = NumberHexFormat(
+            prefix = prefix,
+            suffix = suffix,
+            removeLeadingZeros = removeLeadingZeros,
+            minLength = 1,
+        ),
+    )
 
-    /** Chaining alias so `format.number.prefix = ...` resolves to this instance. */
-    public val number: HexFormat
-        get() = this
+    override fun toString(): String {
+        val result = StringBuilder()
+        result.append("HexFormat(\n")
+        result.append("    upperCase = ").append(upperCase).append(",\n")
+        result.append("    bytes = ").append(bytes.toString()).append(",\n")
+        result.append("    number = ").append(number.toString()).append("\n")
+        result.append(")")
+        return result.toString()
+    }
 
-    public class Builder @PublishedApi internal constructor()
+    /** Immutable formatting options for byte arrays. */
+    public class BytesHexFormat internal constructor(
+        public val bytesPerLine: Int,
+        public val bytesPerGroup: Int,
+        public val groupSeparator: String,
+        public val byteSeparator: String,
+        public val bytePrefix: String,
+        public val byteSuffix: String,
+    ) {
+        override fun toString(): String {
+            val result = StringBuilder()
+            result.append("BytesHexFormat(\n")
+            result.append("    bytesPerLine = ").append(bytesPerLine).append(",\n")
+            result.append("    bytesPerGroup = ").append(bytesPerGroup).append(",\n")
+            result.append("    groupSeparator = \"").append(groupSeparator).append("\",\n")
+            result.append("    byteSeparator = \"").append(byteSeparator).append("\",\n")
+            result.append("    bytePrefix = \"").append(bytePrefix).append("\",\n")
+            result.append("    byteSuffix = \"").append(byteSuffix).append("\"\n")
+            result.append(")")
+            return result.toString()
+        }
+
+        /** Mutable options used while building a [BytesHexFormat]. */
+        public class Builder @PublishedApi internal constructor() {
+            public var bytesPerLine: Int = Int.MAX_VALUE
+            public var bytesPerGroup: Int = Int.MAX_VALUE
+            public var groupSeparator: String = "  "
+            public var byteSeparator: String = ""
+            public var bytePrefix: String = ""
+            public var byteSuffix: String = ""
+
+            @PublishedApi
+            internal fun build(): BytesHexFormat = BytesHexFormat(
+                bytesPerLine = bytesPerLine,
+                bytesPerGroup = bytesPerGroup,
+                groupSeparator = groupSeparator,
+                byteSeparator = byteSeparator,
+                bytePrefix = bytePrefix,
+                byteSuffix = byteSuffix,
+            )
+        }
+    }
+
+    /** Immutable formatting options for numeric values. */
+    public class NumberHexFormat internal constructor(
+        public val prefix: String,
+        public val suffix: String,
+        public val removeLeadingZeros: Boolean,
+        public val minLength: Int,
+    ) {
+        override fun toString(): String {
+            val result = StringBuilder()
+            result.append("NumberHexFormat(\n")
+            result.append("    prefix = \"").append(prefix).append("\",\n")
+            result.append("    suffix = \"").append(suffix).append("\",\n")
+            result.append("    removeLeadingZeros = ").append(removeLeadingZeros).append(",\n")
+            result.append("    minLength = ").append(minLength).append("\n")
+            result.append(")")
+            return result.toString()
+        }
+
+        /** Mutable options used while building a [NumberHexFormat]. */
+        public class Builder @PublishedApi internal constructor() {
+            public var prefix: String = ""
+            public var suffix: String = ""
+            public var removeLeadingZeros: Boolean = false
+            public var minLength: Int = 1
+
+            @PublishedApi
+            internal fun build(): NumberHexFormat = NumberHexFormat(
+                prefix = prefix,
+                suffix = suffix,
+                removeLeadingZeros = removeLeadingZeros,
+                minLength = minLength,
+            )
+        }
+    }
+
+    /** Mutable root builder used to assemble a [HexFormat]. */
+    public class Builder @PublishedApi internal constructor() {
+        public var upperCase: Boolean = false
+        public val bytes: HexFormat.BytesHexFormat.Builder = BytesHexFormat.Builder()
+        public val number: HexFormat.NumberHexFormat.Builder = NumberHexFormat.Builder()
+
+        public inline fun bytes(builderAction: HexFormat.BytesHexFormat.Builder.() -> Unit) {
+            bytes.builderAction()
+        }
+
+        public inline fun number(builderAction: HexFormat.NumberHexFormat.Builder.() -> Unit) {
+            number.builderAction()
+        }
+
+        @PublishedApi
+        internal fun build(): HexFormat = HexFormat(
+            upperCase = upperCase,
+            bytes = bytes.build(),
+            number = number.build(),
+        )
+    }
 
     public companion object {
-        @ExperimentalStdlibApi
-        public val Default: HexFormat = HexFormat()
+        public val Default: HexFormat
+            get() = defaultHexFormat()
 
-        /** A default hexadecimal format that emits upper-case digits. */
-        public val UpperCase: HexFormat = HexFormat(upperCase = true)
+        public val UpperCase: HexFormat
+            get() = HexFormat(upperCase = true)
     }
 }
 
@@ -90,13 +207,19 @@ private fun trimLeadingZeros(hex: String): String {
 
 private fun applyNumberFormat(rawHex: String, format: HexFormat): String {
     var hex = rawHex
-    if (format.removeLeadingZeros) {
+    val number = format.number
+    if (hex.length < number.minLength) {
+        hex = "0".repeat(number.minLength - hex.length) + hex
+    } else if (number.removeLeadingZeros && hex.length > number.minLength) {
         hex = trimLeadingZeros(hex)
+        if (hex.length < number.minLength) {
+            hex = "0".repeat(number.minLength - hex.length) + hex
+        }
     }
     if (format.upperCase) {
         hex = hex.uppercase()
     }
-    return format.prefix + hex + format.suffix
+    return number.prefix + hex + number.suffix
 }
 
 // ─── toHexString ───────────────────────────────────────────────────────────────
@@ -112,14 +235,29 @@ public fun Long.toHexString(format: HexFormat = defaultHexFormat()): String =
 @ExperimentalStdlibApi
 public fun ByteArray.toHexString(format: HexFormat = defaultHexFormat()): String {
     val sb = StringBuilder()
-    var i = 0
-    while (i < this.size) {
-        if (i > 0) {
-            sb.append(format.byteSeparator)
+    val bytes = format.bytes
+    var index = 0
+    while (index < this.size) {
+        if (index > 0) {
+            val previousLine = (index - 1) / bytes.bytesPerLine
+            val currentLine = index / bytes.bytesPerLine
+            if (currentLine != previousLine) {
+                sb.append('\n')
+            } else {
+                val previousGroup = (index - 1) / bytes.bytesPerGroup
+                val currentGroup = index / bytes.bytesPerGroup
+                if (currentGroup != previousGroup) {
+                    sb.append(bytes.groupSeparator as CharSequence)
+                } else {
+                    sb.append(bytes.byteSeparator as CharSequence)
+                }
+            }
         }
-        val byteHex = hexDigitsOf(this[i].toLong() and 0xffL, 2)
+        sb.append(bytes.bytePrefix as CharSequence)
+        val byteHex = hexDigitsOf(this[index].toLong() and 0xffL, 2)
         sb.append(if (format.upperCase) byteHex.uppercase() else byteHex)
-        i += 1
+        sb.append(bytes.byteSuffix as CharSequence)
+        index += 1
     }
     return sb.toString()
 }
@@ -128,16 +266,16 @@ public fun ByteArray.toHexString(format: HexFormat = defaultHexFormat()): String
 
 private fun stripPrefixSuffix(str: String, format: HexFormat): String {
     var working = str
-    val prefix = format.prefix
-    val suffix = format.suffix
+    val prefix = format.number.prefix
+    val suffix = format.number.suffix
     if (prefix.isNotEmpty()) {
-        if (!working.startsWith(prefix)) {
+        if (!working.startsWith(prefix as CharSequence, ignoreCase = true)) {
             throw NumberFormatException("For hex string \"$str\": missing required prefix \"$prefix\"")
         }
         working = working.substring(prefix.length)
     }
     if (suffix.isNotEmpty()) {
-        if (!working.endsWith(suffix)) {
+        if (!working.endsWith(suffix as CharSequence, ignoreCase = true)) {
             throw NumberFormatException("For hex string \"$str\": missing required suffix \"$suffix\"")
         }
         working = working.substring(0, working.length - suffix.length)
@@ -227,26 +365,92 @@ public fun String.hexToULong(format: HexFormat = defaultHexFormat()): ULong =
 
 // ─── hexToByteArray / hexToUByteArray ────────────────────────────────────────
 
-private fun parseByteValues(receiver: String, format: HexFormat): List<Int> {
-    val separator = format.byteSeparator
-    val hexString = if (separator.isNotEmpty()) receiver.replace(separator, "") else receiver
-    if (hexString.length % 2 != 0) {
-        throw NumberFormatException(
-            "For hex string \"$receiver\": expected an even number of hexadecimal digits"
-        )
+private fun consumeByteFormatToken(
+    receiver: String,
+    position: Int,
+    token: String,
+    message: String,
+): Int {
+    if (token.isNotEmpty() &&
+        (position > receiver.length - token.length ||
+            !receiver.regionMatches(position, token, 0, token.length, ignoreCase = true))
+    ) {
+        throw NumberFormatException("For hex string \"$receiver\": $message")
     }
-    val values = ArrayList<Int>(hexString.length / 2)
+    return position + token.length
+}
+
+private fun consumeByteLineSeparator(receiver: String, position: Int): Int {
+    if (position < receiver.length && receiver[position] == '\r') {
+        return if (position + 1 < receiver.length && receiver[position + 1] == '\n') {
+            position + 2
+        } else {
+            position + 1
+        }
+    }
+    if (position < receiver.length && receiver[position] == '\n') return position + 1
+    throw NumberFormatException("For hex string \"$receiver\": missing line separator")
+}
+
+private fun parseByteValues(receiver: String, format: HexFormat): List<Int> {
+    if (receiver.isEmpty()) return ArrayList()
+
+    val bytes = format.bytes
+    val values = ArrayList<Int>()
+    var position = 0
     var index = 0
-    while (index < hexString.length) {
-        val highDigit = hexString[index].digitToIntOrNull(16)
-        val lowDigit = hexString[index + 1].digitToIntOrNull(16)
+    while (position < receiver.length) {
+        if (index > 0) {
+            val previousLine = (index - 1) / bytes.bytesPerLine
+            val currentLine = index / bytes.bytesPerLine
+            if (currentLine != previousLine) {
+                position = consumeByteLineSeparator(receiver, position)
+            } else {
+                val previousGroup = (index - 1) / bytes.bytesPerGroup
+                val currentGroup = index / bytes.bytesPerGroup
+                if (currentGroup != previousGroup) {
+                    position = consumeByteFormatToken(
+                        receiver,
+                        position,
+                        bytes.groupSeparator,
+                        "missing group separator",
+                    )
+                } else {
+                    position = consumeByteFormatToken(
+                        receiver,
+                        position,
+                        bytes.byteSeparator,
+                        "missing byte separator",
+                    )
+                }
+            }
+        }
+
+        position = consumeByteFormatToken(
+            receiver,
+            position,
+            bytes.bytePrefix,
+            "missing byte prefix",
+        )
+        if (position > receiver.length - 2) {
+            throw NumberFormatException("For hex string \"$receiver\": expected two hexadecimal digits per byte")
+        }
+        val highDigit = receiver[position].digitToIntOrNull(16)
+        val lowDigit = receiver[position + 1].digitToIntOrNull(16)
         if (highDigit == null || lowDigit == null) {
             throw NumberFormatException("For hex string \"$receiver\": not a valid hexadecimal string")
         }
         val high: Int = highDigit!!
         val low: Int = lowDigit!!
+        position += 2
+        position = consumeByteFormatToken(
+            receiver,
+            position,
+            bytes.byteSuffix,
+            "missing byte suffix",
+        )
         values.add((high shl 4) or low)
-        index += 2
+        index += 1
     }
     return values
 }

@@ -183,7 +183,7 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_string_concat_flat"))
+        #expect(callees.contains("__kk_string_concat_flat"))
         #expect(!(body.contains { instruction in
             guard case let .binary(op, _, _, _) = instruction else {
                 return false
@@ -502,7 +502,7 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "mainLower0", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-        #expect(callees.contains("kk_box_long_nonnull"))
+        #expect(callees.contains("kk_box_long_nonnull_static"))
     }
     @Test func testLocalDeclDoesNotBoxWhenDeclaredTypeMatchesInitializer() throws {
         let ctx = try sharedBuildKIRLoweredCtx()
@@ -518,8 +518,8 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "mainLower2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_box_int"))
-        #expect(callees.contains("kk_box_long_nonnull"))
+        #expect(callees.contains("kk_box_int_static"))
+        #expect(callees.contains("kk_box_long_nonnull_static"))
     }
 }
 #endif

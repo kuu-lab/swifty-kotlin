@@ -25,6 +25,9 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
+    /// singleton or a dedicated runtime registry rather than passRetained.
+    var borrowedObjectPointers: Set<UInt> = []
     /// Canonical boxed Unit pointer, retained in `objectPointers` across GC resets.
     var unitBoxPointer: UInt? = nil
     var globalRootSlots: Set<UInt> = []
@@ -32,17 +35,24 @@ struct GCState {
     var activeFrames: [ActiveFrameRecord] = []
     var coroutineRoots: Set<UInt> = []
     var pinnedObjects: Set<UInt> = []
+    /// Per-target refcount for `kotlinx.cinterop.StableRef` (kk_stable_ref_create/
+    /// _dispose). Unlike `pinnedObjects` (a plain membership set backing
+    /// `Pinned<T>`), the same target object may be wrapped by several
+    /// independent StableRef handles at once — see kk_stable_ref_create.
+    var stableRefCounts: [UInt: Int] = [:]
 }
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
+    var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
     var objectAnyToStringMethods: [UInt: Int] = [:]
+    var valueClassAnyToStringMethods: [Int64: Int] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -154,16 +164,48 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         return targetHeapBytes
     }
 
+    func setTargetHeapBytes(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        targetHeapBytes = value
+    }
+
     func currentTargetHeapUtilization() -> Double {
         lock.lock()
         defer { lock.unlock() }
         return targetHeapUtilization
     }
 
+    func setTargetHeapUtilization(_ value: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        targetHeapUtilization = value
+    }
+
     func currentMaxHeapBytes() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return maxHeapBytes
+    }
+
+    func setMaxHeapBytes(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        maxHeapBytes = value
+    }
+
+    /// Restores every tuning knob to its process-startup default. Called by
+    /// `.runtimeIsolation(.gcOnly)` test resets so a test that mutates a knob
+    /// cannot leak state into an unrelated test running later in the same process.
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        targetHeapBytes = runtimeGCDefaultTargetHeapBytes
+        targetHeapUtilization = 0.5
+        maxHeapBytes = max(
+            runtimeGCDefaultTargetHeapBytes,
+            Int(clamping: ProcessInfo.processInfo.physicalMemory)
+        )
     }
 
     func currentMainThreadFinalizerProcessorBatchSize() -> Int {
@@ -227,8 +269,14 @@ public func kk_alloc(_ size: UInt32, _ typeInfo: UnsafeRawPointer) -> UnsafeMuta
     return ptr
 }
 
+// `_ gcRaw: Int = 0` carries the `GC` object receiver that bundled-source member
+// `external fun`/property-accessor calls pass across the ABI (see Platform.kt's
+// identical bridge functions). The default keeps every pre-existing zero-argument
+// Swift call site (tests, `RuntimeMemory.swift`) source-compatible: Swift call
+// sites fill the default at compile time, while compiled Kotlin always supplies it.
 @_cdecl("kk_gc_collect")
-public func kk_gc_collect() {
+public func kk_gc_collect(_ gcRaw: Int = 0) {
+    _ = gcRaw
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
@@ -238,24 +286,56 @@ public func kk_gc_collect() {
 }
 
 @_cdecl("kk_gc_schedule")
-public func kk_gc_schedule() -> Int {
+public func kk_gc_schedule(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
     kk_gc_collect()
     return 0
 }
 
 @_cdecl("kk_gc_target_heap_bytes")
-public func kk_gc_target_heap_bytes() -> Int {
-    runtimeGCTuningState.currentTargetHeapBytes()
+public func kk_gc_target_heap_bytes(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    return runtimeGCTuningState.currentTargetHeapBytes()
 }
 
+@_cdecl("kk_gc_target_heap_bytes_set")
+public func kk_gc_target_heap_bytes_set(_ gcRaw: Int, _ value: Int) -> Int {
+    _ = gcRaw
+    runtimeGCTuningState.setTargetHeapBytes(value)
+    return 0
+}
+
+// `kk_gc_target_heap_utilization` used to return a genuine Swift `Double`, but
+// every external-fun call this compiler emits passes Double/Float as their raw
+// IEEE bit pattern packed into an `Int` (there is no floating-point LLVM type in
+// the backend at all - see e.g. `__kk_math_sqrt`). Once this property became a
+// real bundled-source declaration instead of a synthetic sema stub, a genuine
+// `Double` return would read back as a garbage register value. Fixed here to use
+// the same bit-pattern convention as every other Double-typed external fun.
 @_cdecl("kk_gc_target_heap_utilization")
-public func kk_gc_target_heap_utilization() -> Double {
-    runtimeGCTuningState.currentTargetHeapUtilization()
+public func kk_gc_target_heap_utilization(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    return kk_double_to_bits(runtimeGCTuningState.currentTargetHeapUtilization())
+}
+
+@_cdecl("kk_gc_target_heap_utilization_set")
+public func kk_gc_target_heap_utilization_set(_ gcRaw: Int, _ value: Int) -> Int {
+    _ = gcRaw
+    runtimeGCTuningState.setTargetHeapUtilization(kk_bits_to_double(value))
+    return 0
 }
 
 @_cdecl("kk_gc_max_heap_bytes")
-public func kk_gc_max_heap_bytes() -> Int {
-    runtimeGCTuningState.currentMaxHeapBytes()
+public func kk_gc_max_heap_bytes(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    return runtimeGCTuningState.currentMaxHeapBytes()
+}
+
+@_cdecl("kk_gc_max_heap_bytes_set")
+public func kk_gc_max_heap_bytes_set(_ gcRaw: Int, _ value: Int) -> Int {
+    _ = gcRaw
+    runtimeGCTuningState.setMaxHeapBytes(value)
+    return 0
 }
 
 // KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor bridges.
@@ -422,7 +502,9 @@ func kk_runtime_reset_gc() {
         state.activeFrames.removeAll(keepingCapacity: false)
         state.coroutineRoots.removeAll(keepingCapacity: false)
         state.pinnedObjects.removeAll(keepingCapacity: false)
+        state.stableRefCounts.removeAll(keepingCapacity: false)
     }
+    runtimeGCTuningState.reset()
     resetCaseInsensitiveOrderCache()
 }
 
@@ -431,11 +513,13 @@ func kk_runtime_reset_metadata() {
         let boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
         state.kClassBoxCache.removeAll(keepingCapacity: false)
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
+        state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
         state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
+        state.valueClassAnyToStringMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
         return boxes
@@ -446,9 +530,13 @@ func kk_runtime_reset_metadata() {
     runtimeKMemberRegistry.reset()
 }
 
-private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
+func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
     runtimeStorage.withMetadataLock { state in
+        state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
+            UInt(bitPattern: raw) != key
+        }
         state.objectTypeByPointer.removeValue(forKey: key)
+        state.arrayTypeIDsByPointer.removeValue(forKey: key)
         state.objectVtableMethods.removeValue(forKey: key)
         state.objectEqualsOverrides.removeValue(forKey: key)
         state.objectAnyToStringMethods.removeValue(forKey: key)
@@ -458,9 +546,17 @@ private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
 }
 
 func kk_runtime_reset_flow() {
-    runtimeStorage.withFlowLock { state in
+    let flowKeys = runtimeStorage.withFlowLock { state -> [UInt] in
+        let keys = Array(state.flowHandles.keys)
         state.flowHandles.removeAll(keepingCapacity: false)
         state.flowRetainCounts.removeAll(keepingCapacity: false)
+        return keys
+    }
+    runtimeStorage.withGCLock { state in
+        for key in flowKeys {
+            state.objectPointers.remove(key)
+            state.borrowedObjectPointers.remove(key)
+        }
     }
 }
 
@@ -566,6 +662,13 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
 
     for pinned in state.pinnedObjects {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: pinned) else {
+            continue
+        }
+        worklist.append(ptr)
+    }
+
+    for stableRefTarget in state.stableRefCounts.keys {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: stableRefTarget) else {
             continue
         }
         worklist.append(ptr)

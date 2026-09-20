@@ -52,8 +52,21 @@ extension CallTypeChecker {
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
+            // Range expressions use their scalar element type as the lowering
+            // type. Keep them out of the numeric fast path so range extensions
+            // such as Iterable.plus/minus can be resolved from the source-level
+            // range receiver instead.
+            let isRangeReceiver = ["plus", "minus"].contains(interner.resolve(calleeName))
+                && (MemberRuntimeDispatch.rangeReceiverKind(
+                    receiverExpr: request.receiverID,
+                    receiverType: lookupReceiverType,
+                    sema: sema,
+                    interner: interner
+                ) != nil
+                    || ControlFlowTypeChecker.isRangeExpression(request.receiverID, ast: ctx.ast))
             let rawRhsType = argTypes[0]
-            let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType
+            let isPrimitiveReceiver = !isRangeReceiver
+                && (receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
             // Helper: whether a type is a small unsigned type (UByte/UShort).
             // In Kotlin stdlib, small unsigned types promote to UInt for most
@@ -222,9 +235,12 @@ extension CallTypeChecker {
         // KSP-642: Int/Long rotateLeft / rotateRight resolve through the bundled Kotlin
         // declarations in `Stdlib/kotlin/Numbers.kt`, so no special inference is needed.
 
-        // Primitive member function: Int/Long/Byte/Short.toString() / toString(radix: Int) → String (EXPR-003)
+        // Primitive member function: Int/Long/Byte/Short.toString() → String
+        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and resolves
+        // through normal extension-function overload resolution below instead.
         if interner.resolve(calleeName) == "toString",
-           args.count <= 1
+           args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -235,11 +251,9 @@ extension CallTypeChecker {
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             if receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == byteType || receiverForCheck == shortType {
-                if args.isEmpty || argTypes[0] == intType {
-                    let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
+                let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
             }
         }
 

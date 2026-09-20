@@ -13,6 +13,44 @@ import Testing
 struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
 
     @Test
+    func testCodegenObjectLiteralPropertyInitializerResolvesQualifiedOuterThis() throws {
+        let source = """
+        class Node(val v: Int) : Iterable<Int> {
+            var next: Node? = null
+            override fun iterator(): Iterator<Int> {
+                return object : Iterator<Int> {
+                    var cur: Node? = this@Node
+                    override fun hasNext() = cur != null
+                    override fun next(): Int {
+                        val n = cur!!
+                        cur = n.next
+                        return n.v
+                    }
+                }
+            }
+        }
+
+        fun main() {
+            val n = Node(1)
+            n.next = Node(2)
+            val it = n.iterator()
+            println(it.hasNext())
+            println(it.next())
+            println(it.next())
+            println(it.hasNext())
+            for (v in n) print(v)
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralQualifiedThisPropertyInitializer",
+            expected: "true\n1\n2\nfalse\n12\n"
+        )
+    }
+
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesValParameter() throws {
         let source = """
         interface Greeter {
@@ -37,6 +75,35 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
             source,
             moduleName: "ObjectLiteralCaptureValParamExecution",
             expected: "Hello, World\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralMemberFunctionCapturesOuterPrimaryConstructorProperty() throws {
+        let source = """
+        interface Probe {
+            fun value(): Int
+        }
+
+        class Counter(private val limit: Int) {
+            fun probe(): Probe {
+                return object : Probe {
+                    override fun value(): Int {
+                        return limit
+                    }
+                }
+            }
+        }
+
+        fun main() {
+            println(Counter(3).probe().value())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralCaptureOuterPrimaryConstructorPropertyExecution",
+            expected: "3\n"
         )
     }
 

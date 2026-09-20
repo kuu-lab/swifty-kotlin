@@ -70,10 +70,10 @@ let hashSetRuntimeTypeID: Int64 = {
 /// their box with this ID, so it needs parent edges the way
 /// `hashSetRuntimeTypeID` has them -- without them `is MutableSet<*>` and
 /// `is Set<*>` would answer false on a box carrying this tag.
-/// `CollectionAliases.kt` declares `LinkedHashSet<E> : MutableSet<E>`, which
-/// extends neither HashSet nor AbstractMutableSet, so only those two edges are
-/// registered. Aligning the runtime hierarchy with Kotlin/Native's
-/// `LinkedHashSet : HashSet` needs the declaration change KSP-704 owns.
+/// `LinkedHashSet.kt` declares `LinkedHashSet<E> : MutableSet<E>`. The runtime
+/// identity follows that source-backed public hierarchy; the concrete class
+/// remains separate from `HashSet` because the factory/runtime representation
+/// does not expose a nominal HashSet superclass edge.
 let linkedHashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashSet")
     runtimeRegisterTypeEdge(
@@ -97,18 +97,25 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
-private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64) = {
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64, linkedHashMap: Int64) = {
     let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
     let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
     let hashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashMap")
+    // KUU-556: LinkedHashMap is a real HashMap subclass (`LinkedHashMap.kt`),
+    // matching the diff oracle (kotlinc-jvm: java.util.LinkedHashMap extends
+    // java.util.HashMap) -- unlike hashSetRuntimeTypeID/linkedHashSetRuntimeTypeID,
+    // which are still siblings under Set (docs/stdlib-pipeline.md §13-8).
+    let linkedHashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashMap")
     runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
     runtimeRegisterTypeEdge(childTypeID: hashMapID, parentTypeID: mutableMapID)
-    return (mapID, mutableMapID, hashMapID)
+    runtimeRegisterTypeEdge(childTypeID: linkedHashMapID, parentTypeID: hashMapID)
+    return (mapID, mutableMapID, hashMapID, linkedHashMapID)
 }()
 
 let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
 let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
+let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
 
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
@@ -182,12 +189,31 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 }
 
 @inline(__always)
+func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
+    let raw = runtimePairNew(firstValue: key, secondValue: value)
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
     let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key
+    }
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
+func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeValue) -> Int {
+    let raw = registerRuntimeObject(RuntimePairBox(firstValue: key, secondValue: value))
+    if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
+        pairBox.mutableMapRaw = mapRaw
+        pairBox.mutableMapKey = key.legacyRawValue
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     return raw
@@ -380,6 +406,34 @@ func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeVal
         return RuntimeValue(charScalar: kk_unbox_char(rawValue))
     }
     return RuntimeValue(raw: rawValue)
+}
+
+/// Preserves the representation of values crossing a generic collection ABI.
+/// Primitive `Char` values are boxed at this boundary so a later generic
+/// consumer can recover the character instead of treating its UTF-16 scalar as
+/// an `Int`.
+@inline(__always)
+func runtimeValueFromCollectionABI(_ rawValue: Int) -> RuntimeValue {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: pointer))
+          }),
+          let charBox = tryCast(pointer, to: RuntimeCharBox.self)
+    else {
+        return RuntimeValue(raw: rawValue)
+    }
+    return RuntimeValue(charScalar: charBox.value)
+}
+
+/// Converts a tagged value to the legacy raw ABI representation used by
+/// collection iterator/accessor entry points. `Char` is the one primitive whose
+/// type identity must survive this conversion for generic collection consumers.
+@inline(__always)
+func runtimeCollectionABIValue(_ value: RuntimeValue) -> Int {
+    if value.tag == RuntimeValue.charTag {
+        return kk_box_char(value.payload0)
+    }
+    return value.legacyRawValue
 }
 
 func runtimeIterableElements(from rawValue: Int) -> [Int]? {
@@ -680,7 +734,7 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
         runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no next element."))
         return 0
     }
-    return kk_list_iterator_next(iterRaw)
+    return kk_list_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -866,6 +920,14 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    let lhsRange = lhsIsObjectPointer ? runtimeRangeBox(from: lhs) : nil
+    let rhsRange = rhsIsObjectPointer ? runtimeRangeBox(from: rhs) : nil
+    if lhsRange != nil || rhsRange != nil {
+        guard let lhsRange, let rhsRange else {
+            return false
+        }
+        return runtimeRangesEqual(lhsRange, rhsRange)
+    }
     if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
         return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
     }
@@ -878,7 +940,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsString = tryCast(lhsPtr, to: RuntimeStringBox.self),
        let rhsString = tryCast(rhsPtr, to: RuntimeStringBox.self)
     {
-        return lhsString.value == rhsString.value
+        return runtimeStringsEqual(lhsString.value, rhsString.value)
     }
     if let lhsInt = tryCast(lhsPtr, to: RuntimeIntBox.self),
        let rhsInt = tryCast(rhsPtr, to: RuntimeIntBox.self)
@@ -1089,16 +1151,19 @@ func runtimeValuesEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Bool {
             else {
                 return lhs.payload0 == rhs.payload0
             }
-            return runtimeStringFromFlatFields(
-                data: lhsData,
-                length: lhs.payload1,
-                byteCount: lhs.payload2,
-                hash: lhs.payload3
-            ) == runtimeStringFromFlatFields(
-                data: rhsData,
-                length: rhs.payload1,
-                byteCount: rhs.payload2,
-                hash: rhs.payload3
+            return runtimeStringsEqual(
+                runtimeStringFromFlatFields(
+                    data: lhsData,
+                    length: lhs.payload1,
+                    byteCount: lhs.payload2,
+                    hash: lhs.payload3
+                ),
+                runtimeStringFromFlatFields(
+                    data: rhsData,
+                    length: rhs.payload1,
+                    byteCount: rhs.payload2,
+                    hash: rhs.payload3
+                )
             )
         default:
             return runtimeValuesEqual(lhs.payload0, rhs.payload0)
@@ -1134,6 +1199,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if let override = runtimeAnyToStringOverride(elem),
+       let pointer = extractString(from: override)
+    {
+        return pointer
+    }
     if runtimeIsUnitBox(elem) {
         return "kotlin.Unit"
     }
@@ -1160,6 +1230,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+    }
+    if let override = runtimeAnyToStringOverrideText(elem) {
+        return override
     }
     if let throwableString = runtimeThrowableToString(elem) {
         return throwableString
@@ -1210,6 +1283,14 @@ func runtimeElementToString(_ elem: Int) -> String {
         } else {
             return "\(first)..\(last) step \(rangeBox.step)"
         }
+    }
+    if let rangeBox = tryCast(ptr, to: RuntimeDoubleRangeBox.self) {
+        let separator = rangeBox.endExclusive ? "..<" : ".."
+        return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
+    }
+    if let rangeBox = tryCast(ptr, to: RuntimeFloatRangeBox.self) {
+        let separator = rangeBox.endExclusive ? "..<" : ".."
+        return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         let parts = arrayBox.values.map { runtimeElementToString($0) }
@@ -1601,7 +1682,10 @@ private enum RuntimeComparableScalarValue {
     case floating(Double)
 }
 
-private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
+/// Kotlin `Double.compare` / `Float.compare` total order: NaN is greater than
+/// every non-NaN, and `-0.0` sorts before `0.0`. Shared by collection
+/// comparisons and `kk_compare_any` (generic `Comparable` `minOf`/`maxOf`).
+func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
     if lhs.isNaN {
         return rhs.isNaN ? 0 : 1
     }

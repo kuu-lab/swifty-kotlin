@@ -121,10 +121,10 @@ public func kk_set_to_string(_ setRaw: Int) -> UnsafeMutableRawPointer {
 @_cdecl("__kk_collection_toList")
 public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
-        return registerRuntimeObject(RuntimeListBox(elements: list.elements))
+        return registerRuntimeObject(RuntimeListBox(values: list.values))
     }
     if let set = runtimeSetBox(from: collRaw) {
-        return registerRuntimeObject(RuntimeListBox(elements: set.elements))
+        return registerRuntimeObject(RuntimeListBox(values: set.values))
     }
     if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
@@ -193,7 +193,7 @@ public func kk_mutable_set_add(
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return 0
     }
-    return set.insert(rawValue: elem) ? 1 : 0
+    return set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_remove")
@@ -309,6 +309,23 @@ public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: 
     )
 }
 
+/// KUU-556: storage for the `LinkedHashMap()` constructor family and
+/// `linkedMapOf`, both of which are declared to return `LinkedHashMap`.
+/// `LinkedHashMap` is now a real `HashMap` subclass, so it needs its own
+/// nominal tag for `is LinkedHashMap<*, *>` to answer true and `is HashMap<*,
+/// *>` to also answer true via the `linkedHashMapRuntimeTypeID` -> `hashMapRuntimeTypeID`
+/// edge (mirrors `__kk_linked_hash_set_of` / BUG-254, except Map's runtime
+/// hierarchy makes LinkedHashMap a child of HashMap instead of a sibling).
+@_cdecl("__kk_linked_hash_map_of")
+public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: linkedHashMapRuntimeTypeID
+    )
+}
+
 /// Builds a mutable map from a vararg Pair array, including a spread argument.
 /// The compiler packs spread varargs before calling this bridge.
 @_cdecl("__kk_map_of_pairs")
@@ -352,7 +369,11 @@ public func kk_mutable_map_put(
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return runtimeNullSentinelInt
     }
-    return map.put(key: key, value: value) ?? runtimeNullSentinelInt
+    let runtimeKey = runtimeValueFromCollectionABI(key)
+    let runtimeValue = runtimeValueFromCollectionABI(value)
+    return map.put(key: runtimeKey, value: runtimeValue)
+        .map(runtimeCollectionABIValue)
+        ?? runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_mutable_map_remove")
@@ -375,8 +396,8 @@ public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
 public func kk_mutable_map_putAll(_ mapRaw: Int, _ otherMapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
           let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
-    let otherKeys = other.keys
-    let otherValues = other.values
+    let otherKeys = other.keyValues
+    let otherValues = other.entryValues
     for (idx, key) in otherKeys.enumerated() {
         guard idx < otherValues.count else { break }
         _ = map.put(key: key, value: otherValues[idx])
@@ -391,11 +412,16 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     else {
         return 0
     }
-    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second, nil)
+    _ = kk_mutable_map_put(
+        mapRaw,
+        runtimeCollectionABIValue(pairBox.firstValue),
+        runtimeCollectionABIValue(pairBox.secondValue),
+        nil
+    )
     return 0
 }
 
-@_cdecl("kk_map_size")
+@_cdecl("__kk_map_size")
 public func kk_map_size(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMapSize(mapRaw) ?? 0
@@ -411,7 +437,10 @@ public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let index = map.index(ofRawKey: key) else {
         return runtimeNullSentinelInt
     }
-    return map.rawValue(at: index) ?? runtimeNullSentinelInt
+    guard let value = map.runtimeValue(at: index) else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeCollectionABIValue(value)
 }
 
 @inline(__always)
@@ -497,7 +526,7 @@ public func kk_mutable_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw
     )
 }
 
-@_cdecl("kk_map_is_empty")
+@_cdecl("__kk_map_is_empty")
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         if let sourceSize = runtimeSourceMapSize(mapRaw) {
@@ -510,13 +539,13 @@ public func kk_map_is_empty(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_entries")
 public func kk_map_entries(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    let entries = zip(map.keys, map.values).map { key, value in
-        runtimeMapEntryNew(key: key, value: value)
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: entries))
+    // MutableMap.entries is a mutable view. Keep this set handle connected to
+    // the map so MutableIterable.removeAll/retainAll can remove through its
+    // iterator rather than mutating a detached entry snapshot.
+    return registerRuntimeObject(RuntimeSetBox(mapEntriesOf: mapRaw))
 }
 
 @_cdecl("__kk_map_keys")
@@ -524,7 +553,9 @@ public func kk_map_keys(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(map.keys)))
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(map.keyValues))
+    )
 }
 
 @_cdecl("__kk_map_values")
@@ -532,7 +563,7 @@ public func kk_map_values(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: map.values))
+    return registerRuntimeObject(RuntimeListBox(values: map.entryValues))
 }
 
 @_cdecl("__kk_map_iterator")
@@ -591,10 +622,20 @@ public func kk_mutable_map_iterator_next(_ iterRaw: Int) -> Int {
     let key = iter.keys[iter.index]
     iter.index += 1
     iter.lastKey = key
+    guard let map = runtimeMapBox(from: iter.mapRaw),
+          let storageIndex = map.index(ofRawKey: key),
+          let value = map.runtimeValue(at: storageIndex)
+    else {
+        return runtimeMutableMapEntryNew(
+            mapRaw: iter.mapRaw,
+            key: RuntimeValue(raw: key),
+            value: RuntimeValue(raw: kk_map_get(iter.mapRaw, key))
+        )
+    }
     return runtimeMutableMapEntryNew(
         mapRaw: iter.mapRaw,
-        key: key,
-        value: kk_map_get(iter.mapRaw, key)
+        key: map.keyValues[storageIndex],
+        value: value
     )
 }
 
@@ -624,11 +665,11 @@ public func kk_mutable_map_entry_setValue(_ entryRaw: Int, _ value: Int) -> Int 
         return runtimeNullSentinelInt
     }
     let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value, nil)
-    pairBox.secondValue = RuntimeValue(raw: value)
+    pairBox.secondValue = runtimeValueFromCollectionABI(value)
     return previous
 }
 
-@_cdecl("kk_map_to_string")
+@_cdecl("__kk_map_to_string")
 public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
     guard let map = runtimeMapBox(from: mapRaw) else {
         let str = "{}"
@@ -637,7 +678,7 @@ public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
             kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
         }
     }
-    let parts = zip(map.keys, map.values).map { key, value -> String in
+    let parts = zip(map.keyValues, map.entryValues).map { key, value -> String in
         let keyStr = runtimeElementToString(key)
         let valStr = runtimeElementToString(value)
         return "\(keyStr)=\(valStr)"

@@ -281,63 +281,6 @@ struct ExperimentalMarkerStubTests {
         #expect(sema.symbols.lookup(fqName: fq) != nil, "kotlin.io.encoding package must be present in the symbol table after sema")
     }
 
-    // MARK: - ExperimentalPathApi (kotlin.io.path, ERROR)
-
-    @Test
-    func testExperimentalPathApiIsRegistered() throws {
-        let (sema, interner) = try sharedSema()
-        let sym = lookupSymbol(
-            fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(sym != nil, "kotlin.io.path.ExperimentalPathApi must be registered in the symbol table")
-    }
-
-    @Test
-    func testExperimentalPathApiIsAnnotationClass() throws {
-        let (sema, interner) = try sharedSema()
-        assertIsAnnotationClass(
-            fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"],
-            sema: sema,
-            interner: interner
-        )
-    }
-
-    @Test
-    func testExperimentalPathApiHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try sharedSema()
-        assertHasRequiresOptIn(
-            fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"],
-            expectedSeverity: "ERROR",
-            sema: sema,
-            interner: interner
-        )
-    }
-
-    @Test
-    func testExperimentalPathApiHasOfficialTargets() throws {
-        let (sema, interner) = try sharedSema()
-        let sym = try #require(lookupSymbol(fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"], sema: sema, interner: interner))
-        let annotations = sema.symbols.annotations(for: sym)
-        #expect(annotations.contains {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.ANNOTATION_CLASS",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.FIELD",
-                        "AnnotationTarget.LOCAL_VARIABLE",
-                        "AnnotationTarget.VALUE_PARAMETER",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.TYPEALIAS",
-                    ]
-            }, "ExperimentalPathApi must carry the official @Target list, got \(annotations)")
-    }
-
     // MARK: - ExperimentalAssociatedObjects (kotlin.reflect, ERROR)
 
     @Test

@@ -45,8 +45,8 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
-        // STDLIB-021: Iterable mutable conversion members are registered later once
-        // MutableList / MutableSet stubs exist — see calls below after those stubs.
+        // STDLIB-021: Iterable mutable conversion members are registered later
+        // once MutableList / MutableSet symbols exist — see calls below.
 
         let collectionInterfaceSymbol = registerSyntheticCollectionStub(
             symbols: symbols, types: types, interner: interner,
@@ -106,20 +106,10 @@ extension DataFlowSemaPhase {
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
 
-        let setInterfaceSymbol = registerSyntheticSetStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
-        )
-
-        registerSyntheticMutableSetStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            setInterfaceSymbol: setInterfaceSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
-            mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
-        )
+        // KSP-704: Set and MutableSet are bundled Kotlin declarations. Their
+        // real nominal headers are predeclared before this residual registry
+        // runs, so the remaining collection bridge registrations can reference
+        // them without recreating the source-backed shell.
         registerMutableCollectionIterableAddAllMembers(
             symbols: symbols,
             types: types,
@@ -127,18 +117,18 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             iterableInterfaceSymbol: iterableInterfaceSymbol
         )
-        let mapSymbols = registerSyntheticMapStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-        _ = registerSyntheticAbstractMapStub(
+        registerSyntheticMapEntryResiduals(
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol
+            kotlinCollectionsPkg: kotlinCollectionsPkg
         )
-
+        registerSyntheticMapRuntimeResiduals(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg
+        )
         // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions
         if let mutableListSym = symbols.lookup(
             fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]
@@ -164,26 +154,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticMutableMapStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
-            valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerMapHigherOrderMembers(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
-            valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-
         // KSP-625: ArrayDeque is provided by bundled Kotlin source
         // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
         // registered for it here.
@@ -195,10 +165,11 @@ extension DataFlowSemaPhase {
         // take the shared factory lowering path (CallLowerer+CollectionFactoryCalls
         // / CollectionLiteralLoweringPass) for element boxing and runtime tags.
 
-        registerSyntheticArrayStubs(
-            symbols: symbols, types: types, interner: interner,
-            skipStats: skipStats
-        )
+        // KSP-1517: `Array<T>`/primitive array class shells are predeclared
+        // from bundled Kotlin source (`ArrayIntrinsics.kt`) via
+        // `predeclareBundledArrayHeaders` before this pass runs; no
+        // registration is needed here anymore
+        // (`HeaderHelpers+SyntheticArrayStubs.swift` deleted).
         registerMutableCollectionArrayAddAllMembers(
             symbols: symbols,
             types: types,

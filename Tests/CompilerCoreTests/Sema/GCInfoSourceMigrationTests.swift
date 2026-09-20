@@ -2,8 +2,8 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-1264: The GCInfo nominal declaration and constructor are backed by
-/// bundled Kotlin source. Its property surface remains synthetic for KSP-1265.
+/// KSP-1264/KSP-1265: The GCInfo nominal declaration, constructor, and full
+/// property surface are backed by bundled Kotlin source.
 @Suite
 struct GCInfoSourceMigrationTests {
     private func mapValueClassName(
@@ -131,13 +131,84 @@ struct GCInfoSourceMigrationTests {
             let expectedReturnType = sema.types.make(.classType(ClassType(classSymbol: classSymbol)))
             #expect(signature.returnType == expectedReturnType)
 
+            let longProperties = [
+                "epoch",
+                "startTimeNs",
+                "endTimeNs",
+                "firstPauseRequestTimeNs",
+                "firstPauseStartTimeNs",
+                "firstPauseEndTimeNs",
+                "markedCount",
+            ]
+            for property in longProperties {
+                let propertySymbol = try #require(
+                    sema.symbols.lookup(fqName: gcInfoFQName + [interner.intern(property)])
+                )
+                let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
+                #expect(!propertyInfo.flags.contains(.synthetic), "\(property) should be source-backed")
+                #expect(!propertyInfo.flags.contains(.mutable))
+                #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
+                #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
+                #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.longType)
+            }
+
             let epochSymbol = try #require(
                 sema.symbols.lookup(fqName: gcInfoFQName + [interner.intern("epoch")])
             )
-            let epochInfo = try #require(sema.symbols.symbol(epochSymbol))
-            #expect(epochInfo.flags.contains(.synthetic))
-            #expect(!sema.symbols.isSourceBackedSymbol(epochSymbol))
-            #expect(sema.symbols.propertyType(for: epochSymbol) == sema.types.longType)
+            let epochFileID = try #require(sema.symbols.sourceFileID(for: epochSymbol))
+            #expect(
+                ctx.sourceManager.path(of: epochFileID)
+                    == "__bundled_kotlin/native/runtime/GCInfo.kt"
+            )
+
+            let nullableLongProperties = [
+                "secondPauseRequestTimeNs",
+                "secondPauseStartTimeNs",
+                "secondPauseEndTimeNs",
+                "postGcCleanupTimeNs",
+            ]
+            for property in nullableLongProperties {
+                let propertySymbol = try #require(
+                    sema.symbols.lookup(fqName: gcInfoFQName + [interner.intern(property)])
+                )
+                let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
+                #expect(!propertyInfo.flags.contains(.synthetic), "\(property) should be source-backed")
+                #expect(!propertyInfo.flags.contains(.mutable))
+                #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
+                #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
+                let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
+                #expect(sema.types.nullability(of: propertyType) == .nullable)
+                #expect(sema.types.makeNonNullable(propertyType) == sema.types.longType)
+            }
+
+            let rootSetPropertySymbol = try #require(
+                sema.symbols.lookup(fqName: gcInfoFQName + [interner.intern("rootSet")])
+            )
+            let rootSetPropertyInfo = try #require(sema.symbols.symbol(rootSetPropertySymbol))
+            #expect(!rootSetPropertyInfo.flags.contains(.synthetic))
+            #expect(!rootSetPropertyInfo.flags.contains(.mutable))
+            #expect(sema.symbols.isSourceBackedSymbol(rootSetPropertySymbol))
+            #expect(sema.symbols.propertyType(for: rootSetPropertySymbol) == rootSetType)
+
+            let mapProperties: [(name: String, valueClassName: String)] = [
+                ("sweepStatistics", "SweepStatistics"),
+                ("memoryUsageBefore", "MemoryUsage"),
+                ("memoryUsageAfter", "MemoryUsage"),
+            ]
+            for entry in mapProperties {
+                let propertySymbol = try #require(
+                    sema.symbols.lookup(fqName: gcInfoFQName + [interner.intern(entry.name)])
+                )
+                let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
+                #expect(!propertyInfo.flags.contains(.synthetic), "\(entry.name) should be source-backed")
+                #expect(!propertyInfo.flags.contains(.mutable))
+                #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
+                let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
+                #expect(
+                    try mapValueClassName(for: propertyType, sema: sema, interner: interner)
+                        == entry.valueClassName
+                )
+            }
         }
     }
 }

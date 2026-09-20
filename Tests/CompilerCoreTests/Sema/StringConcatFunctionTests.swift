@@ -3,7 +3,8 @@ import Testing
 
 /// STDLIB-TEXT-FN-011: Validates that `String.concat(str)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
-/// The runtime link involved is `kk_string_concat_flat`.
+/// The public declaration is bundled Kotlin; only its private bridge carries
+/// the `__kk_string_concat_flat` runtime link.
 @Suite
 struct StringConcatFunctionTests {
     @Test func testStringConcatResolvesInSource() throws {
@@ -49,8 +50,8 @@ struct StringConcatFunctionTests {
             "Expected a call binding for the concat invocation"
         )
         #expect(
-            sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_concat_flat",
-            "String.concat(str) member call must resolve to kk_string_concat_flat"
+            sema.symbols.externalLinkName(for: chosenCallee) == nil,
+            "String.concat(str) member call must resolve to bundled Kotlin source"
         )
 
         let fq = ["kotlin", "text", "concat"].map { interner.intern($0) }
@@ -61,9 +62,16 @@ struct StringConcatFunctionTests {
             return signature.receiverType == sema.types.stringType
                 && signature.parameterTypes == [sema.types.stringType]
         })
-        #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_concat_flat"
-        )
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+        let bridgeFQName = ["kotlin", "text", "__kkStringConcat"].map { interner.intern($0) }
+        let bridge = try #require(sema.symbols.lookupAll(fqName: bridgeFQName).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes == [sema.types.stringType]
+        })
+        #expect(sema.symbols.externalLinkName(for: bridge) == "__kk_string_concat_flat")
         #expect(
             sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
             "String.concat(str) should return String"

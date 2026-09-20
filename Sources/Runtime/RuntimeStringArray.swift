@@ -112,6 +112,8 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
     ("kotlin.NotImplementedError", "NotImplementedError"),
     ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
+    ("java.nio.charset.MalformedInputException", "MalformedInputException"),
+    ("java.nio.charset.CharacterCodingException", "CharacterCodingException"),
     ("kotlin.io.FileSystemException", "FileSystemException"),
     ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
     ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
@@ -338,7 +340,7 @@ public func __kk_throwable_rawStackFrames(
         runtimeStructuredPanic("__kk_throwable_rawStackFrames: array allocation failed")
     }
     for (i, frame) in frameStrings.enumerated() {
-        arrayBox.elements[i] = registerRuntimeObject(RuntimeStringBox(frame))
+        arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
     }
     return arrayRaw
 }
@@ -467,7 +469,7 @@ public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
 
     let arrayBox = RuntimeArrayBox(length: suppressed.count)
     for (i, elem) in suppressed.enumerated() {
-        arrayBox.elements[i] = elem
+        arrayBox[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -533,7 +535,7 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         let bytes = Array(value.utf8)
         // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
         // `byteCount` is the UTF-8 byte count used by the flat ABI.
-        self.length = value.utf16.count
+        self.length = runtimeKotlinStringUTF16Length(value)
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
@@ -651,18 +653,8 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     return opaque
 }
 
-@_cdecl("kk_int_toString_radix")
-public func kk_int_toString_radix(_ value: Int, _ radix: Int) -> UnsafeMutableRawPointer {
-    let clampedRadix = max(2, min(36, radix))
-    let str = String(value, radix: clampedRadix)
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
-}
-
-@_cdecl("kk_string_concat_flat")
-public func kk_string_concat_flat(
+@_cdecl("__kk_string_concat_flat")
+public func __kk_string_concat_flat(
     _ lhsData: UnsafePointer<UInt8>?,
     _ lhsLength: Int,
     _ lhsByteCount: Int,
@@ -725,8 +717,8 @@ public func kk_string_compareTo_flat(
 // Receiver is passed as Int (intptr) so null receivers produce "null".
 // Primitives passed as `other` are already boxed by the ABI lowering pass
 // when widened to Any?, so runtimeElementToString handles them correctly.
-@_cdecl("kk_string_plus")
-public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_string_plus")
+public func __kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeElementToString(receiverRaw)
     let rhs = runtimeElementToString(otherRaw)
     return runtimeMakeStringRaw(lhs + rhs)
@@ -800,10 +792,10 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
         //
-        // Even when boxed, Int/UInt/UByte/UShort all box via kk_box_int into
-        // the same RuntimeIntBox (see BoxingCalleeTable), so they remain
-        // indistinguishable from each other here — a separate, pre-existing
-        // limitation of the box representation itself, not fixed by this check.
+        // Even when boxed, Int/UInt/UByte/UShort use the same RuntimeIntBox
+        // representation (through distinct boxing entry points that preserve
+        // hashCode metadata), so they remain indistinguishable from each other
+        // here — a separate, pre-existing limitation of runtime type checks.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -907,6 +899,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        if runtimeArrayHasType(rawValue: value, typeID: payload) {
+            return 1
+        }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
         }
@@ -953,11 +948,43 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     }
 }
 
+@_cdecl("kk_array_tag_type")
+public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {
+    guard runtimeArrayBox(from: arrayRaw) != nil else {
+        return arrayRaw
+    }
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: Int64(typeID))
+    return arrayRaw
+}
+
 @_cdecl("kk_op_cast")
 public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if kk_op_is(value, typeToken) != 0 {
         return value
+    }
+    // Kotlin/JVM reports a null-to-non-null cast as NullPointerException,
+    // while a non-null value with the wrong runtime type is ClassCastException.
+    // Keep the distinction before allocating the generic cast failure.
+    if value == runtimeNullSentinelInt {
+        let token = Int64(truncatingIfNeeded: typeToken)
+        let base = token & RuntimeTypeTokenEncoding.baseMask
+        let isNullableTarget = (token & RuntimeTypeTokenEncoding.nullableBit) != 0
+        if !isNullableTarget, base != RuntimeTypeTokenEncoding.nullBase {
+            let targetName: String = {
+                if base == RuntimeTypeTokenEncoding.nominalBase,
+                   let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+                {
+                    return metadata.qualifiedName
+                }
+                let targetNameRaw = __kk_type_token_qualified_name(typeToken, 0)
+                return runtimeStringFromRaw(targetNameRaw) ?? "Unknown"
+            }()
+            outThrown?.pointee = runtimeAllocateNullPointerException(
+                message: "null cannot be cast to non-null type \(targetName)"
+            )
+            return 0
+        }
     }
     outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
     return 0
@@ -1173,16 +1200,7 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return result
     }
     if winner != result {
-        guard let opaque = UnsafeMutableRawPointer(bitPattern: result) else {
-            return winner
-        }
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.remove(UInt(bitPattern: opaque))
-        }
-        runtimeStorage.withMetadataLock { state in
-            state.objectTypeByPointer.removeValue(forKey: UInt(bitPattern: opaque))
-        }
-        Unmanaged<RuntimeKClassBox>.fromOpaque(opaque).release()
+        _ = runtimeReleaseObject(result)
     }
     return winner
 }
@@ -1192,7 +1210,7 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
 // a bare type token + name hint known at the `T::class` call site), these take
 // the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
-// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt) can
+// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt) can
 // be ordinary extension properties dispatched on `this`, without requiring
 // reified static type information at the call site.
 
@@ -1989,6 +2007,24 @@ public func kk_object_register_any_to_string(
     return 0
 }
 
+/// Registers the Any-erased toString bridge for a value class. Value classes
+/// are represented by boxed underlying primitives at reference boundaries, so
+/// the nominal class ID is the stable dispatch key rather than an object
+/// pointer.
+@_cdecl("kk_value_class_register_any_to_string")
+public func kk_value_class_register_any_to_string(
+    _ classID: Int,
+    _ functionRaw: Int
+) -> Int {
+    guard classID != 0, functionRaw != 0 else {
+        return 0
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.valueClassAnyToStringMethods[Int64(classID)] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_array_get")
 public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -2063,14 +2099,14 @@ public func kk_array_set_typed(
 public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> Int {
     guard let pairs = runtimeArrayBox(from: pairsArrayRaw),
           pairCount > 0,
-          pairs.elements.count >= pairCount * 2 else { return kk_array_new(0) }
+          pairs.count >= pairCount * 2 else { return kk_array_new(0) }
     var totalCount = 0
     for i in 0 ..< pairCount {
-        let marker = pairs.elements[i * 2]
-        let value = pairs.elements[i * 2 + 1]
+        let marker = pairs[i * 2]
+        let value = pairs[i * 2 + 1]
         if marker == -1 {
             if let array = runtimeArrayBox(from: value) {
-                totalCount += array.elements.count
+                totalCount += array.count
             }
         } else {
             totalCount += 1
@@ -2080,17 +2116,25 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     if let box = runtimeArrayBox(from: result) {
         var writeIndex = 0
         for i in 0 ..< pairCount {
-            let marker = pairs.elements[i * 2]
-            let value = pairs.elements[i * 2 + 1]
+            let marker = pairs[i * 2]
+            let sourceValue = pairs.values[i * 2 + 1]
             if marker == -1 {
-                if let array = runtimeArrayBox(from: value) {
-                    for elem in array.elements {
-                        box.elements[writeIndex] = elem
+                if let array = runtimeArrayBox(from: sourceValue.legacyRawValue) {
+                    for element in array.values {
+                        box.setValue(
+                            element.legacyRawValue,
+                            at: writeIndex,
+                            anyFallbackTag: element.anyFallbackTag
+                        )
                         writeIndex += 1
                     }
                 }
             } else {
-                box.elements[writeIndex] = value
+                box.setValue(
+                    sourceValue.legacyRawValue,
+                    at: writeIndex,
+                    anyFallbackTag: sourceValue.anyFallbackTag
+                )
                 writeIndex += 1
             }
         }
@@ -2181,6 +2225,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "{\(rendered)}"
     }
     if tryCast(raw, to: RuntimeRangeBox.self) != nil {
+        return runtimeElementToString(value)
+    }
+    if tryCast(raw, to: RuntimeDoubleRangeBox.self) != nil
+        || tryCast(raw, to: RuntimeFloatRangeBox.self) != nil
+    {
         return runtimeElementToString(value)
     }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {

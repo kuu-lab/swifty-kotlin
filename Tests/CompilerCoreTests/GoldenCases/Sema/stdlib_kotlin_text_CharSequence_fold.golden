@@ -1,0 +1,94 @@
+symbol fq=golden.sema.charSequenceFold.$0.initial[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFold.$0.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldIndexed.$1.initial[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldIndexed.$1.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldIndexed[kind=fun;params=kotlin.CharSequence,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,String] ret=String
+symbol fq=golden.sema.charSequenceFoldRight.$2.initial[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldRight.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldRightIndexed.$3.initial[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldRightIndexed.$3.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceFoldRightIndexed[kind=fun;params=kotlin.CharSequence,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,String] ret=String
+symbol fq=golden.sema.charSequenceFoldRight[kind=fun;params=kotlin.CharSequence,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,String] ret=String
+symbol fq=golden.sema.charSequenceFold[kind=fun;params=kotlin.CharSequence,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,Int] ret=Int
+symbol fq=golden.sema.directNonLocalFold.$4.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.directNonLocalFold.$4.target[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.directNonLocalFold[kind=fun;params=kotlin.CharSequence,Char] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,Char] ret=Int
+symbol fq=golden.sema.safeNonLocalFold.$5.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeNonLocalFold.$5.target[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeNonLocalFold[kind=fun;params=kotlin.CharSequence?,Char] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence?,Char] ret=Int
+file fstdlib_kotlin_text_CharSequence_fold package=golden.sema
+  decl golden.sema.charSequenceFold[kind=fun;params=kotlin.CharSequence,Int] fun charSequenceFold sym=golden.sema.charSequenceFold[kind=fun;params=kotlin.CharSequence,Int]
+  decl golden.sema.charSequenceFoldIndexed[kind=fun;params=kotlin.CharSequence,String] fun charSequenceFoldIndexed sym=golden.sema.charSequenceFoldIndexed[kind=fun;params=kotlin.CharSequence,String]
+  decl golden.sema.charSequenceFoldRight[kind=fun;params=kotlin.CharSequence,String] fun charSequenceFoldRight sym=golden.sema.charSequenceFoldRight[kind=fun;params=kotlin.CharSequence,String]
+  decl golden.sema.charSequenceFoldRightIndexed[kind=fun;params=kotlin.CharSequence,String] fun charSequenceFoldRightIndexed sym=golden.sema.charSequenceFoldRightIndexed[kind=fun;params=kotlin.CharSequence,String]
+  decl golden.sema.directNonLocalFold[kind=fun;params=kotlin.CharSequence,Char] fun directNonLocalFold sym=golden.sema.directNonLocalFold[kind=fun;params=kotlin.CharSequence,Char]
+  decl golden.sema.safeNonLocalFold[kind=fun;params=kotlin.CharSequence?,Char] fun safeNonLocalFold sym=golden.sema.safeNonLocalFold[kind=fun;params=kotlin.CharSequence?,Char]
+expr e@4:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceFold.$0.source[kind=vparam]
+expr e@4:17 name(initial) type=Int ref=golden.sema.charSequenceFold.$0.initial[kind=vparam]
+expr e@4:50 name(accumulator) type=Int ref=s-0
+expr e@4:64 name(value) type=Char ref=s-1
+expr e@4:64#1 memberCall recv=e@4:64 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@4:50#1 binary(add) lhs=e@4:50 rhs=e@4:64#1 type=Int
+expr e@4:26 lambda params=[accumulator,value] body=e@4:50#1 label=fold type=(Int, Char) -> Int
+expr e@4:5#1 memberCall recv=e@4:5 callee=fold args=[_:e@4:17,_:e@4:26] type=Int call=kotlin.text.fold[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};gen=1] targs=[Int]
+expr e@7:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceFoldIndexed.$1.source[kind=vparam]
+expr e@7:34 name(initial) type=String ref=golden.sema.charSequenceFoldIndexed.$1.initial[kind=vparam]
+expr e@8:11 name(accumulator) type=String ref=s-2
+expr e@8:23 name(index) type=Int ref=s-3
+expr e@8:30 name(value) type=Char ref=s-4
+expr e@8:9 stringTemplate[expr(e@8:11),expr(e@8:23),lit(:),expr(e@8:30),lit(;)] type=String
+expr e@7:55 lambda params=[index,accumulator,value] body=e@8:9 label=foldIndexed type=(Int, String, Char) -> String
+expr e@7:5#1 memberCall recv=e@7:5 callee=foldIndexed args=[initial:e@7:34,operation:e@7:55] type=String call=kotlin.text.foldIndexed[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=Int,T0,Char;ret=T0};gen=1] targs=[String]
+expr e@12:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceFoldRight.$2.source[kind=vparam]
+expr e@12:22 name(initial) type=String ref=golden.sema.charSequenceFoldRight.$2.initial[kind=vparam]
+expr e@12:57 name(accumulator) type=String ref=s-5
+expr e@12:69 name(value) type=Char ref=s-6
+expr e@12:55 stringTemplate[expr(e@12:57),expr(e@12:69),lit(;)] type=String
+expr e@12:31 lambda params=[value,accumulator] body=e@12:55 label=foldRight type=(Char, String) -> String
+expr e@12:5#1 memberCall recv=e@12:5 callee=foldRight args=[_:e@12:22,_:e@12:31] type=String call=kotlin.text.foldRight[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=Char,T0;ret=T0};gen=1] targs=[String]
+expr e@15:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceFoldRightIndexed.$3.source[kind=vparam]
+expr e@15:29 name(initial) type=String ref=golden.sema.charSequenceFoldRightIndexed.$3.initial[kind=vparam]
+expr e@16:11 name(accumulator) type=String ref=s-7
+expr e@16:23 name(index) type=Int ref=s-8
+expr e@16:30 name(value) type=Char ref=s-9
+expr e@16:9 stringTemplate[expr(e@16:11),expr(e@16:23),lit(:),expr(e@16:30),lit(;)] type=String
+expr e@15:38 lambda params=[index,value,accumulator] body=e@16:9 label=foldRightIndexed type=(Int, Char, String) -> String
+expr e@15:5#1 memberCall recv=e@15:5 callee=foldRightIndexed args=[_:e@15:29,_:e@15:38] type=String call=kotlin.text.foldRightIndexed[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=Int,Char,T0;ret=T0};gen=1] targs=[String]
+expr e@20:5 name(source) type=kotlin.CharSequence ref=golden.sema.directNonLocalFold.$4.source[kind=vparam]
+expr e@20:17 int(0) type=Int
+expr e@21:13 name(value) type=Char ref=s-10
+expr e@21:22 name(target) type=Char ref=golden.sema.directNonLocalFold.$4.target[kind=vparam]
+expr e@21:13#1 binary(equal) lhs=e@21:13 rhs=e@21:22 type=Boolean
+expr e@21:37 name(accumulator) type=Int ref=s-11
+expr e@21:51 int(1) type=Int
+expr e@21:37#1 binary(add) lhs=e@21:37 rhs=e@21:51 type=Int
+expr e@21:30 return value=e@21:37#1 type=Nothing
+expr e@21:9 if cond=e@21:13#1 then=e@21:30 else=_ type=Unit
+expr e@22:9 name(accumulator) type=Int ref=s-11
+expr e@22:23 int(1) type=Int
+expr e@22:9#1 binary(add) lhs=e@22:9 rhs=e@22:23 type=Int
+expr e@21:9#1 blockExpr stmts=[e@21:9] trailing=e@22:9#1 type=Int
+expr e@20:20 lambda params=[accumulator,value] body=e@21:9#1 label=fold type=(Int, Char) -> Int
+expr e@20:5#1 memberCall recv=e@20:5 callee=fold args=[_:e@20:17,_:e@20:20] type=Int call=kotlin.text.fold[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};gen=1] targs=[Int]
+expr e@24:13 int(1) type=Int
+expr e@24:12 unary(unaryMinus) operand=e@24:13 type=Int
+expr e@24:5 return value=e@24:12 type=Nothing
+expr e@28:5 name(source) type=kotlin.CharSequence? ref=golden.sema.safeNonLocalFold.$5.source[kind=vparam]
+expr e@28:25 int(0) type=Int
+expr e@29:13 name(value) type=Char ref=s-12
+expr e@29:22 name(target) type=Char ref=golden.sema.safeNonLocalFold.$5.target[kind=vparam]
+expr e@29:13#1 binary(equal) lhs=e@29:13 rhs=e@29:22 type=Boolean
+expr e@29:37 name(accumulator) type=Int ref=s-13
+expr e@29:51 int(1) type=Int
+expr e@29:37#1 binary(add) lhs=e@29:37 rhs=e@29:51 type=Int
+expr e@29:30 return value=e@29:37#1 type=Nothing
+expr e@29:9 if cond=e@29:13#1 then=e@29:30 else=_ type=Unit
+expr e@30:9 name(accumulator) type=Int ref=s-13
+expr e@30:23 int(1) type=Int
+expr e@30:9#1 binary(add) lhs=e@30:9 rhs=e@30:23 type=Int
+expr e@29:9#1 blockExpr stmts=[e@29:9] trailing=e@30:9#1 type=Int
+expr e@28:28 lambda params=[_,accumulator,value] body=e@29:9#1 label=foldIndexed type=(Int, Int, Char) -> Int
+expr e@28:5#1 safeMemberCall recv=e@28:5 callee=foldIndexed args=[_:e@28:25,_:e@28:28] type=Int? call=kotlin.text.foldIndexed[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=Int,T0,Char;ret=T0};gen=1] targs=[Int]
+expr e@32:13 int(1) type=Int
+expr e@32:12 unary(unaryMinus) operand=e@32:13 type=Int
+expr e@32:5 return value=e@32:12 type=Nothing
