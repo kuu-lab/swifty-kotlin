@@ -373,6 +373,40 @@ extension BuildKIRRegressionTests {
         })
     }
 
+    @Test func testNonCallableLocalDoesNotShadowSameNamedStdlibFunction() throws {
+        let source = """
+        fun main(): Int {
+            val emptyList = emptyList<Int>()
+            val emptyStrings = emptyList<String>()
+            return emptyList.size + emptyStrings.size
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "A non-callable local should not hide a same-named function: \(ctx.diagnostics.diagnostics)"
+        )
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let emptyListCalls = ast.arena.exprs.indices.compactMap { index -> CallBinding? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard isUserSourceExpr(exprID, in: ctx),
+                  case let .call(callee, _, _, _) = ast.arena.expr(exprID),
+                  case let .nameRef(name, _) = ast.arena.expr(callee),
+                  ctx.interner.resolve(name) == "emptyList"
+            else { return nil }
+            return sema.bindings.callBinding(for: exprID)
+        }
+        #expect(emptyListCalls.count == 2)
+        #expect(emptyListCalls.allSatisfy { binding in
+            guard let symbol = sema.symbols.symbol(binding.chosenCallee) else { return false }
+            return symbol.kind == .function && ctx.interner.resolve(symbol.name) == "emptyList"
+        })
+    }
+
     @Test func testBuildKIRPrependsBoundCallableRefReceiverAsCaptureArgument() throws {
         let source = """
         class Box {
