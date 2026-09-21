@@ -623,6 +623,13 @@ enum DiagnosticRegistry {
             summary: "Type parameter's upper bounds combine two or more mutually exclusive class types."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0306",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Super-call omits an argument with a default value.",
+            codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
