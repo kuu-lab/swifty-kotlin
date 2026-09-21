@@ -51,6 +51,53 @@ public inline fun <T, R> Sequence<T>.foldIndexed(initial: R, operation: (index: 
     return accumulator
 }
 
+// KSP-1355: Sequence reduce-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract. The accumulator may widen to a supertype of the
+// element type (`<S, T : S>`), matching the Iterable declarations.
+public inline fun <S, T : S> Sequence<T>.reduce(operation: (acc: S, T) -> S): S {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Sequence<T>.reduceIndexed(operation: (index: Int, acc: S, T) -> S): S {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var index = 1
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Sequence<T>.reduceOrNull(operation: (acc: S, T) -> S): S? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Sequence<T>.reduceIndexedOrNull(operation: (index: Int, acc: S, T) -> S): S? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var index = 1
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
+    }
+    return accumulator
+}
+
 @KsSymbolName("kk_sequence_to_list")
 public fun <T> Sequence<T>.toList(): List<T> {
     val result = mutableListOf<T>()

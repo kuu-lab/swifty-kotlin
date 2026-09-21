@@ -2899,7 +2899,7 @@
     - `kotlin.sequences.minWith` — fun Sequence.minWith(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minWith(kotlin/Comparator<in #A>): #A`
     - `kotlin.sequences.minWithOrNull` — fun Sequence.minWithOrNull(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minWithOrNull(kotlin/Comparator<in #A>): #A?`
 
-- [ ] KSP-1355: kotlin.sequences.Sequence.reduce-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1355: kotlin.sequences.Sequence.reduce-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `reduce`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2911,6 +2911,10 @@
     - `kotlin.sequences.reduceIndexed` — fun Sequence.reduceIndexed(Function3): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.sequences/Sequence<#B>).kotlin.sequences/reduceIndexed(kotlin/Function3<kotlin/Int, #A, #B, #A>): #A`
     - `kotlin.sequences.reduceIndexedOrNull` — fun Sequence.reduceIndexedOrNull(Function3): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.sequences/Sequence<#B>).kotlin.sequences/reduceIndexedOrNull(kotlin/Function3<kotlin/Int, #A, #B, #A>): #A?`
     - `kotlin.sequences.reduceOrNull` — fun Sequence.reduceOrNull(Function2): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.sequences/Sequence<#B>).kotlin.sequences/reduceOrNull(kotlin/Function2<#A, #B, #A>): #A?`
+  - 完了根拠: `SequenceConversionsAndSetOps.kt` に canonical `<S, T : S>` シグネチャの `public inline` 版を追加し、`SequenceAggregateHOF.kt`（`kotlin.collections`）の `<T>` 限定・`toList()` 経由版を除去した。bound call を `kk_sequence_reduceIndexed*` に横取りする Sequence 向け rewrite（VirtualCallRewrite / CallRewriteHOFAccumulations の Kotlin-name 腕）を削除。`kk_sequence_reduce*` Runtime 関数・RuntimeABISpec・未解決 fallback は Iterable/List/Set の残余 dispatch（`unresolvedCollectionMemberCallee`・`RuntimeSequenceIndexedReduceCompatibility`）と reduceRight 系が共用するため保持。
+  - 回帰: `SequenceReduceFunctionTests` で 4 API の canonical FQName 解決・source-backed・no-link・`<S, T : S>` ワイドニングを固定し、Sema Golden (`stdlib_kotlin_sequences_Sequence_reduce`) と `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_reduce.kt` を追加した。
+  - 検証: `swift build` OK / Sema Golden suite 92 件 pass（新規 golden 生成済み） / `SequenceReduceFunctionTests`・`SequenceSyntheticMemberLinkTests`・`SequenceFold*`・`CodegenBackendCollectionReduce*`・Runtime Sequence テスト pass / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_reduce.kt` PASS / `check_todo_ids.sh` pass / `validate_runtime_abi_links.sh` 4 件 pass
+  - 既知の別件制約: operation が `T` と異なる型を返す異種 accumulator（例: `{ acc: Any, v -> ... }`）は型推論が `S` を要素型に固定するため `KSWIFTK-TYPE-0001` になる（`Iterable.reduce` でも同じ挙動）。また boxed `Number` への `toInt()` 仮想 dispatch は既存のランタイム制約でクラッシュするため、diff ケースの widening 例は member 呼び出しを避けた形にしている。
 
 - [ ] KSP-1356: kotlin.sequences.Sequence.shuffled-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `shuffled`
