@@ -208,7 +208,13 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
 /// Distinct type used to identify CancellationException at runtime.
 /// The runtime checks `is RuntimeCancellationBox` to distinguish cancellation from
 /// regular throwables (CORO-002 / spec.md J17).
-final class RuntimeCancellationBox: RuntimeThrowableBox {
+///
+/// Non-final so `RuntimeTimeoutCancellationBox` can subclass it: every existing
+/// `is RuntimeCancellationBox` / `tryCast(_:to: RuntimeCancellationBox.self)` site
+/// (notably `kk_is_cancellation_exception`, which backs the
+/// `catch (e: CancellationException)` fast path) then accepts the timeout flavour
+/// without further wiring, matching kotlinx.coroutines' subclass relationship.
+class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.CancellationException"
     }
@@ -231,6 +237,34 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
 
     override init(message: String?, cause: Int = 0) {
         super.init(message: message, cause: cause)
+    }
+}
+
+/// `kotlinx.coroutines.TimeoutCancellationException` -- thrown when a
+/// `withTimeout` deadline expires (CORO-002 / spec.md J17).
+///
+/// A *subclass* of `RuntimeCancellationBox`, mirroring kotlinx.coroutines, so
+/// `catch (e: CancellationException)` catches a timeout while
+/// `catch (e: TimeoutCancellationException)` stays narrow: the latter is matched
+/// nominally by `kk_op_is` against `exceptionHierarchyFQNames`, which a plain
+/// `job.cancel()` cancellation does not carry.
+final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
+    override var exceptionFQName: String {
+        "kotlinx.coroutines.TimeoutCancellationException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        // The unqualified spelling is required because a `catch` clause resolves
+        // its type by short name, so the Sema symbol's fqName may be either the
+        // packaged or the bare form (see `resolveCatchClauseParameterType`).
+        [
+            "kotlinx.coroutines.TimeoutCancellationException",
+            "TimeoutCancellationException",
+        ] + super.exceptionHierarchyFQNames
+    }
+
+    override var renderedMessage: String {
+        message ?? "TimeoutCancellationException"
     }
 }
 
