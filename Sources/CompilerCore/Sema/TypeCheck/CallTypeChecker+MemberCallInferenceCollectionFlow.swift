@@ -2319,7 +2319,33 @@ extension CallTypeChecker {
                 "filterIndexedTo", "mapKeysTo", "mapValuesTo",
             ]
             if destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
-                let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                // A destination factory such as `mutableListOf()` has no
+                // argument from which to infer its element type.  When the
+                // enclosing destination HOF is itself target-typed, propagate
+                // an exact MutableList target into that argument so the
+                // factory contributes `MutableList<R>` rather than
+                // `MutableList<Nothing>`/`Any?` to the generic `C` constraint.
+                let destinationExpectedType: TypeID? = if let expectedType,
+                                                            case let .classType(expectedClassType) = sema.types.kind(
+                                                                of: sema.types.makeNonNullable(expectedType)
+                                                            ),
+                                                            let expectedClassSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                            expectedClassSymbol.fqName == [
+                                                                interner.intern("kotlin"),
+                                                                interner.intern("collections"),
+                                                                interner.intern("MutableList"),
+                                                            ]
+                {
+                    expectedType
+                } else {
+                    nil
+                }
+                let destinationType = driver.inferExpr(
+                    args[0].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: destinationExpectedType
+                )
                 let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
                 let destinationElementType: TypeID = if case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
                                                         destClassType.args.count >= 1
@@ -2956,7 +2982,20 @@ extension CallTypeChecker {
                     default: resultType = sema.types.anyType
                     }
                     if ["any", "none", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
-                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        let didBindListSource = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType]
+                        )
+                        if !didBindListSource,
+                           ["first", "last"].contains(calleeStr),
+                           !(calleeStr == "first" && isSetReceiver)
+                        {
+                            // Collection<T> and map.values use the generic
+                            // Iterable<T> source implementation when no more
+                            // specific List/Set overload is applicable.
+                            _ = bindBundledIterableSourceFunction(
+                                typeArguments: [collectionElementType]
+                            )
+                        }
                     }
                     if isMapReceiver, calleeStr == "none" {
                         // KSP-1016: bind the zero-argument Map overload to its
@@ -3481,7 +3520,15 @@ extension CallTypeChecker {
                     }
 
                     if ["any", "none", "all", "count", "find", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
-                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                        let didBindListSource = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType]
+                        )
+                        let didBindIterableSource = !didBindListSource
+                            && ["first", "last"].contains(calleeStr)
+                            && bindBundledIterableSourceFunction(
+                                typeArguments: [collectionElementType]
+                            )
+                        if didBindListSource || didBindIterableSource {
                             if args.count == 1, let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                             }

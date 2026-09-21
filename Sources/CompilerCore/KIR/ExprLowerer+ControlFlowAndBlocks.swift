@@ -514,6 +514,42 @@ extension ExprLowerer {
                 if let localValue = driver.ctx.localValue(for: symbol) {
                     return localValue
                 }
+                // A bare companion/object property reference can resolve
+                // directly to the property symbol without being marked as an
+                // implicit-receiver member. Computed object properties still
+                // have a one-parameter getter ABI, so materialize the singleton
+                // receiver instead of leaving PropertyLoweringPass to emit a
+                // zero-argument getter call.
+                if let symInfo = sema.symbols.symbol(symbol),
+                   symInfo.kind == .property,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   sema.symbols.symbol(ownerSymbol)?.kind == .object,
+                   sema.symbols.propertyHasCustomGetter(for: symbol)
+                       || sema.symbols.extensionPropertyGetterAccessor(for: symbol) != nil
+                {
+                    let ownerType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    let receiver = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                    instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiver],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // Inline constant initializers only for immutable (val) properties.
                 // Mutable (var) properties must always load from global store at runtime.
                 if let symInfo = sema.symbols.symbol(symbol),
