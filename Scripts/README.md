@@ -111,11 +111,12 @@ KSWIFTC=.build/release/kswiftc \
 If that fast path fails on a pull request or merge group, CI builds the exact
 base compiler on a fresh hosted runner. For each enforced metric,
 `paired_benchmark_gate.sh` runs three crossover blocks in ABBA, BAAB, ABBA
-order (A = base, B = candidate). The gate takes the geometric mean ratio in
-each block and gates the median of those three ratios, so monotonic runner
-drift and one anomalous block cannot affect only one side of the comparison.
-All six raw samples per compiler and the ratio diagnostics are retained in the
-retry artifact.
+order (A = base, B = candidate). Each block contributes one adjacent AB ratio
+and one adjacent BA ratio. The gate takes the median for each order and gates
+their geometric mean, so monotonic drift is balanced while an abrupt runner
+speed shift cannot make two whole blocks favor one compiler. All six raw
+samples per compiler and the ratio diagnostics are retained in the retry
+artifact.
 
 Before committing an intentional compiler, toolchain, or fixture change,
 capture new raw measurements with `--measure-only`, review the complete TSV

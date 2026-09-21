@@ -19,8 +19,9 @@ Usage:
                            [--tolerance PERCENT]
 
 For every enforced metric, measures three crossover blocks in ABBA, BAAB,
-ABBA order. Each compiler receives six samples. The median of the three
-within-block geometric mean candidate/base ratios is gated once.
+ABBA order. Each compiler receives six samples. The gate takes the median of
+the three adjacent AB ratios and the median of the three adjacent BA ratios,
+then gates their geometric mean once.
 EOF
 }
 
@@ -154,7 +155,7 @@ summary="$OUTPUT_DIR/summary.md"
 
 printf 'kind\tcase\tmetric\tvalue_ms\n' >"$paired_baseline"
 printf 'kind\tcase\tmetric\tvalue_ms\n' >"$paired_candidate"
-printf 'kind\tcase\tmetric\tbase_median_ms\tcandidate_median_ms\tblock_1_ratio\tblock_2_ratio\tblock_3_ratio\tmedian_ratio\tnormalized_candidate_ms\n' >"$ratios"
+printf 'kind\tcase\tmetric\tbase_median_ms\tcandidate_median_ms\tab_pair_1_ratio\tab_pair_2_ratio\tab_pair_3_ratio\tba_pair_1_ratio\tba_pair_2_ratio\tba_pair_3_ratio\tab_median_ratio\tba_median_ratio\tbalanced_ratio\tnormalized_candidate_ms\n' >"$ratios"
 printf 'kind\tcase\tmetric\tblock\tposition\tcompiler\tvalue_ms\traw_tsv\n' >"$samples"
 
 median_values() {
@@ -234,7 +235,8 @@ while IFS=$'\t' read -r kind case_name metric _reference_value; do
     metric_index=$((metric_index + 1))
     base_values=()
     candidate_values=()
-    block_ratios=()
+    ab_ratios=()
+    ba_ratios=()
 
     for block in 1 2 3; do
         if ((block % 2 == 1)); then
@@ -242,8 +244,8 @@ while IFS=$'\t' read -r kind case_name metric _reference_value; do
         else
             order=(candidate base base candidate)
         fi
-        block_base=()
-        block_candidate=()
+        block_labels=()
+        block_values=()
 
         for position in 1 2 3 4; do
             compiler_label="${order[$((position - 1))]}"
@@ -253,39 +255,55 @@ while IFS=$'\t' read -r kind case_name metric _reference_value; do
                 compiler="$CANDIDATE_KSWIFTC"
             fi
             measure_sample "$kind" "$case_name" "$metric" "$metric_index" "$block" "$position" "$compiler_label" "$compiler"
+            block_labels+=("$compiler_label")
+            block_values+=("$MEASURED_VALUE")
             if [[ "$compiler_label" == "base" ]]; then
                 base_values+=("$MEASURED_VALUE")
-                block_base+=("$MEASURED_VALUE")
             else
                 candidate_values+=("$MEASURED_VALUE")
-                block_candidate+=("$MEASURED_VALUE")
             fi
         done
 
-        if ((${#block_base[@]} != 2 || ${#block_candidate[@]} != 2)); then
-            echo "error: crossover block $block did not produce two samples per compiler for $kind/$case_name/$metric" >&2
+        if ((${#block_labels[@]} != 4 || ${#block_values[@]} != 4)); then
+            echo "error: crossover block $block did not produce four ordered samples for $kind/$case_name/$metric" >&2
             exit 1
         fi
-        block_ratio="$(awk -v base1="${block_base[0]}" -v base2="${block_base[1]}" -v candidate1="${block_candidate[0]}" -v candidate2="${block_candidate[1]}" \
-            'BEGIN { printf "%.9f\n", sqrt((candidate1 * candidate2) / (base1 * base2)) }')"
-        block_ratios+=("$block_ratio")
+
+        for pair_start in 0 2; do
+            first_label="${block_labels[$pair_start]}"
+            first_value="${block_values[$pair_start]}"
+            second_label="${block_labels[$((pair_start + 1))]}"
+            second_value="${block_values[$((pair_start + 1))]}"
+            if [[ "$first_label" == "base" && "$second_label" == "candidate" ]]; then
+                ab_ratios+=("$(awk -v base="$first_value" -v candidate="$second_value" 'BEGIN { printf "%.9f\n", candidate / base }')")
+            elif [[ "$first_label" == "candidate" && "$second_label" == "base" ]]; then
+                ba_ratios+=("$(awk -v candidate="$first_value" -v base="$second_value" 'BEGIN { printf "%.9f\n", candidate / base }')")
+            else
+                echo "error: crossover block $block contains a non-paired order at positions $((pair_start + 1))-$((pair_start + 2))" >&2
+                exit 1
+            fi
+        done
     done
 
-    if ((${#base_values[@]} != 6 || ${#candidate_values[@]} != 6 || ${#block_ratios[@]} != 3)); then
+    if ((${#base_values[@]} != 6 || ${#candidate_values[@]} != 6 || ${#ab_ratios[@]} != 3 || ${#ba_ratios[@]} != 3)); then
         echo "error: incomplete crossover samples for $kind/$case_name/$metric" >&2
         exit 1
     fi
 
     base_median="$(median_values "${base_values[@]}")"
     candidate_median="$(median_values "${candidate_values[@]}")"
-    median_ratio="$(median_values "${block_ratios[@]}")"
-    normalized_candidate="$(awk -v baseline="$base_median" -v ratio="$median_ratio" 'BEGIN { printf "%.6f\n", baseline * ratio }')"
+    ab_median="$(median_values "${ab_ratios[@]}")"
+    ba_median="$(median_values "${ba_ratios[@]}")"
+    balanced_ratio="$(awk -v ab="$ab_median" -v ba="$ba_median" 'BEGIN { printf "%.9f\n", sqrt(ab * ba) }')"
+    normalized_candidate="$(awk -v baseline="$base_median" -v ratio="$balanced_ratio" 'BEGIN { printf "%.6f\n", baseline * ratio }')"
 
     printf '%s\t%s\t%s\t%s\n' "$kind" "$case_name" "$metric" "$base_median" >>"$paired_baseline"
     printf '%s\t%s\t%s\t%s\n' "$kind" "$case_name" "$metric" "$normalized_candidate" >>"$paired_candidate"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$kind" "$case_name" "$metric" "$base_median" "$candidate_median" \
-        "${block_ratios[0]}" "${block_ratios[1]}" "${block_ratios[2]}" "$median_ratio" "$normalized_candidate" >>"$ratios"
+        "${ab_ratios[0]}" "${ab_ratios[1]}" "${ab_ratios[2]}" \
+        "${ba_ratios[0]}" "${ba_ratios[1]}" "${ba_ratios[2]}" \
+        "$ab_median" "$ba_median" "$balanced_ratio" "$normalized_candidate" >>"$ratios"
 done <"$metrics"
 
 expected_metrics="$(awk 'END { print NR - 1 }' "$metrics")"
@@ -311,9 +329,9 @@ bash "$BENCHMARK_GATE_SCRIPT" \
     echo
     echo 'Each enforced metric was measured in three crossover blocks: ABBA, BAAB, ABBA (A = base, B = candidate).'
     echo
-    echo 'Each compiler has six raw samples per metric. The gate uses the median of the three within-block geometric mean candidate/base ratios.'
+    echo 'Each compiler has six raw samples per metric. The gate takes the median of the three adjacent AB ratios and the median of the three adjacent BA ratios, then uses their geometric mean.'
     echo
-    echo 'The table compares the base median with that median multiplied by the gated ratio; actual compiler medians and all block ratios are in pair-ratios.tsv.'
+    echo 'The table compares the base median with that median multiplied by the order-balanced ratio; actual compiler medians and all adjacent-pair ratios are in pair-ratios.tsv.'
     echo
     cat "$comparison_summary"
 } >"$summary"

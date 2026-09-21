@@ -80,10 +80,26 @@ case "$position" in
     4) drift=133.1 ;;
 esac
 
+if [[ "${FAKE_SCENARIO:-drift}" == "regime-shift" ]]; then
+    case "$block:$position" in
+        1:1) drift=100 ;;
+        1:2) drift=125 ;;
+        1:3|1:4) drift=126 ;;
+        2:1) drift=125 ;;
+        2:2) drift=100 ;;
+        2:3) drift=101 ;;
+        2:4) drift=102 ;;
+        3:1) drift=126 ;;
+        3:2) drift=100 ;;
+        3:3) drift=101 ;;
+        3:4) drift=102 ;;
+    esac
+fi
+
 multiplier=1
 if [[ "$compiler" == "candidate-kswiftc" ]]; then
     case "${FAKE_SCENARIO:-drift}" in
-        drift) multiplier=1 ;;
+        drift|regime-shift) multiplier=1 ;;
         regression) multiplier=1.15 ;;
         any-pass)
             if [[ "$block" == "1" ]]; then multiplier=1; else multiplier=1.15; fi
@@ -184,6 +200,11 @@ cmp "$expected_sequence" "$SEQUENCE_LOG"
 [[ "$(awk 'END { print NR - 1 }' "$TEMP_DIR/drift/raw-samples.tsv")" == "108" ]]
 grep -q 'Result: PASS (9 enforced measurements' "$TEMP_DIR/drift/summary.md"
 
+expect_pass regime-shift
+grep -q $'\t1.250000000\t1.009900990\t0.793650794\t1.000000000\t1.250000000\t0.990196078\t1.009901\t1.000000\t1.004938307\t' \
+    "$TEMP_DIR/regime-shift/pair-ratios.tsv"
+grep -q 'Result: PASS (9 enforced measurements' "$TEMP_DIR/regime-shift/summary.md"
+
 expect_fail regression
 grep -q 'Result: FAIL (9 of 9 enforced measurements' "$TEMP_DIR/regression/summary.md"
 
@@ -251,4 +272,4 @@ fi
 grep -q 'error: unexpected enforced baseline metric: execution/unknown_case/runtime_ms' "$TEMP_DIR/unknown-baseline.log"
 grep -q 'error: enforced baseline is missing required metric: execution/arch010_hash_collections/runtime_ms' "$TEMP_DIR/unknown-baseline.log"
 
-echo 'OK: paired benchmark gate balances drift, rejects persistent regressions, suppresses one-block outliers, and fails closed'
+echo 'OK: paired benchmark gate balances drift and regime shifts, rejects persistent regressions, suppresses one-block outliers, and fails closed'
