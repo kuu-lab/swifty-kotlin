@@ -326,6 +326,20 @@ func runtimeAllocateCancellationException(message: String? = "CancellationExcept
     return Int(bitPattern: ptr)
 }
 
+/// Allocates a `kotlinx.coroutines.TimeoutCancellationException` for an expired
+/// `withTimeout` deadline. The message matches kotlinx.coroutines verbatim so
+/// `e.message` agrees with Kotlin/JVM.
+func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
+    let timeout = RuntimeTimeoutCancellationBox(
+        message: "Timed out waiting for \(timeoutMillis) ms"
+    )
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(timeout).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
     let normalized = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: ptr)) ?? ptr
     let unmanaged = Unmanaged<AnyObject>.fromOpaque(normalized)
