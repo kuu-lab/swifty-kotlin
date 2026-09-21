@@ -214,7 +214,7 @@ final class CallLowerer {
         guard let externalLinkName = sema.symbols.externalLinkName(for: symbolID),
               !externalLinkName.isEmpty,
               let signature = sema.symbols.functionSignature(for: symbolID),
-              let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == externalLinkName })
+              let spec = RuntimeABISpec.byName[externalLinkName]
         else {
             return false
         }
