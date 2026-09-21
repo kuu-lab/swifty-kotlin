@@ -434,6 +434,12 @@ public final class SymbolTable {
     private var byParentFQName: [[InternedString]: [SymbolID]] = [:]
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
+    /// Owning function/constructor for each symbol listed in some signature's
+    /// `valueParameterSymbols`; populated by `setFunctionSignature`. The first
+    /// registrant wins: later signatures may copy a parameter list wholesale
+    /// (e.g. synthesized forwarding helpers), but the parameter's semantic
+    /// owner is the declaration it was defined on.
+    private var valueParameterOwners: [SymbolID: SymbolID] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
@@ -792,6 +798,17 @@ public final class SymbolTable {
 
     public func setFunctionSignature(_ signature: FunctionSignature, for symbol: SymbolID) {
         functionSignatures[symbol] = signature
+        for parameterSymbol in signature.valueParameterSymbols {
+            if valueParameterOwners[parameterSymbol] == nil {
+                valueParameterOwners[parameterSymbol] = symbol
+            }
+        }
+    }
+
+    /// The function/constructor whose signature lists `symbol` in
+    /// `valueParameterSymbols`, if any signature has done so.
+    public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
+        valueParameterOwners[symbol]
     }
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {

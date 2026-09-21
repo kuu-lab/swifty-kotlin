@@ -291,8 +291,44 @@ extension CallLowerer {
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
                   ?? sema.bindings.callBindings[exprID]?.chosenCallee,
-              sema.symbols.symbol(propertySymbol)?.kind == .property,
-              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(propertySymbol)?.kind == .property
+        else {
+            return nil
+        }
+        let readResultType = sema.bindings.exprTypes[exprID]
+            ?? sema.symbols.propertyType(for: propertySymbol)
+            ?? sema.types.anyType
+        return lowerStoredMemberPropertyReadValue(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            resultType: readResultType,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Property-read core shared by `tryLowerStoredMemberPropertyRead` (which
+    /// derives the symbol and result type from a zero-argument member-access
+    /// expression) and the callable-property invocation path in
+    /// `lowerMemberCallExpr`, which reads `receiver.prop` to obtain the
+    /// function value before invoking it (KUU-482/BUG-250). The caller
+    /// supplies the property symbol and the desired result type explicitly.
+    func lowerStoredMemberPropertyReadValue(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID,
+        resultType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .class || ownerInfo.kind == .interface
                   || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
@@ -348,10 +384,6 @@ extension CallLowerer {
         {
             return nil
         }
-
-        let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.symbols.propertyType(for: propertySymbol)
-            ?? sema.types.anyType
 
         // Runtime-backed Set instances are opaque set boxes. Their
         // source-backed `size` getter must use the set bridge directly; an
