@@ -10,7 +10,9 @@
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `benchmark_gate.sh` | ✓ | Compare runtime and compiler-phase benchmark TSVs with a checked-in baseline |
+| `paired_benchmark_gate.sh` | ✓ | Retry the benchmark gate with time-balanced base/candidate rounds on one runner |
 | `test_benchmark_gate.sh` | ✓ | Regression test for benchmark tolerance and summary reporting |
+| `test_paired_benchmark_gate.sh` | ✓ | Regression test for paired benchmark ordering, aggregation, and failure propagation |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
@@ -106,6 +108,15 @@ KSWIFTC=.build/release/kswiftc \
     --summary /tmp/kswiftk-benchmark-summary.md
 ```
 
+If that fast path fails on a pull request or merge group, CI builds the exact
+base compiler on a fresh hosted runner. For each enforced metric,
+`paired_benchmark_gate.sh` runs three crossover blocks in ABBA, BAAB, ABBA
+order (A = base, B = candidate). The gate takes the geometric mean ratio in
+each block and gates the median of those three ratios, so monotonic runner
+drift and one anomalous block cannot affect only one side of the comparison.
+All six raw samples per compiler and the ratio diagnostics are retained in the
+retry artifact.
+
 Before committing an intentional compiler, toolchain, or fixture change,
 capture new raw measurements with `--measure-only`, review the complete TSV
 diff, and update the baseline deliberately. The tolerance contract itself is
@@ -113,6 +124,7 @@ covered by:
 
 ```bash
 bash Scripts/test_benchmark_gate.sh
+bash Scripts/test_paired_benchmark_gate.sh
 ```
 
 ## TODO hygiene

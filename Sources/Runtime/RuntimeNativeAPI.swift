@@ -966,8 +966,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         guard root != 0 else { return }
         var visited: Set<UInt> = []
         var queue: [Int] = [root]
-        while !queue.isEmpty {
-            let raw = queue.removeFirst()
+        var index = 0
+        while index < queue.count {
+            let raw = queue[index]
+            index += 1
             guard raw != 0 else { continue }
             let key = UInt(bitPattern: raw)
             guard visited.insert(key).inserted else { continue }
