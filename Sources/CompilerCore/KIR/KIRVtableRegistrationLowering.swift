@@ -299,8 +299,8 @@ func anyToStringBridgeSymbolForImplementation(
     return bridgeSymbol
 }
 
-/// Registers the generated raw-string bridge used when a class instance is
-/// stringified after its static type has been erased to `Any`.
+/// Registers the generated raw-string bridge used when a class or object
+/// instance is stringified after its static type has been erased to `Any`.
 func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -310,7 +310,8 @@ func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     interner: StringInterner,
     instructions: inout C
 ) where C.Element == KIRInstruction {
-    guard sema.symbols.symbol(nominalSymbol)?.kind == .class,
+    guard let nominalKind = sema.symbols.symbol(nominalSymbol)?.kind,
+          nominalKind == .class || nominalKind == .object,
           let implementation = resolveClassToStringSymbol(
               for: nominalSymbol,
               sema: sema,

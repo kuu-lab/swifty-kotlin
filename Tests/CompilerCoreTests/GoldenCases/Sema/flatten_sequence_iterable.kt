@@ -1,5 +1,5 @@
-// RF-FIXTURE-010: Sequence<Iterable<T>>.flatten() resolves through the
-// Iterable flatten overload and returns Sequence<T>.
+// KUU-620: Sequence<Iterable<T>>.flatten() must resolve to the dedicated
+// Sequence<Iterable<T>> overload and return Sequence<T>.
 
 fun flattenIterables(lists: Sequence<List<Int>>) {
     val flattened = lists.flatten()
