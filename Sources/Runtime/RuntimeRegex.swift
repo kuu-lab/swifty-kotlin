@@ -192,6 +192,16 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
     return tryCast(pointer, to: RuntimeMatchResultBox.self)
 }
 
+/// Compiles `pattern` with NSRegularExpression, substituting a valid
+/// equivalent for the empty pattern.
+///
+/// Kotlin's `Regex("")` is a legal pattern that matches the empty string at
+/// every position. `NSRegularExpression` rejects an empty pattern string, so
+/// the equivalent non-capturing empty group `(?:)` is compiled instead.
+private func compileRegexPattern(_ pattern: String, options: NSRegularExpression.Options) throws -> NSRegularExpression {
+    try NSRegularExpression(pattern: pattern.isEmpty ? "(?:)" : pattern, options: options)
+}
+
 /// Defense-in-depth bounds for regex evaluation.
 ///
 /// The runtime applies these caps on top of ICU / `NSRegularExpression` to keep
@@ -520,7 +530,7 @@ public func kk_regex_create_flat(
 
 private func runtimeRegexCreate(pattern: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+    guard let regex = try? compileRegexPattern(pattern, options: []) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
             message: "Illegal pattern: \(pattern)"
         )
@@ -837,7 +847,7 @@ private func createRegexBox(
     let canonEq = optionOrdinals.contains(kRegexOptionOrdinalCanonEq)
     let normalizedPattern = canonEq ? pattern.precomposedStringWithCanonicalMapping : pattern
     let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
-    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
+    guard let regex = try? compileRegexPattern(effectivePattern, options: options) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
             message: "Illegal pattern: \(pattern)"
         )
