@@ -68,6 +68,13 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// scope for a top-level `private class`) instead of a class-hierarchy check,
     /// without loosening genuinely explicit `private constructor` declarations.
     public static let constructorVisibilityInherited = SymbolFlags(rawValue: 1 << 23)
+    /// Marks the synthetic member alias created for a source-backed bundled
+    /// extension function under its receiver nominal's FQ name (KSP-443). The
+    /// alias exists solely for owner+member-name lookup — it is statically
+    /// dispatched through its external link name and must never occupy a
+    /// vtable/itable slot or be treated as a real member of the nominal
+    /// (KUU-545).
+    public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -427,6 +434,12 @@ public final class SymbolTable {
     private var byParentFQName: [[InternedString]: [SymbolID]] = [:]
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
+    /// Owning function/constructor for each symbol listed in some signature's
+    /// `valueParameterSymbols`; populated by `setFunctionSignature`. The first
+    /// registrant wins: later signatures may copy a parameter list wholesale
+    /// (e.g. synthesized forwarding helpers), but the parameter's semantic
+    /// owner is the declaration it was defined on.
+    private var valueParameterOwners: [SymbolID: SymbolID] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
@@ -474,6 +487,19 @@ public final class SymbolTable {
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
+
+    /// KUU-655: an `override` whose own declaration carries no default value
+    /// expressions still accepts calls that omit the overridden parameter
+    /// (Kotlin inherits the base's default). `OverrideDefaultArgumentInheritance`
+    /// copies the base's `valueParameterHasDefaultValues` flags onto such an
+    /// override's `FunctionSignature` so overload resolution accepts the
+    /// call, and records the link here so KIR call-site lowering knows to
+    /// route through the base's `$default` stub (the override itself never
+    /// gets one -- its AST has no default expressions to evaluate).
+    /// Key = override symbol, Value = the overridden symbol that actually
+    /// owns the default value expressions (possibly several levels up an
+    /// override chain).
+    private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
 
     /// Thread safety lock for concurrent access
     private let lock = NSLock()
@@ -771,10 +797,30 @@ public final class SymbolTable {
 
     public func setFunctionSignature(_ signature: FunctionSignature, for symbol: SymbolID) {
         functionSignatures[symbol] = signature
+        for parameterSymbol in signature.valueParameterSymbols {
+            if valueParameterOwners[parameterSymbol] == nil {
+                valueParameterOwners[parameterSymbol] = symbol
+            }
+        }
+    }
+
+    /// The function/constructor whose signature lists `symbol` in
+    /// `valueParameterSymbols`, if any signature has done so.
+    public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
+        valueParameterOwners[symbol]
     }
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
         functionSignatures[symbol]
+    }
+
+    /// KUU-655: see `overrideDefaultsBaseSymbols` above.
+    public func setOverrideDefaultsBaseSymbol(_ base: SymbolID, for symbol: SymbolID) {
+        overrideDefaultsBaseSymbols[symbol] = base
+    }
+
+    public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
+        overrideDefaultsBaseSymbols[symbol]
     }
 
     public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {

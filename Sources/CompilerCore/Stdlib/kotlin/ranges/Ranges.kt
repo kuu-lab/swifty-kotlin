@@ -14,12 +14,9 @@ package kotlin.ranges
 // `HeaderHelpers+SyntheticRangeProgressionStubs.swift`.
 //
 // The members (`start`, `endInclusive`, `endExclusive`, `contains`, `isEmpty`,
-// `lessThanOrEquals`) stay compiler residuals, alongside the concrete
-// `IntRange`/`LongRange`/`CharRange`/`UIntRange`/`ULongRange` conformances that
-// are wired before bundled headers are collected. Declaring them here instead
-// turns every interface-typed member call into an itable dispatch that the
-// pre-bundle conformance wiring cannot populate. Moving them to Kotlin belongs
-// with the concrete conformance rework (KSP-451).
+// `lessThanOrEquals`) stay compiler residuals for interface-typed dispatch.
+// Typed range class shells are source-backed by IntRange.kt, LongRange.kt, and
+// CharRange.kt; unsigned range shells remain residual until KSP-709.
 
 /**
  * Represents a range of values of type [T] with both bounds included in the range.

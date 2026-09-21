@@ -215,8 +215,43 @@ final class ObjectLiteralLowerer {
         for propertyDeclID in objectDecl.memberProperties {
             guard let propertySymbol = sema.bindings.declSymbols[propertyDeclID],
                   let decl = ast.arena.decl(propertyDeclID),
-                  case let .propertyDecl(propertyDecl) = decl,
-                  let initializer = propertyDecl.initializer,
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if propertyDecl.delegateExpression != nil {
+                // BUG-267: run the same delegate-expression initialization a
+                // named class performs in its constructor, storing the
+                // delegate instance into the object's `$delegate_<name>`
+                // field. The object literal is the active implicit receiver
+                // here, so `emitFieldStore` lands at the layout offset.
+                _ = objectLiteralDelegateStorageSymbol(
+                    for: propertySymbol,
+                    propertyDecl: propertyDecl,
+                    objectDecl: objectDecl,
+                    objectSymbol: objectSymbol,
+                    sema: sema,
+                    interner: interner
+                )
+                var emitContext = KIRLoweringEmitContext(instructions)
+                driver.emitDelegatePropertyInitializer(
+                    propertyDecl: propertyDecl,
+                    propSymbol: propertySymbol,
+                    sema: sema,
+                    arena: arena,
+                    shared: KIRLoweringSharedContext(
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers
+                    ),
+                    body: &emitContext
+                )
+                instructions = emitContext.instructions
+                continue
+            }
+            guard let initializer = propertyDecl.initializer,
                   let fieldOffset = layout?.fieldOffsets[sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol]
             else {
                 continue
@@ -276,7 +311,7 @@ final class ObjectLiteralLowerer {
             return
         }
         let candidates = sema.symbols.lookupAll(fqName: superclassInfo.fqName + [interner.intern("<init>")])
-        guard let superCtorSymbol = resolveObjectLiteralSuperConstructor(
+        guard let superCtorSymbol = driver.resolveObjectSuperConstructor(
             candidates: candidates,
             argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             sema: sema
@@ -309,47 +344,6 @@ final class ObjectLiteralLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-    }
-
-    /// Picks which of the superclass's `<init>` overloads `argExprs` (the
-    /// object literal's `object : Base(args) { ... }` header) actually calls.
-    /// A single candidate is used as-is; multiple candidates are first
-    /// narrowed by arity, then — if more than one still matches — by
-    /// parameter type (using each argument's Sema-resolved expression type,
-    /// with a type-parameter position treated as a wildcard, mirroring
-    /// `resolveOverriddenVtableSlot` in `VtableOverrideMatching.swift`).
-    /// Falls back to the first candidate when nothing narrows cleanly (e.g.
-    /// a defaulted trailing parameter omitted at the call site) rather than
-    /// emitting no super call at all — the same residual gap
-    /// `emitSuperConstructorDelegation` has for named classes, since neither
-    /// path expands omitted default arguments.
-    private func resolveObjectLiteralSuperConstructor(
-        candidates: [SymbolID],
-        argExprs: [ExprID],
-        sema: SemaModule
-    ) -> SymbolID? {
-        guard candidates.count > 1 else {
-            return candidates.first
-        }
-        let arityMatches = candidates.filter {
-            sema.symbols.functionSignature(for: $0)?.parameterTypes.count == argExprs.count
-        }
-        guard arityMatches.count > 1 else {
-            return arityMatches.first ?? candidates.first
-        }
-        let argTypes = argExprs.map { sema.bindings.exprTypes[$0] }
-        let typeMatches = arityMatches.filter { candidate in
-            guard let parameterTypes = sema.symbols.functionSignature(for: candidate)?.parameterTypes else {
-                return false
-            }
-            for (paramType, argType) in zip(parameterTypes, argTypes) {
-                guard let argType else { continue }
-                if case .typeParam = sema.types.kind(of: paramType) { continue }
-                if paramType != argType { return false }
-            }
-            return true
-        }
-        return typeMatches.count == 1 ? typeMatches[0] : arityMatches[0]
     }
 
     /// KSP-CAP-001: re-establishes an object literal's captured outer
@@ -646,14 +640,58 @@ final class ObjectLiteralLowerer {
             else {
                 continue
             }
+            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+            // BUG-267: delegated properties get their accessors synthesized
+            // through the same getValue/setValue convention as named-class
+            // members (`MemberLowerer.lowerDelegateAccessor`). Both read
+            // paths — explicit `o.x` and implicit reads inside member
+            // functions — lower to `call get`/`call set` on this accessor;
+            // the delegate instance lives in the object's `$delegate_<name>`
+            // field (stored in `lowerStoredObjectLiteralExpr`).
+            if let delegateExpr = propertyDecl.delegateExpression {
+                let delegateStorageSymbol = objectLiteralDelegateStorageSymbol(
+                    for: propertySymbol,
+                    propertyDecl: propertyDecl,
+                    objectDecl: objectDecl,
+                    objectSymbol: objectSymbol,
+                    sema: sema,
+                    interner: interner
+                )
+                let delegateKind = StdlibDelegateKind.detect(
+                    delegateExpr: delegateExpr, ast: ast, interner: interner
+                )
+                driver.memberLowerer.lowerDelegateAccessor(
+                    propertySymbol: propertySymbol,
+                    propertyType: propertyType,
+                    delegateStorageSymbol: delegateStorageSymbol,
+                    delegateKind: delegateKind,
+                    accessorKind: .getter,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
+                if propertyDecl.isVar {
+                    driver.memberLowerer.lowerDelegateAccessor(
+                        propertySymbol: propertySymbol,
+                        propertyType: propertyType,
+                        delegateStorageSymbol: delegateStorageSymbol,
+                        delegateKind: delegateKind,
+                        accessorKind: .setter,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
+                continue
+            }
             // Object-literal member properties are not flagged `.overrideMember`
             // in Sema, so every non-delegated property gets a getter accessor;
             // the itable registration only wires up the ones that match an
             // interface property, and any extra getter is simply unused.
-            guard propertyDecl.delegateExpression == nil else {
-                continue
-            }
-            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
             if let getter = propertyDecl.getter, getter.body != .unit {
                 driver.memberLowerer.lowerAccessorBody(
                     accessorBody: getter.body,
@@ -697,6 +735,36 @@ final class ObjectLiteralLowerer {
         for declID in allDecls {
             driver.ctx.appendGeneratedCallableDecl(declID)
         }
+    }
+
+    /// BUG-267: resolves the `$delegate_<name>` storage symbol Sema registers
+    /// for an object-literal delegated property (`ensureObjectLiteralSymbol`).
+    /// The fallback define mirrors `MemberLowerer`'s define-on-demand path for
+    /// named classes so lowering stays total if the Sema invariant is ever
+    /// bypassed (e.g. a synthetic AST built without the full inference pass).
+    private func objectLiteralDelegateStorageSymbol(
+        for propertySymbol: SymbolID,
+        propertyDecl: PropertyDecl,
+        objectDecl: ObjectDecl,
+        objectSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID {
+        if let existing = sema.symbols.delegateStorageSymbol(for: propertySymbol) {
+            return existing
+        }
+        let storageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+        let storageSymbol = sema.symbols.define(
+            kind: .field,
+            name: storageName,
+            fqName: [objectDecl.name, storageName],
+            declSite: propertyDecl.range,
+            visibility: .private,
+            flags: []
+        )
+        sema.symbols.setParentSymbol(objectSymbol, for: storageSymbol)
+        sema.symbols.setDelegateStorageSymbol(storageSymbol, for: propertySymbol)
+        return storageSymbol
     }
 
     private func syntheticObjectLiteralSymbols(

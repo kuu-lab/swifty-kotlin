@@ -692,36 +692,6 @@ extension CallLowerer {
         }
 
         switch memberName {
-        case "size":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .map?:
-                return interner.intern("__kk_map_size")
-            case .set?:
-                return interner.intern("__kk_set_size")
-            case .array?:
-                return interner.intern("__kk_array_size")
-            case .list?:
-                return interner.intern("__kk_list_size")
-            case .collection?:
-                // A bare `Collection<T>` receiver can be backed by either a list
-                // or a set box, so it needs the type-tag dispatching bridge.
-                return interner.intern("__kk_collection_size")
-            default:
-                break
-            }
-        case "isEmpty":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .map?:
-                return interner.intern("__kk_map_is_empty")
-            case .set?:
-                return interner.intern("__kk_set_is_empty")
-            case .array?:
-                return interner.intern("kk_array_is_empty")
-            case .list?, .collection?:
-                return interner.intern("kk_list_is_empty")
-            default:
-                break
-            }
         case "iterator":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
@@ -890,8 +860,10 @@ extension CallLowerer {
             return interner.intern("__kk_set_is_empty")
         case .array?:
             return interner.intern("kk_array_is_empty")
-        case .list?, .collection?:
+        case .list?:
             return interner.intern("kk_list_is_empty")
+        case .collection?:
+            return interner.intern("__kk_collection_isEmpty")
         case .sequence?, nil:
             return nil
         }

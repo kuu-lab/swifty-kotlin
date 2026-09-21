@@ -330,6 +330,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsLinkedHashMapFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
+    let kotlinCollectionsIterableFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
@@ -343,6 +344,8 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesContinuationFQName: [InternedString]
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
+    /// Bundled Kotlin-source Array copy entry points (KSP-1515).
+    let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
@@ -501,6 +504,11 @@ package struct KnownCompilerNames {
         kotlinCollectionsLinkedHashMapFQName = [kotlin, kotlinCollections, interner.intern("LinkedHashMap")]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
+        kotlinCollectionsIterableFQName = [kotlin, kotlinCollections, interner.intern("Iterable")]
+        sourceBackedArrayCopyFQNames = [
+            [kotlin, kotlinCollections, interner.intern("copyOf")],
+            [kotlin, kotlinCollections, interner.intern("copyOfRange")],
+        ]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
         kotlinxCoroutinesJobFQName = [kotlinx, coroutines, job]
         kotlinxCoroutinesDeferredFQName = [kotlinx, coroutines, deferred]

@@ -339,7 +339,7 @@ struct RuntimeRegexTests {
             kk_regex_create_flat(data, length, byteCount, hash, &thrown)
         }
         #expect(thrown == 0)
-        let resultRaw = kk_string_replace_regex(makeStringRaw("ab"), regexRaw, makeStringRaw("-"))
+        let resultRaw = kk_string_replace_regex(makeStringRaw("ab"), regexRaw, makeStringRaw("-"), nil)
         #expect(runtimeString(resultRaw) == "-a-b-")
     }
 
@@ -348,6 +348,24 @@ struct RuntimeRegexTests {
             cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
                 Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
             }
+        }
+    }
+
+    // KUU-648: fromLiteral keeps the original literal as `.pattern`, not the escaped matcher.
+    @Test
+    func fromLiteralPreservesOriginalPatternAndLiteralOption() {
+        let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
+            kk_regex_from_literal_flat(0, data, length, byteCount, hash)
+        }
+        #expect(runtimeString(__kk_regex_pattern(literalRegex)) == "a.b")
+        // ordinal 2 = RegexOption.LITERAL; Kotlin fromLiteral is Regex(literal, LITERAL).
+        #expect(__kk_regex_option_mask(literalRegex) & (1 << 2) != 0)
+
+        withFlatString("a.b") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 1)
+        }
+        withFlatString("axb") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 0)
         }
     }
 }

@@ -1,6 +1,8 @@
 
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
+    static let requiredStage: KIRStage = .integerNarrowed
+    static let producedStage: KIRStage = .abiLowered
 
     static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
         guard let callee = BoxingCalleeTable(interner: interner).boxCallee(for: primitive) else {
@@ -120,17 +122,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_array_is_empty"),
         ]
 
-        // __kk_op_rangeUntil backs the `until` infix function (registered in
+        // The typed rangeUntil bridges back the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
-        // used for range operators) but always returns a boxed RuntimeRangeBox
-        // reference at runtime (see __kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // used for range operators) but always return boxed RuntimeRangeBox
+        // references at runtime (see the typed rangeUntil bridges in Runtime).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
         // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
         // on the range object itself.
         let boxedReturnRangeCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_op_rangeUntil"),
+            ctx.interner.intern("__kk_long_rangeUntil"),
+            ctx.interner.intern("__kk_char_rangeUntil"),
+            ctx.interner.intern("__kk_uint_rangeUntil"),
         ]
 
         let unboxSkipCallees = boxedReturnRangeCallees.union(
@@ -566,7 +571,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         resolveValueClassKind($0, types: types, symbols: symbols)
                     }
                     if let argKind,
-                       let boxCallee = boxCalleeForPrimitive(argKind, boxingCalleeTable: boxingCalleeTable)
+                       let boxCallee = boxCalleeForPrimitive(
+                           argKind,
+                           boxingCalleeTable: boxingCalleeTable,
+                           preferStaticPrimitive: true
+                       )
                     {
                         let boxedResult = module.arena.appendTemporary(type: types.anyType)
                         emitBoxCallWithValueClassTag(
@@ -630,7 +639,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         // Leave string unboxing to the backend bridge.
                     } else if let unboxCallee = unboxingCallee(
                         sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
-                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
+                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                        preferStaticPrimitive: true
                     ) {
                         effectiveUnbox = (unboxCallee, resultType)
                     }
@@ -704,7 +714,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
         guard let boxCallee = boxCalleeForPrimitive(
             resolvedValueKind,
-            boxingCalleeTable: boxingCalleeTable
+            boxingCalleeTable: boxingCalleeTable,
+            preferStaticPrimitive: true
         ) else {
             return nil
         }
@@ -765,7 +776,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             || isNonValueClassReference(rawToKind, symbols: symbols),
             let boxCallee = boxCalleeForPrimitive(
                 fromKind,
-                boxingCalleeTable: boxingCalleeTable
+                boxingCalleeTable: boxingCalleeTable,
+                preferStaticPrimitive: true
             )
         {
             var instructions: [KIRInstruction] = []
@@ -788,7 +800,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
            let unboxCallee = unboxingCallee(
                sourceKind: fromKind, targetKind: toKind,
                boxingCalleeTable: boxingCalleeTable,
-               types: types, symbols: symbols
+               types: types, symbols: symbols,
+               preferStaticPrimitive: true
            )
         {
             return [.call(symbol: nil, callee: unboxCallee, arguments: [from],

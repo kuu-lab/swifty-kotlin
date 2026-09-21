@@ -284,6 +284,26 @@ final class RuntimeCharacterCodingExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeMalformedInputExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.nio.charset.MalformedInputException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.nio.charset.MalformedInputException",
+            "java.nio.charset.CharacterCodingException",
+            "kotlin.text.CharacterCodingException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("MalformedInputException", message)
+    }
+}
+
 final class RuntimeKotlinNothingValueExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.KotlinNothingValueException"
@@ -600,6 +620,21 @@ func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
 /// Allocates a `CharacterCodingException` with the given message.
 func runtimeAllocateCharacterCodingException(message: String?) -> Int {
     let throwable = RuntimeCharacterCodingExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Message used by `MalformedInputException` for a one-byte invalid sequence.
+let runtimeMalformedInputExceptionDefaultMessage = "Input length = 1"
+
+/// Allocates a `MalformedInputException` with the given message.
+func runtimeAllocateMalformedInputException(
+    message: String? = runtimeMalformedInputExceptionDefaultMessage
+) -> Int {
+    let throwable = RuntimeMalformedInputExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))

@@ -25,6 +25,9 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
+    /// singleton or a dedicated runtime registry rather than passRetained.
+    var borrowedObjectPointers: Set<UInt> = []
     /// Canonical boxed Unit pointer, retained in `objectPointers` across GC resets.
     var unitBoxPointer: UInt? = nil
     var globalRootSlots: Set<UInt> = []
@@ -43,11 +46,13 @@ struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
+    var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
     var objectAnyToStringMethods: [UInt: Int] = [:]
+    var valueClassAnyToStringMethods: [Int64: Int] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -508,11 +513,13 @@ func kk_runtime_reset_metadata() {
         let boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
         state.kClassBoxCache.removeAll(keepingCapacity: false)
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
+        state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
         state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
+        state.valueClassAnyToStringMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
         return boxes
@@ -523,9 +530,13 @@ func kk_runtime_reset_metadata() {
     runtimeKMemberRegistry.reset()
 }
 
-private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
+func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
     runtimeStorage.withMetadataLock { state in
+        state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
+            UInt(bitPattern: raw) != key
+        }
         state.objectTypeByPointer.removeValue(forKey: key)
+        state.arrayTypeIDsByPointer.removeValue(forKey: key)
         state.objectVtableMethods.removeValue(forKey: key)
         state.objectEqualsOverrides.removeValue(forKey: key)
         state.objectAnyToStringMethods.removeValue(forKey: key)
@@ -535,9 +546,17 @@ private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
 }
 
 func kk_runtime_reset_flow() {
-    runtimeStorage.withFlowLock { state in
+    let flowKeys = runtimeStorage.withFlowLock { state -> [UInt] in
+        let keys = Array(state.flowHandles.keys)
         state.flowHandles.removeAll(keepingCapacity: false)
         state.flowRetainCounts.removeAll(keepingCapacity: false)
+        return keys
+    }
+    runtimeStorage.withGCLock { state in
+        for key in flowKeys {
+            state.objectPointers.remove(key)
+            state.borrowedObjectPointers.remove(key)
+        }
     }
 }
 

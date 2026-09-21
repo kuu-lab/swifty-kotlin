@@ -10,12 +10,21 @@
 
 @_cdecl("__kk_uint_rangeTo")
 public func __kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .uintRange))
+}
+
+@_cdecl("__kk_uint_rangeUntil")
+public func __kk_uint_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
+    let lhsUnsigned = UInt(bitPattern: lhs)
+    let rhsUnsigned = UInt(bitPattern: rhs)
+    let last = rhs &- 1
+    let step = rhsUnsigned <= lhsUnsigned ? 0 : 1
+    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: last, step: step, kind: .uintRange))
 }
 
 @_cdecl("__kk_uint_downTo")
 public func __kk_uint_downTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1, kind: .uintProgression))
 }
 
 @_cdecl("__kk_uint_step")
@@ -126,6 +135,28 @@ public func kk_uint_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: 
 {
     runtimeRangeLastMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
                                functionName: "kk_uint_range_findLast", orNull: true)
+}
+
+@_cdecl("kk_uint_range_first_orThrow")
+public func kk_uint_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "kk_uint_range_first_orThrow"
+    )
+}
+
+@_cdecl("kk_uint_range_last_orThrow")
+public func kk_uint_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "kk_uint_range_last_orThrow"
+    )
 }
 
 @_cdecl("kk_uint_range_first_predicate")
@@ -266,20 +297,6 @@ public func __kk_uint_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeM
 
 // MARK: - ULong HOFs (STDLIB-RANGE-037/039)
 
-@_cdecl("kk_ulong_range_firstOrNull")
-public func kk_ulong_range_firstOrNull(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_firstOrNull") { range in
-        RuntimeUnsignedRangeHOFKind.firstOrNull(range)
-    }
-}
-
-@_cdecl("kk_ulong_range_lastOrNull")
-public func kk_ulong_range_lastOrNull(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_lastOrNull") { range in
-        RuntimeUnsignedRangeHOFKind.lastOrNull(range)
-    }
-}
-
 @_cdecl("__kk_ulong_range_randomOrNull")
 public func __kk_ulong_range_randomOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
@@ -360,51 +377,21 @@ public func __kk_ulong_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: Unsafe
     }
 }
 
-@_cdecl("kk_ulong_range_average")
-public func kk_ulong_range_average(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_average") { range in
-        RuntimeUnsignedRangeHOFKind.average(range)
-    }
-}
-
-@_cdecl("kk_ulong_range_sorted")
-public func kk_ulong_range_sorted(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_sorted") { range in
-        RuntimeUnsignedRangeHOFKind.sorted(range)
-    }
-}
-
 // MARK: - ULongProgression operations (STDLIB-RANGE-039)
 
 @_cdecl("__kk_ulong_rangeTo")
 public func __kk_ulong_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .ulongRange))
 }
 
 @_cdecl("__kk_ulong_downTo")
 public func __kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1, kind: .ulongProgression))
 }
 
 @_cdecl("__kk_ulong_step")
 public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     runtimeUnsignedStep(rangeRaw, stepValue)
-}
-
-@_cdecl("kk_ulong_range_reversed")
-public func kk_ulong_range_reversed(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_reversed") { range in
-        runtimeUnsignedRangeReversed(range)
-    }
-}
-
-// MARK: - ULongRange toList (STDLIB-524)
-
-@_cdecl("kk_ulong_range_toList")
-public func kk_ulong_range_toList(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_toList") { range in
-        RuntimeUnsignedRangeHOFKind.toList(range)
-    }
 }
 
 @_cdecl("kk_range_step")
@@ -418,31 +405,49 @@ private func runtimeUnsignedStep(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     guard stepValue > 0 else { return rangeRaw }
     guard stepValue != Int.min else { return rangeRaw }
     guard let range = runtimeRangeBox(from: rangeRaw) else { return rangeRaw }
-    if range.step == 0 { return rangeRaw }
+    if range.step == 0 {
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: range.first,
+            last: range.last,
+            step: range.step,
+            kind: range.kind.progressionKind
+        ))
+    }
     let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
     let firstUnsigned = UInt(bitPattern: range.first)
     let lastUnsigned = UInt(bitPattern: range.last)
     let alignedLast: Int
     if nextStep > 0 {
         guard firstUnsigned <= lastUnsigned else {
-            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: nextStep,
+                kind: range.kind.progressionKind
+            ))
         }
         let diff = range.last &- range.first
         let remainder = diff % nextStep
         alignedLast = range.last &- remainder
     } else {
         guard firstUnsigned >= lastUnsigned else {
-            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: nextStep,
+                kind: range.kind.progressionKind
+            ))
         }
         let diff = range.first &- range.last
         let remainder = diff % (0 &- nextStep)
         alignedLast = range.last &+ remainder
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: alignedLast, step: nextStep))
-}
-
-private func runtimeUnsignedRangeReversed(_ range: RuntimeRangeBox) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: range.last, last: range.first, step: 0 &- range.step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: range.first,
+        last: alignedLast,
+        step: nextStep,
+        kind: range.kind.progressionKind
+    ))
 }
 
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {

@@ -20,7 +20,7 @@ expr e@3:15 lambda params=[] body=e@3:17 label=forEach type=(Int) -> Unit
 expr e@3:5#1 memberCall recv=e@3:5 callee=forEach args=[_:e@3:15] type=Unit call=kotlin.sequences.forEach[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Unit};gen=1] targs=[Int]
 expr e@4:14 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s[kind=local]
 expr e@4:37 name(it) type=Int ref=s-1
-expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;gen=1] targs=[Int]
 expr e@4:24 lambda params=[] body=e@4:26 label=flatMap type=(Int) -> Any
 expr e@4:14#1 memberCall recv=e@4:14 callee=flatMap args=[_:e@4:24] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.flatMap[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=kotlin.sequences.Sequence<T1>};gen=2] targs=[Int,Int]
 expr e@4:5 localDecl fm mutable=0 type=_ init=e@4:14#1 type=Unit ref=__local_1.fm[kind=local]
