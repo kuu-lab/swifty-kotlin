@@ -60,8 +60,25 @@ typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMu
 final class RuntimeStringBox {
     let value: String
 
+    /// Guards the lazily-decoded UTF-16 code-unit cache. `value` is immutable,
+    /// so the decode runs once and is reused by every indexed access
+    /// (get/length/subSequence) instead of rebuilding the array per call.
+    private let utf16CacheLock = NSLock()
+    private var cachedUTF16CodeUnits: [UInt16]?
+
     init(_ value: String) {
         self.value = value
+    }
+
+    var utf16CodeUnits: [UInt16] {
+        utf16CacheLock.lock()
+        defer { utf16CacheLock.unlock() }
+        if let cached = cachedUTF16CodeUnits {
+            return cached
+        }
+        let decoded = runtimeKotlinStringUTF16CodeUnits(value)
+        cachedUTF16CodeUnits = decoded
+        return decoded
     }
 }
 

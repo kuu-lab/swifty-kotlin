@@ -1,9 +1,32 @@
+import Foundation
 
 // MARK: - StringBuilder Runtime Type (STDLIB-255/256/257)
 
 final class RuntimeStringBuilderBox {
-    var value: String
+    var value: String {
+        didSet {
+            utf16CacheLock.lock()
+            cachedUTF16CodeUnits = nil
+            utf16CacheLock.unlock()
+        }
+    }
+    private let utf16CacheLock = NSLock()
+    private var cachedUTF16CodeUnits: [UInt16]?
+
     init(_ initial: String = "") { self.value = initial }
+
+    /// Kotlin UTF-16 code units of the current contents, decoded once and
+    /// reused until `value` mutates (any write drops the cache).
+    var utf16CodeUnits: [UInt16] {
+        utf16CacheLock.lock()
+        defer { utf16CacheLock.unlock() }
+        if let cached = cachedUTF16CodeUnits {
+            return cached
+        }
+        let decoded = runtimeKotlinStringUTF16CodeUnits(value)
+        cachedUTF16CodeUnits = decoded
+        return decoded
+    }
 }
 
 // BUG-044: StringBuilder instances bypass normal kk_object_new-based class
@@ -218,7 +241,7 @@ public func __kk_string_builder_insert_obj(
 ) -> Int {
     outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let current = stringBuilderUTF16Units(sb.value)
+    let current = sb.utf16CodeUnits
     guard index >= 0, index <= current.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
@@ -242,7 +265,7 @@ public func __kk_string_builder_insert_char_sequence(
 ) -> Int {
     outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    var current = stringBuilderUTF16Units(sb.value)
+    var current = sb.utf16CodeUnits
     guard index >= 0, index <= current.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
@@ -258,7 +281,7 @@ public func __kk_string_builder_insert_char_sequence(
         return sbRaw
     }
 
-    let sourceLength = stringBuilderUTF16Units(sourceBuilder.value).count
+    let sourceLength = sourceBuilder.utf16CodeUnits.count
     if sourceBuilder === sb {
         // Java shifts the destination tail before reading a self-referential
         // CharSequence. Keep that overlap behavior by reading the working buffer
@@ -275,7 +298,7 @@ public func __kk_string_builder_insert_char_sequence(
         }
         sb.value = stringBuilderString(from: current)
     } else {
-        let inserted = stringBuilderUTF16Units(sourceBuilder.value)
+        let inserted = sourceBuilder.utf16CodeUnits
         current.insert(contentsOf: inserted, at: index)
         sb.value = stringBuilderString(from: current)
     }
@@ -296,7 +319,7 @@ public func __kk_string_builder_insert_char_array(
     guard let arrayUnits = stringBuilderCharArrayUnits(from: arrayRaw, outThrown: outThrown) else {
         return sbRaw
     }
-    var current = stringBuilderUTF16Units(sb.value)
+    var current = sb.utf16CodeUnits
     guard index >= 0, index <= current.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
@@ -319,7 +342,7 @@ public func __kk_string_builder_insert_char_array(
 @_cdecl("__kk_string_builder_index_of")
 public func __kk_string_builder_index_of(_ sbRaw: Int, _ stringRaw: Int, _ startIndex: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return -1 }
-    let source = stringBuilderUTF16Units(sb.value)
+    let source = sb.utf16CodeUnits
     let needle = runtimeStringUTF16CodeUnits(stringRaw)
     return stringBuilderIndexOf(source, needle, from: startIndex)
 }
@@ -327,7 +350,7 @@ public func __kk_string_builder_index_of(_ sbRaw: Int, _ stringRaw: Int, _ start
 @_cdecl("__kk_string_builder_last_index_of")
 public func __kk_string_builder_last_index_of(_ sbRaw: Int, _ stringRaw: Int, _ startIndex: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return -1 }
-    let source = stringBuilderUTF16Units(sb.value)
+    let source = sb.utf16CodeUnits
     let needle = runtimeStringUTF16CodeUnits(stringRaw)
     return stringBuilderLastIndexOf(source, needle, from: startIndex)
 }
@@ -344,7 +367,7 @@ public func __kk_string_builder_set_length(
         stringBuilderIndexError(outThrown: outThrown, message: "newLength=\(newLength)")
         return sbRaw
     }
-    var units = stringBuilderUTF16Units(sb.value)
+    var units = sb.utf16CodeUnits
     if newLength < units.count {
         units.removeLast(units.count - newLength)
     } else if newLength > units.count {
@@ -363,7 +386,7 @@ public func __kk_string_builder_substring(
 ) -> Int {
     outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return runtimeMakeStringRaw("") }
-    let units = stringBuilderUTF16Units(sb.value)
+    let units = sb.utf16CodeUnits
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= units.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
@@ -392,7 +415,7 @@ public func __kk_string_builder_to_char_array(
         )
         return 0
     }
-    let source = stringBuilderUTF16Units(sb.value)
+    let source = sb.utf16CodeUnits
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= source.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
@@ -418,7 +441,7 @@ public func __kk_string_builder_to_char_array(
 @_cdecl("__kk_string_builder_length_utf16")
 public func __kk_string_builder_length_utf16(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return runtimeKotlinStringUTF16Length(sb.value)
+    return sb.utf16CodeUnits.count
 }
 
 @_cdecl("__kk_string_builder_append_range")
@@ -431,10 +454,10 @@ public func __kk_string_builder_append_range(
 ) -> Int {
     outThrown?.pointee = 0
     let stringRaw = valueRaw == runtimeNullSentinelInt ? runtimeMakeStringRaw("null") : valueRaw
-    guard let source = runtimeStringFromRaw(stringRaw) else {
+    guard let sourceBox = runtimeStringBoxFromRaw(stringRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
     }
-    let utf16 = runtimeKotlinStringUTF16CodeUnits(source)
+    let utf16 = sourceBox.utf16CodeUnits
     let length = utf16.count
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
@@ -443,7 +466,7 @@ public func __kk_string_builder_append_range(
         return sbRaw
     }
     let substringRaw = runtimeMakeStringRaw(
-        runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
+        runtimeKotlinStringFromUTF16CodeUnits(Array(utf16[startIndex ..< endIndex]))
     )
     return __kk_string_builder_append_obj(sbRaw, substringRaw)
 }
@@ -481,7 +504,7 @@ public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
     // KSP-817: StringBuilder.length must agree with String.length and with
     // CharSequence.length dispatch, all of which count UTF-16 code units.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return runtimeKotlinStringUTF16Length(sb.value)
+    return sb.utf16CodeUnits.count
 }
 
 @_cdecl("__kk_string_builder_clear")

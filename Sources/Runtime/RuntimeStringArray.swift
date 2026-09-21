@@ -531,6 +531,9 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
     let byteCount: Int
     let hash: Int
 
+    private let utf16CacheLock = NSLock()
+    private var cachedUTF16CodeUnits: [UInt16]?
+
     init(_ value: String) {
         let bytes = Array(value.utf8)
         // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
@@ -546,6 +549,21 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         }
     }
 
+    /// Kotlin UTF-16 code units decoded from the stored UTF-8 bytes, computed
+    /// once and reused by every indexed access to this flat string.
+    var utf16CodeUnits: [UInt16] {
+        utf16CacheLock.lock()
+        defer { utf16CacheLock.unlock() }
+        if let cached = cachedUTF16CodeUnits {
+            return cached
+        }
+        let decoded = runtimeKotlinStringUTF16CodeUnits(
+            runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        )
+        cachedUTF16CodeUnits = decoded
+        return decoded
+    }
+
     deinit {
         data.deallocate()
     }
@@ -554,15 +572,35 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [RuntimeFlatStringStorage] = []
+    // Entries are appended for the process lifetime, so a `data` pointer
+    // uniquely and immutably identifies one registered flat string.
+    private var storageByData: [UInt: RuntimeFlatStringStorage] = [:]
 
     func append(_ entry: RuntimeFlatStringStorage) {
         lock.lock()
         storage.append(entry)
+        storageByData[UInt(bitPattern: entry.data)] = entry
         lock.unlock()
+    }
+
+    func lookup(data: UnsafePointer<UInt8>) -> RuntimeFlatStringStorage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByData[UInt(bitPattern: data)]
     }
 }
 
 private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
+
+/// Memoized Kotlin UTF-16 code units for a registered flat string. Returns nil
+/// when `data` isn't a registry-owned pointer (for example a compiler-emitted
+/// string literal), in which case callers fall back to a non-caching decode.
+func runtimeFlatStringUTF16CodeUnits(data: UnsafePointer<UInt8>?) -> [UInt16]? {
+    guard let data else {
+        return nil
+    }
+    return runtimeFlatStringStorageRegistry.lookup(data: data)?.utf16CodeUnits
+}
 
 func runtimeStringFromFlatFields(
     data: UnsafePointer<UInt8>?,

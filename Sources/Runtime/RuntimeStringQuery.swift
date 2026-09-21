@@ -51,8 +51,8 @@ func runtimeRegisterCharSequenceItable(_ raw: Int) {
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     // KSP-817: Match Kotlin's UTF-16 CharSequence.length contract. The receiver
     // may be any CharSequence implementation (String or StringBuilder handles).
-    if let text = runtimeCharSequenceText(from: raw) {
-        return runtimeKotlinStringUTF16Length(text)
+    if let units = runtimeCharSequenceUTF16CodeUnits(from: raw) {
+        return units.count
     }
     return runtimeKotlinStringUTF16Length(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
@@ -155,14 +155,13 @@ public func kk_char_sequence_get(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let text = runtimeCharSequenceText(from: sequenceRaw) else {
+    guard let codeUnits = runtimeCharSequenceUTF16CodeUnits(from: sequenceRaw) else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
         )
         return 0
     }
-    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -181,14 +180,13 @@ public func kk_char_sequence_subSequence(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let text = runtimeCharSequenceText(from: sequenceRaw) else {
+    guard let codeUnits = runtimeCharSequenceUTF16CodeUnits(from: sequenceRaw) else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
         )
         return 0
     }
-    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -213,15 +211,32 @@ public func __kk_string_get_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard indexRaw >= 0, indexRaw < codeUnits.count else {
+    if let codeUnits = runtimeFlatStringUTF16CodeUnits(data: data) {
+        guard indexRaw >= 0, indexRaw < codeUnits.count else {
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateStringIndexOutOfBoundsException(
+                    message: "index=\(indexRaw), length=\(codeUnits.count)"
+                )
+            )
+            return 0
+        }
+        return Int(codeUnits[indexRaw])
+    }
+    // Non-registry flat data (e.g. a compiler-emitted literal) has no storage
+    // to cache on, so decode with early exit at the requested index rather
+    // than materializing the whole array.
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let unit = runtimeKotlinStringUTF16CodeUnit(at: indexRaw, in: source) else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(
+                message: "index=\(indexRaw), length=\(runtimeKotlinStringUTF16Length(source))"
+            )
         )
         return 0
     }
-    return Int(codeUnits[indexRaw])
+    return Int(unit)
 }
 
 @_cdecl("__kk_string_getOrNull_flat")
@@ -232,11 +247,17 @@ public func __kk_string_getOrNull_flat(
     _ hash: Int,
     _ indexRaw: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard indexRaw >= 0, indexRaw < codeUnits.count else {
+    if let codeUnits = runtimeFlatStringUTF16CodeUnits(data: data) {
+        guard indexRaw >= 0, indexRaw < codeUnits.count else {
+            return runtimeNullSentinelInt
+        }
+        return Int(codeUnits[indexRaw])
+    }
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let unit = runtimeKotlinStringUTF16CodeUnit(at: indexRaw, in: source) else {
         return runtimeNullSentinelInt
     }
-    return Int(codeUnits[indexRaw])
+    return Int(unit)
 }
 
 @_cdecl("__kk_string_compareTo_member")

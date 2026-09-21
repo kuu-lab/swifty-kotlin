@@ -9,7 +9,7 @@ func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
 }
 
 func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
-    runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
+    runtimeStringBoxFromRawOrPanic(raw, caller: #function).utf16CodeUnits
 }
 
 /// Returns Kotlin's UTF-16 code units while decoding the compiler's isolated
@@ -33,7 +33,62 @@ func runtimeKotlinStringUTF16CodeUnits(_ value: String) -> [UInt16] {
 }
 
 func runtimeKotlinStringUTF16Length(_ value: String) -> Int {
-    runtimeKotlinStringUTF16CodeUnits(value).count
+    // Isolated-surrogate markers live in the BMP private-use range, so each
+    // marker is one UTF-16 code unit exactly like the scalar it replaces and
+    // `utf16.count` already equals the Kotlin code-unit count — no need to
+    // materialize the decoded array just to count it.
+    value.utf16.count
+}
+
+/// Lazily decodes Kotlin UTF-16 code units from a string's scalars — the same
+/// decoding as `runtimeKotlinStringUTF16CodeUnits` — without allocating the
+/// whole array. Single-index reads stop once the requested unit is emitted.
+struct RuntimeKotlinStringUTF16CodeUnitIterator: IteratorProtocol {
+    private var scalars: String.UnicodeScalarView.Iterator
+    private var pendingLowSurrogate: UInt16?
+
+    init(_ value: String) {
+        scalars = value.unicodeScalars.makeIterator()
+    }
+
+    mutating func next() -> UInt16? {
+        if let pending = pendingLowSurrogate {
+            pendingLowSurrogate = nil
+            return pending
+        }
+        guard let scalar = scalars.next() else {
+            return nil
+        }
+        let scalarValue = scalar.value
+        if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
+            return UInt16(codeUnitValue)
+        }
+        if scalarValue <= 0xFFFF {
+            return UInt16(scalarValue)
+        }
+        let offset = scalarValue - 0x10000
+        pendingLowSurrogate = UInt16(0xDC00 + (offset & 0x03FF))
+        return UInt16(0xD800 + (offset >> 10))
+    }
+}
+
+/// Returns the Kotlin UTF-16 code unit at `index`, decoding `value` only as
+/// far as needed instead of materializing the whole code-unit array. Nil when
+/// `index` is out of bounds; callers that need the exact length for a
+/// diagnostic can compute `runtimeKotlinStringUTF16Length(value)` separately.
+func runtimeKotlinStringUTF16CodeUnit(at index: Int, in value: String) -> UInt16? {
+    guard index >= 0 else {
+        return nil
+    }
+    var iterator = RuntimeKotlinStringUTF16CodeUnitIterator(value)
+    var remaining = index
+    while remaining > 0 {
+        guard iterator.next() != nil else {
+            return nil
+        }
+        remaining -= 1
+    }
+    return iterator.next()
 }
 
 /// Reconstructs a Swift String from Kotlin UTF-16 code units, preserving
@@ -78,13 +133,19 @@ func runtimeStringFromScalars(_ scalars: some Sequence<UnicodeScalar>) -> String
 }
 
 func runtimeStringFromRaw(_ raw: Int) -> String? {
+    runtimeStringBoxFromRaw(raw)?.value
+}
+
+/// Boxed variant of `runtimeStringFromRaw` returning the `RuntimeStringBox`
+/// itself so callers can reuse its memoized UTF-16 code units.
+func runtimeStringBoxFromRaw(_ raw: Int) -> RuntimeStringBox? {
     if raw == runtimeNullSentinelInt {
         return nil
     }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return extractString(from: pointer)
+    return extractStringBox(from: pointer)
 }
 
 /// Fail-fast variant that panics on invalid string handles instead of returning nil.
@@ -95,6 +156,15 @@ func runtimeStringFromRaw(_ raw: Int) -> String? {
 func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
     if let s = runtimeStringFromRaw(raw) {
         return s
+    }
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid string handle")
+}
+
+/// Fail-fast variant of `runtimeStringBoxFromRaw` mirroring
+/// `runtimeStringFromRawOrPanic`.
+func runtimeStringBoxFromRawOrPanic(_ raw: Int, caller: StaticString) -> RuntimeStringBox {
+    if let box = runtimeStringBoxFromRaw(raw) {
+        return box
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid string handle")
 }

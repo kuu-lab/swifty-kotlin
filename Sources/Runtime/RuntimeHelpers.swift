@@ -373,6 +373,12 @@ func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> 
 }
 
 func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
+    extractStringBox(from: ptr)?.value
+}
+
+/// Boxed variant of `extractString` returning the `RuntimeStringBox` itself so
+/// callers can reuse its memoized UTF-16 code units.
+func extractStringBox(from ptr: UnsafeMutableRawPointer?) -> RuntimeStringBox? {
     guard let ptr = normalizeNullableRuntimePointer(ptr) else {
         return nil
     }
@@ -382,10 +388,7 @@ func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
     guard isObjectPointer else {
         return nil
     }
-    guard let box = tryCast(ptr, to: RuntimeStringBox.self) else {
-        return nil
-    }
-    return box.value
+    return tryCast(ptr, to: RuntimeStringBox.self)
 }
 
 /// Text of a value whose static type is `CharSequence`: either a String box or
@@ -397,6 +400,39 @@ private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutab
 private typealias RuntimeCharSequenceLength = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
 func runtimeCharSequenceText(from raw: Int) -> String? {
+    guard let object = runtimeCharSequenceObject(from: raw) else {
+        return nil
+    }
+    if let stringBox = object as? RuntimeStringBox {
+        return stringBox.value
+    }
+    if let builderBox = object as? RuntimeStringBuilderBox {
+        return builderBox.value
+    }
+    return runtimeCharSequenceTextViaItable(raw)
+}
+
+/// Kotlin UTF-16 code units of a CharSequence handle. String and StringBuilder
+/// boxes reuse their memoized decode instead of rebuilding the array per
+/// access; source-defined implementations decode the itable-reconstructed
+/// text. Returns nil in the same cases as `runtimeCharSequenceText`.
+func runtimeCharSequenceUTF16CodeUnits(from raw: Int) -> [UInt16]? {
+    guard let object = runtimeCharSequenceObject(from: raw) else {
+        return nil
+    }
+    if let stringBox = object as? RuntimeStringBox {
+        return stringBox.utf16CodeUnits
+    }
+    if let builderBox = object as? RuntimeStringBuilderBox {
+        return builderBox.utf16CodeUnits
+    }
+    guard let text = runtimeCharSequenceTextViaItable(raw) else {
+        return nil
+    }
+    return runtimeKotlinStringUTF16CodeUnits(text)
+}
+
+private func runtimeCharSequenceObject(from raw: Int) -> AnyObject? {
     guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
         return nil
     }
@@ -406,14 +442,10 @@ func runtimeCharSequenceText(from raw: Int) -> String? {
     guard isObjectPointer else {
         return nil
     }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let stringBox = object as? RuntimeStringBox {
-        return stringBox.value
-    }
-    if let builderBox = object as? RuntimeStringBuilderBox {
-        return builderBox.value
-    }
+    return Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+}
 
+private func runtimeCharSequenceTextViaItable(_ raw: Int) -> String? {
     // Source-defined CharSequence implementations expose their get/length
     // methods through the dynamic itable slot assigned at object construction.
     // Reading those slots here keeps CharSequence-taking APIs (for example

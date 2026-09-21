@@ -25,17 +25,6 @@ func runtimeStringScalarsFromFlat(
     Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
 }
 
-func runtimeStringUTF16CodeUnitsFromFlat(
-    data: UnsafePointer<UInt8>?,
-    length: Int,
-    byteCount: Int,
-    hash: Int
-) -> [UInt16] {
-    runtimeKotlinStringUTF16CodeUnits(
-        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    )
-}
-
 @_cdecl("kk_string_trim_flat")
 public func kk_string_trim_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -136,8 +125,9 @@ public func __kk_string_first_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let first = codeUnits.first else {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var units = RuntimeKotlinStringUTF16CodeUnitIterator(source)
+    guard let first = units.next() else {
         runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
@@ -153,8 +143,13 @@ public func __kk_string_last_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let last = codeUnits.last else {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var units = RuntimeKotlinStringUTF16CodeUnitIterator(source)
+    var last: UInt16?
+    while let unit = units.next() {
+        last = unit
+    }
+    guard let last else {
         runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
@@ -170,16 +165,17 @@ public func __kk_string_single_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard codeUnits.count == 1 else {
-        if codeUnits.isEmpty {
-            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        } else {
-            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
-        }
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var units = RuntimeKotlinStringUTF16CodeUnitIterator(source)
+    guard let single = units.next() else {
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
-    return Int(codeUnits[0])
+    guard units.next() == nil else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
+        return 0
+    }
+    return Int(single)
 }
 
 // KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are
@@ -238,8 +234,9 @@ public func __kk_string_firstOrNull_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let first = codeUnits.first else { return runtimeNullSentinelInt }
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var units = RuntimeKotlinStringUTF16CodeUnitIterator(source)
+    guard let first = units.next() else { return runtimeNullSentinelInt }
     return Int(first)
 }
 
@@ -250,8 +247,13 @@ public func __kk_string_lastOrNull_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let last = codeUnits.last else { return runtimeNullSentinelInt }
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var units = RuntimeKotlinStringUTF16CodeUnitIterator(source)
+    var last: UInt16?
+    while let unit = units.next() {
+        last = unit
+    }
+    guard let last else { return runtimeNullSentinelInt }
     return Int(last)
 }
 
@@ -262,9 +264,12 @@ public func __kk_string_singleOrNull_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard codeUnits.count == 1 else { return runtimeNullSentinelInt }
-    return Int(codeUnits[0])
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var units = RuntimeKotlinStringUTF16CodeUnitIterator(source)
+    guard let single = units.next(), units.next() == nil else {
+        return runtimeNullSentinelInt
+    }
+    return Int(single)
 }
 
 @_cdecl("__kk_string_toBoolean_flat")
