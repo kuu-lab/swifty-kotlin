@@ -113,12 +113,8 @@ public fun <T> Sequence<T>.toMutableSet(): MutableSet<T> {
 public fun <T> Sequence<T>.toHashSet(): MutableSet<T> = toMutableSet()
 
 @KsSymbolName("kk_sequence_toSortedSet")
-public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> {
-    val sorted = toMutableList().sorted()
-    val result = mutableSetOf<T>()
-    for (element in sorted) result.add(element)
-    return result
-}
+public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> =
+    LinkedHashSet(toMutableList().sorted())
 
 public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     val list1 = mutableListOf<T>()
