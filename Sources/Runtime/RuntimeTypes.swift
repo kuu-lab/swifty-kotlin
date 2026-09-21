@@ -184,7 +184,13 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
 /// Distinct type used to identify CancellationException at runtime.
 /// The runtime checks `is RuntimeCancellationBox` to distinguish cancellation from
 /// regular throwables (CORO-002 / spec.md J17).
-final class RuntimeCancellationBox: RuntimeThrowableBox {
+///
+/// Non-final so `RuntimeTimeoutCancellationBox` can subclass it: every existing
+/// `is RuntimeCancellationBox` / `tryCast(_:to: RuntimeCancellationBox.self)` site
+/// (notably `kk_is_cancellation_exception`, which backs the
+/// `catch (e: CancellationException)` fast path) then accepts the timeout flavour
+/// without further wiring, matching kotlinx.coroutines' subclass relationship.
+class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.CancellationException"
     }
@@ -207,6 +213,34 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
 
     override init(message: String?, cause: Int = 0) {
         super.init(message: message, cause: cause)
+    }
+}
+
+/// `kotlinx.coroutines.TimeoutCancellationException` -- thrown when a
+/// `withTimeout` deadline expires (CORO-002 / spec.md J17).
+///
+/// A *subclass* of `RuntimeCancellationBox`, mirroring kotlinx.coroutines, so
+/// `catch (e: CancellationException)` catches a timeout while
+/// `catch (e: TimeoutCancellationException)` stays narrow: the latter is matched
+/// nominally by `kk_op_is` against `exceptionHierarchyFQNames`, which a plain
+/// `job.cancel()` cancellation does not carry.
+final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
+    override var exceptionFQName: String {
+        "kotlinx.coroutines.TimeoutCancellationException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        // The unqualified spelling is required because a `catch` clause resolves
+        // its type by short name, so the Sema symbol's fqName may be either the
+        // packaged or the bare form (see `resolveCatchClauseParameterType`).
+        [
+            "kotlinx.coroutines.TimeoutCancellationException",
+            "TimeoutCancellationException",
+        ] + super.exceptionHierarchyFQNames
+    }
+
+    override var renderedMessage: String {
+        message ?? "TimeoutCancellationException"
     }
 }
 
@@ -442,6 +476,7 @@ final class RuntimeListBox {
         case direct([RuntimeValue])
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
+        case subList(RuntimeListSlice)
     }
 
     private var storage: Storage
@@ -469,6 +504,10 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
+    init(subListOf base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
+    }
+
     var values: [RuntimeValue] {
         get {
             switch storage {
@@ -478,6 +517,8 @@ final class RuntimeListBox {
                 return Array(base.values.reversed())
             case .arrayViewOf(let base):
                 return base.values
+            case .subList(let slice):
+                return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
             }
         }
         set {
@@ -489,6 +530,11 @@ final class RuntimeListBox {
                 base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
                 base.values = newValue
+            case .subList(let slice):
+                var baseValues = slice.base.values
+                baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
+                slice.toIndex = slice.fromIndex + newValue.count
+                slice.base.values = baseValues
             }
         }
     }
@@ -504,6 +550,18 @@ final class RuntimeListBox {
         set {
             values = newValue.map { RuntimeValue(raw: $0) }
         }
+    }
+}
+
+private final class RuntimeListSlice {
+    let base: RuntimeListBox
+    let fromIndex: Int
+    var toIndex: Int
+
+    init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        self.base = base
+        self.fromIndex = fromIndex
+        self.toIndex = toIndex
     }
 }
 

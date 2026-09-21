@@ -285,39 +285,52 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           let chosenCallee,
-           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
-            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
+           let chosenCallee
         {
-            appendReifiedTypeTokens(
-                chosenCallee: chosenCallee,
-                callBinding: callBinding,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            appendDefaultMaskArgument(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            let stubName = interner.intern(interner.resolve(calleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)
-            instructions.append(.call(
-                symbol: stubSym,
-                callee: stubName,
-                arguments: finalArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: isSuperCall,
-                qualifiedSuperType: qualifiedSuperType
-            ))
-            return
+            // KUU-655: an override that inherits its defaults never has its
+            // own stub; resolve to the base declaration's stub instead (see
+            // `defaultStubOwnerSymbol`).
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema)
+            if sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+                sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
+            {
+                appendReifiedTypeTokens(
+                    chosenCallee: chosenCallee,
+                    callBinding: callBinding,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                // KUU-655: a `super.f()` call that omits a defaulted
+                // argument must resolve the default *and* dispatch
+                // statically to the overridden implementation, never
+                // virtually to the runtime type's own override -- see the
+                // reserved mask bit 30 decoded in
+                // `CallSupportLowerer.generateDefaultStubFunction`.
+                let effectiveMask = isSuperCall ? (normalized.defaultMask | (Int64(1) << 30)) : normalized.defaultMask
+                appendDefaultMaskArgument(
+                    effectiveMask,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                let stubName = interner.intern(interner.resolve(calleeName) + "$default")
+                let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
+                instructions.append(.call(
+                    symbol: stubSym,
+                    callee: stubName,
+                    arguments: finalArguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                return
+            }
         }
 
         appendReifiedTypeTokens(
@@ -812,6 +825,12 @@ extension CallLowerer {
             interner.intern("__kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
+            interner.intern("__kk_range_first_orThrow"),
+            interner.intern("__kk_range_last_orThrow"),
+            interner.intern("kk_uint_range_first_orThrow"),
+            interner.intern("kk_uint_range_last_orThrow"),
+            interner.intern("kk_ulong_range_first_orThrow"),
+            interner.intern("kk_ulong_range_last_orThrow"),
             interner.intern("__kk_range_random"),
             interner.intern("__kk_range_random_random"),
             interner.intern("__kk_char_range_random"),
@@ -913,13 +932,13 @@ extension CallLowerer {
         switch (interner.resolve(calleeName), argumentCount) {
         case ("chunked", 2):
             callee = "__kk_list_chunked"
-            canThrow = false
+            canThrow = true
         case ("chunked", 4):
             callee = "__kk_list_chunked_transform"
             canThrow = true
         case ("windowed", 4):
             callee = "__kk_list_windowed"
-            canThrow = false
+            canThrow = true
         case ("windowed", 6):
             callee = "__kk_list_windowed_transform"
             canThrow = true

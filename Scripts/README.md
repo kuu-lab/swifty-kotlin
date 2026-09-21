@@ -11,6 +11,7 @@
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
+| `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
@@ -219,6 +220,15 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 
 ```bash
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+Pass additional arguments to each candidate `kswiftc` invocation with
+`DIFF_KSWIFTC_FLAGS`. The per-shard stdlib artifact remains at the default
+optimization level, while the case under test receives these flags; CI uses
+this to keep the baseline and optimized lanes separate:
+
+```bash
+DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
 You can control parallel execution. The worker count is set by `--jobs <n>`

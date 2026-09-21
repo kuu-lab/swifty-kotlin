@@ -502,5 +502,105 @@ struct CodegenBackendRangeHOFTests {
                 """ + "\n18446744073709551611 18446744073709551614 \n"
         )
     }
+
+    @Test
+    func testCodegenEmptyRangeFirstLastThrowNoSuchElementException() throws {
+        let source = """
+        fun firstOf(range: IntRange): Int = range.first()
+        fun lastOf(range: IntRange): Int = range.last()
+
+        fun main() {
+            println((1..4).first())
+            println((1..4).last())
+            println((1..0).first)
+            println((1..0).last)
+
+            try {
+                println((1..0).first())
+            } catch (e: NoSuchElementException) {
+                println("empty-first")
+            }
+            try {
+                println((1..0).last())
+            } catch (e: NoSuchElementException) {
+                println("empty-last")
+            }
+            try {
+                println((0 until 0).first())
+            } catch (e: NoSuchElementException) {
+                println("until-first")
+            }
+            try {
+                println(firstOf(1..0))
+            } catch (e: NoSuchElementException) {
+                println("param-first")
+            }
+            try {
+                println(lastOf(1..0))
+            } catch (e: NoSuchElementException) {
+                println("param-last")
+            }
+
+            println((1..0).firstOrNull())
+            println((1..0).lastOrNull())
+            try {
+                println((1..0).first { it > 0 })
+            } catch (e: NoSuchElementException) {
+                println("pred-first")
+            }
+            try {
+                println((1..0).last { it > 0 })
+            } catch (e: NoSuchElementException) {
+                println("pred-last")
+            }
+
+            try {
+                println((1L..0L).first())
+            } catch (e: NoSuchElementException) {
+                println("long-first")
+            }
+            try {
+                println(('b'..'a').first())
+            } catch (e: NoSuchElementException) {
+                println("char-first")
+            }
+            try {
+                println((1u..0u).first())
+            } catch (e: NoSuchElementException) {
+                println("uint-first")
+            }
+            try {
+                println((1uL..0uL).last())
+            } catch (e: NoSuchElementException) {
+                println("ulong-last")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EmptyRangeFirstLast",
+            expected:
+                """
+                1
+                4
+                1
+                0
+                empty-first
+                empty-last
+                until-first
+                param-first
+                param-last
+                null
+                null
+                pred-first
+                pred-last
+                long-first
+                char-first
+                uint-first
+                ulong-last
+                """ + "\n"
+        )
+    }
 }
 #endif

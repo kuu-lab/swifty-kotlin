@@ -649,6 +649,9 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Iterable"
 )
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Iterator"
+)
 
 /// BUG-167: Calls `iterator()` on a source-implemented `Iterable` object through
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
@@ -926,8 +929,10 @@ private func runtimeObjectIteratorMethodCall(
     methodSlot: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int? {
-    let iteratorInterfaceSlot = 0
-    let functionRaw = kk_itable_lookup(iterRaw, iteratorInterfaceSlot, methodSlot)
+    // KUU-477: an Iterator object may implement another interface before
+    // Iterator, so its physical itable slot is not necessarily zero. Resolve
+    // the slot from the interface registration attached to this object.
+    let functionRaw = kk_itable_lookup_dynamic(iterRaw, Int(runtimeIteratorInterfaceTypeID), methodSlot)
     guard functionRaw != 0 else {
         return nil
     }
@@ -966,6 +971,31 @@ public func kk_range_last(_ rangeRaw: Int) -> Int {
     }
     return range.last
 }
+
+/// `IntProgression`/`LongProgression`/`CharProgression.first()` — throws on empty.
+@_cdecl("__kk_range_first_orThrow")
+public func kk_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "__kk_range_first_orThrow"
+    )
+}
+
+/// `IntProgression`/`LongProgression`/`CharProgression.last()` — throws on empty.
+@_cdecl("__kk_range_last_orThrow")
+public func kk_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "__kk_range_last_orThrow"
+    )
+}
+
 
 @_cdecl("__kk_range_count")
 public func kk_range_count(_ rangeRaw: Int) -> Int {
@@ -1563,6 +1593,28 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
 }
 
 // MARK: - ULongRange properties (STDLIB-RANGE-037)
+
+@_cdecl("kk_ulong_range_first_orThrow")
+public func kk_ulong_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: false,
+        outThrown,
+        functionName: "kk_ulong_range_first_orThrow"
+    )
+}
+
+@_cdecl("kk_ulong_range_last_orThrow")
+public func kk_ulong_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeFirstOrLastOrThrow(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        wantLast: true,
+        outThrown,
+        functionName: "kk_ulong_range_last_orThrow"
+    )
+}
 
 @_cdecl("kk_ulong_range_step")
 public func kk_ulong_range_step(_ rangeRaw: Int) -> Int {

@@ -200,10 +200,12 @@ private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
         return hookRaw
     }
 
-    func set(_ raw: Int) {
+    func set(_ raw: Int) -> Int {
         lock.lock()
+        let previous = hookRaw
         hookRaw = raw == 0 || raw == runtimeNullSentinelInt ? runtimeNullSentinelInt : raw
         lock.unlock()
+        return previous
     }
 }
 
@@ -217,7 +219,6 @@ public func kk_native_getUnhandledExceptionHook() -> Int {
 @_cdecl("kk_native_setUnhandledExceptionHook")
 public func kk_native_setUnhandledExceptionHook(_ hookRaw: Int) -> Int {
     runtimeUnhandledExceptionHookRegistry.set(hookRaw)
-    return 0
 }
 
 @_cdecl("kk_native_processUnhandledException")
@@ -234,7 +235,7 @@ public func kk_native_processUnhandledException(
 }
 
 @_cdecl("kk_native_terminateWithUnhandledException")
-public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
+public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Never {
     _ = kk_native_processUnhandledException(throwableRaw, nil)
     runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
@@ -672,14 +673,13 @@ public func kk_unpin_object(_ pinnedHandle: Int) -> Int {
     guard box.tryUnpin() else {
         return box.objectRaw
     }
-    let unmanaged = Unmanaged<RuntimePinnedBox>.fromOpaque(ptr)
+    let objectRaw = box.objectRaw
     // Drop GC root registration so the object can be collected again; see kk_pin_object.
     runtimeStorage.withGCLock { state in
-        state.pinnedObjects.remove(UInt(bitPattern: box.objectRaw))
-        state.objectPointers.remove(UInt(bitPattern: ptr))
+        state.pinnedObjects.remove(UInt(bitPattern: objectRaw))
     }
-    unmanaged.release()
-    return box.objectRaw
+    _ = runtimeReleaseObject(pinnedHandle)
+    return objectRaw
 }
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP-FN-009/042 (pin() / usePinned())
@@ -966,8 +966,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         guard root != 0 else { return }
         var visited: Set<UInt> = []
         var queue: [Int] = [root]
-        while !queue.isEmpty {
-            let raw = queue.removeFirst()
+        var index = 0
+        while index < queue.count {
+            let raw = queue[index]
+            index += 1
             guard raw != 0 else { continue }
             let key = UInt(bitPattern: raw)
             guard visited.insert(key).inserted else { continue }
@@ -999,6 +1001,17 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         return frozen.contains(UInt(bitPattern: raw))
     }
 
+    func remove(_ raw: Int) {
+        guard raw != 0 else { return }
+        lock.lock()
+        frozen.remove(UInt(bitPattern: raw))
+        lock.unlock()
+    }
+
+}
+
+func runtimeForgetFrozenObject(_ raw: Int) {
+    runtimeFrozenSet.remove(raw)
 }
 
 @discardableResult
