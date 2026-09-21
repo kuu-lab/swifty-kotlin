@@ -118,7 +118,16 @@ extension CallTypeChecker {
             }
             let parentKind = sema.symbols.parentSymbol(for: candidate)
                 .flatMap { sema.symbols.symbol($0) }?.kind
-            return parentKind == nil || parentKind == .package
+            // A package-qualified object member such as
+            // `kotlin.text.Charsets.UTF_8` has the object as its symbol
+            // parent, even though the receiver path is still a namespace-only
+            // FQN. Resolve it here so receiver inference does not treat the
+            // leading `kotlin` segment as a runtime value. Keep source object
+            // members on the regular receiver path so their object instance
+            // and custom getter are preserved during lowering.
+            let isStaticObjectProperty = parentKind == .object
+                && (symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary))
+            return parentKind == nil || parentKind == .package || isStaticObjectProperty
         }
         if !propertyCandidates.isEmpty {
             let visibility = ctx.filterByVisibility(propertyCandidates)

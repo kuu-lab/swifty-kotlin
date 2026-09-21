@@ -57,6 +57,31 @@ public fun String.capitalize(): String {
 }
 
 /**
+ * Returns a copy of this string with the first character lower-cased.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated(
+    "Use replaceFirstChar instead.",
+    ReplaceWith("replaceFirstChar { it.lowercase() }")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5")
+public fun String.decapitalize(): String {
+    if (this.length == 0) return this
+    val first = this[0]
+    if (first.isLowerCase()) return this
+
+    val sb = StringBuilder()
+    sb.append(first.lowercase())
+    var i = 1
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
+    return sb.toString()
+}
+
+/**
  * Returns a copy of this string having its first character replaced with the result of [transform].
  */
 @SinceKotlin("1.5")

@@ -887,6 +887,10 @@ extension CallLowerer {
            let chosen,
            sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
         {
+            // KUU-655: an override that inherits its defaults never has its
+            // own stub; resolve to the base declaration's stub instead (see
+            // `defaultStubOwnerSymbol`).
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosen, sema: sema)
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
                 callBinding: callBinding,
@@ -896,15 +900,19 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
+            // KUU-655: see the matching comment in
+            // `CallLowerer+MemberCallEmission.swift` -- a `super?.f()` call
+            // that omits a defaulted argument must dispatch statically.
+            let effectiveMask = isSuperCall ? (safeNormalized.defaultMask | (Int64(1) << 30)) : safeNormalized.defaultMask
             appendDefaultMaskArgument(
-                safeNormalized.defaultMask,
+                effectiveMask,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
             let stubName = interner.intern(interner.resolve(effectiveCalleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosen)
+            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
             instructions.append(.call(
                 symbol: stubSym,
                 callee: stubName,

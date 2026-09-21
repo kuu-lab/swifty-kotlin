@@ -65,12 +65,28 @@ extension LambdaLowerer {
             return propertyType
         }
         if let valueParameterType = typeForValueParameterSymbol(symbol, sema: sema) {
+            driver.ctx.setLocalDeclaredType(valueParameterType, for: symbol)
             return valueParameterType
         }
         return sema.types.anyType
     }
 
     private func typeForValueParameterSymbol(_ symbol: SymbolID, sema: SemaModule) -> TypeID? {
+        // `valueParameterOwner` maps a parameter symbol to the callable whose
+        // signature listed it, so the owner lookup is O(1) rather than a scan
+        // of every function/constructor signature in the module.
+        guard let ownerSymbol = sema.symbols.valueParameterOwner(for: symbol) else {
+            return nil
+        }
+        if let signature = sema.symbols.functionSignature(for: ownerSymbol),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           index < signature.parameterTypes.count
+        {
+            return signature.parameterTypes[index]
+        }
+        // The recorded owner's stored signature no longer lists the parameter
+        // (it was rewritten after the index entry was made), so another
+        // signature may still claim it — fall back to the module-wide scan.
         let kinds: [SymbolKind] = [.function, .constructor]
         for kind in kinds {
             for candidateID in sema.symbols.symbols(ofKind: kind) {
