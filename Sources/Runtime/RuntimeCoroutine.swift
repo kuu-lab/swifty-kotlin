@@ -3175,18 +3175,34 @@ private func runTimeoutBlock(
 }
 
 /// Runs the given block with a timeout. If the block does not complete within
-/// `timeoutMillis`, a CancellationException is thrown (represented as a trap
-/// in this runtime).
+/// `timeoutMillis`, a `TimeoutCancellationException` is reported through the
+/// `outThrown` ABI channel so enclosing Kotlin `try`/`catch` can observe it.
 /// Used as the lowering target for `withTimeout(timeMillis) { }`.
+///
+/// This used to `runtimeStructuredPanic` on expiry, which made the timeout an
+/// uncatchable trap: `catch (e: TimeoutCancellationException)` (and even
+/// `catch (e: CancellationException)`) could not be expressed. Only the *caller's*
+/// job is left untouched here -- the expired block's own job is already cancelled
+/// by `runTimeoutBlock` -- so `runBlocking` keeps running statements after the
+/// catch, matching kotlinx.coroutines.
 @_cdecl("kk_with_timeout")
-public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+public func kk_with_timeout(
+    _ timeoutMillis: Int,
+    _ entryPointRaw: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let outcome = runTimeoutBlock(
         timeoutMillis: timeoutMillis,
         entryPointRaw: entryPointRaw,
         continuation: continuation
     )
     if outcome.timedOut {
-        runtimeStructuredPanic("withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
+        outThrown?.pointee = runtimeAllocateTimeoutCancellationException(
+            timeoutMillis: timeoutMillis
+        )
+        return 0
     }
     return outcome.result
 }
