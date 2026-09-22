@@ -607,14 +607,19 @@ final class ControlFlowTypeChecker {
             let elseCtx = ctx.copying(flowState: branch.falseState)
             let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
             resolvedType = sema.types.lub([thenType, elseType])
+            // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
+            // never completes normally, so it vacuously satisfies initialization:
+            // control only reaches the code after the `if` through whichever
+            // branch does complete.
+            let thenCompletes = thenType != sema.types.nothingType
+            let elseCompletes = elseType != sema.types.nothingType
             for (name, local) in locals {
-                if !local.isInitialized,
-                   let thenLocal = thenLocals[name], thenLocal.isInitialized,
-                   thenLocal.symbol == local.symbol,
-                   let elseLocal = elseLocals[name], elseLocal.isInitialized,
-                   elseLocal.symbol == local.symbol
-                {
-                    locals[name] = (local.type, local.symbol, local.isMutable, true)
+                if !local.isInitialized {
+                    let thenOK = !thenCompletes || (thenLocals[name]?.isInitialized == true && thenLocals[name]?.symbol == local.symbol)
+                    let elseOK = !elseCompletes || (elseLocals[name]?.isInitialized == true && elseLocals[name]?.symbol == local.symbol)
+                    if thenOK, elseOK, thenCompletes || elseCompletes {
+                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+                    }
                 }
             }
         } else {

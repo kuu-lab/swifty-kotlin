@@ -705,10 +705,49 @@ extension TypeSystem {
             base = firstNonNull
         } else if let kClassLub = lubKClassTypes(nonNull) {
             base = kClassLub
+        } else if let commonSupertype = nearestCommonSupertype(nonNull) {
+            base = commonSupertype
         } else {
             base = anyType
         }
         return anyNullable ? makeNullable(base) : base
+    }
+
+    /// Finds a supertype of every element of `types` that is more specific
+    /// than `Any`, without a full generic-hierarchy walk (the special-cased
+    /// `isSubtype` rules for primitives don't expose a generic "supertypes
+    /// of" query). Covers two shapes seen in practice:
+    ///
+    /// - One input is already a common supertype of the rest, e.g.
+    ///   `lub(Int, Number) == Number`, even when `Number` only appears as
+    ///   the *upper* bound context and never lands in this lower-bound pool
+    ///   by itself (unlike the narrower, `.typeParam`-only check in `lub()`,
+    ///   this accepts a dominating candidate of any kind).
+    /// - All inputs are numeric primitives (`Int`, `Long`, `Float`,
+    ///   `Double`, `Byte`, `Short`), whose only common ancestor besides
+    ///   `Any` is `kotlin.Number` — e.g. `lub(Int, Long) == Number`, matching
+    ///   kotlinc (`pick(1, 2L)` assigned to a `Number`-typed val).
+    ///
+    /// Returns `nil` when neither shape applies, leaving the caller to fall
+    /// back to `Any`.
+    private func nearestCommonSupertype(_ types: [TypeID]) -> TypeID? {
+        if let dominating = types.first(where: { candidate in types.allSatisfy { isSubtype($0, candidate) } }) {
+            return dominating
+        }
+        if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
+            return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
+        }
+        return nil
+    }
+
+    private func isNumericPrimitiveType(_ type: TypeID) -> Bool {
+        guard case let .primitive(primitive, _) = kind(of: type) else { return false }
+        switch primitive {
+        case .int, .long, .float, .double, .byte, .short:
+            return true
+        default:
+            return false
+        }
     }
 
     /// If **all** types in `filtered` are `KClass<…>`, compute

@@ -695,11 +695,12 @@ public final class BuildASTPhase: CompilerPhase {
         var activeDeclsByFile = state.activeDeclsByFileRawID
         var tokenCountsByFile = state.tokenCountsByFileRawID
 
+        let tokenCountByFileID = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1.count) })
         let changedFiles: [ASTFile] = changedRawIDs.sorted().map { rawID in
             activeDeclsByFile[rawID] = allDeclsByFile[rawID] ?? []
             let fileID = FileID(rawValue: rawID)
-            if let tokens = ctx.tokensByFile.first(where: { $0.0 == fileID })?.1 {
-                tokenCountsByFile[rawID] = tokens.count
+            if let tokenCount = tokenCountByFileID[fileID] {
+                tokenCountsByFile[rawID] = tokenCount
             }
             return ASTFile(
                 fileID: fileID,
