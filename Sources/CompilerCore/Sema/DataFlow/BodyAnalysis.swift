@@ -68,7 +68,6 @@ extension DataFlowSemaPhase {
             )
             return types.errorType
         }
-        let builtinNames = BuiltinTypeNames(interner: interner)
         guard let typeRefID, let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
         }
@@ -89,8 +88,7 @@ extension DataFlowSemaPhase {
                 shortName,
                 nullability: nullability,
                 types: types,
-                interner: interner,
-                builtinNames: builtinNames
+                interner: interner
             ) {
                 return builtinType
             }
@@ -366,10 +364,9 @@ extension DataFlowSemaPhase {
         _ name: InternedString,
         nullability: Nullability,
         types: TypeSystem,
-        interner: StringInterner,
-        builtinNames: BuiltinTypeNames
+        interner: StringInterner
     ) -> TypeID? {
-        if let builtin = builtinNames.resolveBuiltinType(name, nullability: nullability, types: types) {
+        if let builtin = builtinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
             return builtin
         }
         if name == interner.intern("Byte") || name == interner.intern("Short") {

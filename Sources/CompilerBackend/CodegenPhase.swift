@@ -13,8 +13,15 @@ public final class CodegenPhase: CompilerPhase {
         }
         let fileFacadeNamesByFileID = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
         let backend = try makeBackend(ctx: ctx)
+        // Shared by the reflection records, inline-KIR artifacts, and library
+        // metadata: the map is a pure function of module + interner + symbols.
+        let functionLinkInfo = makeFunctionLinkInfo(
+            module: kir,
+            ctx: ctx,
+            fileFacadeNamesByFileID: fileFacadeNamesByFileID
+        )
         // REFL-004: Build runtime reflection metadata records from sema state.
-        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, fileFacadeNamesByFileID: fileFacadeNamesByFileID)
+        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
 
         do {
             switch ctx.options.emit {
@@ -69,7 +76,9 @@ public final class CodegenPhase: CompilerPhase {
                     backend: backend,
                     ctx: ctx,
                     reflectionMetadataRecords: reflectionRecords,
-                    reflectionMetadataSymbolPrefix: ctx.options.moduleName
+                    reflectionMetadataSymbolPrefix: ctx.options.moduleName,
+                    fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                    functionLinkInfo: functionLinkInfo
                 )
 
             case .kirDump:
@@ -114,7 +123,9 @@ public final class CodegenPhase: CompilerPhase {
         backend: LLVMBackend,
         ctx: CompilationContext,
         reflectionMetadataRecords: [MetadataRecord] = [],
-        reflectionMetadataSymbolPrefix: String? = nil
+        reflectionMetadataSymbolPrefix: String? = nil,
+        fileFacadeNamesByFileID: [Int32: String] = [:],
+        functionLinkInfo: FunctionLinkInfo = FunctionLinkInfo()
     ) throws {
         let fm = FileManager.default
         let outputDir = libraryOutputPath(base: ctx.options.outputPath)
@@ -151,14 +162,14 @@ public final class CodegenPhase: CompilerPhase {
             typeSystem: ctx.sema?.types,
             symbols: ctx.sema?.symbols,
             sourceManager: ctx.sourceManager,
-            fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
+            fileFacadeNamesByFileID: fileFacadeNamesByFileID,
             reflectionMetadataRecords: reflectionMetadataRecords,
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
             linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
-        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx)
+        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
 
         let manifestPath = outputDir + "/manifest.json"
         let metadataPath = outputDir + "/metadata.bin"
@@ -183,7 +194,7 @@ public final class CodegenPhase: CompilerPhase {
         manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
         try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
-        let metadata = makeMetadata(ctx: ctx, module: module)
+        let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
         try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
     }
 
@@ -196,26 +207,50 @@ public final class CodegenPhase: CompilerPhase {
         )
     }
 
+    /// `kk_fn_` link names for every KIR function declaration, plus the subset
+    /// that is `inline`.
+    private struct FunctionLinkInfo {
+        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
+        var inlineFunctionSymbols: Set<SymbolID> = []
+    }
+
+    private func makeFunctionLinkInfo(
+        module: KIRModule,
+        ctx: CompilationContext,
+        fileFacadeNamesByFileID: [Int32: String]
+    ) -> FunctionLinkInfo {
+        var info = FunctionLinkInfo()
+        guard let sema = ctx.sema else {
+            return info
+        }
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            info.functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
+                for: function,
+                interner: ctx.interner,
+                symbols: sema.symbols,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID
+            )
+            if function.isInline {
+                info.inlineFunctionSymbols.insert(function.symbol)
+            }
+        }
+        return info
+    }
+
     private func emitInlineKIRArtifacts(
         module: KIRModule,
         outputDir: String,
-        ctx: CompilationContext
+        ctx: CompilationContext,
+        functionLinkInfo: FunctionLinkInfo
     ) throws {
         guard let sema = ctx.sema else {
             return
         }
         let mangler = NameMangler()
-        let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-            functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                for: function,
-                interner: ctx.interner,
-                symbols: sema.symbols,
-                fileFacadeNamesByFileID: facadeNames
-            )
-        }
+        let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
         for decl in module.arena.declarations {
             guard case let .function(function) = decl, function.isInline else {
                 continue
@@ -440,27 +475,16 @@ public final class CodegenPhase: CompilerPhase {
         return base + ".kklib"
     }
 
-    private func makeMetadata(ctx: CompilationContext, module: KIRModule) -> String {
+    private func makeMetadata(
+        ctx: CompilationContext,
+        module: KIRModule,
+        functionLinkInfo: FunctionLinkInfo
+    ) -> String {
         guard let sema = ctx.sema else {
             return "symbols=0\n"
         }
-        let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
-        var inlineFunctionSymbols: Set<SymbolID> = []
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else {
-                continue
-            }
-            functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                for: function,
-                interner: ctx.interner,
-                symbols: ctx.sema?.symbols,
-                fileFacadeNamesByFileID: facadeNames
-            )
-            if function.isInline {
-                inlineFunctionSymbols.insert(function.symbol)
-            }
-        }
+        let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
+        let inlineFunctionSymbols = functionLinkInfo.inlineFunctionSymbols
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
             .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
@@ -536,39 +560,19 @@ public final class CodegenPhase: CompilerPhase {
     /// runtime-accessible binary metadata in the compiled output.
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,
-        fileFacadeNamesByFileID: [Int32: String]
+        functionLinkInfo: FunctionLinkInfo
     ) -> [MetadataRecord] {
         guard let sema = ctx.sema else {
             return []
         }
-        let (functionLinkNamesBySymbol, inlineFunctionSymbols): ([SymbolID: String], Set<SymbolID>) = {
-            guard let kir = ctx.kir else { return ([:], []) }
-            var linkNames: [SymbolID: String] = [:]
-            var inlineSymbols: Set<SymbolID> = []
-            for decl in kir.arena.declarations {
-                guard case let .function(function) = decl else {
-                    continue
-                }
-                linkNames[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                    for: function,
-                    interner: ctx.interner,
-                    symbols: ctx.sema?.symbols,
-                    fileFacadeNamesByFileID: fileFacadeNamesByFileID
-                )
-                if function.isInline {
-                    inlineSymbols.insert(function.symbol)
-                }
-            }
-            return (linkNames, inlineSymbols)
-        }()
         let encoder = MetadataEncoder()
         return encoder.buildRecords(
             symbols: sema.symbols,
             types: sema.types,
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
-            functionLinkNames: functionLinkNamesBySymbol,
-            inlineFunctionSymbols: inlineFunctionSymbols,
+            functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
+            inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
             includeNonPublic: ctx.options.includeNonPublicReflectionMetadata
         )
     }
