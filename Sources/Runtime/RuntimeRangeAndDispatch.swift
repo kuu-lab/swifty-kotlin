@@ -782,6 +782,9 @@ public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     if runtimeListIteratorBox(from: iterRaw) != nil {
         return kk_list_iterator_hasNext(iterRaw)
     }
+    if let result = runtimeBufferedLineIteratorHasNext(iterRaw) {
+        return result
+    }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
     }
@@ -801,6 +804,9 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
     }
     if runtimeListIteratorBox(from: iterRaw) != nil {
         return kk_list_iterator_next(iterRaw)
+    }
+    if let result = runtimeBufferedLineIteratorNext(iterRaw, outThrown: nil) {
+        return result
     }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
@@ -873,6 +879,9 @@ public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointe
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
+    if let result = runtimeBufferedLineIteratorHasNext(iterRaw) {
+        return result
+    }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: outThrown) {
         return objectResult
     }
@@ -899,6 +908,9 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
     }
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_next(iterRaw)
+    }
+    if let result = runtimeBufferedLineIteratorNext(iterRaw, outThrown: outThrown) {
+        return result
     }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: outThrown) {
         if let outThrown, outThrown.pointee != 0 {
