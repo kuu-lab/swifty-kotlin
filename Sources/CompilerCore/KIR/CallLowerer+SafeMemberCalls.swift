@@ -112,8 +112,9 @@ extension CallLowerer {
         } else {
             calleeName
         }
+        let calleeStr = interner.resolve(effectiveCalleeName)
 
-        if interner.resolve(effectiveCalleeName) == "cancel",
+        if calleeStr == "cancel",
            isCoroutineContextReceiverType(nonNullSafeReceiverType, sema: sema, interner: interner)
         {
             let nonNullLabel = driver.ctx.makeLoopLabel()
@@ -158,7 +159,6 @@ extension CallLowerer {
         // Boolean safe calls: return null on null receiver and only evaluate
         // arguments on the non-null path.
         if sema.types.isSubtype(nonNullSafeReceiverType, sema.types.booleanType) {
-            let calleeStr = interner.resolve(effectiveCalleeName)
             let boolCallee: InternedString? = switch calleeStr {
             case "not" where args.isEmpty:
                 interner.intern("kk_op_not")
@@ -209,7 +209,7 @@ extension CallLowerer {
         }
 
         // Primitive member function: Int/Long/UInt/ULong/UByte/UShort.inv() → kk_op_inv (P5-103, TYPE-005)
-        if interner.resolve(effectiveCalleeName) == "inv",
+        if calleeStr == "inv",
            args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -253,7 +253,7 @@ extension CallLowerer {
         // Float?.mod(other) / Double?.mod(other): keep safe-call argument
         // evaluation behind the null check and use Kotlin floor-style modulo.
         if args.count == 1,
-           interner.resolve(effectiveCalleeName) == "mod"
+           calleeStr == "mod"
         {
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
@@ -333,7 +333,7 @@ extension CallLowerer {
                 let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
                 let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
                 let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
-                let primitiveCallee: InternedString? = switch interner.resolve(effectiveCalleeName) {
+                let primitiveCallee: InternedString? = switch calleeStr {
                 case "plus":
                     interner.intern("kk_op_add")
                 case "minus":
@@ -411,7 +411,7 @@ extension CallLowerer {
         // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
         // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
         // through to the general safe-call lowering below.
-        if interner.resolve(effectiveCalleeName) == "toString",
+        if calleeStr == "toString",
            args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -465,7 +465,7 @@ extension CallLowerer {
             }
         }
         // Any.toString(): String — no-arg fallback via kk_any_to_string (STDLIB-306)
-        if args.isEmpty, interner.resolve(effectiveCalleeName) == "toString", allowsAnyFallback {
+        if args.isEmpty, calleeStr == "toString", allowsAnyFallback {
             let tag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let callLabel = driver.ctx.makeLoopLabel()
@@ -491,7 +491,7 @@ extension CallLowerer {
         }
 
         // Any.hashCode(): Int — via kk_any_hashCode (STDLIB-306)
-        if args.isEmpty, interner.resolve(effectiveCalleeName) == "hashCode", allowsAnyFallback {
+        if args.isEmpty, calleeStr == "hashCode", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let callLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
@@ -525,7 +525,7 @@ extension CallLowerer {
         }
 
         // Any.equals(other: Any?): Boolean — via kk_any_equals (STDLIB-306)
-        if args.count == 1, interner.resolve(effectiveCalleeName) == "equals", allowsAnyFallback {
+        if args.count == 1, calleeStr == "equals", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let callLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
@@ -575,7 +575,6 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
-            let calleeStr = interner.resolve(effectiveCalleeName)
             let conversionCallee: InternedString? = switch (calleeStr, nonNullReceiverType, nonNullResultType) {
             case ("toInt", uintType, intType): interner.intern("kk_uint_to_int")
             case ("toInt", ulongType, intType): interner.intern("kk_ulong_to_int")
@@ -843,7 +842,6 @@ extension CallLowerer {
             }
             finalArguments.insert(receiverArgument, at: 0)
         } else if chosen == nil {
-            let calleeStr = interner.resolve(effectiveCalleeName)
             if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver {
                 finalArguments.insert(loweredReceiverID, at: 0)
             }
@@ -856,7 +854,7 @@ extension CallLowerer {
         // Recover the mask from the source call labels and materialize the
         // Kotlin defaults before emitting the direct source-backed call.
         let sourceBackedJoinToStringMask: Int64 = {
-            guard interner.resolve(effectiveCalleeName) == "joinToString",
+            guard calleeStr == "joinToString",
                   let chosen,
                   sema.symbols.isSourceBackedSymbol(chosen),
                   finalArguments.count >= 4,
@@ -868,7 +866,7 @@ extension CallLowerer {
         }()
         let joinToStringMask = safeNormalized.defaultMask | sourceBackedJoinToStringMask
         if joinToStringMask != 0,
-           interner.resolve(effectiveCalleeName) == "joinToString",
+           calleeStr == "joinToString",
            let chosen,
            sema.symbols.isSourceBackedSymbol(chosen),
            finalArguments.count >= 4
@@ -911,7 +909,7 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
-            let stubName = interner.intern(interner.resolve(effectiveCalleeName) + "$default")
+            let stubName = interner.intern(calleeStr + "$default")
             let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
             instructions.append(.call(
                 symbol: stubSym,
@@ -949,7 +947,7 @@ extension CallLowerer {
             {
                 resolvedCalleeName = interner.intern(externalLinkName)
             } else if chosen == nil, isCoroutineReceiver {
-                switch interner.resolve(effectiveCalleeName) {
+                switch calleeStr {
                 case "await":
                     resolvedCalleeName = interner.intern("kk_kxmini_async_await")
                 case "join":

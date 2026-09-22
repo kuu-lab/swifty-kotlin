@@ -32,7 +32,7 @@ final class CallTypeChecker {
         }
         let calleePath = qualifiedCalleePath(for: calleeID, ast: ast)
         if let calleeName,
-           calleeName == interner.intern("contextOf"),
+           calleeName == knownNames.contextOf,
            args.isEmpty,
            locals[calleeName] == nil,
            !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
@@ -171,7 +171,7 @@ final class CallTypeChecker {
         // with a SequenceScope<T> implicit receiver and T can be recovered from
         // expected type or nested yield()/yieldAll() calls.
         if let calleeName,
-           interner.resolve(calleeName) == "sequence",
+           calleeName == knownNames.sequenceFn,
            args.count == 1,
            shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
         {
@@ -240,7 +240,7 @@ final class CallTypeChecker {
 
         // --- iterator { ... } builder (STDLIB-331/564) ---
         if let calleeName,
-           interner.resolve(calleeName) == "iterator",
+           calleeName == knownNames.iteratorFn,
            args.count == 1,
            locals[calleeName] == nil
         {
@@ -854,7 +854,7 @@ final class CallTypeChecker {
 
         if let calleeName,
            (args.count == 1 || args.count == 2),
-           interner.resolve(calleeName) == "AtomicIntArray",
+           calleeName == knownNames.atomicIntArray,
            !hasSourceBackedAtomicArrayFactory(
                calleeName,
                className: "AtomicIntArray",
@@ -912,7 +912,7 @@ final class CallTypeChecker {
 
         if let calleeName,
            (args.count == 1 || args.count == 2),
-           interner.resolve(calleeName) == "AtomicLongArray",
+           calleeName == knownNames.atomicLongArray,
            !hasSourceBackedAtomicArrayFactory(
                calleeName,
                className: "AtomicLongArray",
@@ -967,7 +967,7 @@ final class CallTypeChecker {
         // --- STDLIB-REFLECT-066: typeOf<T>() — inline reified reflection ---
         if let calleeName,
            args.isEmpty,
-           interner.resolve(calleeName) == "typeOf",
+           calleeName == knownNames.typeOf,
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
             // Resolve the KType return type from the stub.
@@ -1055,9 +1055,8 @@ final class CallTypeChecker {
         // lambda/callable-ref arguments (e.g. compareBy selectors or comparators)
         // must go through general overload resolution where an expected function
         // type is available, otherwise implicit `it` cannot be resolved.
-        let maxOfMinOfNames: Set<String> = ["maxOf", "minOf"]
         if let calleeName,
-           maxOfMinOfNames.contains(interner.resolve(calleeName)),
+           calleeName == knownNames.maxOf || calleeName == knownNames.minOf,
            args.count == 2 || args.count == 3,
            !args.contains(where: { isLambdaOrCallableRefArg($0.expr, ast: ast) })
         {
@@ -1070,13 +1069,12 @@ final class CallTypeChecker {
             )
 
             // Resolve which numeric type this overload targets.
-            let resolvedName = interner.resolve(calleeName)
             let supportedNumericTypes = [
                 sema.types.longType,
                 sema.types.doubleType,
                 sema.types.floatType,
                 sema.types.intType,
-            ] + (resolvedName == "minOf" ? [sema.types.byteType, sema.types.shortType] : [])
+            ] + (calleeName == knownNames.minOf ? [sema.types.byteType, sema.types.shortType] : [])
             if let resolvedParamType = supportedNumericTypes.first(where: { firstArgType == $0 }) {
                 var shouldUsePrimitiveComparisonFastPath = true
                 if args.count == 3 {
@@ -1178,7 +1176,7 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           interner.resolve(calleeName) == "contract",
+           calleeName == knownNames.contract,
            args.count == 1
         {
             let builderSymbol = sema.symbols.lookup(fqName: [
@@ -1212,7 +1210,7 @@ final class CallTypeChecker {
         // --- compareBy(selector1, selector2, ...) multi-selector overloads (STDLIB-613) ---
         if let calleeName,
            args.count == 2 || args.count == 3,
-           interner.resolve(calleeName) == "compareBy",
+           calleeName == knownNames.compareBy,
            args.allSatisfy({ isLambdaOrCallableRefArg($0.expr, ast: ast) }),
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
@@ -1284,7 +1282,7 @@ final class CallTypeChecker {
         // --- compareBy/compareByDescending(comparator, selector) (STDLIB-COMP-004/005) ---
         if let calleeName,
            args.count == 2,
-           ["compareBy", "compareByDescending"].contains(interner.resolve(calleeName)),
+           calleeName == knownNames.compareBy || calleeName == knownNames.compareByDescending,
            !isLambdaOrCallableRefArg(args[0].expr, ast: ast),
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
@@ -1369,7 +1367,7 @@ final class CallTypeChecker {
         // --- compareBy(vararg selectors) (STDLIB-COMP-006) ---
         if let calleeName,
            args.count >= 4,
-           interner.resolve(calleeName) == "compareBy",
+           calleeName == knownNames.compareBy,
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
                calleeName,
@@ -1574,7 +1572,7 @@ final class CallTypeChecker {
         // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
         if let calleeName,
-           interner.resolve(calleeName) == "delay",
+           calleeName == knownNames.delay,
            args.count == 1
         {
             let delayArgType = driver.inferExpr(
@@ -1602,14 +1600,17 @@ final class CallTypeChecker {
             return sema.types.unitType
         }
 
-        let coroutineLauncherName = calleeName.map { interner.resolve($0) }
+        let isCoroutineLauncher = calleeName == knownNames.runBlocking
+            || calleeName == knownNames.launch
+            || calleeName == knownNames.async
+            || calleeName == knownNames.coroutineScope
+            || calleeName == knownNames.supervisorScope
         let coroutineLauncherExpectedLambdaType: TypeID?
         // STDLIB-CORO-072: Support launch(dispatcher) { } by checking both first and
         // second argument for a trailing lambda. When the first argument is a dispatcher
         // (non-lambda) and the second is a lambda, treat it as the block argument.
         let coroutineLauncherLambdaArgIndex: Int? = {
-            guard let name = coroutineLauncherName,
-                  ["runBlocking", "launch", "async", "coroutineScope", "supervisorScope"].contains(name)
+            guard isCoroutineLauncher
             else { return nil }
             if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
                case .lambdaLiteral = firstArgExpr {
@@ -1622,16 +1623,13 @@ final class CallTypeChecker {
             }
             return nil
         }()
-        if let coroutineLauncherName,
+        if isCoroutineLauncher,
            let lambdaIndex = coroutineLauncherLambdaArgIndex,
            lambdaIndex < args.count
         {
-            let lambdaReturnType: TypeID = switch coroutineLauncherName {
-            case "launch":
-                sema.types.unitType
-            default:
-                expectedType ?? sema.types.anyType
-            }
+            let lambdaReturnType: TypeID = calleeName == knownNames.launch
+                ? sema.types.unitType
+                : expectedType ?? sema.types.anyType
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
                 params: [],
                 returnType: lambdaReturnType,
@@ -1650,8 +1648,9 @@ final class CallTypeChecker {
         // has its own dedicated builder branch above (CORO-075) with an early
         // return, so it never reaches this general path and is marked there
         // instead.
-        if let coroutineLauncherName,
-           ["runBlocking", "launch", "async"].contains(coroutineLauncherName)
+        if calleeName == knownNames.runBlocking
+            || calleeName == knownNames.launch
+            || calleeName == knownNames.async
         {
             if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
                 sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
@@ -1708,7 +1707,7 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
-            if interner.resolve(calleeName) == "toList",
+            if calleeName == knownNames.toList,
                let implicitReceiverType = ctx.implicitReceiverType
             {
                 candidates = preferCollectionToListCandidates(
@@ -1879,7 +1878,7 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           interner.resolve(calleeName) == "compareValuesBy",
+           calleeName == knownNames.compareValuesBy,
            args.count >= 4,
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
@@ -1999,7 +1998,7 @@ final class CallTypeChecker {
 
         if let calleeName,
            let implicitReceiverType = ctx.implicitReceiverType,
-           ["removeAll", "retainAll"].contains(interner.resolve(calleeName)),
+           calleeName == knownNames.removeAll || calleeName == knownNames.retainAll,
            args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true })
         {
             let preferredCandidates = preferImplicitReceiverPredicateCandidates(
@@ -2252,8 +2251,8 @@ final class CallTypeChecker {
             else {
                 return false
             }
-            return interner.resolve(symbol.fqName[0]) == "kotlin"
-                && interner.resolve(symbol.fqName[1]) == "collections"
+            return symbol.fqName[0] == knownNames.kotlin
+                && symbol.fqName[1] == knownNames.collections
         }
 
         func hasNonStdlibCollectionFactoryShadow(
@@ -2431,7 +2430,7 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           interner.resolve(calleeName) == "atomicArrayOf",
+           calleeName == knownNames.atomicArrayOf,
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
            let chosen = candidates.first(where: { candidate in
                sema.symbols.externalLinkName(for: candidate) == "kk_atomic_ref_array_of"
@@ -2524,7 +2523,7 @@ final class CallTypeChecker {
         // ordinary top-level overload resolver reports an ambiguity.
         if let calleeName,
            let implicitReceiverType = ctx.implicitReceiverType,
-           ["indexOf", "indexOfFirst", "indexOfLast"].contains(interner.resolve(calleeName))
+           calleeName == knownNames.indexOf || calleeName == knownNames.indexOfFirst || calleeName == knownNames.indexOfLast
         {
             let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
             let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
@@ -2674,14 +2673,14 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            var adjustedReturnType: TypeID = if let coroutineLauncherName,
+            var adjustedReturnType: TypeID = if let calleeName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
-                ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
+                calleeName == knownNames.async || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope,
                 args.indices.contains(launcherIndex)
             {
                 coroutineBuilderNarrowedReturnType(
                     id: id,
-                    launcherName: coroutineLauncherName,
+                    launcherName: interner.resolve(calleeName),
                     lambdaArgExpr: args[launcherIndex].expr,
                     fallback: returnType,
                     ast: ast,
