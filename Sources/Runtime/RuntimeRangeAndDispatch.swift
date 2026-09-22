@@ -1220,8 +1220,8 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
             elements.append(current)
             current &+= range.step
         }
+        elements.reverse()
     }
-    elements.sort()
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
