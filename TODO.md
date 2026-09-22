@@ -3068,6 +3068,7 @@
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt`
   - 完了根拠（2026-09-15）: KSP-1353 と同型。18 件中 8 件（generic `#A` の `min`/`minOrNull`、`minBy`/`minByOrNull`、generic `#B` の `minOf`/`minOfOrNull`、`minWith`/`minWithOrNull`）は既存実装済み。残り 10 件のうち 6 件（`minOf(Function1): Double/Float`・`minOfOrNull(Function1): Double/Float`・`minOfWith`・`minOfWithOrNull`）を本 PR で実装。`minOfWith`/`minOfWithOrNull` は KSP-1353 と同じ `activeCollectionHOFNames` 修正で救済。
   - 見送り（2026-09-15）: `min(): Double`/`min(): Float`/`minOrNull(): Double`/`minOrNull(): Float` の 4 件は KSP-1353 と同じ理由（`bindBundledSequenceAggregateSource` の receiver 要素型フィルタ欠如）で見送り。加えて `Iterable<Float>.min()`/`Iterable<Float>.minOrNull()`（`Iterables.kt`）が `sequenceOf(3.0f, 1.0f).let { listOf(*it.toList().toTypedArray()) }.min()` 相当の入力で先頭要素をそのまま返す既存バグ（`comparisonMinOf` を `iterator()` ベースのループから呼ぶ経路で発生、`kk_min_float`/`comparisonMinOf` 単体は正しく動作することを分離テストで確認済み）を発見。Sequence 版を実装する際にこの経路へ誤束縛されると同じ症状（`sequenceOf(3.0f, 1.0f).min()` が `3.0` を返す）を再現した。Linear バグ起票: [KUU-553](https://linear.app/kuu/issue/KUU-553)。
+  - 見送り解消（2026-09-22, KUU-716）: #6919 が Sequence aggregate fast path に receiver 要素型フィルタ（`sequenceSourceReceiverElementMatches`）を追加済み、かつ KUU-553 が #6970 で修正済み（floating-point List min 呼び出しを Iterable 特化版へルーティング）のため、残り 4 件（`Sequence<Double>.min()`/`Sequence<Float>.min()`/`Sequence<Double>.minOrNull()`/`Sequence<Float>.minOrNull()`）を実装。同ファイルの minOf 系と同じく `comparisonMinOf`（`kotlin.comparisons.minOf`）の pairwise 比較で IEEE-754 の NaN 伝播・符号付きゼロ順序を維持（ヘッダコメント記載のとおり `kk_min_*` のローカル再宣言は直接呼ぶと誤動作する経歴があるため使用しない）。generic 宣言より手前に置き、fast path の first-match で Double/Float receiver は特化版に、それ以外の要素型は従来どおり generic に束縛されることを golden で確認。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_min.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_min.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_min.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
@@ -3078,9 +3079,11 @@
     - `kotlin.sequences.minOfOrNull` — fun Sequence.minOfOrNull(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfOrNull(kotlin/Function1<#A, kotlin/Float>): kotlin/Float?`
     - `kotlin.sequences.minOfWith` — fun Sequence.minOfWith(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfWith(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B`
     - `kotlin.sequences.minOfWithOrNull` — fun Sequence.minOfWithOrNull(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfWithOrNull(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B?`
-  - 見送りシンボル一覧（4 件、理由は上記）:
-    - `kotlin.sequences.min` — fun Sequence.min(): Double / Float
-    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Double / Float
+  - 実装シンボル一覧（KUU-716 で新規実装した 4 件、旧見送り分）:
+    - `kotlin.sequences.min` — fun Sequence.min(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/min(): kotlin/Double`
+    - `kotlin.sequences.min` — fun Sequence.min(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/min(): kotlin/Float`
+    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/minOrNull(): kotlin/Double?`
+    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/minOrNull(): kotlin/Float?`
 
 - [x] KSP-1355: kotlin.sequences.Sequence.reduce-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `reduce`

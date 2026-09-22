@@ -1207,6 +1207,52 @@ public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
 
 public fun <T : Comparable<T>> Sequence<T>.max(): T = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
 
+// KSP-1354: Double/Float-specialized minOrNull()/min() overloads, mirroring
+// Iterables.kt's own specializations. Pairwise comparisonMinOf keeps NaN
+// propagation and signed-zero ordering on Kotlin's IEEE-754 semantics instead
+// of the Comparable.compareTo total ordering used by the generic
+// <T : Comparable<T>> overloads below. These declarations sit ahead of the
+// generic ones so the Sequence aggregate fast path's first-match lookup
+// prefers them for concrete Double/Float receivers; other element types still
+// resolve to the generic overloads through the receiver element-type filter.
+@SinceKotlin("1.4")
+public fun Sequence<Double>.minOrNull(): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var min = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        min = comparisonMinOf(min, elements[i])
+        i += 1
+    }
+    return min
+}
+
+@SinceKotlin("1.4")
+public fun Sequence<Float>.minOrNull(): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var min = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        min = comparisonMinOf(min, elements[i])
+        i += 1
+    }
+    return min
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Double>.min(): Double = minOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Float>.min(): Float = minOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
 public fun <T : Comparable<T>> Sequence<T>.minOrNull(): T? {
     val elements = this.toList()
     var best: T? = null
