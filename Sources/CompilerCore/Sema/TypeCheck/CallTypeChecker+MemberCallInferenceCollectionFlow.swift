@@ -1,6 +1,63 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Collection/Flow higher-order-function names deferred for contextual
+    /// lambda typing in `tryInferMemberCallCollectionFlowSpecials`.
+    private static let collectionHOFNames: Set<String> = [
+        "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
+        "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
+        "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
+        "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
+        "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
+        "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
+        "mapKeysTo", "mapValuesTo",
+        "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
+        "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
+        "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
+        "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
+        "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
+        "maxOf", "minOf",
+        "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+        "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+        "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
+        "max",
+        "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
+        "sort", "sortBy", "sortByDescending", "sortWith",
+    ]
+
+    private static let flowHOFNames: Set<String> = ["map", "filter", "collect"]
+    private static let mapOnlyCollectionHOFNames: Set<String> = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
+    private static let mutableListOnlyCollectionHOFNames: Set<String> = ["sort", "sortBy", "sortByDescending", "sortWith"]
+
+    private static let iterableMaxFamilyNames: Set<String> = [
+        "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
+        "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+    ]
+
+    private static let destinationCollectionHOFs: Set<String> = [
+        "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
+        "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
+        "filterIndexedTo", "mapKeysTo", "mapValuesTo",
+    ]
+
+    private static let sourceBackedListFilterNames: Set<String> = ["filter", "filterNot", "filterIndexed"]
+
+    private static let iterableSourceHOFNames: Set<String> = [
+        "filter",
+        "partition",
+        "single",
+        "singleOrNull",
+        "reduce",
+        "reduceIndexed",
+        "reduceRight",
+        "reduceRightIndexed",
+        "reduceRightOrNull",
+        "reduceRightIndexedOrNull",
+        "sumBy",
+        "sumByDouble",
+    ]
+
     func tryInferMemberCallCollectionFlowSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -41,31 +98,6 @@ extension CallTypeChecker {
         }
         // Defer inference of lambda arguments for collection HOFs so that the
         // contextual function type (and thus implicit `it`) is available.
-        let collectionHOFNames: Set = [
-            "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
-            "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
-            "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
-            "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
-            "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
-            "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
-            "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
-            "mapKeysTo", "mapValuesTo",
-            "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
-            "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
-            "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
-            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
-            "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
-            "maxOf", "minOf",
-            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
-            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-            "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
-            "max",
-            "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
-            "sort", "sortBy", "sortByDescending", "sortWith",
-        ]
-        let flowHOFNames: Set = ["map", "filter", "collect"]
-        let mapOnlyCollectionHOFNames: Set = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
-        let mutableListOnlyCollectionHOFNames: Set = ["sort", "sortBy", "sortByDescending", "sortWith"]
         // Fallback for receivers that were never routed through a `flow { }`/operator
         // call (e.g. a user function declared `fun f(): Flow<Int>`), so the
         // `isFlowExpr`/`isFlowSymbol` bindings above were never marked. Recover the
@@ -111,7 +143,7 @@ extension CallTypeChecker {
         } else {
             sema.types.anyType
         }
-        let isFlowHOF = isFlowReceiver && flowHOFNames.contains(interner.resolve(calleeName))
+        let isFlowHOF = isFlowReceiver && Self.flowHOFNames.contains(interner.resolve(calleeName))
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let receiverClassification = receiverClassifier.classify(
             receiverID: receiverID,
@@ -166,9 +198,9 @@ extension CallTypeChecker {
         ) == .ulongProgression
             && args.isEmpty
             && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
-        var activeCollectionHOFNames = collectionHOFNames
+        var activeCollectionHOFNames = Self.collectionHOFNames
         if !isMutableListReceiver {
-            activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
+            activeCollectionHOFNames.subtract(Self.mutableListOnlyCollectionHOFNames)
         }
         if !isSequenceReceiver {
             if !isIterableReceiver
@@ -208,7 +240,7 @@ extension CallTypeChecker {
             activeCollectionHOFNames.remove("minOfWithOrNull")
         }
         if isMapReceiver {
-            activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
+            activeCollectionHOFNames.formUnion(Self.mapOnlyCollectionHOFNames)
             // Map.flatMapTo has Iterable- and Sequence-return overloads. Let
             // the source-backed declarations reach regular overload
             // resolution instead of the collection fast path, which assumes
@@ -221,11 +253,7 @@ extension CallTypeChecker {
         // Iterable max-family declarations. Let regular overload resolution
         // select the Comparable/Float/Double and lambda-return overloads;
         // concrete List/Set/Map/Sequence paths remain under their own owners.
-        let iterableMaxFamilyNames: Set = [
-            "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
-            "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
-        ]
-        if iterableMaxFamilyNames.contains(calleeStr),
+        if Self.iterableMaxFamilyNames.contains(calleeStr),
            (isCollectionReceiver || isIterableReceiver),
            !isSequenceReceiver,
            !isSetReceiver,
@@ -2313,12 +2341,7 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
-            let destinationCollectionHOFs: Set = [
-                "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
-                "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
-                "filterIndexedTo", "mapKeysTo", "mapValuesTo",
-            ]
-            if destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
+            if Self.destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
                 // A destination factory such as `mutableListOf()` has no
                 // argument from which to infer its element type.  When the
                 // enclosing destination HOF is itself target-typed, propagate
@@ -5471,8 +5494,7 @@ extension CallTypeChecker {
                 resultType = sema.types.anyType
             }
 
-            let sourceBackedListFilterNames: Set = ["filter", "filterNot", "filterIndexed"]
-            let didBindListFilterSource = sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
+            let didBindListFilterSource = Self.sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
                 ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 : false
             if didBindListFilterSource {
@@ -5489,7 +5511,7 @@ extension CallTypeChecker {
                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
             }
 
-            let didBindIterableFilterSource = sourceBackedListFilterNames.contains(calleeStr)
+            let didBindIterableFilterSource = Self.sourceBackedListFilterNames.contains(calleeStr)
                 && args.count == 1
                 && !didBindListFilterSource
                 && isIterableReceiver
@@ -5652,24 +5674,10 @@ extension CallTypeChecker {
             // concrete collection receivers without a more specific source
             // overload) so the call never falls through to a Sequence-shaped
             // declaration or a removed synthetic runtime bridge.
-            let iterableSourceHOFNames: Set = [
-                "filter",
-                "partition",
-                "single",
-                "singleOrNull",
-                "reduce",
-                "reduceIndexed",
-                "reduceRight",
-                "reduceRightIndexed",
-                "reduceRightOrNull",
-                "reduceRightIndexedOrNull",
-                "sumBy",
-                "sumByDouble",
-            ]
             if sema.bindings.callBindings[id] == nil,
                !isSequenceReceiver,
                isCollectionReceiver,
-               iterableSourceHOFNames.contains(calleeStr),
+               Self.iterableSourceHOFNames.contains(calleeStr),
                bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             {
                 for argument in args
