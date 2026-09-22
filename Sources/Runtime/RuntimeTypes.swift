@@ -1436,6 +1436,9 @@ enum SequenceStepKind {
     /// returning COROUTINE_SUSPENDED; legacy callbacks keep the thread-backed
     /// producer path.
     case lazyBuilder(coroutine: RuntimeSequenceCoroutine)
+    /// STDLIB-IO-FN-040: Lazily pulls elements from a stateful producer until
+    /// it returns nil — e.g. `useLines` streaming lines out of a live reader.
+    case pullSource(produce: () -> Int?)
 }
 
 /// Runtime box for `Sequence<T>`.
@@ -2544,13 +2547,30 @@ final class RuntimeAnnotationBox {
 final class RuntimeBufferedReaderBox {
     private var fileHandle: FileHandle?
     private var pendingData: Data
+    /// Offset (from `pendingData.startIndex`) of the first unconsumed byte.
+    /// `read()`/`readLine()` advance this cursor instead of removing bytes
+    /// from the front of `pendingData` — each front removal would shift every
+    /// remaining byte (O(buffer)), turning a full drain quadratic. Consumed
+    /// bytes are dropped once per refill, so consumption is amortized O(1).
+    private var readOffset: Int
     private var closed: Bool
     private var reachedEOF: Bool
     private let chunkSize: Int
 
+    /// Index of the first unconsumed byte in `pendingData`.
+    private var pendingStartIndex: Data.Index {
+        pendingData.index(pendingData.startIndex, offsetBy: readOffset)
+    }
+
+    /// Bytes buffered but not yet consumed.
+    private var pendingByteCount: Int {
+        pendingData.count - readOffset
+    }
+
     init(fileHandle: FileHandle, chunkSize: Int = 4096) {
         self.fileHandle = fileHandle
         self.pendingData = Data()
+        self.readOffset = 0
         self.closed = false
         self.reachedEOF = false
         self.chunkSize = max(1, chunkSize)
@@ -2563,6 +2583,7 @@ final class RuntimeBufferedReaderBox {
     init(data: Data, chunkSize: Int = 4096) {
         self.fileHandle = nil
         self.pendingData = data
+        self.readOffset = 0
         self.closed = false
         self.reachedEOF = true
         self.chunkSize = max(1, chunkSize)
@@ -2574,15 +2595,17 @@ final class RuntimeBufferedReaderBox {
 
         while true {
             if let (lineLength, terminatorLength) = locateLineTerminator() {
-                let lineData = pendingData.prefix(lineLength)
-                pendingData.removeFirst(lineLength + terminatorLength)
-                return String(decoding: lineData, as: UTF8.self)
+                let lineStart = pendingStartIndex
+                let lineEnd = pendingData.index(lineStart, offsetBy: lineLength)
+                readOffset += lineLength + terminatorLength
+                return String(decoding: pendingData[lineStart ..< lineEnd], as: UTF8.self)
             }
 
             if reachedEOF {
-                guard !pendingData.isEmpty else { return nil }
-                let line = String(decoding: pendingData, as: UTF8.self)
+                guard pendingByteCount > 0 else { return nil }
+                let line = String(decoding: pendingData[pendingStartIndex...], as: UTF8.self)
                 pendingData.removeAll(keepingCapacity: false)
+                readOffset = 0
                 return line
             }
 
@@ -2611,8 +2634,9 @@ final class RuntimeBufferedReaderBox {
     /// to release the underlying file handle).
     func readText() -> String {
         guard !closed else { return "" }
-        var data = pendingData
+        var data = pendingData.suffix(from: pendingStartIndex)
         pendingData.removeAll(keepingCapacity: false)
+        readOffset = 0
         while !reachedEOF {
             if !readNextChunk() {
                 reachedEOF = true
@@ -2629,8 +2653,9 @@ final class RuntimeBufferedReaderBox {
         guard !closed else { return -1 }
 
         while true {
-            if !pendingData.isEmpty {
-                let byte = pendingData.removeFirst()
+            if pendingByteCount > 0 {
+                let byte = pendingData[pendingStartIndex]
+                readOffset += 1
                 // Fast path: ASCII byte
                 if byte & 0x80 == 0 {
                     return Int(byte)
@@ -2652,13 +2677,14 @@ final class RuntimeBufferedReaderBox {
                     return Int(byte)
                 }
                 // Ensure we have enough continuation bytes
-                while pendingData.count < totalBytes - 1 {
+                while pendingByteCount < totalBytes - 1 {
                     if reachedEOF { return Int(byte) }
                     if !readNextChunk() { reachedEOF = true }
                 }
-                if pendingData.count < totalBytes - 1 { return Int(byte) }
+                if pendingByteCount < totalBytes - 1 { return Int(byte) }
                 for _ in 1 ..< totalBytes {
-                    let cont = pendingData.removeFirst()
+                    let cont = pendingData[pendingStartIndex]
+                    readOffset += 1
                     codePoint = (codePoint << 6) | UInt32(cont & 0x3F)
                 }
                 return Int(codePoint)
@@ -2672,7 +2698,7 @@ final class RuntimeBufferedReaderBox {
     /// Returns true if data is available to be read without blocking (buffered bytes exist or not EOF).
     func ready() -> Bool {
         guard !closed else { return false }
-        return !pendingData.isEmpty || !reachedEOF
+        return pendingByteCount > 0 || !reachedEOF
     }
 
     func close() {
@@ -2680,6 +2706,7 @@ final class RuntimeBufferedReaderBox {
         try? fileHandle?.close()
         fileHandle = nil
         pendingData.removeAll(keepingCapacity: false)
+        readOffset = 0
         closed = true
     }
 
@@ -2692,25 +2719,36 @@ final class RuntimeBufferedReaderBox {
         guard let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty else {
             return false
         }
+        dropConsumedPrefix()
         pendingData.append(chunk)
         return true
     }
 
+    /// Drops already-consumed bytes from the front of `pendingData`, keeping
+    /// the buffer bounded to roughly one unread chunk instead of accumulating
+    /// every byte the reader has ever seen.
+    private func dropConsumedPrefix() {
+        guard readOffset > 0 else { return }
+        pendingData.removeFirst(readOffset)
+        readOffset = 0
+    }
+
     private func locateLineTerminator() -> (lineLength: Int, terminatorLength: Int)? {
-        var index = pendingData.startIndex
+        let startIndex = pendingStartIndex
+        var index = startIndex
         while index < pendingData.endIndex {
             let byte = pendingData[index]
             if byte == 0x0A {
-                return (pendingData.distance(from: pendingData.startIndex, to: index), 1)
+                return (pendingData.distance(from: startIndex, to: index), 1)
             }
             if byte == 0x0D {
                 let nextIndex = pendingData.index(after: index)
                 if nextIndex < pendingData.endIndex {
-                    let lineLength = pendingData.distance(from: pendingData.startIndex, to: index)
+                    let lineLength = pendingData.distance(from: startIndex, to: index)
                     return (lineLength, pendingData[nextIndex] == 0x0A ? 2 : 1)
                 }
                 if reachedEOF {
-                    return (pendingData.distance(from: pendingData.startIndex, to: index), 1)
+                    return (pendingData.distance(from: startIndex, to: index), 1)
                 }
                 return nil
             }
