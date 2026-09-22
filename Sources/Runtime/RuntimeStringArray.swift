@@ -1034,18 +1034,11 @@ public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // Range check first
     if let range = runtimeRangeBox(from: container) {
-        if range.step > 0 {
-            guard element >= range.first, element <= range.last else { return 0 }
-            return (element - range.first) % range.step == 0 ? 1 : 0
-        } else if range.step < 0 {
-            guard element <= range.first, element >= range.last else { return 0 }
-            return (range.first - element) % (-range.step) == 0 ? 1 : 0
-        }
-        return 0
+        return runtimeRangeContains(range, element)
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return list.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
@@ -1055,7 +1048,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     guard let array = runtimeArrayBox(from: container) else {
         return 0
     }
-    return array.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+    return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
 }
 
 @_cdecl("kk_array_new")
