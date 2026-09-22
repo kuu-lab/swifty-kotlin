@@ -1144,6 +1144,53 @@ public fun <T> Sequence<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
+// KSP-1353: Double/Float-specialized maxOrNull()/max() overloads, mirroring
+// Iterables.kt's own specializations. Pairwise kk_max_double/kk_max_float
+// keeps NaN propagation and signed-zero ordering on Kotlin's IEEE-754
+// semantics instead of the Comparable.compareTo total ordering used by the
+// generic <T : Comparable<T>> overloads below. These declarations sit ahead
+// of the generic ones so the Sequence aggregate fast path's first-match
+// lookup prefers them for concrete Double/Float receivers; other element
+// types still resolve to the generic overloads through the receiver
+// element-type filter.
+@SinceKotlin("1.4")
+public fun Sequence<Double>.maxOrNull(): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var max = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        max = kk_max_double(max, elements[i])
+        i += 1
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun Sequence<Float>.maxOrNull(): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var max = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        max = kk_max_float(max, elements[i])
+        i += 1
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Double>.max(): Double = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Float>.max(): Float = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
 public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
     val elements = this.toList()
     var best: T? = null

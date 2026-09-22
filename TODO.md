@@ -3046,6 +3046,7 @@
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt`
   - 完了根拠（2026-09-15）: 18 件中 8 件（`max()`/`maxOrNull()` の generic `#A` オーバーロード、`maxBy`/`maxByOrNull`、`maxOf`/`maxOfOrNull` の generic `#B` オーバーロード、`maxWith`/`maxWithOrNull`）は監査 stale で既存実装済み（KUU-459 PR-A で確認済み）。残り 10 件のうち 6 件（`maxOf(Function1): Double/Float`・`maxOfOrNull(Function1): Double/Float`・`maxOfWith`・`maxOfWithOrNull`）を本 PR で実装。`maxOf`/`maxOfOrNull` の Double/Float 特化は `@OverloadResolutionByLambdaReturnType`（要 `inline fun` + `@OptIn(ExperimentalTypeInference)` + `@SinceKotlin("1.4")`）でラムダ戻り値型により generic 版と識別。`maxOfWith`/`maxOfWithOrNull` は `CallTypeChecker+MemberCallInferenceCollectionFlow.swift` の `activeCollectionHOFNames` から Sequence receiver 時のみ除外する Sema 修正を同 PR に含む（従来はこの fast path が Sequence 向けの束縛を一切持たず、KIR の legacy `kk_list_maxOfWith` フォールバックへ落ちてリンクエラーになっていた。List/Map の挙動は smoke test で回帰なし確認）。
   - 見送り（2026-09-15）: `max(): Double`/`max(): Float`/`maxOrNull(): Double`/`maxOrNull(): Float` の 4 件は本 PR では実装しない。同名 0 引数オーバーロードを複数（Float 特化・Double 特化・generic）追加すると `bindBundledSequenceAggregateSource`（同ファイル 2065 行）が receiver の要素型を見ずに `lookupAll(...).first(where:)` で候補を選ぶため、`Sequence<Int>.max()` 等 Double 以外の receiver でも常に Double 特化版の symbol に束縛される重大な誤り束縛を確認（バインディング検査テストで実測）。generic `Comparable` 版は既に Float/Double を含む全 Comparable receiver で数値的に正しい結果を返す（NaN 伝播などの IEEE754 pairwise 厳密仕様は持たないが、この差分は master 時点から existing gap であり本 PR で悪化させていない）。安全な修正には `bindBundledSequenceAggregateSource` 自体への receiver 要素型フィルタ追加が必要で別 PR 課題。詳細は Linear バグ参照。
+  - 見送り解消（2026-09-21, KUU-715）: #6919 が Sequence aggregate fast path に receiver 要素型フィルタ（`sequenceSourceReceiverElementMatches`）を追加済みのため、残り 4 件（`Sequence<Double>.max()`/`Sequence<Float>.max()`/`Sequence<Double>.maxOrNull()`/`Sequence<Float>.maxOrNull()`）を実装。Iterables.kt と同じく `kk_max_double`/`kk_max_float` の pairwise 比較で IEEE-754 の NaN 伝播・符号付きゼロ順序を維持。generic 宣言より手前に置き、fast path の first-match で Double/Float receiver は特化版に、それ以外の要素型は従来どおり generic に束縛されることを golden で確認。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_max.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_max.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_max.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
@@ -3056,9 +3057,11 @@
     - `kotlin.sequences.maxOfOrNull` — fun Sequence.maxOfOrNull(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfOrNull(kotlin/Function1<#A, kotlin/Float>): kotlin/Float?`
     - `kotlin.sequences.maxOfWith` — fun Sequence.maxOfWith(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfWith(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B`
     - `kotlin.sequences.maxOfWithOrNull` — fun Sequence.maxOfWithOrNull(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfWithOrNull(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B?`
-  - 見送りシンボル一覧（4 件、理由は上記）:
-    - `kotlin.sequences.max` — fun Sequence.max(): Double / Float
-    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): Double / Float
+  - 実装シンボル一覧（KUU-715 で新規実装した 4 件、旧見送り分）:
+    - `kotlin.sequences.max` — fun Sequence.max(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/max(): kotlin/Double`
+    - `kotlin.sequences.max` — fun Sequence.max(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/max(): kotlin/Float`
+    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/maxOrNull(): kotlin/Double?`
+    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/maxOrNull(): kotlin/Float?`
 
 - [x] KSP-1354: kotlin.sequences.Sequence.min-family の未実装 stdlib API を実装する（18 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `min`
