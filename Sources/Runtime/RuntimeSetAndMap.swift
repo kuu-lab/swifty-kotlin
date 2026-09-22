@@ -683,12 +683,15 @@ public func kk_map_iterator_hasNext(_ iterRaw: Int) -> Int {
 
 /// Returns the key at the current position, matching the C preamble behavior.
 @_cdecl("__kk_map_iterator_next")
-public func kk_map_iterator_next(_ iterRaw: Int) -> Int {
-    guard let iter = runtimeMapIteratorBox(from: iterRaw) else {
-        return 0
-    }
-    guard iter.index < iter.keys.count else {
-        return 0
+public func kk_map_iterator_next(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    guard let iter = runtimeMapIteratorBox(from: iterRaw),
+          iter.index < iter.keys.count
+    else {
+        return runtimeThrowIteratorExhausted(outThrown)
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -710,11 +713,15 @@ public func kk_mutable_map_iterator_hasNext(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("__kk_mutable_map_iterator_next")
-public func kk_mutable_map_iterator_next(_ iterRaw: Int) -> Int {
+public func kk_mutable_map_iterator_next(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
     guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
           iter.index < iter.keys.count
     else {
-        return runtimeNullSentinelInt
+        return runtimeThrowIteratorExhausted(outThrown)
     }
     let key = iter.keys[iter.index]
     iter.index += 1

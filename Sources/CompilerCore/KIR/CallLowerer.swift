@@ -1456,7 +1456,18 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
+            "kk_iterator_next",
+            "kk_list_iterator_next",
         ].contains(name)
+    }
+
+    func isIteratorNextName(_ name: String) -> Bool {
+        switch name {
+        case "next", "kk_iterator_next", "kk_list_iterator_next":
+            true
+        default:
+            false
+        }
     }
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
@@ -1480,6 +1491,8 @@ final class CallLowerer {
             "__kk_mutable_map_clear",
             "__kk_mutable_map_putAll",
             "__kk_list_get",
+            "kk_iterator_next",
+            "kk_list_iterator_next",
         ].contains(interner.resolve(calleeName))
     }
 
