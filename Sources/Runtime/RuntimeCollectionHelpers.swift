@@ -1293,7 +1293,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
-        return sbBox.value
+        return sbBox.stringValue
     }
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
