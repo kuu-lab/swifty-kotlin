@@ -339,8 +339,9 @@ struct BundledDeclarationIndex: Sendable {
         else {
             return false
         }
-        return symbols.allSymbols().contains { candidate in
-            guard candidate.id != symbol.id,
+        return symbols.lookupByShortName(symbol.name).contains { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.id != symbol.id,
                   candidate.kind == .property,
                   symbols.isSourceBackedSymbol(candidate.id),
                   candidate.name == symbol.name,
@@ -434,10 +435,11 @@ struct BundledDeclarationIndex: Sendable {
         else {
             return false
         }
-        return symbols.allSymbols().contains { candidate in
+        return symbols.lookupByShortName(key.name).contains { candidateID in
             // Imported library members have no declSite but stand in for the
             // bundled source declaration, so accept either source form.
-            guard candidate.kind == .function,
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.kind == .function,
                   symbols.isSourceBackedSymbol(candidate.id),
                   let candidateKey = memberKey(
                       for: candidate,
@@ -478,8 +480,9 @@ struct BundledDeclarationIndex: Sendable {
             return false
         }
 
-        return symbols.allSymbols().contains { candidate in
-            guard candidate.kind == .function,
+        return symbols.lookupByShortName(key.name).contains { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.kind == .function,
                   symbols.isSourceBackedSymbol(candidate.id),
                   candidate.name == key.name,
                   let candidateKey = memberKey(
