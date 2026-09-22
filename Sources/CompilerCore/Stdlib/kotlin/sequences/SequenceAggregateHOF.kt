@@ -256,48 +256,44 @@ public fun <T, K, V> Sequence<T>.associateBy(
     return result
 }
 
-public fun <T, K> Sequence<T>.groupBy(keySelector: (T) -> K): MutableMap<K, MutableList<T>> {
-    val elements = this.toList()
+// KSP-1348: Sequence group-family decls carry the Kotlin 2.3.10 signatures —
+// Map<K, List<…>> results and generic `M : MutableMap<in K, …>` destinations —
+// matching the Iterable counterparts in Iterables.kt.
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K> Sequence<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
     val result = mutableMapOf<K, MutableList<T>>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
+    for (element in this) {
+        val key = keySelector(element)
         val existing = result[key]
         if (existing == null) {
             val bucket = mutableListOf<T>()
-            bucket.add(elem)
+            bucket.add(element)
             result[key] = bucket
         } else {
-            existing.add(elem)
+            existing.add(element)
         }
-        i += 1
     }
-    return result
+    return result as Map<K, List<T>>
 }
 
-public fun <T, K, V> Sequence<T>.groupBy(
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K, V> Sequence<T>.groupBy(
     keySelector: (T) -> K,
     valueTransform: (T) -> V
-): MutableMap<K, MutableList<V>> {
-    val elements = this.toList()
+): Map<K, List<V>> {
     val result = mutableMapOf<K, MutableList<V>>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
-        val value = valueTransform(elem)
+    for (element in this) {
+        val key = keySelector(element)
         val existing = result[key]
         if (existing == null) {
             val bucket = mutableListOf<V>()
-            bucket.add(value)
+            bucket.add(valueTransform(element))
             result[key] = bucket
         } else {
-            existing.add(value)
+            existing.add(valueTransform(element))
         }
-        i += 1
     }
-    return result
+    return result as Map<K, List<V>>
 }
 
 public fun <T> Sequence<T>.sumOf(selector: (T) -> Int): Int {
@@ -764,45 +760,41 @@ public fun <T, V> Sequence<T>.associateWithTo(destination: MutableMap<T, V>, val
     return destination
 }
 
-public fun <T, K> Sequence<T>.groupByTo(destination: MutableMap<K, MutableList<T>>, keySelector: (T) -> K): MutableMap<K, MutableList<T>> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
+@IgnorableReturnValue
+public inline fun <T, K, M : MutableMap<in K, MutableList<T>>> Sequence<T>.groupByTo(
+    destination: M,
+    keySelector: (T) -> K
+): M {
+    for (element in this) {
+        val key = keySelector(element)
         val existing = destination[key]
         if (existing == null) {
             val bucket = mutableListOf<T>()
-            bucket.add(elem)
+            bucket.add(element)
             destination[key] = bucket
         } else {
-            existing.add(elem)
+            existing.add(element)
         }
-        i += 1
     }
     return destination
 }
 
-public fun <T, K, V> Sequence<T>.groupByTo(
-    destination: MutableMap<K, MutableList<V>>,
+@IgnorableReturnValue
+public inline fun <T, K, V, M : MutableMap<in K, MutableList<V>>> Sequence<T>.groupByTo(
+    destination: M,
     keySelector: (T) -> K,
     valueTransform: (T) -> V
-): MutableMap<K, MutableList<V>> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
-        val value = valueTransform(elem)
+): M {
+    for (element in this) {
+        val key = keySelector(element)
         val existing = destination[key]
         if (existing == null) {
             val bucket = mutableListOf<V>()
-            bucket.add(value)
+            bucket.add(valueTransform(element))
             destination[key] = bucket
         } else {
-            existing.add(value)
+            existing.add(valueTransform(element))
         }
-        i += 1
     }
     return destination
 }
