@@ -426,6 +426,15 @@ final class FunctionScope: BaseScope {}
 
 import Foundation
 
+/// Compact member shape recovered from a v2 metadata index entry when an
+/// imported symbol is registered as a lazy shell. Arity-based member keys
+/// (bundled-overlap checks) can be answered from this shape without
+/// materializing the declaration body.
+struct ImportedMemberIndexShape {
+    let arity: Int
+    let receiverOwnerFQName: [InternedString]?
+}
+
 public final class SymbolTable {
     private var symbolsStorage: [SemanticSymbol] = []
     private var byFQName: [[InternedString]: [SymbolID]] = [:]
@@ -489,6 +498,9 @@ public final class SymbolTable {
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
+    /// Index-shape hints for lazy shells, keyed by symbol. Consulted by
+    /// arity-key builders so they never force body materialization.
+    private var importedMemberIndexShapes: [SymbolID: ImportedMemberIndexShape] = [:]
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
@@ -525,6 +537,16 @@ public final class SymbolTable {
 
     var hasLazyImportedMetadataLoader: Bool {
         lazyImportedMetadataLoader != nil
+    }
+
+    /// Records the compact index shape of a lazy shell so arity-based member
+    /// keys resolve without materializing the declaration body.
+    func setImportedMemberIndexShape(_ shape: ImportedMemberIndexShape, for symbol: SymbolID) {
+        importedMemberIndexShapes[symbol] = shape
+    }
+
+    func importedMemberIndexShape(for symbol: SymbolID) -> ImportedMemberIndexShape? {
+        importedMemberIndexShapes[symbol]
     }
 
     private func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
@@ -2065,6 +2087,10 @@ public final class SemaModule {
     /// unit-test sema modules that do not build a full source environment.
     public let interner: StringInterner?
     public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// ARCH-029: resolves deferred imported inline bodies that the module's
+    /// call sites actually demand. Set by the lazy metadata loader when a v2
+    /// `.kklib` index is in use; `nil` on the eager import path.
+    public var resolveDemandedImportedInlineBodies: ((KIRModule) -> Void)?
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
     /// in the transient `BundledSyntheticStubRegistration` thread-local, which

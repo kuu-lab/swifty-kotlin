@@ -56,6 +56,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         importDeferredWork.lazyLoaderState?.inlineFunctionSink = { [weak sema] symbol, function in
             sema?.importedInlineFunctions[symbol] = function
         }
+        sema.resolveDemandedImportedInlineBodies =
+            importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
 
         // KSP-706: when compiling against bundled stdlib source rather than a
         // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`

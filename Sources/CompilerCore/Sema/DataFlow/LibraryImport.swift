@@ -28,6 +28,18 @@ extension DataFlowSemaPhase {
         var importedInlineFunctions: [SymbolID: KIRFunction]
         var inlineFunctionSink: ((SymbolID, KIRFunction) -> Void)?
         var bundledIndex: BundledDeclarationIndex = .empty
+        /// Indexed inline bodies kept unparsed past materialization. They are
+        /// resolved on demand once lowering knows which callees the module
+        /// actually calls — materializing a symbol for a signature query must
+        /// not read its `.kir` file.
+        var pendingInlineBindings: [SymbolID: ImportedLibraryBinding] = [:]
+        /// Pending symbols grouped by simple name, consulted only by
+        /// symbol-unresolved `.call` sites that resolve through the name
+        /// fallback.
+        var pendingInlineSymbolsByName: [InternedString: [SymbolID]] = [:]
+        /// Populated by `loadImportedLibrarySymbols`; resolves pending bodies
+        /// for callees demanded by the module. Forwarded onto `SemaModule`.
+        var resolveDemandedInlineBodies: ((KIRModule) -> Void)?
 
         init(importedInlineFunctions: [SymbolID: KIRFunction] = [:]) {
             self.importedInlineFunctions = importedInlineFunctions
@@ -115,14 +127,39 @@ extension DataFlowSemaPhase {
             if let moduleFQN {
                 symbols.setModuleFQN(moduleFQN, for: symbol)
             }
-            importedBindings.append(ImportedLibraryBinding(
+            if materializeBody != nil,
+               record.kind == .function || record.kind == .property || record.kind == .field
+            {
+                symbols.setImportedMemberIndexShape(
+                    ImportedMemberIndexShape(
+                        arity: record.kind == .function ? record.arity : 0,
+                        receiverOwnerFQName: record.receiverOwnerFQName
+                    ),
+                    for: symbol
+                )
+            }
+            let binding = ImportedLibraryBinding(
                 record: record,
                 symbol: symbol,
                 metadataPath: metadataPath,
                 inlineKIRDir: inlineKIRDir,
                 isStdlibArtifact: isStdlibArtifact,
                 materializeBody: materializeBody
-            ))
+            )
+            // Indexed inline bodies stay unparsed until lowering resolves the
+            // callees the module actually invokes. Registering at shell
+            // creation — not at materialization — also covers
+            // symbol-unresolved `.call` sites that reach the body through the
+            // name fallback before any semantic query materializes it.
+            if binding.defersInlineBodyImport,
+               record.isInline, !record.mangledName.isEmpty, inlineKIRDir != nil
+            {
+                lazyLoaderState.pendingInlineBindings[symbol] = binding
+                if let name = record.fqName.last {
+                    lazyLoaderState.pendingInlineSymbolsByName[name, default: []].append(symbol)
+                }
+            }
+            importedBindings.append(binding)
         }
 
         for libraryDir in libraryDirs {
@@ -393,6 +430,18 @@ extension DataFlowSemaPhase {
                 lazyLoaderState.importedInlineFunctions[inlineSymbol] = function
                 lazyLoaderState.inlineFunctionSink?(inlineSymbol, function)
             }
+            }
+            lazyLoaderState.resolveDemandedInlineBodies = { [self] module in
+                self.resolveDemandedImportedInlineBodies(
+                    module: module,
+                    state: lazyLoaderState,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    externalLinkNameToSymbol: externalLinkNameToSymbol,
+                    importedSymbolByFQName: importedSymbolByFQName
+                )
             }
         } else {
             // Legacy metadata has already been fully decoded. Preserve its
@@ -1375,6 +1424,12 @@ extension DataFlowSemaPhase {
             self.isMaterialized = materializeBody == nil
         }
 
+        /// Whether this binding came from a v2 index and its `.kir` inline
+        /// body should stay unparsed until lowering demands it.
+        var defersInlineBodyImport: Bool {
+            materializeBody != nil
+        }
+
         @discardableResult
         func materialize() -> ImportedLibrarySymbolRecord {
             guard !isMaterialized else { return record }
@@ -1840,10 +1895,50 @@ extension DataFlowSemaPhase {
         let record = binding.record
         guard record.isInline,
               !record.mangledName.isEmpty,
-              let inlineDir = binding.inlineKIRDir
+              binding.inlineKIRDir != nil
         else {
             return
         }
+
+        // Indexed metadata defers `.kir` body parsing: a signature query that
+        // materializes the declaration must not read the inline body file.
+        // The binding was already registered as pending at shell creation, so
+        // lowering can resolve the body on demand for callees the module
+        // actually invokes.
+        if binding.defersInlineBodyImport {
+            return
+        }
+
+        guard let inlineFunction = loadImportedInlineFunctionBody(
+            binding,
+            symbol: symbol,
+            signature: signature,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
+        ) else {
+            return
+        }
+        importedInlineFunctions[symbol] = inlineFunction
+    }
+
+    /// Reads and parses the `.kir` inline body file for an imported inline
+    /// function. Shared by the eager import path and the deferred resolver
+    /// that lowering invokes for demanded callees.
+    private func loadImportedInlineFunctionBody(
+        _ binding: ImportedLibraryBinding,
+        symbol: SymbolID,
+        signature: FunctionSignature,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
+    ) -> KIRFunction? {
+        let record = binding.record
+        guard let inlineDir = binding.inlineKIRDir else { return nil }
 
         let fileName = MetadataEncoder.inlineKIRFileName(for: record.mangledName)
         let inlinePath = URL(fileURLWithPath: inlineDir)
@@ -1857,7 +1952,7 @@ extension DataFlowSemaPhase {
                 "Inline KIR path for '\(record.mangledName)' escapes inline directory",
                 range: nil
             )
-            return
+            return nil
         }
         guard FileManager.default.fileExists(atPath: inlinePath) else {
             let recordFQName = record.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -1874,9 +1969,9 @@ extension DataFlowSemaPhase {
                     range: nil
                 )
             }
-            return
+            return nil
         }
-        guard let inlineFunction = parseImportedInlineFunction(
+        return parseImportedInlineFunction(
             path: inlinePath,
             importedSymbol: symbol,
             signature: signature,
@@ -1885,10 +1980,77 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             externalLinkNameToSymbol: externalLinkNameToSymbol,
             importedSymbolByFQName: importedSymbolByFQName
-        ) else {
-            return
+        )
+    }
+
+    /// Resolves deferred imported inline bodies for the callees a module's
+    /// KIR actually invokes. `.call` instructions carrying a resolved callee
+    /// symbol resolve that binding; symbol-unresolved calls fall back to the
+    /// pending name index (resolving every candidate is safe — extra bodies
+    /// simply join the expansion table). Freshly parsed bodies are scanned in
+    /// turn so transitive inline-to-inline calls resolve as well.
+    private func resolveDemandedImportedInlineBodies(
+        module: KIRModule,
+        state: ImportedLibraryLazyLoaderState,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
+    ) {
+        func resolveOne(_ symbol: SymbolID) -> KIRFunction? {
+            guard let binding = state.pendingInlineBindings.removeValue(forKey: symbol) else {
+                return state.importedInlineFunctions[symbol]
+            }
+            if let name = binding.record.fqName.last,
+               var siblings = state.pendingInlineSymbolsByName[name]
+            {
+                siblings.removeAll { $0 == symbol }
+                if siblings.isEmpty {
+                    state.pendingInlineSymbolsByName.removeValue(forKey: name)
+                } else {
+                    state.pendingInlineSymbolsByName[name] = siblings
+                }
+            }
+            guard let signature = symbols.functionSignature(for: symbol),
+                  let function = loadImportedInlineFunctionBody(
+                      binding,
+                      symbol: symbol,
+                      signature: signature,
+                      types: types,
+                      diagnostics: diagnostics,
+                      interner: interner,
+                      externalLinkNameToSymbol: externalLinkNameToSymbol,
+                      importedSymbolByFQName: importedSymbolByFQName
+                  )
+            else {
+                return nil
+            }
+            state.importedInlineFunctions[symbol] = function
+            state.inlineFunctionSink?(symbol, function)
+            return function
         }
-        importedInlineFunctions[symbol] = inlineFunction
+
+        var scannedSymbols: Set<SymbolID> = []
+        var bodiesToScan: [[KIRInstruction]] = module.arena.declarations.compactMap { decl in
+            guard case let .function(function) = decl else { return nil }
+            return function.body
+        }
+        while let body = bodiesToScan.popLast() {
+            for instruction in body {
+                guard case let .call(callSymbol, calleeName, _, _, _, _, _, _) = instruction else {
+                    continue
+                }
+                let targets: [SymbolID] = callSymbol.map { [$0] }
+                    ?? state.pendingInlineSymbolsByName[calleeName] ?? []
+                for target in targets where scannedSymbols.insert(target).inserted {
+                    if let function = resolveOne(target) {
+                        bodiesToScan.append(function.body)
+                    }
+                }
+            }
+        }
     }
 
     private func applyImportedValueClassMetadata(

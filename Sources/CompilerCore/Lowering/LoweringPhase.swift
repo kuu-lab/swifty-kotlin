@@ -76,6 +76,10 @@ public final class LoweringPhase: CompilerPhase {
             sema: ctx.sema
         )
         if let sema = ctx.sema {
+            // ARCH-029: indexed imports defer `.kir` body parsing. Resolve the
+            // bodies this module's call sites actually reach before the
+            // expansion index snapshots the imported table.
+            sema.resolveDemandedImportedInlineBodies?(module)
             ImportedInlineKIRMaterializer.materialize(
                 importedFunctions: &sema.importedInlineFunctions,
                 arena: module.arena,
