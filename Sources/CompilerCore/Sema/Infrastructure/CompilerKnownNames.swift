@@ -482,16 +482,6 @@ package struct KnownCompilerNames {
     let comparator: InternedString
     let sequenceScope: InternedString
     let closedFloatingPointRange: InternedString
-    let intRange: InternedString
-    let longRange: InternedString
-    let charRange: InternedString
-    let uintRange: InternedString
-    let ulongRange: InternedString
-    let intProgression: InternedString
-    let longProgression: InternedString
-    let charProgression: InternedString
-    let uintProgression: InternedString
-    let ulongProgression: InternedString
     let kotlin: InternedString
     let sequences: InternedString
     let initName: InternedString
@@ -966,16 +956,6 @@ package struct KnownCompilerNames {
         comparator = interner.intern("Comparator")
         sequenceScope = interner.intern("SequenceScope")
         closedFloatingPointRange = interner.intern("ClosedFloatingPointRange")
-        intRange = interner.intern("IntRange")
-        longRange = interner.intern("LongRange")
-        charRange = interner.intern("CharRange")
-        uintRange = interner.intern("UIntRange")
-        ulongRange = interner.intern("ULongRange")
-        intProgression = interner.intern("IntProgression")
-        longProgression = interner.intern("LongProgression")
-        charProgression = interner.intern("CharProgression")
-        uintProgression = interner.intern("UIntProgression")
-        ulongProgression = interner.intern("ULongProgression")
         self.kotlin = kotlin
         sequences = interner.intern("sequences")
         initName = interner.intern("<init>")
