@@ -26,65 +26,20 @@ private external fun kk_max_double(a: Double, b: Double): Double
 //   Sources/Runtime/RuntimeSequenceAssociation.swift
 //   Sources/Runtime/RuntimeSequenceFoldScan.swift
 //
-// Migrated: reduce, reduceOrNull, reduceIndexed, reduceIndexedOrNull,
-//           reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
+// Migrated: reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
 //           scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
 //           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy,
 //           groupBy, Sequence.toMap
+//
+// reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull moved to
+// SequenceConversionsAndSetOps.kt (package kotlin.sequences) with the canonical
+// <S, T : S> signature in KSP-1355.
 //
 // Sorting variants are in SequenceSortingHOF.kt (package kotlin.sequences) to avoid
 // FQ-name collisions with List sorting extensions.
 //
 // Implementations materialize through toList() before looping so they reuse the
 // stable list indexing path instead of the still-limited Sequence for-loop path.
-
-public fun <T> Sequence<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceOrNull(operation: (T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceIndexedOrNull(operation: (Int, T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
 
 public fun <T> Sequence<T>.reduceRight(operation: (T, T) -> T): T {
     val elements = this.toList()
