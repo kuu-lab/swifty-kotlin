@@ -95,7 +95,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// nominal runtime type. Keep that lookup on the context so callers do not
     /// duplicate the AST scan.
     var currentASTFile: ASTFile? {
-        ast.sortedFiles.first { $0.fileID == currentFileID }
+        ast.file(for: currentFileID)
     }
 
     func withLambdaLabel(_ label: InternedString) -> TypeInferenceContext {
