@@ -77,6 +77,54 @@ public inline fun <T, R> Sequence<T>.foldIndexed(initial: R, operation: (index: 
     return accumulator
 }
 
+// KSP-1357: Sequence single-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract: single()/singleOrNull() stop after the second
+// element instead of materializing the sequence.
+public fun <T> Sequence<T>.single(): T {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    val single = iterator.next()
+    if (iterator.hasNext()) throw IllegalArgumentException("Sequence has more than one element.")
+    return single
+}
+
+public inline fun <T> Sequence<T>.single(predicate: (T) -> Boolean): T {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Sequence contains more than one matching element.")
+            single = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Sequence contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return single as T
+}
+
+public fun <T> Sequence<T>.singleOrNull(): T? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    val single = iterator.next()
+    if (iterator.hasNext()) return null
+    return single
+}
+
+public inline fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            single = element
+            found = true
+        }
+    }
+    if (!found) return null
+    return single
+}
+
 @KsSymbolName("kk_sequence_to_list")
 public fun <T> Sequence<T>.toList(): List<T> {
     val result = mutableListOf<T>()

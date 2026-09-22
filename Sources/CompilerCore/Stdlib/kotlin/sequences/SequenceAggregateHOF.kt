@@ -967,55 +967,6 @@ public fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> Sequence<T>.single(): T {
-    val elements = this.toList()
-    val sz = elements.size
-    if (sz == 1) return elements[0]
-    if (sz == 0) throw NoSuchElementException("Sequence is empty.")
-    throw IllegalArgumentException("Sequence has more than one element.")
-}
-
-public fun <T> Sequence<T>.single(predicate: (T) -> Boolean): T {
-    val elements = this.toList()
-    var matchIndex = -1
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        if (predicate(elements[i])) {
-            if (matchIndex >= 0) {
-                throw IllegalArgumentException("Sequence contains more than one matching element.")
-            }
-            matchIndex = i
-        }
-        i += 1
-    }
-    if (matchIndex >= 0) return elements[matchIndex]
-    throw NoSuchElementException("Sequence contains no element matching the predicate.")
-}
-
-public fun <T> Sequence<T>.singleOrNull(): T? {
-    val elements = this.toList()
-    val sz = elements.size
-    if (sz == 1) return elements[0]
-    return null
-}
-
-public fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
-    val elements = this.toList()
-    var matchIndex = -1
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        if (predicate(elements[i])) {
-            if (matchIndex >= 0) return null
-            matchIndex = i
-        }
-        i += 1
-    }
-    if (matchIndex >= 0) return elements[matchIndex]
-    return null
-}
-
 public fun <T> Sequence<T>.elementAt(index: Int): T {
     val elements = this.toList()
     if (index < 0 || index >= elements.size) {
