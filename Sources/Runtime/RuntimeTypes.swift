@@ -539,6 +539,42 @@ final class RuntimeListBox {
         }
     }
 
+    /// Element count without materializing view-backed storage. Prefer this
+    /// over `values.count`/`elements.count` on possibly-viewed lists: the
+    /// `values` getter rebuilds the whole array for reversed/subList storage.
+    var count: Int {
+        switch storage {
+        case .direct(let values):
+            return values.count
+        case .reversedViewOf(let base):
+            return base.count
+        case .arrayViewOf(let base):
+            return base.count
+        case .subList(let slice):
+            return slice.toIndex - slice.fromIndex
+        }
+    }
+
+    /// O(1) indexed access without materializing view-backed storage.
+    /// View storage translates the index into the base's coordinate space;
+    /// out-of-range indices return nil.
+    func element(at index: Int) -> RuntimeValue? {
+        switch storage {
+        case .direct(let values):
+            guard index >= 0, index < values.count else { return nil }
+            return values[index]
+        case .reversedViewOf(let base):
+            guard index >= 0 else { return nil }
+            return base.element(at: base.count - 1 - index)
+        case .arrayViewOf(let base):
+            guard index >= 0, index < base.count else { return nil }
+            return base.values[index]
+        case .subList(let slice):
+            guard index >= 0, index < slice.toIndex - slice.fromIndex else { return nil }
+            return slice.base.element(at: slice.fromIndex + index)
+        }
+    }
+
     func freeze() {
         isReadOnly = true
     }

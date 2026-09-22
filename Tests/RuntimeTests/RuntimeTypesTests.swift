@@ -151,6 +151,47 @@ struct RuntimeTypesTests {
     }
 
     @Test
+    func runtimeListBoxElementAtTranslatesViewIndices() throws {
+        let base = RuntimeListBox(elements: [10, 20, 30, 40])
+        let reversed = RuntimeListBox(reversedViewOf: base)
+        let subList = RuntimeListBox(subListOf: base, fromIndex: 1, toIndex: 3)
+
+        #expect(reversed.count == 4)
+        #expect(try #require(reversed.element(at: 0)).legacyRawValue == 40)
+        #expect(try #require(reversed.element(at: 3)).legacyRawValue == 10)
+        #expect(reversed.element(at: 4) == nil)
+        #expect(reversed.element(at: -1) == nil)
+
+        #expect(subList.count == 2)
+        #expect(try #require(subList.element(at: 0)).legacyRawValue == 20)
+        #expect(try #require(subList.element(at: 1)).legacyRawValue == 30)
+        #expect(subList.element(at: 2) == nil)
+    }
+
+    @Test
+    func runtimeListBoxElementAtRecursesThroughNestedViews() throws {
+        let base = RuntimeListBox(elements: [10, 20, 30, 40])
+        let subList = RuntimeListBox(subListOf: base, fromIndex: 1, toIndex: 4)
+        let reversedSubList = RuntimeListBox(reversedViewOf: subList)
+
+        #expect(reversedSubList.count == 3)
+        #expect(try #require(reversedSubList.element(at: 0)).legacyRawValue == 40)
+        #expect(try #require(reversedSubList.element(at: 2)).legacyRawValue == 20)
+        #expect(reversedSubList.element(at: 3) == nil)
+    }
+
+    @Test
+    func runtimeListBoxElementAtReadsThroughArrayView() throws {
+        let array = RuntimeArrayBox(length: 2)
+        array.values = [RuntimeValue(raw: 7), RuntimeValue(raw: 8)]
+        let list = RuntimeListBox(arrayViewOf: array)
+
+        #expect(list.count == 2)
+        #expect(try #require(list.element(at: 1)).legacyRawValue == 8)
+        #expect(list.element(at: 2) == nil)
+    }
+
+    @Test
     func runtimeMapBoxStoresRuntimeValues() {
         let map = RuntimeMapBox(keys: [1], values: [2])
         map.keyValues[0] = RuntimeValue(raw: 10)

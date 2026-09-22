@@ -125,7 +125,7 @@ public func kk_list_size(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
     }
-    return list.elements.count
+    return list.count
 }
 
 @_cdecl("__kk_list_get")
@@ -139,14 +139,14 @@ public func kk_list_get(
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
-    guard list.values.indices.contains(index) else {
+    guard let element = list.element(at: index) else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "Index: \(index), Size: \(list.values.count)")
+            runtimeAllocateIndexOutOfBoundsException(message: "Index: \(index), Size: \(list.count)")
         )
         return 0
     }
-    return runtimeCollectionABIValue(list.values[index])
+    return runtimeCollectionABIValue(element)
 }
 
 /// `EnumEntries.get` checks bounds and reports Kotlin's
@@ -159,14 +159,15 @@ public func kk_enum_entries_get(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw), list.values.indices.contains(index) else {
-        let size = runtimeListBox(from: listRaw)?.elements.count ?? 0
+    guard let list = runtimeListBox(from: listRaw),
+          let element = list.element(at: index) else {
+        let size = runtimeListBox(from: listRaw)?.count ?? 0
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "Index: \(index), size: \(size)"
         )
         return 0
     }
-    return runtimeCollectionABIValue(list.values[index])
+    return runtimeCollectionABIValue(element)
 }
 
 @_cdecl("kk_list_is_empty")
