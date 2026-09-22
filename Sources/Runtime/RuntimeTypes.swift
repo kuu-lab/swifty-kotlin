@@ -660,6 +660,14 @@ final class RuntimeSetBox {
         return index[RuntimeElementKey(value: rawValue)] != nil
     }
 
+    var isEffectivelyReadOnly: Bool {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.isEffectivelyReadOnly
+        }
+        return isReadOnly
+    }
+
     @discardableResult
     func insert(rawValue: Int) -> Bool {
         insert(value: RuntimeValue(raw: rawValue))
@@ -667,7 +675,7 @@ final class RuntimeSetBox {
 
     @discardableResult
     func insert(value: RuntimeValue) -> Bool {
-        guard backingMapRaw == nil else { return false }
+        guard backingMapRaw == nil, !isReadOnly else { return false }
         let key = RuntimeElementKey(value: value.legacyRawValue)
         guard index[key] == nil else {
             return false
@@ -681,7 +689,8 @@ final class RuntimeSetBox {
     @discardableResult
     func remove(rawValue: Int) -> Bool {
         if let backingMapRaw {
-            guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+            guard !isEffectivelyReadOnly,
+                  let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
                   let entry = tryCast(pointer, to: RuntimePairBox.self),
                   entry.mutableMapRaw == backingMapRaw,
                   let map = runtimeMapBox(from: backingMapRaw),
@@ -692,7 +701,7 @@ final class RuntimeSetBox {
             _ = map.remove(key: entry.mutableMapKey)
             return true
         }
-        guard let index = index[RuntimeElementKey(value: rawValue)] else {
+        guard !isReadOnly, let index = index[RuntimeElementKey(value: rawValue)] else {
             return false
         }
         storage.remove(at: index)
@@ -704,11 +713,14 @@ final class RuntimeSetBox {
     func removeAll(keepingCapacity: Bool = false) -> Bool {
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
+            guard !map.isEffectivelyReadOnly else {
+                return false
+            }
             let hadElements = !map.isEmpty
             map.removeAll()
             return hadElements
         }
-        guard !storage.isEmpty else {
+        guard !isReadOnly, !storage.isEmpty else {
             return false
         }
         storage.removeAll(keepingCapacity: keepingCapacity)
@@ -718,6 +730,9 @@ final class RuntimeSetBox {
 
     @discardableResult
     func removeAll(where shouldRemove: (RuntimeValue) throws -> Bool) rethrows -> Bool {
+        guard !isEffectivelyReadOnly else {
+            return false
+        }
         if backingMapRaw != nil {
             var removed = false
             for entry in values where try shouldRemove(entry) {
@@ -770,6 +785,10 @@ final class RuntimeMapBox {
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
     private(set) var isReadOnly = false
+
+    var isEffectivelyReadOnly: Bool {
+        backingMap?.isEffectivelyReadOnly ?? isReadOnly
+    }
 
     var keyValues: [RuntimeValue] {
         get {
@@ -878,6 +897,7 @@ final class RuntimeMapBox {
             backingMap.updateValue(at: index, value: value)
             return
         }
+        guard !isReadOnly else { return }
         guard valueStorage.indices.contains(index) else {
             valueStorage.append(value)
             return
@@ -894,6 +914,7 @@ final class RuntimeMapBox {
             backingMap.appendEntry(key: key, value: value)
             return
         }
+        guard !isReadOnly else { return }
         let newIndex = keyStorage.count
         keyStorage.append(key)
         valueStorage.append(value)
@@ -913,6 +934,7 @@ final class RuntimeMapBox {
         if let backingMap {
             return backingMap.put(key: key, value: value)
         }
+        guard !isReadOnly else { return nil }
         let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
@@ -928,7 +950,7 @@ final class RuntimeMapBox {
         if let backingMap {
             return backingMap.remove(key: key)
         }
-        guard let index = index(ofRawKey: key) else {
+        guard !isReadOnly, let index = index(ofRawKey: key) else {
             return nil
         }
         keyStorage.remove(at: index)
@@ -942,6 +964,7 @@ final class RuntimeMapBox {
             backingMap.removeAll()
             return
         }
+        guard !isReadOnly else { return }
         keyStorage.removeAll()
         valueStorage.removeAll()
         keyIndex.removeAll()

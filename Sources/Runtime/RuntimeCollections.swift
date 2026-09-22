@@ -516,7 +516,7 @@ public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw:
         return kk_mutable_list_removeAll(collectionRaw, elementsRaw)
     }
     if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_removeAll(collectionRaw, elementsRaw)
+        return kk_mutable_set_removeAll(collectionRaw, elementsRaw, nil)
     }
     return kk_box_bool(0)
 }
@@ -527,7 +527,7 @@ public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw:
         return kk_mutable_list_retainAll(collectionRaw, elementsRaw)
     }
     if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_retainAll(collectionRaw, elementsRaw)
+        return kk_mutable_set_retainAll(collectionRaw, elementsRaw, nil)
     }
     return kk_box_bool(0)
 }
