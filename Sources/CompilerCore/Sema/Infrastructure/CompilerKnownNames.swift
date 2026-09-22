@@ -228,6 +228,18 @@ package struct KnownCompilerNames {
     let charArray: InternedString
     let uintArray: InternedString
 
+    // Range/Progression class names in kotlin.ranges (for-loop lowering)
+    let intRange: InternedString
+    let longRange: InternedString
+    let charRange: InternedString
+    let uintRange: InternedString
+    let ulongRange: InternedString
+    let intProgression: InternedString
+    let longProgression: InternedString
+    let charProgression: InternedString
+    let uintProgression: InternedString
+    let ulongProgression: InternedString
+
     let regex: InternedString
     let stringBuilder: InternedString
     let sequence: InternedString
@@ -330,6 +342,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsLinkedHashMapFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
+    let kotlinCollectionsIterableFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
@@ -342,7 +355,10 @@ package struct KnownCompilerNames {
     let kotlinxCoroutinesAsyncFQName: [InternedString]
     let kotlinCoroutinesContinuationFQName: [InternedString]
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
+    let kotlinRangesPackageFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
+    /// Bundled Kotlin-source Array copy entry points (KSP-1515).
+    let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
@@ -392,6 +408,17 @@ package struct KnownCompilerNames {
         booleanArray = interner.intern("BooleanArray")
         charArray = interner.intern("CharArray")
         uintArray = interner.intern("UIntArray")
+
+        intRange = interner.intern("IntRange")
+        longRange = interner.intern("LongRange")
+        charRange = interner.intern("CharRange")
+        uintRange = interner.intern("UIntRange")
+        ulongRange = interner.intern("ULongRange")
+        intProgression = interner.intern("IntProgression")
+        longProgression = interner.intern("LongProgression")
+        charProgression = interner.intern("CharProgression")
+        uintProgression = interner.intern("UIntProgression")
+        ulongProgression = interner.intern("ULongProgression")
 
         regex = interner.intern("Regex")
         stringBuilder = interner.intern("StringBuilder")
@@ -501,6 +528,11 @@ package struct KnownCompilerNames {
         kotlinCollectionsLinkedHashMapFQName = [kotlin, kotlinCollections, interner.intern("LinkedHashMap")]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
+        kotlinCollectionsIterableFQName = [kotlin, kotlinCollections, interner.intern("Iterable")]
+        sourceBackedArrayCopyFQNames = [
+            [kotlin, kotlinCollections, interner.intern("copyOf")],
+            [kotlin, kotlinCollections, interner.intern("copyOfRange")],
+        ]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
         kotlinxCoroutinesJobFQName = [kotlinx, coroutines, job]
         kotlinxCoroutinesDeferredFQName = [kotlinx, coroutines, deferred]
@@ -509,6 +541,7 @@ package struct KnownCompilerNames {
         kotlinxCoroutinesRunBlockingFQName = [kotlinx, coroutines, runBlocking]
         kotlinxCoroutinesLaunchFQName = [kotlinx, coroutines, launch]
         kotlinxCoroutinesAsyncFQName = [kotlinx, coroutines, async]
+        kotlinRangesPackageFQName = [kotlin, interner.intern("ranges")]
         kotlinCoroutinesFQName = [kotlin, coroutines]
         kotlinCoroutinesIntrinsicsFQName = [kotlin, coroutines, coroutinesIntrinsics]
         kotlinCoroutinesContinuationFQName = [kotlin, coroutines, continuation]
@@ -637,6 +670,31 @@ package struct KnownCompilerNames {
 
     func isCancellationExceptionSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == cancellationException
+    }
+
+    /// Short names of the built-in `kotlin.ranges` Range / Progression
+    /// classes, unsigned variants included. For-loop lowering routes these
+    /// classes through their bundled `iterator()` operators.
+    func isRangeLikeClassName(_ name: InternedString) -> Bool {
+        name == intRange || name == longRange || name == charRange
+            || name == uintRange || name == ulongRange
+            || name == intProgression || name == longProgression
+            || name == charProgression || name == uintProgression
+            || name == ulongProgression
+    }
+
+    /// The signed subset of `isRangeLikeClassName` (Int/Long/Char only).
+    func isSignedRangeLikeClassName(_ name: InternedString) -> Bool {
+        name == intRange || name == longRange || name == charRange
+            || name == intProgression || name == longProgression
+            || name == charProgression
+    }
+
+    /// True when `symbol` is a built-in `kotlin.ranges` Range / Progression
+    /// class (unsigned variants included).
+    func isRangeLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
+        symbol.fqName.starts(with: kotlinRangesPackageFQName)
+            && (symbol.fqName.last.map { isRangeLikeClassName($0) } ?? false)
     }
 
     func isArrayLikeName(_ name: InternedString) -> Bool {
