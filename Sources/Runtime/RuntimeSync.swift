@@ -20,7 +20,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         case blocking(DispatchSemaphore)
         case coroutine(Int)
     }
-    private var waiters: [Waiter] = []
+    private var waiters = RuntimeFIFOQueue<Waiter>()
 
     var isLocked: Bool {
         lock.lock()
@@ -61,12 +61,12 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         }
         if continuation == 0 {
             let sema = DispatchSemaphore(value: 0)
-            waiters.append(.blocking(sema))
+            waiters.enqueue(.blocking(sema))
             lock.unlock()
             sema.wait()
             return 0
         }
-        waiters.append(.coroutine(continuation))
+        waiters.enqueue(.coroutine(continuation))
         lock.unlock()
         return Int(bitPattern: kk_coroutine_suspended())
     }
@@ -79,8 +79,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
             lock.unlock()
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Mutex.unlock() called on an unlocked mutex")
         }
-        while !waiters.isEmpty {
-            let waiter = waiters.removeFirst()
+        while let waiter = waiters.dequeue() {
             switch waiter {
             case let .blocking(sema):
                 // Keep isHeld = true — ownership transfers to the blocking waiter.
@@ -117,7 +116,7 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         case blocking(DispatchSemaphore)
         case coroutine(Int)
     }
-    private var waiters: [Waiter] = []
+    private var waiters = RuntimeFIFOQueue<Waiter>()
 
     init(permits: Int) {
         precondition(permits >= 0, "Semaphore permits must be non-negative")
@@ -157,12 +156,12 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         }
         if continuation == 0 {
             let sema = DispatchSemaphore(value: 0)
-            waiters.append(.blocking(sema))
+            waiters.enqueue(.blocking(sema))
             lock.unlock()
             sema.wait()
             return 0
         }
-        waiters.append(.coroutine(continuation))
+        waiters.enqueue(.coroutine(continuation))
         lock.unlock()
         return Int(bitPattern: kk_coroutine_suspended())
     }
@@ -171,8 +170,7 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
     /// (or unblocked) and the permit transfers directly to it.
     func release() {
         lock.lock()
-        while !waiters.isEmpty {
-            let waiter = waiters.removeFirst()
+        while let waiter = waiters.dequeue() {
             switch waiter {
             case let .blocking(sema):
                 // Permit transfers directly to the blocking waiter.
