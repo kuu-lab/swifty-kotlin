@@ -36,6 +36,32 @@ extension CallLowerer {
         "groupBy", "groupByTo",
     ]
 
+    /// String members whose public declarations live in bundled Kotlin source
+    /// (see `isSourceBackedMemberCall` below).
+    static let sourceBackedStringMemberNames: Set<String> = [
+        "split", "replace", "replaceFirst",
+        "get", "compareTo", "intern", "equals",
+        "first", "firstOrNull", "last", "lastOrNull",
+        "single", "singleOrNull", "getOrNull",
+        "format", "concat", "plus",
+        "lowercase", "uppercase", "normalize", "isNormalized",
+        "codePointCount",
+    ]
+
+    static let sourceBackedListSearchNames: Set<String> = [
+        "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast",
+        "lastIndexOf", "contains", "containsAll", "any", "all", "none",
+        "count", "binarySearch", "binarySearchBy",
+    ]
+
+    /// Array/primitive-array class names whose bundled conversion extensions
+    /// (`toList`, `toMutableList`) stay on their source declarations.
+    static let sourceBackedArrayNames: Set<String> = [
+        "IntArray", "LongArray", "ShortArray", "ByteArray",
+        "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+        "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
+    ]
+
     // swiftlint:disable cyclomatic_complexity function_body_length
     /// This shared lowering path still centralizes legacy stdlib/member special cases.
     func lowerMemberLikeCallExpr(
@@ -86,6 +112,7 @@ extension CallLowerer {
         }
 
         let boundType = sema.bindings.exprTypes[exprID]
+        let calleeNameStr = interner.resolve(calleeName)
         let loweredReceiverID = driver.lowerExpr(
             receiverExpr,
             ast: ast,
@@ -136,16 +163,7 @@ extension CallLowerer {
             // bundled Kotlin source on their source body. The table-driven
             // runtime path below is retained for compatibility-only builds
             // where the source declaration is absent.
-            let sourceBackedStringMemberNames: Set<String> = [
-                "split", "replace", "replaceFirst",
-                "get", "compareTo", "intern", "equals",
-                "first", "firstOrNull", "last", "lastOrNull",
-                "single", "singleOrNull", "getOrNull",
-                "format", "concat", "plus",
-                "lowercase", "uppercase", "normalize", "isNormalized",
-                "codePointCount",
-            ]
-            return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
+            return Self.sourceBackedStringMemberNames.contains(calleeNameStr)
         }()
         // KSP-435: the generic Iterable/Collection surface is bundled Kotlin source
         // (Stdlib/kotlin/collections/Iterables.kt, Collections.kt). When Sema binds a
@@ -160,7 +178,8 @@ extension CallLowerer {
             else {
                 return false
             }
-            let memberName = interner.resolve(calleeName)
+            let memberName = calleeNameStr
+            let knownNames = KnownCompilerNames(interner: interner)
             if memberName == "plus" {
                 // `plus` is shared by collections, sequences, maps, and other
                 // receivers. Only the source declaration whose extension
@@ -174,11 +193,7 @@ extension CallLowerer {
                 else {
                     return false
                 }
-                return declaredReceiverSymbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Iterable"),
-                ]
+                return declaredReceiverSymbol.fqName == knownNames.kotlinCollectionsIterableFQName
             }
             // KSP-967: Iterable.contains is an ordinary bundled source call.
             // Collection, Set, List, Map, and Sequence retain their existing
@@ -190,18 +205,14 @@ extension CallLowerer {
                    sema.types.makeNonNullable(declaredReceiver),
                    sema: sema
                ),
-               declaredReceiverSymbol.fqName == [
-                   interner.intern("kotlin"),
-                   interner.intern("collections"),
-                   interner.intern("Iterable"),
-               ]
+               declaredReceiverSymbol.fqName == knownNames.kotlinCollectionsIterableFQName
             {
                 return true
             }
             if Self.sourceBackedIterableCollectionMemberNames.contains(memberName) {
                 return true
             }
-            if interner.resolve(calleeName) == "zip" {
+            if calleeNameStr == "zip" {
                 guard let firstArgument = args.first,
                       let firstArgumentType = sema.bindings.exprTypes[firstArgument.expr]
                 else {
@@ -218,12 +229,7 @@ extension CallLowerer {
                     interner: interner
                 )
             }
-            let sourceBackedListSearchNames: Set<String> = [
-                "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast",
-                "lastIndexOf", "contains", "containsAll", "any", "all", "none",
-                "count", "binarySearch", "binarySearchBy",
-            ]
-            guard sourceBackedListSearchNames.contains(interner.resolve(calleeName)) else {
+            guard Self.sourceBackedListSearchNames.contains(calleeNameStr) else {
                 return false
             }
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
@@ -246,17 +252,14 @@ extension CallLowerer {
             else {
                 return false
             }
-            let sourceBackedArrayCopyFQNames: Set<[InternedString]> = [
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOf")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOfRange")],
-            ]
-            return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
+            let knownNames = KnownCompilerNames(interner: interner)
+            return knownNames.sourceBackedArrayCopyFQNames.contains(symbol.fqName)
         }()
         // KSP-1513: array `toList` is a bundled Kotlin extension. Keep its
         // selected source declaration so its typed private `__kk_*` bridge is
         // emitted instead of the generic array shortcut.
         let isSourceBackedArrayToListCall: Bool = {
-            guard interner.resolve(calleeName) == "toList",
+            guard calleeNameStr == "toList",
                   let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
                   let symbol = sema.symbols.symbol(chosenCallee),
@@ -271,12 +274,7 @@ extension CallLowerer {
             ) else {
                 return false
             }
-            let sourceBackedArrayNames: Set<String> = [
-                "IntArray", "LongArray", "ShortArray", "ByteArray",
-                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-            ]
-            return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
+            return Self.sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
         // RF-LOWER-CALL-013: array `toMutableList` is now a bundled Kotlin
         // extension too (delegates to the type-correct `toList` above). Keep
@@ -286,7 +284,7 @@ extension CallLowerer {
         // signedness handling (e.g. `longArrayOf(Long.MIN_VALUE).toMutableList()`
         // read back as `null`, `ulongArrayOf(ULong.MAX_VALUE)...` as `-1`).
         let isSourceBackedArrayToMutableListCall: Bool = {
-            guard interner.resolve(calleeName) == "toMutableList",
+            guard calleeNameStr == "toMutableList",
                   let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
                   let symbol = sema.symbols.symbol(chosenCallee),
@@ -301,17 +299,12 @@ extension CallLowerer {
             ) else {
                 return false
             }
-            let sourceBackedArrayNames: Set<String> = [
-                "IntArray", "LongArray", "ShortArray", "ByteArray",
-                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-            ]
-            return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
+            return Self.sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
         // KSP-1516: selected Array/primitive-array conversion declarations are
         // ordinary bundled Kotlin calls, not legacy runtime shortcuts.
         let isSourceBackedArrayConversionCall: Bool = {
-            let memberName = interner.resolve(calleeName)
+            let memberName = calleeNameStr
             guard ["sliceArray", "reversedArray", "asList", "toTypedArray"].contains(memberName),
                   let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -348,7 +341,7 @@ extension CallLowerer {
                 return true
             }
             if resultRuntimeHOFMemberCalleeName(
-                memberName: interner.resolve(calleeName),
+                memberName: calleeNameStr,
                 receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
                 sema: sema,
                 interner: interner
@@ -427,7 +420,7 @@ extension CallLowerer {
         // concrete collection Sema didn't already bind can use it directly.
         if args.count == 1,
            chosenBase64Callee == nil,
-           interner.resolve(calleeName) == "reduceRightOrNull"
+           calleeNameStr == "reduceRightOrNull"
         {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -457,7 +450,7 @@ extension CallLowerer {
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let calleeText = interner.resolve(calleeName)
+            let calleeText = calleeNameStr
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
             // `first()`/`last()` must throw `NoSuchElementException` on empty,
             // including `IntRange` (Sema binds those calls to the property).
@@ -517,7 +510,7 @@ extension CallLowerer {
             }()
             let isExplicitProgressionSourceCall = ast.arena.isExplicitCall(exprID)
                 && {
-                    let memberName = interner.resolve(calleeName)
+                    let memberName = calleeNameStr
                     guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                         return false
                     }
@@ -540,7 +533,7 @@ extension CallLowerer {
             if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
                 // KSP-1524: range first/last values are raw bits at this ABI
                 // boundary, so ULong can use the shared getter as well.
-                let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
+                let runtimeGetter: InternedString? = switch calleeNameStr {
                 case "start":
                     interner.intern("__kk_range_first")
                 // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
@@ -699,7 +692,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.booleanType) {
-                let boolCallee: InternedString? = switch interner.resolve(calleeName) {
+                let boolCallee: InternedString? = switch calleeNameStr {
                 case "and":
                     interner.intern("kk_bitwise_and")
                 case "or":
@@ -726,7 +719,7 @@ extension CallLowerer {
         // Float.mod(other) / Double.mod(other): Kotlin mod uses floor-style
         // modulo, while rem/% use truncating remainder.
         if args.count == 1,
-           interner.resolve(calleeName) == "mod"
+           calleeNameStr == "mod"
         {
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
@@ -777,7 +770,7 @@ extension CallLowerer {
         // Primitive arithmetic/infix member functions on numeric receivers.
         // Direct range expressions are typed with their scalar element type, but
         // `plus`/`minus` must keep the selected Iterable extension at this stage.
-        let isRangePlusMinusReceiver = ["plus", "minus"].contains(interner.resolve(calleeName))
+        let isRangePlusMinusReceiver = ["plus", "minus"].contains(calleeNameStr)
             && (sema.bindings.isRangeExpr(receiverExpr)
                 || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
         if args.count == 1,
@@ -796,7 +789,7 @@ extension CallLowerer {
             let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
             let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
             let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
-            let primitiveCallee: InternedString? = switch interner.resolve(calleeName) {
+            let primitiveCallee: InternedString? = switch calleeNameStr {
             case "plus":
                 interner.intern("kk_op_add")
             case "minus":
@@ -896,7 +889,7 @@ extension CallLowerer {
         let isKClassReceiver = isKClassReceiverType(
             anyFallbackReceiverType, sema: sema, interner: interner
         )
-        let memberName = interner.resolve(calleeName)
+        let memberName = calleeNameStr
         let hasResolvedCallBinding = sema.bindings.callBindings[exprID].map { $0.chosenCallee != .invalid } ?? false
         let isUnresolvedNullableAnyToStringOrHashCode = !hasResolvedCallBinding
             && sema.types.nullability(of: anyFallbackReceiverType) == .nullable
@@ -923,7 +916,7 @@ extension CallLowerer {
         // Any.toString(): String — use the member-dispatch bridge so a
         // Throwable override remains visible after erasure to Any. Keep the
         // tagged helper for primitive and type-parameter fallback values.
-        if args.isEmpty, interner.resolve(calleeName) == "toString", allowsAnyFallback {
+        if args.isEmpty, calleeNameStr == "toString", allowsAnyFallback {
             if nonNullAnyFallbackReceiverType == sema.types.anyType {
                 instructions.append(.call(
                     symbol: nil,
@@ -951,7 +944,7 @@ extension CallLowerer {
         }
 
         // Any.hashCode(): Int — via kk_any_hashCode (STDLIB-306)
-        if args.isEmpty, interner.resolve(calleeName) == "hashCode", allowsAnyFallback {
+        if args.isEmpty, calleeNameStr == "hashCode", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let hashReceiverID = boxSentinelProneHashCodeReceiver(
                 loweredReceiverID,
@@ -976,7 +969,7 @@ extension CallLowerer {
         }
 
         // Any.equals(other: Any?): Boolean — via kk_any_equals (STDLIB-306)
-        if args.count == 1, interner.resolve(calleeName) == "equals", allowsAnyFallback {
+        if args.count == 1, calleeNameStr == "equals", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let argType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
@@ -1014,7 +1007,7 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
-            let calleeStr = interner.resolve(calleeName)
+            let calleeStr = calleeNameStr
             let conversionCallee: InternedString? = switch (calleeStr, nonNullReceiverType, nonNullResultType) {
             case ("toInt", uintType, intType): interner.intern("kk_uint_to_int")
             case ("toInt", ulongType, intType): interner.intern("kk_ulong_to_int")
@@ -1138,7 +1131,7 @@ extension CallLowerer {
             }
         }
 
-        if args.isEmpty, interner.resolve(calleeName) == "length" {
+        if args.isEmpty, calleeNameStr == "length" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
@@ -1160,7 +1153,7 @@ extension CallLowerer {
         // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
         // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
         // digitToInt / digitToIntOrNull, so no lowering special case is needed.
-        if args.isEmpty, interner.resolve(calleeName) == "code" {
+        if args.isEmpty, calleeNameStr == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
                 instructions.append(.copy(from: loweredReceiverID, to: result))
@@ -1191,7 +1184,7 @@ extension CallLowerer {
         // Collection nullable-receiver isNullOrEmpty fallback.
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
-            let calleeStr = interner.resolve(calleeName)
+            let calleeStr = calleeNameStr
             // A source-backed Collection<T>?.isNullOrEmpty() declaration may
             // be selected once the Collection surface is bundled from Kotlin
             // source, but concrete collection receivers still need their
@@ -1255,7 +1248,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                let calleeStr = interner.resolve(calleeName)
+                let calleeStr = calleeNameStr
                 if calleeStr == "lowercase" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1356,7 +1349,7 @@ extension CallLowerer {
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let calleeStr = interner.resolve(calleeName)
+            let calleeStr = calleeNameStr
             let isCharSequenceReceiver: Bool = {
                 guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
                       case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
@@ -1429,7 +1422,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let calleeStr = interner.resolve(calleeName)
+                let calleeStr = calleeNameStr
                 if calleeStr == "get" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1809,7 +1802,7 @@ extension CallLowerer {
                     return true
                 }()
                 if !isSourceBackedListCall {
-                let calleeStr = interner.resolve(calleeName)
+                let calleeStr = calleeNameStr
                 let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: args.first?.expr, sema: sema)
                 let runtimeCallee: String? = switch calleeStr {
                 case "sortedBy":
@@ -1872,7 +1865,7 @@ extension CallLowerer {
                 }
             }
             if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let calleeStr = interner.resolve(calleeName)
+                let calleeStr = calleeNameStr
                 let usesStringFlatABI: Bool = {
                     guard let argumentType = sema.bindings.exprTypes[args[0].expr] else {
                         return false
@@ -1973,7 +1966,7 @@ extension CallLowerer {
                     return [loweredReceiverID, sizeArg, stepArg, partialArg, fnPtrExpr, envPtrExpr]
                 }
 
-                switch interner.resolve(calleeName) {
+                switch calleeNameStr {
                 case "chunked" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
                     return appendBridgeCall(
                         "__kk_list_chunked",
@@ -2051,7 +2044,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let runtimeCallee: String? = switch interner.resolve(calleeName) {
+                let runtimeCallee: String? = switch calleeNameStr {
                 case "toList":
                     isSourceBackedArrayToListCall ? nil : "__kk_array_toList"
                 case "toMutableList":
@@ -2216,7 +2209,7 @@ extension CallLowerer {
         }
 
         // String stdlib: format(vararg args) (STDLIB-006)
-        if interner.resolve(calleeName) == "format",
+        if calleeNameStr == "format",
            let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "__kk_string_format_flat"
         {
