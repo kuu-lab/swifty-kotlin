@@ -853,8 +853,11 @@ final class ControlFlowLowerer {
         else {
             return false
         }
-        return kirTransitiveInterfaceSupertypes(of: classType.classSymbol, sema: sema)
-            .contains(iterableSymbol)
+        return driver.ctx.nominalDispatchCache.transitiveInterfaceSupertypes(
+            of: classType.classSymbol,
+            sema: sema
+        )
+        .contains(iterableSymbol)
     }
 
     /// BUG-167/KSP-998: Lowers `for (x in iterable)` for an iterable whose
