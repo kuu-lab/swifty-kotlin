@@ -437,7 +437,7 @@ final class ControlFlowLowerer {
         else {
             return false
         }
-        return interner.resolve(symbol.name) == "IntRange"
+        return symbol.name == KnownCompilerNames(interner: interner).intRange
     }
 
     /// ARCH-012: Lower a proven IntRange to an induction variable. The range
@@ -1159,26 +1159,14 @@ final class ControlFlowLowerer {
             else {
                 return false
             }
-            let shortName = interner.resolve(symbol.name)
-            return shortName == "IntRange"
-                || shortName == "IntProgression"
-                || shortName == "LongRange"
-                || shortName == "LongProgression"
-                || shortName == "CharRange"
-                || shortName == "CharProgression"
+            return KnownCompilerNames(interner: interner).isSignedRangeLikeClassName(symbol.name)
         }
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               isRangeLikeClass(symbol, sema: sema, interner: interner)
         else {
             return false
         }
-        let shortName = interner.resolve(symbol.name)
-        return shortName == "IntRange"
-            || shortName == "IntProgression"
-            || shortName == "LongRange"
-            || shortName == "LongProgression"
-            || shortName == "CharRange"
-            || shortName == "CharProgression"
+        return KnownCompilerNames(interner: interner).isSignedRangeLikeClassName(symbol.name)
     }
 
     /// `downTo` and `step` are represented as member-call nodes by the parser
@@ -1233,20 +1221,7 @@ final class ControlFlowLowerer {
     /// so that `for-in` over a range is lowered through `.iterator()` instead of
     /// the legacy `kk_range_iterator` runtime path.
     private func isRangeLikeClass(_ classSymbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> Bool {
-        guard classSymbol.fqName.count >= 2,
-              interner.resolve(classSymbol.fqName[0]) == "kotlin",
-              interner.resolve(classSymbol.fqName[1]) == "ranges"
-        else {
-            return false
-        }
-        let shortName = interner.resolve(classSymbol.fqName.last!)
-        switch shortName {
-        case "IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange",
-             "IntProgression", "LongProgression", "CharProgression", "UIntProgression", "ULongProgression":
-            return true
-        default:
-            return false
-        }
+        KnownCompilerNames(interner: interner).isRangeLikeSymbol(classSymbol)
     }
 
     /// Looks for a non-synthetic bundled `operator fun Receiver.<name>()` extension

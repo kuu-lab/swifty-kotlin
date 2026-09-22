@@ -40,7 +40,22 @@ struct ConditionBranch: Equatable {
 }
 
 final class DataFlowAnalyzer {
+    /// Cached `BuiltinTypeNames` for the active interner. Builtin name
+    /// interning is compilation-invariant, so building it once avoids the
+    /// locked `interner.intern` calls being repeated on every type-argument
+    /// and `is`-check resolution (mirrors `TypeCheckDriver.builtinTypeNamesCache`).
+    private var builtinTypeNamesCache: (names: BuiltinTypeNames, interner: StringInterner)?
+
     init() {}
+
+    private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
+        if let cached = builtinTypeNamesCache, cached.interner === interner {
+            return cached.names
+        }
+        let names = BuiltinTypeNames(interner: interner)
+        builtinTypeNamesCache = (names, interner)
+        return names
+    }
 
     func branchOnCondition(
         _ conditionID: ExprID,
@@ -305,7 +320,7 @@ final class DataFlowAnalyzer {
         }
         switch conditionExpr {
         case let .nameRef(name, _):
-            if name == BuiltinTypeNames(interner: interner).null {
+            if name == builtinTypeNames(interner: interner).null {
                 var vars = base.variables
                 vars[subjectSymbol] = VariableFlowState(
                     possibleTypes: [subjectType],
@@ -488,7 +503,7 @@ final class DataFlowAnalyzer {
         else {
             return false
         }
-        return name == BuiltinTypeNames(interner: interner).null
+        return name == builtinTypeNames(interner: interner).null
     }
 
     private func resolveLocalVariable(
@@ -855,7 +870,7 @@ final class DataFlowAnalyzer {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID? {
-        return BuiltinTypeNames(interner: interner).resolveBuiltinType(name, types: types)
+        return builtinTypeNames(interner: interner).resolveBuiltinType(name, types: types)
     }
 
     private func enumEntryNames(for enumSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {
