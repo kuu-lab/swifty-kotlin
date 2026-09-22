@@ -302,6 +302,32 @@ extension CompilerCoreTests {
         }
     }
 
+    @Test func testLabeledDoWhileDoesNotConsumeFollowingLocalDeclaration() throws {
+        let source = """
+        fun main(): Int {
+            var x = 0
+            outer@ do {
+                x += 1
+                if (x == 2) break@outer
+            } while (x < 5)
+
+            var y = 0
+            cont@ do {
+                y += 1
+                if (y < 3) continue@cont
+            } while (y < 4)
+
+            var z = 0
+            do z = z + 1 while (z < 3)
+            return x + y + z
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
 
     @Test func testLambdaLiteralExpressionBodyParsesAsDedicatedExprNode() throws {
         let source = """

@@ -237,5 +237,25 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test func testExpectMembersWithoutBodiesAreContracts() throws {
+        let source = """
+        expect abstract class Pool<T : Any>(capacity: Int) {
+            protected abstract fun produce(): T
+            protected open fun disposeInstance(instance: T)
+            fun borrow(): T
+        }
+
+        actual abstract class Pool<T : Any> actual constructor(capacity: Int) {
+            protected actual abstract fun produce(): T
+            protected actual open fun disposeInstance(instance: T) {}
+            actual fun borrow(): T = produce()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
 }
 #endif
