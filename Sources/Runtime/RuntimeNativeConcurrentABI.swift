@@ -23,9 +23,6 @@ import Foundation
 //     object (consistent with Kotlin/Native semantics) but does not recursively
 //     walk reachable references.  A future pass can add that once the type-info
 //     system exposes field offsets.
-//   • Future<T> blocking result(): the current kk_future_result performs a
-//     spin-wait with Thread.sleep to avoid importing Dispatch semaphores into
-//     hot paths.  A later revision should use DispatchSemaphore for efficiency.
 
 // MARK: - ABI-001  Worker.id
 
@@ -96,23 +93,49 @@ final class RuntimeFutureBox: @unchecked Sendable {
     private var _resultRaw: Int = 0
     private var _ready: Bool = false
     private var _consumed: Bool = false
+    /// Semaphores of threads blocked on this future: one per `blockUntilReady`
+    /// caller and one shared signal per `wait_for_multiple_futures` call.
+    /// `complete` signals each once, then clears the list.
+    private var waitSignals: [DispatchSemaphore] = []
 
-    // Spin-wait with sleep to block callers of result() until a value arrives.
-    // The sleep interval is intentionally short (1 ms) so tests remain fast.
+    /// Blocks until the future is ready or `timeoutNs` elapses.  The caller
+    /// parks on its own semaphore instead of polling `_ready`.
     func blockUntilReady(timeoutNs: Int = 5_000_000_000) {
-        let deadline = DispatchTime.now() + .nanoseconds(timeoutNs)
-        while true {
-            lock.lock()
-            if _ready {
-                lock.unlock()
-                return
-            }
+        let signal = DispatchSemaphore(value: 0)
+        lock.lock()
+        if _ready {
             lock.unlock()
-            if DispatchTime.now() > deadline {
-                return
-            }
-            Thread.sleep(forTimeInterval: 0.001)
+            return
         }
+        waitSignals.append(signal)
+        lock.unlock()
+
+        _ = signal.wait(timeout: DispatchTime.now() + .nanoseconds(timeoutNs))
+
+        removeWaitSignal(signal)
+    }
+
+    /// Registers `signal` to be signalled once this future completes.  When the
+    /// future is already completed and still consumable, signals immediately so
+    /// a multi-future waiter cannot miss a completion that raced registration.
+    func addWaitSignal(_ signal: DispatchSemaphore) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !_ready else {
+            if !_consumed {
+                signal.signal()
+            }
+            return
+        }
+        waitSignals.append(signal)
+    }
+
+    /// Removes `signal` if it is still registered (no-op after `complete`
+    /// cleared the list).
+    func removeWaitSignal(_ signal: DispatchSemaphore) {
+        lock.lock()
+        defer { lock.unlock() }
+        waitSignals.removeAll { $0 === signal }
     }
 
     func complete(valueRaw: Int) {
@@ -121,6 +144,10 @@ final class RuntimeFutureBox: @unchecked Sendable {
         guard !_ready else { return } // single-assignment
         _resultRaw = valueRaw
         _ready = true
+        for signal in waitSignals {
+            signal.signal()
+        }
+        waitSignals.removeAll()
     }
 
     var isReady: Bool {
@@ -301,18 +328,31 @@ public func __kk_native_concurrent_execute_impl(
     return submitted ? futureHandle : 0
 }
 
-private func nativeConcurrentReadyFutureHandles(_ futuresHandle: Int) -> [Int] {
+/// Returns the handles of futures ready for consumption, and registers
+/// `signal` on every still-pending future not already in `registered` so that
+/// the next `kk_future_complete` wakes the waiter for a re-scan.
+private func nativeConcurrentReadyFutureHandles(
+    _ futuresHandle: Int,
+    signal: DispatchSemaphore,
+    registered: inout Set<Int>
+) -> [Int] {
     guard let futures = runtimeCollectionElements(from: futuresHandle) else {
         return []
     }
-    return futures.filter { futureHandle in
+    var ready: [Int] = []
+    for futureHandle in futures {
         guard let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
               let future = tryCast(pointer, to: RuntimeFutureBox.self)
         else {
-            return false
+            continue
         }
-        return future.isAvailableForConsumption
+        if future.isAvailableForConsumption {
+            ready.append(futureHandle)
+        } else if registered.insert(futureHandle).inserted {
+            future.addWaitSignal(signal)
+        }
     }
+    return ready
 }
 
 /// Waits until at least one Future can be consumed or the timeout expires.
@@ -324,15 +364,37 @@ public func __kk_native_concurrent_wait_for_multiple_futures(
     let deadline = timeoutMillis >= 0
         ? DispatchTime.now() + .milliseconds(timeoutMillis)
         : nil
+    // One signal shared by every pending future in the set: `complete` wakes
+    // this wait exactly once per completion, and each wakeup re-scans.
+    let signal = DispatchSemaphore(value: 0)
+    var registered = Set<Int>()
+    defer {
+        for futureHandle in registered {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
+                  let future = tryCast(pointer, to: RuntimeFutureBox.self)
+            else {
+                continue
+            }
+            future.removeWaitSignal(signal)
+        }
+    }
     while true {
-        let ready = nativeConcurrentReadyFutureHandles(futuresHandle)
+        let ready = nativeConcurrentReadyFutureHandles(
+            futuresHandle,
+            signal: signal,
+            registered: &registered
+        )
         if !ready.isEmpty {
             return registerRuntimeObject(RuntimeSetBox(elements: ready))
         }
-        if let deadline, DispatchTime.now() >= deadline {
-            return registerRuntimeObject(RuntimeSetBox(elements: []))
+        if let deadline {
+            if DispatchTime.now() >= deadline {
+                return registerRuntimeObject(RuntimeSetBox(elements: []))
+            }
+            _ = signal.wait(timeout: deadline)
+        } else {
+            signal.wait()
         }
-        Thread.sleep(forTimeInterval: 0.001)
     }
 }
 
@@ -361,9 +423,7 @@ public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) 
     else {
         return 0
     }
-    while !worker.isTerminated {
-        Thread.sleep(forTimeInterval: 0.001)
-    }
+    worker.waitForTermination()
     return 0
 }
 
