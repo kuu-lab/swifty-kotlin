@@ -1,3 +1,4 @@
+import Foundation
 
 package enum KnownCompilerAnnotation {
     case deprecated
@@ -174,6 +175,14 @@ package enum KnownCompilerAnnotation {
     package func matches(_ rawName: String) -> Bool {
         rawName == simpleName || rawName == qualifiedName
     }
+}
+
+/// Shared compiled regex matching `MarkerName::class` inside `@OptIn`-family
+/// annotation arguments; group 1 captures the marker's dotted name.
+enum OptInMarkerClassParser {
+    static let classReferenceRegex = try! NSRegularExpression(
+        pattern: #"([A-Za-z_][A-Za-z0-9_\.]*)\s*::\s*class"#
+    )
 }
 
 enum KnownCollectionKind {
