@@ -1096,11 +1096,13 @@ extension CallTypeChecker {
             }
         }
         // For non-empty-arg member calls, try member property/field lookup.
-        // This handles callable property syntax (e.g. `receiver.f(...)`).
+        // This handles callable property syntax (e.g. `receiver.f(...)`);
+        // an explicit `receiver.f()` call takes the same path so a
+        // zero-parameter function-typed property can be invoked (KUU-644).
         // Skip this for class-name receivers — only companion members are
         // accessible via `ClassName.member`, not instance properties.
         if !isClassNameReceiver,
-           !args.isEmpty,
+           (!args.isEmpty || ast.arena.isExplicitCall(id)),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                receiverType: memberLookupType,
@@ -1174,6 +1176,51 @@ extension CallTypeChecker {
                     return finalType
                 }
             }
+        }
+
+        // Explicit `invoke` sugar on a function-typed value:
+        // `f.invoke(args)` / `prop?.invoke(args)` (KUU-644). Function types
+        // have no nominal member table, so candidate collection never
+        // reaches `FunctionN.invoke` — bind the callable-value invocation
+        // directly. `callableTarget` stays nil so KIR lowering uses the
+        // lowered receiver expression itself as the function object.
+        if !isClassNameReceiver,
+           calleeStr == "invoke",
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: memberLookupType)
+        {
+            var invokeCalleeType = memberLookupType
+            if let receiver = invokeFunctionType.receiver,
+               argTypes.count == invokeFunctionType.params.count + 1
+            {
+                // `R.() -> T`.invoke(r, args...) accepts the dispatch
+                // receiver as the first regular argument — fold it into the
+                // parameter list so arity checks and the runtime
+                // kk_function_invoke* ABI agree on the argument order.
+                invokeCalleeType = sema.types.make(.functionType(FunctionType(
+                    contextReceivers: invokeFunctionType.contextReceivers,
+                    params: [receiver] + invokeFunctionType.params,
+                    returnType: invokeFunctionType.returnType,
+                    isSuspend: invokeFunctionType.isSuspend,
+                    nullability: invokeFunctionType.nullability,
+                    throws: invokeFunctionType.`throws`
+                )))
+            }
+            if let callableResult = inferCallableValueInvocation(
+                id,
+                calleeType: invokeCalleeType,
+                callableTarget: nil,
+                args: args,
+                argTypes: argTypes,
+                range: range,
+                ctx: ctx,
+                expectedType: expectedType
+            ) {
+                let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+            // Mismatched arguments fall through to the normal
+            // unresolved-member diagnostics (SEMA-0024).
         }
 
         if lookupReceiverType == sema.types.errorType {
