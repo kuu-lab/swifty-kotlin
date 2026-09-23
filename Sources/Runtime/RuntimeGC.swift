@@ -48,6 +48,9 @@ struct MetadataState {
     var objectTypeByPointer: [UInt: Int64] = [:]
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
+    /// Set once the static reflection hierarchy edges are in `typeParents`;
+    /// cleared with `typeParents` so a metadata reset re-registers them.
+    var reflectionTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
@@ -515,6 +518,7 @@ func kk_runtime_reset_metadata() {
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
         state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
+        state.reflectionTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)

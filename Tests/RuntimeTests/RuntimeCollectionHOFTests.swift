@@ -1110,14 +1110,15 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapOfPairsNormalizesLinkedFactorySpreadEntries() {
-        // KSP-954: linkedMapOf(*pairs) lowers to __kk_map_of_pairs with the
-        // spread varargs packed into a single Pair array.
+        // KSP-954 / KUU-646: linkedMapOf(*pairs) lowers to
+        // __kk_linked_hash_map_of_pairs with the spread varargs packed into a
+        // single Pair array.
         let pairs = makeArray([
             kk_pair_new(1, 10),
             kk_pair_new(2, 20),
             kk_pair_new(1, 30),
         ])
-        let map = kk_map_of_pairs(pairs, 3)
+        let map = kk_linked_hash_map_of_pairs(pairs, 3)
 
         #expect(mapKeys(map) == [1, 2])
         #expect(mapValues(map) == [30, 20])
@@ -1160,7 +1161,7 @@ struct RuntimeCollectionHOFTests {
         let target = registerRuntimeObject(RuntimeMapBox(keys: [1, 2], values: [10]))
         let source = registerRuntimeObject(RuntimeMapBox(keys: [2, 3], values: [20, 30]))
 
-        _ = kk_mutable_map_putAll(target, source)
+        _ = kk_mutable_map_putAll(target, source, nil)
 
         #expect(mapKeys(target) == [1, 2, 3])
         #expect(mapValues(target) == [10, 20, 30])
