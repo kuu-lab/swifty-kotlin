@@ -11,10 +11,20 @@ public struct InternedString: Hashable, Sendable, Codable {
 }
 
 private struct StringInternerKey: Hashable {
-    let utf16CodeUnits: [UInt16]
+    let string: String
 
     init(_ string: String) {
-        utf16CodeUnits = Array(string.utf16)
+        self.string = string
+    }
+
+    static func == (lhs: StringInternerKey, rhs: StringInternerKey) -> Bool {
+        lhs.string.utf16.elementsEqual(rhs.string.utf16)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        for codeUnit in string.utf16 {
+            hasher.combine(codeUnit)
+        }
     }
 }
 
