@@ -422,7 +422,8 @@ extension BuildASTPhase {
         let parser = ExpressionParser(
             tokens: (tokens + [Token(kind: .eof, range: eofRange)])[...],
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
         guard let lambdaExprID = parser.parseLambdaLiteral(),
               let lambdaExpr = astArena.expr(lambdaExprID),
@@ -467,7 +468,11 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> TypeRefID? {
         let tokens = collectTokens(from: nodeID, in: arena)
-        guard let assignIndex = tokens.firstIndex(where: { $0.kind == .symbol(.assign) }) else {
+        // Anchor the search at the `typealias` keyword: a leading annotation
+        // with named arguments (`@Deprecated(..., replaceWith = ...)`) contains
+        // its own `=`, which must not be mistaken for the alias assignment.
+        let searchStart = tokens.firstIndex(where: { $0.kind == .keyword(.typealias) }).map { $0 + 1 } ?? 0
+        guard let assignIndex = tokens[searchStart...].firstIndex(where: { $0.kind == .symbol(.assign) }) else {
             return nil
         }
         let rhsTokens = tokens[(assignIndex + 1)...].filter { $0.kind != .symbol(.semicolon) }
@@ -754,7 +759,9 @@ extension BuildASTPhase {
             .filter({ $0.kind != .symbol(.semicolon) }),
             !defaultTokens.isEmpty
         {
-            let parser = ExpressionParser(tokens: defaultTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: defaultTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             defaultValueExpr = parser.parse()
         } else {
             defaultValueExpr = nil

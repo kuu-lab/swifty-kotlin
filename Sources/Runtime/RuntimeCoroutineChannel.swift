@@ -76,6 +76,50 @@ final class SuspendedReceiver: @unchecked Sendable {
     }
 }
 
+/// FIFO queue with amortized O(1) `enqueue`/`dequeue`.
+///
+/// Elements are stored in an array behind a head index: `dequeue` advances the
+/// head (releasing the slot) instead of shifting every element like
+/// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
+/// storage is compacted back to `head == 0`, which keeps the steady-state cost
+/// O(1) amortized; a fully drained queue resets its head so alternating
+/// send/receive never accumulates dead slots.
+private struct ChannelFIFOQueue<Element> {
+    private var elements: [Element?] = []
+    private var head = 0
+
+    var isEmpty: Bool { head >= elements.count }
+    var count: Int { elements.count - head }
+
+    mutating func enqueue(_ element: Element) {
+        elements.append(element)
+    }
+
+    mutating func dequeue() -> Element? {
+        guard head < elements.count, let element = elements[head] else {
+            return nil
+        }
+        elements[head] = nil
+        head += 1
+        if head == elements.count {
+            elements.removeAll(keepingCapacity: true)
+            head = 0
+        } else if head >= 32 && head * 2 >= elements.count {
+            elements.removeFirst(head)
+            head = 0
+        }
+        return element
+    }
+
+    /// Removes all queued elements and returns them in FIFO order.
+    mutating func drain() -> [Element] {
+        let queued = elements[head...].compactMap { $0 }
+        elements.removeAll(keepingCapacity: true)
+        head = 0
+        return queued
+    }
+}
+
 /// Channel with proper Kotlin suspend semantics:
 ///   - **Rendezvous** (`capacity == 0`): every `send` suspends until a matching
 ///     `receive` and vice-versa.
@@ -90,12 +134,10 @@ final class SuspendedReceiver: @unchecked Sendable {
 ///     via `cancelAllWaiters()` (cooperatively from the coroutine runtime).
 final class RuntimeChannelHandle: @unchecked Sendable {
     private let lock = NSLock()
-    // NOTE: `buffer`, `senderQueue`, and `receiverQueue` use `Array` with
-    // `removeFirst()` which is O(n) due to element shifting.  For the current
-    // use (moderate queue depths), this is acceptable.  If channels become a
-    // hot-path bottleneck, replace these with a circular buffer / Deque for
-    // O(1) dequeue.  (See also: Swift Collections `Deque` type.)
-    private var buffer: [Int] = []
+    // `buffer`, `senderQueue`, and `receiverQueue` are head-index FIFO queues:
+    // dequeue is O(1) amortized, so draining an UNLIMITED/backed-up channel
+    // stays linear instead of quadratic in the buffered element count.
+    private var buffer = ChannelFIFOQueue<Int>()
     let capacity: Int
     private(set) var closed = false
     private let bufferOverflow: ChannelBufferOverflow
@@ -104,11 +146,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // reference.  Receivers set `delivered = true` before signaling the
     // semaphore so that senders can distinguish successful delivery from a
     // close-induced wakeup.
-    private var senderQueue: [SuspendedSender] = []
+    private var senderQueue = ChannelFIFOQueue<SuspendedSender>()
 
     // Waiting-receiver queue: each suspended receiver is a `SuspendedReceiver`
     // reference.  Senders deposit a value before signaling the semaphore.
-    private var receiverQueue: [SuspendedReceiver] = []
+    private var receiverQueue = ChannelFIFOQueue<SuspendedReceiver>()
 
     init(capacity: Int, bufferOverflow: ChannelBufferOverflow = .suspend) {
         self.capacity = max(0, capacity)
@@ -142,8 +184,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // 2. If there is a waiting receiver, hand the value off directly
         //    (both rendezvous and buffered benefit from this fast path).
-        if let receiver = receiverQueue.first {
-            receiverQueue.removeFirst()
+        if let receiver = receiverQueue.dequeue() {
             receiver.result = value
             lock.unlock()
             // Preserve rendezvous handoff ordering: let the sender resume and
@@ -154,7 +195,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // 3. Buffered channel with space -- enqueue and return immediately.
         if capacity > 0, buffer.count < capacity {
-            buffer.append(value)
+            buffer.enqueue(value)
             lock.unlock()
             return .success
         }
@@ -167,8 +208,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
                 break
             case .dropOldest:
                 // Remove oldest element and add new one
-                _ = buffer.removeFirst()
-                buffer.append(value)
+                _ = buffer.dequeue()
+                buffer.enqueue(value)
                 lock.unlock()
                 return .success
             case .dropLatest:
@@ -184,7 +225,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         let senderSem = DispatchSemaphore(value: 0)
         let entry = SuspendedSender(semaphore: senderSem, continuation: continuation, value: value)
 
-        senderQueue.append(entry)
+        senderQueue.enqueue(entry)
         lock.unlock()
 
         // Channel send is not yet lowered as a true suspend point, so the
@@ -192,7 +233,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // BUG-041 interaction: flush undispatched launch{} work before blocking
         // so a sibling `launch { receive() }` queued on this thread can run.
         RuntimePendingLaunchQueue.flush()
-        senderSem.wait()
+        runtimeWaitDrainingEventLoop(senderSem)
 
         // After waking, check the wakeup reason.
         lock.lock()
@@ -217,8 +258,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .closed
         }
 
-        if let receiver = receiverQueue.first {
-            receiverQueue.removeFirst()
+        if let receiver = receiverQueue.dequeue() {
             receiver.result = value
             lock.unlock()
             resumeReceiverAsync(receiver)
@@ -226,7 +266,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
 
         if capacity > 0, buffer.count < capacity {
-            buffer.append(value)
+            buffer.enqueue(value)
             lock.unlock()
             return .success
         }
@@ -236,8 +276,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             case .suspend:
                 break
             case .dropOldest:
-                _ = buffer.removeFirst()
-                buffer.append(value)
+                _ = buffer.dequeue()
+                buffer.enqueue(value)
                 lock.unlock()
                 return .success
             case .dropLatest:
@@ -270,13 +310,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
 
         // 1. Try to take from the buffer.
-        if !buffer.isEmpty {
-            let value = buffer.removeFirst()
+        if let value = buffer.dequeue() {
             // If a sender is suspended (backpressure), wake the oldest one and
             // move its value into the buffer to maintain ordering.
-            if let sender = senderQueue.first {
-                senderQueue.removeFirst()
-                buffer.append(sender.value)
+            if let sender = senderQueue.dequeue() {
+                buffer.enqueue(sender.value)
                 sender.delivered = true
                 lock.unlock()
                 // CORO-004: Use continuation-based resume if available
@@ -291,8 +329,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // 2. Buffer is empty -- try to pair directly with a waiting sender
         //    (rendezvous fast-path, also applies to buffered when a sender
         //    arrived while the buffer was full and then got drained completely).
-        if let sender = senderQueue.first {
-            senderQueue.removeFirst()
+        if let sender = senderQueue.dequeue() {
             let value = sender.value
             sender.delivered = true
             lock.unlock()
@@ -313,7 +350,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // semaphore compatibility during migration.
         let receiverEntry = SuspendedReceiver(semaphore: DispatchSemaphore(value: 0), continuation: continuation)
 
-        receiverQueue.append(receiverEntry)
+        receiverQueue.enqueue(receiverEntry)
         lock.unlock()
 
         // Channel receive is not yet lowered as a true suspend point, so the
@@ -321,8 +358,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // BUG-041 interaction: flush undispatched launch{} work before blocking
         // so a sibling `launch { send(x) }` queued on this thread can run.
         // Without this, channel_basic-style rendezvous deadlocks (run exit 124).
+        // On a runBlocking event loop the flush only *queues* that sibling, so
+        // the wait below has to keep draining the queue rather than park.
         RuntimePendingLaunchQueue.flush()
-        receiverEntry.semaphore.wait()
+        runtimeWaitDrainingEventLoop(receiverEntry.semaphore)
 
         // After waking, check the wakeup reason.
         lock.lock()
@@ -371,10 +410,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return false
         }
         closed = true
-        let pendingSenders = senderQueue
-        senderQueue.removeAll()
-        let pendingReceivers = receiverQueue
-        receiverQueue.removeAll()
+        let pendingSenders = senderQueue.drain()
+        let pendingReceivers = receiverQueue.drain()
         lock.unlock()
 
         // Wake all suspended senders -- they will see `closed == true` and
@@ -401,10 +438,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// channel operation is called from exactly one coroutine at a time.
     func cancelAllWaiters() {
         lock.lock()
-        let pendingSenders = senderQueue
-        senderQueue.removeAll()
-        let pendingReceivers = receiverQueue
-        receiverQueue.removeAll()
+        let pendingSenders = senderQueue.drain()
+        let pendingReceivers = receiverQueue.drain()
         lock.unlock()
 
         for sender in pendingSenders {

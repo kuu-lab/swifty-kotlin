@@ -18,9 +18,10 @@ extension CallLowerer {
             return nil
         }
 
+        let knownNames = KnownCompilerNames(interner: interner)
         let isStdlibComparisonsFn = chosenSymbol.fqName.count >= 3
-            && chosenSymbol.fqName[0] == interner.intern("kotlin")
-            && chosenSymbol.fqName[1] == interner.intern("comparisons")
+            && chosenSymbol.fqName[0] == knownNames.kotlin
+            && chosenSymbol.fqName[1] == knownNames.comparisons
         let chosenCalleeName = interner.resolve(chosenSymbol.name)
         let isStdlibMaxOfCall = isStdlibComparisonsFn && chosenCalleeName == "maxOf"
         let isStdlibMinOfCall = isStdlibComparisonsFn && chosenCalleeName == "minOf"
@@ -374,7 +375,7 @@ extension CallLowerer {
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return interner.resolve(symbol.name) == "Comparator"
+        return symbol.name == KnownCompilerNames(interner: interner).comparator
     }
 
     /// True when every value parameter of the signature is the same type

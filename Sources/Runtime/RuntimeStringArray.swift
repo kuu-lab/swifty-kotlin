@@ -530,6 +530,10 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
     let length: Int
     let byteCount: Int
     let hash: Int
+    /// Kotlin UTF-16 code units decoded on first positional access; the flat
+    /// bytes never change, so the cache stays valid for the storage's lifetime.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
@@ -546,6 +550,18 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         }
     }
 
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+        let units = runtimeKotlinStringUTF16CodeUnits(String(decoding: buffer, as: UTF8.self))
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
     deinit {
         data.deallocate()
     }
@@ -553,16 +569,35 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage: [RuntimeFlatStringStorage] = []
+    private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
 
     func append(_ entry: RuntimeFlatStringStorage) {
         lock.lock()
-        storage.append(entry)
+        storageByDataPointer[UInt(bitPattern: entry.data)] = entry
         lock.unlock()
+    }
+
+    /// Storage whose `data` pointer is `data`, when the flat string was
+    /// produced by this runtime. Registered storages are retained forever, so
+    /// the pointer key stays unique for the process lifetime.
+    func storage(for data: UnsafePointer<UInt8>?) -> RuntimeFlatStringStorage? {
+        guard let data else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer[UInt(bitPattern: data)]
     }
 }
 
 private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
+
+/// Lazily cached UTF-16 code units of a runtime-produced flat string, keyed by
+/// its flat `data` pointer. Returns nil when the pointer did not come from
+/// `runtimeRegisterFlatString` (string literals and other foreign buffers).
+func runtimeFlatStringRegisteredUTF16CodeUnits(
+    data: UnsafePointer<UInt8>?
+) -> [UInt16]? {
+    runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
+}
 
 func runtimeStringFromFlatFields(
     data: UnsafePointer<UInt8>?,
@@ -899,6 +934,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        if runtimeArrayHasType(rawValue: value, typeID: payload) {
+            return 1
+        }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
         }
@@ -945,6 +983,15 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     }
 }
 
+@_cdecl("kk_array_tag_type")
+public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {
+    guard runtimeArrayBox(from: arrayRaw) != nil else {
+        return arrayRaw
+    }
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: Int64(typeID))
+    return arrayRaw
+}
+
 @_cdecl("kk_op_cast")
 public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -987,18 +1034,11 @@ public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // Range check first
     if let range = runtimeRangeBox(from: container) {
-        if range.step > 0 {
-            guard element >= range.first, element <= range.last else { return 0 }
-            return (element - range.first) % range.step == 0 ? 1 : 0
-        } else if range.step < 0 {
-            guard element <= range.first, element >= range.last else { return 0 }
-            return (range.first - element) % (-range.step) == 0 ? 1 : 0
-        }
-        return 0
+        return runtimeRangeContains(range, element)
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return list.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
@@ -1008,7 +1048,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     guard let array = runtimeArrayBox(from: container) else {
         return 0
     }
-    return array.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+    return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
 }
 
 @_cdecl("kk_array_new")
@@ -2245,7 +2285,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
-        return sbBox.value
+        return sbBox.stringValue
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

@@ -233,6 +233,118 @@ struct LLVMOptimizationRegressionTests {
         )
     }
 
+    @Test
+    func singleAssignmentAcrossControlFlowMergeRemainsValidAtO2() throws {
+        let source = """
+        fun main() {
+            val values: Iterable<Int> = listOf(1, 2, 3)
+            println(values.firstNotNullOf { value ->
+                if (value == 2) "two" else null
+            })
+            try {
+                println(values.firstNotNullOf { value ->
+                    if (value == 9) "nine" else null
+                })
+            } catch (e: NoSuchElementException) {
+                println("missing")
+            }
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationControlFlowMerge",
+            expected: "two\nmissing\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func runtimeFunctionAddressDoesNotWidenDirectCallAtO2() throws {
+        let source = """
+        fun main() {
+            val associated = ("abca" as CharSequence).associate { ch -> ch to 1 }
+            println(associated.size)
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationRuntimeFunctionAddress",
+            expected: "3\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func channelReceiveUsesPointerOutParameterAtO2() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+
+        fun main() = runBlocking {
+            val channel = Channel<Int>()
+            launch {
+                channel.send(42)
+                channel.close()
+            }
+            println(channel.receive())
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationChannelReceive",
+            expected: "42\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func bareCompanionGetterCarriesItsReceiverAtO2() throws {
+        let source = """
+        class C {
+            companion object {
+                val answer: Int get() = 42
+            }
+
+            fun readAnswer() = answer
+        }
+
+        fun main() {
+            println(C().readAnswer())
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationCompanionGetter",
+            expected: "42\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func jvmOverloadsWrappersRouteThroughDefaultStubAtO2() throws {
+        let source = """
+        class Greeter {
+            @JvmName("helloForJava")
+            @JvmOverloads
+            fun greet(prefix: String = "Hello", suffix: String = "!"): String {
+                return prefix + suffix
+            }
+        }
+
+        fun main() {
+            val greeter = Greeter()
+            println(greeter.greet())
+            println(greeter.greet("Hi"))
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationJvmOverloads",
+            expected: "Hello!\nHi!\n",
+            optimization: .O2
+        )
+    }
+
     private func assertOutput(
         _ source: String,
         moduleName: String,

@@ -318,6 +318,27 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // CoroutineStart.UNDISPATCHED launch
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_undispatched",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_undispatched_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         // CoroutineExceptionHandler (STDLIB-CORO-072)
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_new",

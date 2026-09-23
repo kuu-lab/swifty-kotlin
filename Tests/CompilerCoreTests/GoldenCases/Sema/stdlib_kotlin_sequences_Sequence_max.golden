@@ -1,13 +1,22 @@
 symbol fq=__local_0.doubles[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Double>
 symbol fq=__local_1.maxOfDouble[kind=local] kind=local vis=private flags=_ type=Double
 symbol fq=__local_2.maxOfOrNullDouble[kind=local] kind=local vis=private flags=_ type=Double?
-symbol fq=__local_3.floats[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Float>
-symbol fq=__local_4.maxOfFloat[kind=local] kind=local vis=private flags=_ type=Float
-symbol fq=__local_5.maxOfOrNullFloat[kind=local] kind=local vis=private flags=_ type=Float?
-symbol fq=__local_6.words[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<String>
-symbol fq=__local_7.cmp[kind=local] kind=local vis=private flags=_ type=kotlin.Comparator<Int>
-symbol fq=__local_8.maxOfWith[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_9.maxOfWithOrNull[kind=local] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_3.maxDouble[kind=local] kind=local vis=private flags=_ type=Double
+symbol fq=__local_4.maxOrNullDouble[kind=local] kind=local vis=private flags=_ type=Double?
+symbol fq=__local_5.floats[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Float>
+symbol fq=__local_6.maxOfFloat[kind=local] kind=local vis=private flags=_ type=Float
+symbol fq=__local_7.maxOfOrNullFloat[kind=local] kind=local vis=private flags=_ type=Float?
+symbol fq=__local_8.maxFloat[kind=local] kind=local vis=private flags=_ type=Float
+symbol fq=__local_9.maxOrNullFloat[kind=local] kind=local vis=private flags=_ type=Float?
+symbol fq=__local_10.ints[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>
+symbol fq=__local_11.maxInt[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_12.maxOrNullInt[kind=local] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_13.words[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<String>
+symbol fq=__local_14.cmp[kind=local] kind=local vis=private flags=_ type=kotlin.Comparator<Int>
+symbol fq=__local_15.maxOfWith[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_16.maxOfWithOrNull[kind=local] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_17.maxWord[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_18.maxOrNullWord[kind=local] kind=local vis=private flags=_ type=String?
 symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_sequences_Sequence_max package=_
   decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
@@ -26,55 +35,100 @@ expr e@4:60 name(it) type=Double ref=s-1
 expr e@4:58 lambda params=[] body=e@4:60 label=maxOfOrNull type=(Double) -> Any
 expr e@4:38#1 memberCall recv=e@4:38 callee=maxOfOrNull args=[_:e@4:58] type=Double? call=kotlin.collections.maxOfOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Double,Double]
 expr e@4:5 localDecl maxOfOrNullDouble mutable=0 type=Double? init=e@4:38#1 type=Unit ref=__local_2.maxOfOrNullDouble[kind=local]
-expr e@6:46 float(3.0) type=Float
-expr e@6:52 float(1.0) type=Float
-expr e@6:58 float(4.0) type=Float
-expr e@6:35 call callee=e@6:35#1 args=[_:e@6:46,_:e@6:52,_:e@6:58] type=kotlin.sequences.Sequence<Float> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Float]
-expr e@6:5 localDecl floats mutable=0 type=Sequence<Float> init=e@6:35 type=Unit ref=__local_3.floats[kind=local]
-expr e@7:29 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_3.floats[kind=local]
-expr e@7:44 name(it) type=Float ref=s-2
-expr e@7:42 lambda params=[] body=e@7:44 label=maxOf type=(Float) -> Any
-expr e@7:29#1 memberCall recv=e@7:29 callee=maxOf args=[_:e@7:42] type=Float call=kotlin.collections.maxOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Float,Float]
-expr e@7:5 localDecl maxOfFloat mutable=0 type=Float init=e@7:29#1 type=Unit ref=__local_4.maxOfFloat[kind=local]
-expr e@8:36 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_3.floats[kind=local]
-expr e@8:57 name(it) type=Float ref=s-3
-expr e@8:55 lambda params=[] body=e@8:57 label=maxOfOrNull type=(Float) -> Any
-expr e@8:36#1 memberCall recv=e@8:36 callee=maxOfOrNull args=[_:e@8:55] type=Float? call=kotlin.collections.maxOfOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Float,Float]
-expr e@8:5 localDecl maxOfOrNullFloat mutable=0 type=Float? init=e@8:36#1 type=Unit ref=__local_5.maxOfOrNullFloat[kind=local]
-expr e@10:46 string(aaa) type=String
-expr e@10:53 string(b) type=String
-expr e@10:58 string(cc) type=String
-expr e@10:35 call callee=e@10:35#1 args=[_:e@10:46,_:e@10:53,_:e@10:58] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[String]
-expr e@10:5 localDecl words mutable=0 type=Sequence<String> init=e@10:35 type=Unit ref=__local_6.words[kind=local]
-expr e@11:41 name(a) type=Int ref=s-4
-expr e@11:45 name(b) type=Int ref=s-5
-expr e@11:41#1 binary(subtract) lhs=e@11:41 rhs=e@11:45 type=Int
-expr e@11:31 lambda params=[a,b] body=e@11:41#1 label=Comparator type=kotlin.Comparator<Int>
-expr e@11:15 call callee=e@11:15#1 args=[_:e@11:31] type=kotlin.Comparator<Int>
-expr e@11:5 localDecl cmp mutable=0 type=_ init=e@11:15 type=Unit ref=__local_7.cmp[kind=local]
-expr e@12:26 name(words) type=kotlin.sequences.Sequence<String> ref=__local_6.words[kind=local]
-expr e@12:42 name(cmp) type=kotlin.Comparator<Int> ref=__local_7.cmp[kind=local]
-expr e@12:49 name(it) type=String ref=s-6
-expr e@12:49#1 memberCall recv=e@12:49 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
-expr e@12:47 lambda params=[] body=e@12:49#1 label=maxOfWith type=(String) -> Int
-expr e@12:26#1 memberCall recv=e@12:26 callee=maxOfWith args=[_:e@12:42,_:e@12:47] type=Int call=kotlin.collections.maxOfWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};gen=2] targs=[String,Int]
-expr e@12:5 localDecl maxOfWith mutable=0 type=Int init=e@12:26#1 type=Unit ref=__local_8.maxOfWith[kind=local]
-expr e@13:33 name(words) type=kotlin.sequences.Sequence<String> ref=__local_6.words[kind=local]
-expr e@13:55 name(cmp) type=kotlin.Comparator<Int> ref=__local_7.cmp[kind=local]
-expr e@13:62 name(it) type=String ref=s-7
-expr e@13:62#1 memberCall recv=e@13:62 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
-expr e@13:60 lambda params=[] body=e@13:62#1 label=maxOfWithOrNull type=(String) -> Int
-expr e@13:33#1 memberCall recv=e@13:33 callee=maxOfWithOrNull args=[_:e@13:55,_:e@13:60] type=Int? call=kotlin.collections.maxOfWithOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};gen=2] targs=[String,Int]
-expr e@13:5 localDecl maxOfWithOrNull mutable=0 type=Int? init=e@13:33#1 type=Unit ref=__local_9.maxOfWithOrNull[kind=local]
-expr e@15:13 name(maxOfDouble) type=Double ref=__local_1.maxOfDouble[kind=local]
-expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@16:13 name(maxOfOrNullDouble) type=Double? ref=__local_2.maxOfOrNullDouble[kind=local]
-expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@17:13 name(maxOfFloat) type=Float ref=__local_4.maxOfFloat[kind=local]
-expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@18:13 name(maxOfOrNullFloat) type=Float? ref=__local_5.maxOfOrNullFloat[kind=local]
-expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@19:13 name(maxOfWith) type=Int ref=__local_8.maxOfWith[kind=local]
-expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@20:13 name(maxOfWithOrNull) type=Int? ref=__local_9.maxOfWithOrNull[kind=local]
-expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@5:29 name(doubles) type=kotlin.sequences.Sequence<Double> ref=__local_0.doubles[kind=local]
+expr e@5:29#1 memberCall recv=e@5:29 callee=max args=[] type=Double call=kotlin.collections.max[kind=fun;recv=kotlin.sequences.Sequence<Double>;params=]
+expr e@5:5 localDecl maxDouble mutable=0 type=Double init=e@5:29#1 type=Unit ref=__local_3.maxDouble[kind=local]
+expr e@6:36 name(doubles) type=kotlin.sequences.Sequence<Double> ref=__local_0.doubles[kind=local]
+expr e@6:36#1 memberCall recv=e@6:36 callee=maxOrNull args=[] type=Double? call=kotlin.collections.maxOrNull[kind=fun;recv=kotlin.sequences.Sequence<Double>;params=]
+expr e@6:5 localDecl maxOrNullDouble mutable=0 type=Double? init=e@6:36#1 type=Unit ref=__local_4.maxOrNullDouble[kind=local]
+expr e@8:46 float(3.0) type=Float
+expr e@8:52 float(1.0) type=Float
+expr e@8:58 float(4.0) type=Float
+expr e@8:35 call callee=e@8:35#1 args=[_:e@8:46,_:e@8:52,_:e@8:58] type=kotlin.sequences.Sequence<Float> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Float]
+expr e@8:5 localDecl floats mutable=0 type=Sequence<Float> init=e@8:35 type=Unit ref=__local_5.floats[kind=local]
+expr e@9:29 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_5.floats[kind=local]
+expr e@9:44 name(it) type=Float ref=s-2
+expr e@9:42 lambda params=[] body=e@9:44 label=maxOf type=(Float) -> Any
+expr e@9:29#1 memberCall recv=e@9:29 callee=maxOf args=[_:e@9:42] type=Float call=kotlin.collections.maxOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Float,Float]
+expr e@9:5 localDecl maxOfFloat mutable=0 type=Float init=e@9:29#1 type=Unit ref=__local_6.maxOfFloat[kind=local]
+expr e@10:36 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_5.floats[kind=local]
+expr e@10:57 name(it) type=Float ref=s-3
+expr e@10:55 lambda params=[] body=e@10:57 label=maxOfOrNull type=(Float) -> Any
+expr e@10:36#1 memberCall recv=e@10:36 callee=maxOfOrNull args=[_:e@10:55] type=Float? call=kotlin.collections.maxOfOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Float,Float]
+expr e@10:5 localDecl maxOfOrNullFloat mutable=0 type=Float? init=e@10:36#1 type=Unit ref=__local_7.maxOfOrNullFloat[kind=local]
+expr e@11:27 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_5.floats[kind=local]
+expr e@11:27#1 memberCall recv=e@11:27 callee=max args=[] type=Float call=kotlin.collections.max[kind=fun;recv=kotlin.sequences.Sequence<Float>;params=]
+expr e@11:5 localDecl maxFloat mutable=0 type=Float init=e@11:27#1 type=Unit ref=__local_8.maxFloat[kind=local]
+expr e@12:34 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_5.floats[kind=local]
+expr e@12:34#1 memberCall recv=e@12:34 callee=maxOrNull args=[] type=Float? call=kotlin.collections.maxOrNull[kind=fun;recv=kotlin.sequences.Sequence<Float>;params=]
+expr e@12:5 localDecl maxOrNullFloat mutable=0 type=Float? init=e@12:34#1 type=Unit ref=__local_9.maxOrNullFloat[kind=local]
+expr e@14:42 int(3) type=Int
+expr e@14:45 int(1) type=Int
+expr e@14:48 int(4) type=Int
+expr e@14:31 call callee=e@14:31#1 args=[_:e@14:42,_:e@14:45,_:e@14:48] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@14:5 localDecl ints mutable=0 type=Sequence<Int> init=e@14:31 type=Unit ref=__local_10.ints[kind=local]
+expr e@15:23 name(ints) type=kotlin.sequences.Sequence<Int> ref=__local_10.ints[kind=local]
+expr e@15:23#1 memberCall recv=e@15:23 callee=max args=[] type=Int call=kotlin.collections.max[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] targs=[Int]
+expr e@15:5 localDecl maxInt mutable=0 type=Int init=e@15:23#1 type=Unit ref=__local_11.maxInt[kind=local]
+expr e@16:30 name(ints) type=kotlin.sequences.Sequence<Int> ref=__local_10.ints[kind=local]
+expr e@16:30#1 memberCall recv=e@16:30 callee=maxOrNull args=[] type=Int? call=kotlin.collections.maxOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] targs=[Int]
+expr e@16:5 localDecl maxOrNullInt mutable=0 type=Int? init=e@16:30#1 type=Unit ref=__local_12.maxOrNullInt[kind=local]
+expr e@18:46 string(aaa) type=String
+expr e@18:53 string(b) type=String
+expr e@18:58 string(cc) type=String
+expr e@18:35 call callee=e@18:35#1 args=[_:e@18:46,_:e@18:53,_:e@18:58] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[String]
+expr e@18:5 localDecl words mutable=0 type=Sequence<String> init=e@18:35 type=Unit ref=__local_13.words[kind=local]
+expr e@19:41 name(a) type=Int ref=s-4
+expr e@19:45 name(b) type=Int ref=s-5
+expr e@19:41#1 binary(subtract) lhs=e@19:41 rhs=e@19:45 type=Int
+expr e@19:31 lambda params=[a,b] body=e@19:41#1 label=Comparator type=kotlin.Comparator<Int>
+expr e@19:15 call callee=e@19:15#1 args=[_:e@19:31] type=kotlin.Comparator<Int>
+expr e@19:5 localDecl cmp mutable=0 type=_ init=e@19:15 type=Unit ref=__local_14.cmp[kind=local]
+expr e@20:26 name(words) type=kotlin.sequences.Sequence<String> ref=__local_13.words[kind=local]
+expr e@20:42 name(cmp) type=kotlin.Comparator<Int> ref=__local_14.cmp[kind=local]
+expr e@20:49 name(it) type=String ref=s-6
+expr e@20:49#1 memberCall recv=e@20:49 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@20:47 lambda params=[] body=e@20:49#1 label=maxOfWith type=(String) -> Int
+expr e@20:26#1 memberCall recv=e@20:26 callee=maxOfWith args=[_:e@20:42,_:e@20:47] type=Int call=kotlin.collections.maxOfWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};gen=2] targs=[String,Int]
+expr e@20:5 localDecl maxOfWith mutable=0 type=Int init=e@20:26#1 type=Unit ref=__local_15.maxOfWith[kind=local]
+expr e@21:33 name(words) type=kotlin.sequences.Sequence<String> ref=__local_13.words[kind=local]
+expr e@21:55 name(cmp) type=kotlin.Comparator<Int> ref=__local_14.cmp[kind=local]
+expr e@21:62 name(it) type=String ref=s-7
+expr e@21:62#1 memberCall recv=e@21:62 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@21:60 lambda params=[] body=e@21:62#1 label=maxOfWithOrNull type=(String) -> Int
+expr e@21:33#1 memberCall recv=e@21:33 callee=maxOfWithOrNull args=[_:e@21:55,_:e@21:60] type=Int? call=kotlin.collections.maxOfWithOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};gen=2] targs=[String,Int]
+expr e@21:5 localDecl maxOfWithOrNull mutable=0 type=Int? init=e@21:33#1 type=Unit ref=__local_16.maxOfWithOrNull[kind=local]
+expr e@22:27 name(words) type=kotlin.sequences.Sequence<String> ref=__local_13.words[kind=local]
+expr e@22:27#1 memberCall recv=e@22:27 callee=max args=[] type=String call=kotlin.collections.max[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] targs=[String]
+expr e@22:5 localDecl maxWord mutable=0 type=String init=e@22:27#1 type=Unit ref=__local_17.maxWord[kind=local]
+expr e@23:34 name(words) type=kotlin.sequences.Sequence<String> ref=__local_13.words[kind=local]
+expr e@23:34#1 memberCall recv=e@23:34 callee=maxOrNull args=[] type=String? call=kotlin.collections.maxOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] targs=[String]
+expr e@23:5 localDecl maxOrNullWord mutable=0 type=String? init=e@23:34#1 type=Unit ref=__local_18.maxOrNullWord[kind=local]
+expr e@25:13 name(maxOfDouble) type=Double ref=__local_1.maxOfDouble[kind=local]
+expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@26:13 name(maxOfOrNullDouble) type=Double? ref=__local_2.maxOfOrNullDouble[kind=local]
+expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@27:13 name(maxDouble) type=Double ref=__local_3.maxDouble[kind=local]
+expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@28:13 name(maxOrNullDouble) type=Double? ref=__local_4.maxOrNullDouble[kind=local]
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@29:13 name(maxOfFloat) type=Float ref=__local_6.maxOfFloat[kind=local]
+expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@30:13 name(maxOfOrNullFloat) type=Float? ref=__local_7.maxOfOrNullFloat[kind=local]
+expr e@30:5 call callee=e@30:5#1 args=[_:e@30:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@31:13 name(maxFloat) type=Float ref=__local_8.maxFloat[kind=local]
+expr e@31:5 call callee=e@31:5#1 args=[_:e@31:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@32:13 name(maxOrNullFloat) type=Float? ref=__local_9.maxOrNullFloat[kind=local]
+expr e@32:5 call callee=e@32:5#1 args=[_:e@32:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@33:13 name(maxInt) type=Int ref=__local_11.maxInt[kind=local]
+expr e@33:5 call callee=e@33:5#1 args=[_:e@33:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@34:13 name(maxOrNullInt) type=Int? ref=__local_12.maxOrNullInt[kind=local]
+expr e@34:5 call callee=e@34:5#1 args=[_:e@34:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@35:13 name(maxOfWith) type=Int ref=__local_15.maxOfWith[kind=local]
+expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@36:13 name(maxOfWithOrNull) type=Int? ref=__local_16.maxOfWithOrNull[kind=local]
+expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@37:13 name(maxWord) type=String ref=__local_17.maxWord[kind=local]
+expr e@37:5 call callee=e@37:5#1 args=[_:e@37:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@38:13 name(maxOrNullWord) type=String? ref=__local_18.maxOrNullWord[kind=local]
+expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

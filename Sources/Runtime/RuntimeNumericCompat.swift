@@ -201,8 +201,8 @@ private func runtimeStringHashCode(_ value: String) -> Int {
 // elements in different insertion orders have identical hashes.
 private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
     var hash: Int32 = 0
-    for element in set.elements {
-        hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
+    for element in set.values {
+        hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
     }
     return Int(hash)
 }
@@ -344,8 +344,8 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // longer collection or a large-hashCode element pushes it past that.
     if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
         var hash: Int32 = 1
-        for element in listBox.elements {
-            hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
+        for element in listBox.values {
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
         }
         return Int(hash)
     }
@@ -415,8 +415,8 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         }
 
         var hash = Int32(truncatingIfNeeded: objBox.classID)
-        for element in objBox.elements {
-            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element, 0))
+        for element in objBox.values {
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
         }
         return Int(hash)
     }

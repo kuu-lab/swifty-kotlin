@@ -10,7 +10,9 @@ import kotlin.internal.KsSymbolName
 //
 // These map directly to @_cdecl functions in RuntimeCollections.swift and
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
-// parameter layout: null array + count=0 produces a fresh mutable collection.
+// parameter layout: null array + count=0 produces a fresh collection. Map's
+// `__kk_map_of` is the read-only `Map` tag (KUU-646); mutable map factories
+// go through `__kk_linked_hash_map_of` / `__kk_hash_map_of`.
 
 @KsSymbolName("__kk_emptyList")
 private external fun <T> __kk_emptyList(): List<T>
@@ -29,6 +31,12 @@ private external fun <K, V> __kk_emptyMap(): Map<K, V>
 
 @KsSymbolName("__kk_map_of")
 private external fun <K, V> __kk_map_of(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
+
+@KsSymbolName("__kk_linked_hash_map_of")
+private external fun <K, V> __kk_linked_hash_map_of(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
+
+@KsSymbolName("__kk_builder_map_freeze")
+private external fun <K, V> __kk_map_freeze(value: MutableMap<K, V>): Map<K, V>
 
 // --- emptyList / emptySet / emptyMap -----------------------------------------
 
@@ -154,19 +162,19 @@ public fun <K, V> mapOf(): Map<K, V> = emptyMap()
  */
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> {
-    val result: MutableMap<K, V> = __kk_map_of(null, null, 1)
+    val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
     result[pair.first] = pair.second
-    return result as Map<K, V>
+    return __kk_map_freeze(result)
 }
 
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()
-    val result: MutableMap<K, V> = __kk_map_of(null, null, 0)
+    val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
     for (pair in pairs) {
         result[pair.first] = pair.second
     }
-    return result as Map<K, V>
+    return __kk_map_freeze(result)
 }
 
 @PublishedApi
@@ -177,10 +185,15 @@ internal fun mapCapacity(expectedSize: Int): Int = when {
     else -> Int.MAX_VALUE
 }
 
-public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of(null, null, 0)
+// NOTE for RF-LOWER-CALL: both mutableMapOf bodies below bind
+// `__kk_linked_hash_map_of` so a missed interception still answers
+// `is MutableMap`. `__kk_map_of` is the read-only `Map` tag shared with
+// `mapOf` (KUU-646); the rewriters intercept these calls by FQName.
+
+public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
 
 public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
-    val result: MutableMap<K, V> = __kk_map_of(null, null, 0)
+    val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
     for (pair in pairs) {
         result[pair.first] = pair.second
     }

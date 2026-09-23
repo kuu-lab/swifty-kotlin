@@ -617,6 +617,19 @@ extension RuntimeRangeHOFKind {
         isEmpty(range) ? runtimeNullSentinelInt : range.last
     }
 
+    /// `Progression.first()` / `last()`: throw on empty, unlike the `first`/`last` properties.
+    static func firstOrLastOrThrow(
+        _ range: RuntimeRangeBox,
+        wantLast: Bool,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        guard !isEmpty(range) else {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Progression is empty.")
+            return 0
+        }
+        return wantLast ? range.last : range.first
+    }
+
     static func any(
         _ range: RuntimeRangeBox,
         _ fnPtr: Int,
@@ -683,6 +696,20 @@ func runtimeRangeEntry<Kind: RuntimeRangeHOFKind>(
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in \(functionName)")
     }
     return body(range)
+}
+
+@inline(__always)
+func runtimeRangeFirstOrLastOrThrow<Kind: RuntimeRangeHOFKind>(
+    _: Kind.Type,
+    _ rangeRaw: Int,
+    wantLast: Bool,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    return runtimeRangeEntry(Kind.self, rangeRaw, functionName: functionName) { range in
+        Kind.firstOrLastOrThrow(range, wantLast: wantLast, outThrown)
+    }
 }
 
 @inline(__always)

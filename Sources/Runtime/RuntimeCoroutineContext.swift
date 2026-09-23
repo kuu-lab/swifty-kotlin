@@ -759,6 +759,9 @@ func kk_with_context_impl(
         semaphore.signal()
     }
 
-    semaphore.wait()
+    // The dispatched block runs on a real dispatcher queue, so it is not itself
+    // queued on any runBlocking event loop -- but this thread may be draining
+    // one, and the block can join work that is. Drain rather than park.
+    runtimeWaitDrainingEventLoop(semaphore)
     return resultBox.value
 }

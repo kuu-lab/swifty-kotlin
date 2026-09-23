@@ -517,6 +517,12 @@ extension DeclTypeChecker {
             enclosingFunctionReturnType: signature.returnType,
             currentDeclSymbol: symbol
         )
+        // An extension function's name doubles as the label of its receiver:
+        // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
+        // extension receiver from inside a lambda with its own receiver.
+        if let extensionReceiverType = signature.receiverType {
+            functionCtx = functionCtx.withOuterReceiver(label: function.name, type: extensionReceiverType)
+        }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
         functionCtx.suppressPlatformReturnWarning = (function.returnType == nil)
@@ -537,7 +543,12 @@ extension DeclTypeChecker {
             && symbolFlags.contains(.abstractType)
         if isAbstract { return }
         if function.body == .unit {
-            if hasRuntimeBridge || symbolFlags.contains(.expectDeclaration) {
+            // Members of an `expect` class / object / interface (including
+            // companion and nested declarations) are contracts as well: the
+            // `actual` counterpart supplies the bodies.
+            if hasRuntimeBridge || symbolFlags.contains(.expectDeclaration)
+                || isNestedInExpectDeclaration(ctx.enclosingClassSymbol, sema: sema)
+            {
                 return
             }
             diagnostics.error(
@@ -968,6 +979,23 @@ extension DeclTypeChecker {
         guard let expr = ast.arena.expr(exprID) else { return false }
         if case let .nameRef(name, _) = expr {
             return name == KnownCompilerNames(interner: interner).null
+        }
+        return false
+    }
+
+    /// Whether `classSymbol` (or any of its enclosing classes) carries the
+    /// `expect` modifier. A member declared without a body inside an `expect`
+    /// class/object/interface is a contract, not a missing body — the
+    /// `actual` counterpart supplies the implementation.
+    private func isNestedInExpectDeclaration(_ classSymbol: SymbolID?, sema: SemaModule) -> Bool {
+        var current: SymbolID? = classSymbol
+        var guardCount = 0
+        while let symbolID = current, guardCount < 64 {
+            guardCount += 1
+            if let symbol = sema.symbols.symbol(symbolID), symbol.flags.contains(.expectDeclaration) {
+                return true
+            }
+            current = sema.symbols.parentSymbol(for: symbolID)
         }
         return false
     }
