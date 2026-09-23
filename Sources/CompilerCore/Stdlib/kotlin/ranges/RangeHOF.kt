@@ -204,7 +204,7 @@ public fun IntRange.average(): Double {
     return sum / count()
 }
 
-public fun IntRange.sorted(): List<Int> = toList().sorted()
+public fun IntRange.sorted(): List<Int> = if (step < 0) toList().reversed() else toList()
 
 public fun IntRange.take(n: Int): List<Int> {
     require(n >= 0) { "Requested element count $n is less than zero." }
@@ -452,7 +452,7 @@ public fun IntProgression.average(): Double {
     return sum / count()
 }
 
-public fun IntProgression.sorted(): List<Int> = toList().sorted()
+public fun IntProgression.sorted(): List<Int> = if (step < 0) toList().reversed() else toList()
 
 public fun IntProgression.take(n: Int): List<Int> {
     require(n >= 0) { "Requested element count $n is less than zero." }
@@ -734,7 +734,8 @@ public fun LongRange.drop(n: Int): List<Long> {
 }
 
 public fun LongRange.sorted(): List<Long> {
-    return toList().sorted()
+    val elements = toList()
+    return if (step < 0L) elements.reversed() else elements
 }
 
 public fun LongRange.average(): Double {
@@ -870,7 +871,8 @@ public fun LongProgression.drop(n: Int): List<Long> {
 }
 
 public fun LongProgression.sorted(): List<Long> {
-    return toList().sorted()
+    val elements = toList()
+    return if (step < 0L) elements.reversed() else elements
 }
 
 public fun LongProgression.average(): Double {
@@ -1005,7 +1007,8 @@ public fun CharRange.drop(n: Int): List<Char> {
 }
 
 public fun CharRange.sorted(): List<Char> {
-    return toList().sorted()
+    val elements = toList()
+    return if (step < 0) elements.reversed() else elements
 }
 
 @KsSymbolName("__kk_range_count")
@@ -1123,7 +1126,8 @@ public fun CharProgression.drop(n: Int): List<Char> {
 }
 
 public fun CharProgression.sorted(): List<Char> {
-    return toList().sorted()
+    val elements = toList()
+    return if (step < 0) elements.reversed() else elements
 }
 
 @KsSymbolName("__kk_range_count")
@@ -1384,7 +1388,7 @@ public fun UIntRange.toList(): List<UInt> {
 public fun UIntRange.firstOrNull(): UInt? = if (isEmpty()) null else first
 public fun UIntRange.lastOrNull(): UInt? = if (isEmpty()) null else last
 
-public fun UIntRange.sorted(): List<UInt> = toList().sorted()
+public fun UIntRange.sorted(): List<UInt> = if (step < 0) toList().reversed() else toList()
 
 @KsSymbolName("__kk_range_count")
 public fun UIntRange.count(): Int {
@@ -1811,7 +1815,7 @@ public fun ULongRange.firstOrNull(): ULong? = if (isEmpty()) null else first
 
 public fun ULongRange.lastOrNull(): ULong? = if (isEmpty()) null else last
 
-public fun ULongRange.sorted(): List<ULong> = toList().sorted()
+public fun ULongRange.sorted(): List<ULong> = if (step < 0) toList().reversed() else toList()
 
 // KSP-1292: Kotlin 2.3.10 widens unsigned values before using the native
 // ULong overload, preserving the exact range membership and boundary rules.

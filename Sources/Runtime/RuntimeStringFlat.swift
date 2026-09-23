@@ -31,9 +31,37 @@ func runtimeStringUTF16CodeUnitsFromFlat(
     byteCount: Int,
     hash: Int
 ) -> [UInt16] {
-    runtimeKotlinStringUTF16CodeUnits(
+    if let cached = runtimeFlatStringRegisteredUTF16CodeUnits(data: data) {
+        return cached
+    }
+    return runtimeKotlinStringUTF16CodeUnits(
         runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     )
+}
+
+/// Single-index code-unit read for the flat string ABI. Runtime-registered
+/// strings share the cached unit array on their storage; other buffers decode
+/// scalars until the target index without materializing the whole array.
+/// `unit` is nil exactly when `index` is out of bounds, and `utf16Length` then
+/// carries the authoritative length for the bounds-error message.
+func runtimeFlatStringCodeUnit(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int,
+    index: Int
+) -> (unit: UInt16?, utf16Length: Int) {
+    if let units = runtimeFlatStringRegisteredUTF16CodeUnits(data: data) {
+        if index >= 0, index < units.count {
+            return (units[index], units.count)
+        }
+        return (nil, units.count)
+    }
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    if let unit = runtimeKotlinStringUTF16CodeUnit(source, at: index) {
+        return (unit, -1)
+    }
+    return (nil, runtimeKotlinStringUTF16Length(source))
 }
 
 @_cdecl("kk_string_trim_flat")

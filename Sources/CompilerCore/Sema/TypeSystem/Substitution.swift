@@ -59,6 +59,8 @@ public extension TypeSystem {
     /// into user-facing constraint diagnostics.
     internal func renderConstraintType(_ type: TypeID) -> String {
         switch kind(of: type) {
+        case let .classType(classType) where classType.classSymbol == numberClassSymbol:
+            return "Number\(nullabilitySuffix(classType.nullability))"
         case let .classType(classType) where classType.classSymbol == comparableInterfaceSymbol:
             let args = classType.args.isEmpty
                 ? ""

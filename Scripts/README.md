@@ -361,3 +361,19 @@ bash Scripts/dead_code_audit.sh --verbose
 The `Quarterly Audits` workflow runs this audit with the fiction audit on the
 first day of January, April, July, and October. Its summary and the intermediate
 audit files are retained as a 90-day GitHub Actions artifact.
+
+## Ktor build probe
+
+`ktor_build.sh` sparse-clones pinned snapshots of Ktor's core `common` source
+sets (`ktor-io`, `ktor-utils`, `ktor-http`) and their kotlinx-io dependency
+into a cache dir outside the repo, compiles each with `kswiftc --emit
+library`, and writes a per-module TSV of diagnostic-code counts (see
+`docs/ktor-build-status.md` for the current gap inventory). It is a
+diagnostic probe, not a CI-wired regression test — a module failing to
+compile is expected until the remaining gaps close.
+
+```bash
+bash Scripts/ktor_build.sh                  # fetch + compile all modules
+bash Scripts/ktor_build.sh --no-fetch        # reuse an existing checkout
+bash Scripts/ktor_build.sh --module ktor_io  # compile a single module
+```

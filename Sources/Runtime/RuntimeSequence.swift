@@ -752,7 +752,7 @@ private func runtimeSequenceTransformElement(
         }
     case .shuffledStep:
         return
-    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -873,7 +873,7 @@ func runtimeTraverseSequenceWithState(
     }
     let transformSteps = seq.steps.filter {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             false
         default:
             true
@@ -909,6 +909,25 @@ func runtimeTraverseSequenceWithState(
         case let .valueSource(sourceValues):
             for value in sourceValues {
                 emit(value.legacyRawValue)
+                if state.stop { break }
+            }
+            if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
+                runtimeSequenceFlushChunkedTransforms(
+                    transformSteps,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: yield
+                )
+            }
+            return
+        case let .pullSource(produce):
+            // Lazy pull-source (e.g. `useLines` lines from a live reader):
+            // draw one element at a time so short-circuiting operations only
+            // pull what they need and memory stays bounded.
+            while true {
+                if state.stop { break }
+                guard let element = produce() else { break }
+                emit(element)
                 if state.stop { break }
             }
             if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
@@ -1103,6 +1122,12 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     case let .lazyBuilder(coroutine):
         // STDLIB-563: Materialize the lazy coroutine into an element array.
         return coroutine.materializeAll()
+    case let .pullSource(produce):
+        var elements: [Int] = []
+        while let element = produce() {
+            elements.append(element)
+        }
+        return elements
     default:
         return nil
     }
@@ -1329,7 +1354,7 @@ private func evaluateSequence(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             return false
         default:
             return true
@@ -1405,7 +1430,7 @@ private func evaluateSequence(
     // Apply transformation steps in order
     for step in seq.steps {
         switch step {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             break
         case let .mapStep(fnPtr, closureRaw):
             elements = applyMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
@@ -1511,7 +1536,7 @@ private func evaluateSequenceValues(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             return false
         default:
             return true

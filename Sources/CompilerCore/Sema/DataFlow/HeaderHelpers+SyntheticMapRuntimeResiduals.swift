@@ -200,7 +200,7 @@ extension DataFlowSemaPhase {
             parameterTypes: [mapParameterType],
             returnType: types.unitType,
             externalLinkName: "__kk_mutable_map_putAll",
-            flags: [.synthetic],
+            flags: [.synthetic, .throwingFunction],
             typeParameterSymbols: [mutableKeySymbol, mutableValueSymbol]
         )
     }
