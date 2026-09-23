@@ -24,6 +24,15 @@ package struct MetadataRecord {
     /// Upper-bound type signatures for callable type parameters, in declaration order.
     /// Empty entries preserve alignment when only a later type parameter is bounded.
     package let typeParameterUpperBoundsSignatures: [[String]]
+    /// Type parameter references of a callable in declaration order, encoded as
+    /// `T<rawID>` tokens (e.g. `T5023`) matching the encoding used inside type
+    /// signatures. For member callables this is the full list, including the
+    /// leading owner (class) type parameters. It preserves the declared order
+    /// for parameters that never appear in the decoded signature ("phantom"
+    /// parameters referenced only inside the body via explicit type arguments
+    /// to other generic calls) and disambiguates parameters across overloads
+    /// that share one FQ name.
+    package let callableTypeParameterSignatures: [String]
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
@@ -133,6 +142,7 @@ package struct MetadataRecord {
         isOverride: Bool = false,
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
+        callableTypeParameterSignatures: [String] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -185,6 +195,7 @@ package struct MetadataRecord {
         self.isOverride = isOverride
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
+        self.callableTypeParameterSignatures = callableTypeParameterSignatures
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -767,6 +778,7 @@ package final class MetadataEncoder {
         var isOverride = false
         var typeSignature: String?
         var typeParameterUpperBoundsSignatures: [[String]] = []
+        var callableTypeParameterSignatures: [String] = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -829,6 +841,7 @@ package final class MetadataEncoder {
                     )
                 }
             }
+            callableTypeParameterSignatures = signature.typeParameterSymbols.map { "T\($0.rawValue)" }
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             // KUU-655: uses the (already override-corrected) local flag, not
             // `signature.valueParameterHasDefaultValues` directly, so an
@@ -1093,6 +1106,7 @@ package final class MetadataEncoder {
             isOverride: isOverride,
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
+            callableTypeParameterSignatures: callableTypeParameterSignatures,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -1315,6 +1329,9 @@ package final class MetadataEncoder {
                    let encodedBounds = encodeMetadataTypeParameterUpperBounds(record.typeParameterUpperBoundsSignatures)
                 {
                     fields.append("typeBounds=\(encodedBounds)")
+                }
+                if !record.callableTypeParameterSignatures.isEmpty {
+                    fields.append("callTParams=\(record.callableTypeParameterSignatures.joined(separator: ","))")
                 }
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
@@ -1692,6 +1709,7 @@ final class MetadataDecoder {
                 isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
+                callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1749,6 +1767,7 @@ final class MetadataDecoder {
         var isOperator: Bool = false
         var isOverride: Bool = false
         var typeSignature: String?
+        var callableTypeParameterSignatures: [String] = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -1828,6 +1847,8 @@ final class MetadataDecoder {
             record.typeSignature = value.isEmpty ? nil : value
         case "typeBounds":
             record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
+        case "callTParams":
+            record.callableTypeParameterSignatures = value.split(separator: ",").map(String.init)
         case "link":
             record.externalLinkName = value.isEmpty ? nil : value
         case "fields":

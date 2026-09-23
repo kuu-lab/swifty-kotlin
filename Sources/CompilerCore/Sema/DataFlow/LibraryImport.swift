@@ -939,6 +939,12 @@ extension DataFlowSemaPhase {
         let reifiedTypeParameterIndices: Set<Int>
         let typeSignature: String?
         let typeParameterUpperBoundsSignatures: [[String]]
+        /// The callable's type parameters in declaration order, encoded as
+        /// `T<rawID>` tokens (including any leading owner type parameters of
+        /// member callables). Present on artifacts emitted by compilers that
+        /// serialize `callTParams`; empty for older artifacts, where the
+        /// structural scan plus the phantom-count fallback apply instead.
+        let callableTypeParameterSignatures: [String]
         let defaultStubExternalLinkName: String?
         let externalLinkName: String?
         let declaredFieldCount: Int?
@@ -999,6 +1005,7 @@ extension DataFlowSemaPhase {
             reifiedTypeParameterIndices: Set<Int> = [],
             typeSignature: String? = nil,
             typeParameterUpperBoundsSignatures: [[String]] = [],
+            callableTypeParameterSignatures: [String] = [],
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
@@ -1053,6 +1060,7 @@ extension DataFlowSemaPhase {
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
             self.typeSignature = typeSignature
             self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
+            self.callableTypeParameterSignatures = callableTypeParameterSignatures
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
             self.declaredFieldCount = declaredFieldCount
