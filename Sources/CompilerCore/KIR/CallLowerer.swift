@@ -902,6 +902,12 @@ final class CallLowerer {
                    of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                ),
                functionType.receiver != nil,
+               // `finalArgIDs` here is `[closure] + normalizedArgs`.
+               // When the receiver was already supplied positionally
+               // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
+               // elements and finalArgIDs.count is params.count + 2 -- there
+               // is no missing receiver slot to fill from the ambient scope.
+               finalArgIDs.count == functionType.params.count + 1,
                let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
             {
                 // A receiver-function value invoked as `block()` inside a

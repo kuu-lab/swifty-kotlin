@@ -2844,7 +2844,8 @@ final class CallTypeChecker {
         if let callableCalleeType,
            let result = inferCallableValueInvocation(
                id, calleeType: callableCalleeType, callableTarget: callableTarget,
-               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType
+               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType,
+               arityPolicy: .receiverOptionallyExplicit
            )
         {
             return result

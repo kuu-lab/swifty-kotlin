@@ -719,12 +719,32 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        // Explicit `.invoke(...)` on a receiver whose own type is a function
+        // type (e.g. `fs["dbl"]?.invoke(4)`). Mirrors the non-safe-call arm
+        // in `lowerMemberCallExpr` and goes through `lowerResolvedCallBody`
+        // so positional-receiver / default-arg shapes stay consistent.
+        if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            loweredReceiverID: loweredReceiverID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // Callable-value invocation through a safe call (KUU-644):
-        // `h?.f(args)` on a function-typed member property, and
-        // `x?.invoke(args)` on a function value. The receiver is already
-        // known non-null here; emit the property read / invoke on the
+        // `h?.f(args)` on a function-typed member property. The receiver is
+        // already known non-null here; emit the property read / invoke on the
         // non-null path and copy into the nullable result like the other
-        // safe-call arms.
+        // safe-call arms. Explicit `x?.invoke(args)` is handled above.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            let invokeCallee = runtimeCallableInvokeCallee(
