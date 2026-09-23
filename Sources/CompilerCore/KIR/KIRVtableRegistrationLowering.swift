@@ -12,6 +12,11 @@ final class KIRNominalDispatchCache {
     /// the `kirFindOverrideMethod` result, or the method itself when no
     /// override exists (both call sites apply that same fallback).
     private var itableImplementationsByNominal: [SymbolID: [SymbolID: SymbolID]] = [:]
+    /// Interface → property-getter slot table, computed once per interface
+    /// instead of once per property read or object registration site.
+    private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
+    /// Interface → property → itable slot, built lazily from the slot table.
+    private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
 
     func vtableImplementations(
         for nominalSymbol: SymbolID,
@@ -69,6 +74,44 @@ final class KIRNominalDispatchCache {
         ) ?? interfaceMethod
         itableImplementationsByNominal[nominalSymbol, default: [:]][interfaceMethod] = resolved
         return resolved
+    }
+
+    func interfacePropertyGetterSlots(
+        for interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [KIRInterfacePropertyGetterSlot] {
+        if let cached = interfacePropertyGetterSlotsByInterface[interfaceSymbol] {
+            return cached
+        }
+        let computed = kirInterfacePropertyGetterSlots(
+            interfaceSymbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        interfacePropertyGetterSlotsByInterface[interfaceSymbol] = computed
+        return computed
+    }
+
+    /// Itable slot of `interfaceProperty`'s getter on `interfaceSymbol`, or nil
+    /// when the property does not participate in itable dispatch.
+    func interfacePropertyGetterSlot(
+        for interfaceProperty: SymbolID,
+        in interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int? {
+        if let map = interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] {
+            return map[interfaceProperty]
+        }
+        var map: [SymbolID: Int] = [:]
+        for slot in interfacePropertyGetterSlots(for: interfaceSymbol, sema: sema, interner: interner) {
+            if let propertySymbol = slot.propertySymbol {
+                map[propertySymbol] = slot.slot
+            }
+        }
+        interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] = map
+        return map[interfaceProperty]
     }
 }
 
