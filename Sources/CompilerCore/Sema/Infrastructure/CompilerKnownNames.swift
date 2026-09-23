@@ -324,6 +324,225 @@ package struct KnownCompilerNames {
     let ensureCapacity: InternedString
     let trimToSize: InternedString
 
+    // Member, type, and package names checked on hot member-call paths
+    // (collection fallback, regular resolution, KIR lowering dispatch),
+    // interned once per interner so call sites compare `InternedString`
+    // IDs instead of re-interning literals or resolving back to String.
+    let add: InternedString
+    let addAll: InternedString
+    let asIterable: InternedString
+    let asReversed: InternedString
+    let asSequence: InternedString
+    let average: InternedString
+    let binarySearch: InternedString
+    let binarySearchBy: InternedString
+    let chunked: InternedString
+    let coerceIn: InternedString
+    let compareTo: InternedString
+    let contains: InternedString
+    let containsAll: InternedString
+    let containsKey: InternedString
+    let containsValue: InternedString
+    let count: InternedString
+    let distinct: InternedString
+    let distinctBy: InternedString
+    let drop: InternedString
+    let eachCount: InternedString
+    let elementAt: InternedString
+    let elementAtOrElse: InternedString
+    let elementAtOrNull: InternedString
+    let equals: InternedString
+    let filter: InternedString
+    let filterIndexed: InternedString
+    let filterIsInstance: InternedString
+    let filterIsInstanceTo: InternedString
+    let filterNot: InternedString
+    let filterNotNull: InternedString
+    let filterNotNullTo: InternedString
+    let find: InternedString
+    let first: InternedString
+    let firstNotNullOf: InternedString
+    let firstNotNullOfOrNull: InternedString
+    let firstOrNull: InternedString
+    let flatMapIndexed: InternedString
+    let flatten: InternedString
+    let fold: InternedString
+    let foldIndexed: InternedString
+    let foldRight: InternedString
+    let foldRightIndexed: InternedString
+    let forEach: InternedString
+    let format: InternedString
+    let getOrNull: InternedString
+    let hashCode: InternedString
+    let indexOf: InternedString
+    let indexOfFirst: InternedString
+    let indexOfLast: InternedString
+    let intersect: InternedString
+    let isNullOrEmpty: InternedString
+    let iterator: InternedString
+    let joinToString: InternedString
+    let last: InternedString
+    let lastIndexOf: InternedString
+    let lastOrNull: InternedString
+    let mapIndexed: InternedString
+    let mapNotNull: InternedString
+    let maxBy: InternedString
+    let maxByOrNull: InternedString
+    let maxOf: InternedString
+    let maxOfOrNull: InternedString
+    let maxOfWith: InternedString
+    let maxOfWithOrNull: InternedString
+    let maxOrNull: InternedString
+    let maxWith: InternedString
+    let maxWithOrNull: InternedString
+    let min: InternedString
+    let minBy: InternedString
+    let minByOrNull: InternedString
+    let minOf: InternedString
+    let minOfOrNull: InternedString
+    let minOfWith: InternedString
+    let minOfWithOrNull: InternedString
+    let minOrNull: InternedString
+    let minWith: InternedString
+    let minWithOrNull: InternedString
+    let minus: InternedString
+    let minusElement: InternedString
+    let partition: InternedString
+    let plus: InternedString
+    let random: InternedString
+    let randomOrNull: InternedString
+    let reduce: InternedString
+    let reduceIndexed: InternedString
+    let reduceIndexedOrNull: InternedString
+    let reduceOrNull: InternedString
+    let reduceRight: InternedString
+    let reduceRightIndexed: InternedString
+    let reduceRightIndexedOrNull: InternedString
+    let reduceRightOrNull: InternedString
+    let reduceTo: InternedString
+    let remove: InternedString
+    let removeAll: InternedString
+    let requireNoNulls: InternedString
+    let retainAll: InternedString
+    let reversed: InternedString
+    let runningFold: InternedString
+    let runningFoldIndexed: InternedString
+    let runningReduce: InternedString
+    let runningReduceIndexed: InternedString
+    let scan: InternedString
+    let scanIndexed: InternedString
+    let scanReduce: InternedString
+    let shuffled: InternedString
+    let single: InternedString
+    let singleOrNull: InternedString
+    let slice: InternedString
+    let sort: InternedString
+    let sortBy: InternedString
+    let sortByDescending: InternedString
+    let sorted: InternedString
+    let sortedBy: InternedString
+    let sortedByDescending: InternedString
+    let sortedDescending: InternedString
+    let sortedWith: InternedString
+    let step: InternedString
+    let subList: InternedString
+    let subtract: InternedString
+    let sum: InternedString
+    let sumBy: InternedString
+    let sumByDouble: InternedString
+    let sumOf: InternedString
+    let take: InternedString
+    let toBooleanArray: InternedString
+    let toByteArray: InternedString
+    let toCharArray: InternedString
+    let toCollection: InternedString
+    let toDoubleArray: InternedString
+    let toFloatArray: InternedString
+    let toIntArray: InternedString
+    let toList: InternedString
+    let toLongArray: InternedString
+    let toMutableList: InternedString
+    let toShortArray: InternedString
+    let toTypedArray: InternedString
+    let toUByteArray: InternedString
+    let toUIntArray: InternedString
+    let toULongArray: InternedString
+    let toUShortArray: InternedString
+    let trimMargin: InternedString
+    let typeOf: InternedString
+    let union: InternedString
+    let unzip: InternedString
+    let windowed: InternedString
+    let withDefault: InternedString
+    let withIndex: InternedString
+    let zip: InternedString
+    let zipWithNext: InternedString
+    let pair: InternedString
+    let iterable: InternedString
+    let comparator: InternedString
+    let sequenceScope: InternedString
+    let closedFloatingPointRange: InternedString
+    let kotlin: InternedString
+    let sequences: InternedString
+    let initName: InternedString
+    let invoke: InternedString
+    let yield: InternedString
+    let yieldAll: InternedString
+    let comparisons: InternedString
+
+    // Package prefixes and FQ names for the same hot paths.
+    let kotlinCollectionsPackage: [InternedString]
+    let kotlinSequencesPackage: [InternedString]
+    let kotlinRangesPackage: [InternedString]
+    let kotlinTextPackage: [InternedString]
+    let kotlinTimePackage: [InternedString]
+    let kotlinMathPackage: [InternedString]
+    let kotlinArrayFQName: [InternedString]
+    let kotlinPairFQName: [InternedString]
+    let kotlinComparatorFQName: [InternedString]
+    let kotlinIntArrayFQName: [InternedString]
+    let kotlinLongArrayFQName: [InternedString]
+    let kotlinShortArrayFQName: [InternedString]
+    let kotlinByteArrayFQName: [InternedString]
+    let kotlinUByteArrayFQName: [InternedString]
+    let kotlinUShortArrayFQName: [InternedString]
+    let kotlinUIntArrayFQName: [InternedString]
+    let kotlinULongArrayFQName: [InternedString]
+    let kotlinDoubleArrayFQName: [InternedString]
+    let kotlinFloatArrayFQName: [InternedString]
+    let kotlinBooleanArrayFQName: [InternedString]
+    let kotlinCharArrayFQName: [InternedString]
+    let kotlinCollectionsMutableIterableFQName: [InternedString]
+    let kotlinCollectionsIndexedValueFQName: [InternedString]
+    let kotlinCollectionsIteratorFQName: [InternedString]
+    let kotlinCollectionsMutableIteratorFQName: [InternedString]
+    let kotlinCollectionsMapEntryFQName: [InternedString]
+    let kotlinRangesCharRangeFQName: [InternedString]
+    let kotlinRangesClosedFloatingPointRangeFQName: [InternedString]
+    let kotlinTimeInstantFQName: [InternedString]
+
+    // Constant member-name sets for the collection-member fallback and
+    // regular-resolution dispatch, interned once per interner instead of
+    // rebuilt per call.
+    let collectionMembers: Set<InternedString>
+    let listOnlyMembers: Set<InternedString>
+    let collectionSpecificMembers: Set<InternedString>
+    let mutableListOnlyMembers: Set<InternedString>
+    let mutableCollectionMembers: Set<InternedString>
+    let mapOnlyMembers: Set<InternedString>
+    let collectionReturningMembers: Set<InternedString>
+    let intReturningMembers: Set<InternedString>
+    let boolReturningMembers: Set<InternedString>
+    let destinationCollectionReturningMembers: Set<InternedString>
+    let listPreservingMembers: Set<InternedString>
+    let boolOneParamMembers: Set<InternedString>
+    let oneParamMembers: Set<InternedString>
+    let setReturningCollectionBinaryMembers: Set<InternedString>
+    let bundledRangeSourceMemberNames: Set<InternedString>
+    let rangeMigrationMemberNames: Set<InternedString>
+    let progressionFirstLastMemberNames: Set<InternedString>
+    let instantValueSemanticsMemberNames: Set<InternedString>
+
     let kotlinRegexFQName: [InternedString]
     let kotlinStringBuilderFQName: [InternedString]
     let kotlinSequenceFQName: [InternedString]
@@ -581,6 +800,221 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicArrayName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
         ]
+
+
+        add = interner.intern("add")
+        addAll = interner.intern("addAll")
+        asIterable = interner.intern("asIterable")
+        asReversed = interner.intern("asReversed")
+        asSequence = interner.intern("asSequence")
+        average = interner.intern("average")
+        binarySearch = interner.intern("binarySearch")
+        binarySearchBy = interner.intern("binarySearchBy")
+        chunked = interner.intern("chunked")
+        coerceIn = interner.intern("coerceIn")
+        compareTo = interner.intern("compareTo")
+        contains = interner.intern("contains")
+        containsAll = interner.intern("containsAll")
+        containsKey = interner.intern("containsKey")
+        containsValue = interner.intern("containsValue")
+        count = interner.intern("count")
+        distinct = interner.intern("distinct")
+        distinctBy = interner.intern("distinctBy")
+        drop = interner.intern("drop")
+        eachCount = interner.intern("eachCount")
+        elementAt = interner.intern("elementAt")
+        elementAtOrElse = interner.intern("elementAtOrElse")
+        elementAtOrNull = interner.intern("elementAtOrNull")
+        equals = interner.intern("equals")
+        filter = interner.intern("filter")
+        filterIndexed = interner.intern("filterIndexed")
+        filterIsInstance = interner.intern("filterIsInstance")
+        filterIsInstanceTo = interner.intern("filterIsInstanceTo")
+        filterNot = interner.intern("filterNot")
+        filterNotNull = interner.intern("filterNotNull")
+        filterNotNullTo = interner.intern("filterNotNullTo")
+        find = interner.intern("find")
+        first = interner.intern("first")
+        firstNotNullOf = interner.intern("firstNotNullOf")
+        firstNotNullOfOrNull = interner.intern("firstNotNullOfOrNull")
+        firstOrNull = interner.intern("firstOrNull")
+        flatMapIndexed = interner.intern("flatMapIndexed")
+        flatten = interner.intern("flatten")
+        fold = interner.intern("fold")
+        foldIndexed = interner.intern("foldIndexed")
+        foldRight = interner.intern("foldRight")
+        foldRightIndexed = interner.intern("foldRightIndexed")
+        forEach = interner.intern("forEach")
+        format = interner.intern("format")
+        getOrNull = interner.intern("getOrNull")
+        hashCode = interner.intern("hashCode")
+        indexOf = interner.intern("indexOf")
+        indexOfFirst = interner.intern("indexOfFirst")
+        indexOfLast = interner.intern("indexOfLast")
+        intersect = interner.intern("intersect")
+        isNullOrEmpty = interner.intern("isNullOrEmpty")
+        iterator = interner.intern("iterator")
+        joinToString = interner.intern("joinToString")
+        last = interner.intern("last")
+        lastIndexOf = interner.intern("lastIndexOf")
+        lastOrNull = interner.intern("lastOrNull")
+        mapIndexed = interner.intern("mapIndexed")
+        mapNotNull = interner.intern("mapNotNull")
+        maxBy = interner.intern("maxBy")
+        maxByOrNull = interner.intern("maxByOrNull")
+        maxOf = interner.intern("maxOf")
+        maxOfOrNull = interner.intern("maxOfOrNull")
+        maxOfWith = interner.intern("maxOfWith")
+        maxOfWithOrNull = interner.intern("maxOfWithOrNull")
+        maxOrNull = interner.intern("maxOrNull")
+        maxWith = interner.intern("maxWith")
+        maxWithOrNull = interner.intern("maxWithOrNull")
+        min = interner.intern("min")
+        minBy = interner.intern("minBy")
+        minByOrNull = interner.intern("minByOrNull")
+        minOf = interner.intern("minOf")
+        minOfOrNull = interner.intern("minOfOrNull")
+        minOfWith = interner.intern("minOfWith")
+        minOfWithOrNull = interner.intern("minOfWithOrNull")
+        minOrNull = interner.intern("minOrNull")
+        minWith = interner.intern("minWith")
+        minWithOrNull = interner.intern("minWithOrNull")
+        minus = interner.intern("minus")
+        minusElement = interner.intern("minusElement")
+        partition = interner.intern("partition")
+        plus = interner.intern("plus")
+        random = interner.intern("random")
+        randomOrNull = interner.intern("randomOrNull")
+        reduce = interner.intern("reduce")
+        reduceIndexed = interner.intern("reduceIndexed")
+        reduceIndexedOrNull = interner.intern("reduceIndexedOrNull")
+        reduceOrNull = interner.intern("reduceOrNull")
+        reduceRight = interner.intern("reduceRight")
+        reduceRightIndexed = interner.intern("reduceRightIndexed")
+        reduceRightIndexedOrNull = interner.intern("reduceRightIndexedOrNull")
+        reduceRightOrNull = interner.intern("reduceRightOrNull")
+        reduceTo = interner.intern("reduceTo")
+        remove = interner.intern("remove")
+        removeAll = interner.intern("removeAll")
+        requireNoNulls = interner.intern("requireNoNulls")
+        retainAll = interner.intern("retainAll")
+        reversed = interner.intern("reversed")
+        runningFold = interner.intern("runningFold")
+        runningFoldIndexed = interner.intern("runningFoldIndexed")
+        runningReduce = interner.intern("runningReduce")
+        runningReduceIndexed = interner.intern("runningReduceIndexed")
+        scan = interner.intern("scan")
+        scanIndexed = interner.intern("scanIndexed")
+        scanReduce = interner.intern("scanReduce")
+        shuffled = interner.intern("shuffled")
+        single = interner.intern("single")
+        singleOrNull = interner.intern("singleOrNull")
+        slice = interner.intern("slice")
+        sort = interner.intern("sort")
+        sortBy = interner.intern("sortBy")
+        sortByDescending = interner.intern("sortByDescending")
+        sorted = interner.intern("sorted")
+        sortedBy = interner.intern("sortedBy")
+        sortedByDescending = interner.intern("sortedByDescending")
+        sortedDescending = interner.intern("sortedDescending")
+        sortedWith = interner.intern("sortedWith")
+        step = interner.intern("step")
+        subList = interner.intern("subList")
+        subtract = interner.intern("subtract")
+        sum = interner.intern("sum")
+        sumBy = interner.intern("sumBy")
+        sumByDouble = interner.intern("sumByDouble")
+        sumOf = interner.intern("sumOf")
+        take = interner.intern("take")
+        toBooleanArray = interner.intern("toBooleanArray")
+        toByteArray = interner.intern("toByteArray")
+        toCharArray = interner.intern("toCharArray")
+        toCollection = interner.intern("toCollection")
+        toDoubleArray = interner.intern("toDoubleArray")
+        toFloatArray = interner.intern("toFloatArray")
+        toIntArray = interner.intern("toIntArray")
+        toList = interner.intern("toList")
+        toLongArray = interner.intern("toLongArray")
+        toMutableList = interner.intern("toMutableList")
+        toShortArray = interner.intern("toShortArray")
+        toTypedArray = interner.intern("toTypedArray")
+        toUByteArray = interner.intern("toUByteArray")
+        toUIntArray = interner.intern("toUIntArray")
+        toULongArray = interner.intern("toULongArray")
+        toUShortArray = interner.intern("toUShortArray")
+        trimMargin = interner.intern("trimMargin")
+        typeOf = interner.intern("typeOf")
+        union = interner.intern("union")
+        unzip = interner.intern("unzip")
+        windowed = interner.intern("windowed")
+        withDefault = interner.intern("withDefault")
+        withIndex = interner.intern("withIndex")
+        zip = interner.intern("zip")
+        zipWithNext = interner.intern("zipWithNext")
+        pair = interner.intern("Pair")
+        iterable = interner.intern("Iterable")
+        comparator = interner.intern("Comparator")
+        sequenceScope = interner.intern("SequenceScope")
+        closedFloatingPointRange = interner.intern("ClosedFloatingPointRange")
+        self.kotlin = kotlin
+        sequences = interner.intern("sequences")
+        initName = interner.intern("<init>")
+        invoke = interner.intern("invoke")
+        yield = interner.intern("yield")
+        yieldAll = interner.intern("yieldAll")
+        comparisons = interner.intern("comparisons")
+
+        let kotlinRanges = interner.intern("ranges")
+        let kotlinTime = interner.intern("time")
+        let kotlinMath = interner.intern("math")
+        kotlinCollectionsPackage = [kotlin, kotlinCollections]
+        kotlinSequencesPackage = [kotlin, kotlinSequences]
+        kotlinRangesPackage = [kotlin, kotlinRanges]
+        kotlinTextPackage = [kotlin, kotlinText]
+        kotlinTimePackage = [kotlin, kotlinTime]
+        kotlinMathPackage = [kotlin, kotlinMath]
+        kotlinArrayFQName = [kotlin, array]
+        kotlinPairFQName = [kotlin, pair]
+        kotlinComparatorFQName = [kotlin, comparator]
+        kotlinIntArrayFQName = [kotlin, intArray]
+        kotlinLongArrayFQName = [kotlin, longArray]
+        kotlinShortArrayFQName = [kotlin, shortArray]
+        kotlinByteArrayFQName = [kotlin, byteArray]
+        kotlinUByteArrayFQName = [kotlin, ubyteArray]
+        kotlinUShortArrayFQName = [kotlin, ushortArray]
+        kotlinUIntArrayFQName = [kotlin, uintArray]
+        kotlinULongArrayFQName = [kotlin, ulongArray]
+        kotlinDoubleArrayFQName = [kotlin, doubleArray]
+        kotlinFloatArrayFQName = [kotlin, floatArray]
+        kotlinBooleanArrayFQName = [kotlin, booleanArray]
+        kotlinCharArrayFQName = [kotlin, charArray]
+        kotlinCollectionsMutableIterableFQName = [kotlin, kotlinCollections, interner.intern("MutableIterable")]
+        kotlinCollectionsIndexedValueFQName = [kotlin, kotlinCollections, interner.intern("IndexedValue")]
+        kotlinCollectionsIteratorFQName = [kotlin, kotlinCollections, interner.intern("Iterator")]
+        kotlinCollectionsMutableIteratorFQName = [kotlin, kotlinCollections, interner.intern("MutableIterator")]
+        kotlinCollectionsMapEntryFQName = [kotlin, kotlinCollections, map, interner.intern("Entry")]
+        kotlinRangesCharRangeFQName = [kotlin, kotlinRanges, charRange]
+        kotlinRangesClosedFloatingPointRangeFQName = [kotlin, kotlinRanges, closedFloatingPointRange]
+        kotlinTimeInstantFQName = [kotlin, kotlinTime, interner.intern("Instant")]
+
+        collectionMembers = Set(["size", "isEmpty", "contains", "containsAll", "first", "last", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "iterator", "filter", "filterNotNull", "filterIsInstanceTo", "filterNotNullTo", "fold", "foldRight", "foldIndexed", "foldRightIndexed", "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "sortedBy", "find", "zip", "unzip", "withIndex", "min", "maxOrNull", "minOrNull", "asSequence", "asIterable", "toList", "toCollection", "toTypedArray", "toCharArray", "toBooleanArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray", "take", "drop", "reversed", "asReversed", "sorted", "shuffled", "distinct", "distinctBy", "flatten", "chunked", "windowed", "firstNotNullOf", "firstNotNullOfOrNull", "sortedDescending", "sortedByDescending", "sortedWith", "partition", "filterIsInstance", "firstOrNull", "lastOrNull", "singleOrNull", "joinToString", "elementAt", "single", "toMutableList", "sum", "average", "minusElement"].map { interner.intern($0) })
+        listOnlyMembers = Set(["get", "subList", "slice", "getOrNull", "elementAtOrNull", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
+        collectionSpecificMembers = Set(["firstOrNull", "lastOrNull", "singleOrNull"].map { interner.intern($0) })
+        mutableListOnlyMembers = Set(["sort", "sortBy", "sortByDescending"].map { interner.intern($0) })
+        mutableCollectionMembers = Set(["add", "addAll", "remove", "removeAll", "retainAll", "clear"].map { interner.intern($0) })
+        mapOnlyMembers = Set(["containsKey", "containsValue", "getValue", "getOrDefault", "plus"].map { interner.intern($0) })
+        collectionReturningMembers = Set(["asSequence", "asIterable", "filterNotNull", "requireNoNulls", "filter", "filterIsInstanceTo", "reduceTo", "zip", "toList", "toTypedArray", "take", "drop", "reversed", "asReversed", "sorted", "distinct", "distinctBy", "flatten", "chunked", "windowed", "withIndex", "shuffled", "sortedDescending", "sortedByDescending", "sortedWith", "filterIsInstance", "toCollection", "subList", "slice", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "toMutableList", "minusElement"].map { interner.intern($0) })
+        intReturningMembers = Set(["size", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
+        boolReturningMembers = Set(["isEmpty", "contains", "containsAll", "containsKey", "containsValue", "add", "addAll", "remove", "removeAll", "retainAll"].map { interner.intern($0) })
+        destinationCollectionReturningMembers = Set(["filterIsInstanceTo", "filterNotNullTo", "reduceTo", "toCollection"].map { interner.intern($0) })
+        listPreservingMembers = Set(["sorted", "sortedDescending", "sortedWith", "shuffled", "reversed", "asReversed", "distinct", "distinctBy"].map { interner.intern($0) })
+        boolOneParamMembers = Set(["filter", "count", "first", "last", "single", "find", "indexOfFirst", "indexOfLast", "partition"].map { interner.intern($0) })
+        oneParamMembers = Set(["filter", "sortedBy", "count", "first", "last", "single", "find", "sortedByDescending", "partition", "sortBy", "sortByDescending", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull", "maxOf", "minOf"].map { interner.intern($0) })
+        setReturningCollectionBinaryMembers = Set(["intersect", "union", "subtract"].map { interner.intern($0) })
+        bundledRangeSourceMemberNames = Set(["contains", "isEmpty", "iterator", "toList", "forEach", "map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot", "take", "drop", "chunked", "windowed", "sorted", "average", "random", "randomOrNull", "step", "plus", "minus"].map { interner.intern($0) })
+        rangeMigrationMemberNames = Set(["iterator", "step", "take", "drop", "chunked", "windowed"].map { interner.intern($0) })
+        progressionFirstLastMemberNames = Set(["first", "firstOrNull", "last", "lastOrNull"].map { interner.intern($0) })
+        instantValueSemanticsMemberNames = Set(["equals", "hashCode", "toString"].map { interner.intern($0) })
     }
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {
