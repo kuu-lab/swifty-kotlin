@@ -493,13 +493,10 @@ extension TypeCheckHelpers {
     private func parseOptInMarkerNames(_ arguments: [String]) -> [String] {
         var names: [String] = []
         var seen: Set<String> = []
-        let pattern = #"[A-Za-z_][A-Za-z0-9_\.]*\s*::\s*class"#
+        let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
             let value = optInArgumentValue(argument)
-            guard let regex = try? NSRegularExpression(pattern: pattern) else {
-                continue
-            }
             let nsValue = value as NSString
             let matches = regex.matches(
                 in: value,
