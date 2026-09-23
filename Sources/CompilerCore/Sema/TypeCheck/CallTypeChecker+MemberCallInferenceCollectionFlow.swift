@@ -2256,9 +2256,11 @@ extension CallTypeChecker {
                     // `Sequence<Sequence<T>>.flatten()` and
                     // `Sequence<Iterable<T>>.flatten()` are both generic
                     // source declarations. Prefer the candidate whose inner
-                    // receiver owner matches the actual element type, while
-                    // retaining the historical first-candidate fallback for
-                    // unresolved/mixed element types (KUU-461).
+                    // receiver owner matches the actual element type. Calls
+                    // whose element type satisfies neither (or both)
+                    // constraints were already rejected in `case "flatten"`
+                    // (KUU-461), so the first-candidate fallback is only a
+                    // safety net here.
                     var bestCandidate: SymbolID?
                     var bestScore = Int.min
                     for candidate in candidates {
@@ -4598,6 +4600,59 @@ extension CallTypeChecker {
                     )
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
+                }
+                // KUU-461 / BUG-237: on a Sequence receiver, flatten() only
+                // exists as Sequence<Iterable<T>>.flatten() or
+                // Sequence<Sequence<T>>.flatten(). Accept the call only when
+                // the element type satisfies exactly one of those
+                // constraints: Sequence<Any>, Sequence<Int>, or an
+                // unbounded type parameter satisfies neither (kotlinc:
+                // cannot infer the type parameter), while Sequence<Nothing>
+                // or a type implementing both Iterable and Sequence
+                // satisfies both (kotlinc: overload ambiguity). errorType
+                // stays lenient — the element failure was already diagnosed
+                // upstream.
+                if isSequenceReceiver, collectionElementType != sema.types.errorType {
+                    let flattenSourcePackages: [[InternedString]] = [
+                        [interner.intern("kotlin"), interner.intern("sequences")],
+                        [interner.intern("kotlin"), interner.intern("collections")],
+                    ]
+                    var satisfiedConstraintCount = 0
+                    for packageFQName in flattenSourcePackages {
+                        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [calleeName]) {
+                            guard let symbol = sema.symbols.symbol(candidate),
+                                  symbol.kind == .function,
+                                  sema.symbols.isSourceBackedSymbol(candidate),
+                                  let signature = sema.symbols.functionSignature(for: candidate),
+                                  signature.parameterTypes.isEmpty,
+                                  let signatureReceiver = signature.receiverType,
+                                  receiverClassifier.isSequenceLikeType(signatureReceiver),
+                                  let (elementOwnerClassType, _) = resolveClassTypeSymbol(
+                                      getCollectionElementType(signatureReceiver, sema: sema, interner: interner),
+                                      sema: sema
+                                  )
+                            else {
+                                continue
+                            }
+                            let constraint = sema.types.make(.classType(ClassType(
+                                classSymbol: elementOwnerClassType.classSymbol,
+                                args: [.star],
+                                nullability: .nonNull
+                            )))
+                            if sema.types.isSubtype(collectionElementType, constraint) {
+                                satisfiedConstraintCount += 1
+                            }
+                        }
+                    }
+                    if satisfiedConstraintCount != 1 {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-0024",
+                            "Unresolved member function 'flatten'.",
+                            range: range
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
                 }
                 let flattenedElementType = extractedInner != sema.types.anyType
                     ? extractedInner
