@@ -65,6 +65,11 @@ extension ExprTypeChecker {
                 args: [],
                 nullability: .nonNull
             )))
+            // Scope insertion lives here rather than inside
+            // `ensureLocalClassSymbol`: member-function bodies are
+            // type-checked twice under different scopes, and the early
+            // return on an already-bound declID would skip it.
+            ctx.scope.insert(classSymbol)
             locals[classDecl.name] = (classType, classSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: classSymbol)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
@@ -152,9 +157,6 @@ extension ExprTypeChecker {
         )
         sema.bindings.bindDecl(declID, symbol: classSymbol)
         sema.symbols.setSourceFileID(ctx.currentFileID, for: classSymbol)
-        // Type-position references (`val l: Local`) resolve through the
-        // enclosing scope, so the symbol must be registered there too.
-        ctx.scope.insert(classSymbol)
 
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)

@@ -167,6 +167,11 @@ struct LocalNamedNominalTypingTests {
                     }
                     return Local.v
                 }
+
+                fun probeClass(): Int {
+                    class LocalC(val c: Int)
+                    return LocalC(9).c
+                }
             }
             """,
         ]
@@ -289,6 +294,31 @@ struct LocalNamedNominalTypingTests {
                 let objectSymbol = try #require(sema.bindings.declSymbol(for: objectDeclID))
                 #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
 
+                #expect(!diagnostics.contains { $0.severity == .error },
+                        "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+            }
+
+            // === local class ctor call inside a class member function ===
+            do {
+                let diagnostics = diagnosticsForPath(paths[2], in: ctx)
+                let probeDecl = try #require(
+                    memberFunction(named: "probeClass", ofClass: "Outer", in: ast, interner: interner),
+                    "Expected member function probeClass."
+                )
+                guard case let .block(statements, _) = probeDecl.body else {
+                    Issue.record("Expected block body for probeClass.")
+                    return
+                }
+
+                let (_, classDeclID) = try #require(
+                    localNominalDeclExpr(in: statements, ast: ast),
+                    "Expected a localNominalDecl statement inside a member function."
+                )
+                let classSymbol = try #require(sema.bindings.declSymbol(for: classDeclID))
+                #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
+
+                // `LocalC(9)` must reach the synthetic `<init>` via the
+                // KSP-CAP-006 class-ctor merge rather than SEMA-0023.
                 #expect(!diagnostics.contains { $0.severity == .error },
                         "Unexpected diagnostics: \(renderDiagnostics(ctx))")
             }
