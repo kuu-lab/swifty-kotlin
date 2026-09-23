@@ -120,6 +120,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        if self.path == "/redirect-to-exact":
+            self.send_response(302)
+            self.send_header("Location", "/exact")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path == "/redirect-to-huge":
+            self.send_response(302)
+            self.send_header("Location", "/huge-content-length")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path == "/redirect-to-chunked-oversize":
+            self.send_response(302)
+            self.send_header("Location", "/chunked-oversize")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.path == "/headers":
             lines = sorted(f"{name.lower()}: {value}" for name, value in self.headers.items())
             body = "\\n".join(lines).encode("utf-8")
@@ -128,6 +146,41 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+        if self.path == "/exact":
+            body = b"A" * 100
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/huge-content-length":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", "1073741824")
+            self.end_headers()
+            try:
+                self.wfile.write(b"huge-payload-prefix")
+                self.wfile.flush()
+            except Exception:
+                pass
+            return
+        if self.path == "/chunked-oversize":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            chunk = b"X" * 64
+            chunk_line = f"{len(chunk):X}\\r\\n".encode("ascii") + chunk + b"\\r\\n"
+            try:
+                for _ in range(5):
+                    self.wfile.write(chunk_line)
+                    self.wfile.flush()
+                self.wfile.write(b"0\\r\\n\\r\\n")
+                self.wfile.flush()
+            except Exception:
+                pass
             return
         header = self.headers.get("X-Test", "")
         body = f"GET:{header}".encode("utf-8")
@@ -391,5 +444,152 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
         #expect(requestRaw == 0)
         #expect(thrown != 0)
+    }
+
+    @Test func httpClientAcceptsExactLimitResponse() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 100)
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        let uri = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/exact"), &thrown)
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let responseRaw = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(responseRaw) == 200)
+        let body = stringValue(kk_http_response_body(responseRaw))
+        #expect(body.utf8.count == 100)
+        #expect(body == String(repeating: "A", count: 100))
+    }
+
+    @Test func httpClientRejectsExcessiveContentLengthBeforeDownload() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 100)
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        let uri = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/huge-content-length"), &thrown)
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let responseRaw = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(responseRaw == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func httpClientCancelsChunkedResponseExceedingLimit() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 50)
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        let uri = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/chunked-oversize"), &thrown)
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let responseRaw = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(responseRaw == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func httpClientMaintainsLimitAcrossRedirects() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 100)
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        // 1. Redirect to exact limit should succeed
+        let exactRedirectURI = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/redirect-to-exact"), &thrown)
+        #expect(thrown == 0)
+        let exactBuilderRaw = kk_http_request_newBuilder_uri(exactRedirectURI)
+        _ = kk_http_request_builder_GET(exactBuilderRaw)
+        let exactRequestRaw = kk_http_request_builder_build(exactBuilderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let exactResponseRaw = kk_http_client_send(clientRaw, exactRequestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(exactResponseRaw) == 200)
+        let exactBody = stringValue(kk_http_response_body(exactResponseRaw))
+        #expect(exactBody.utf8.count == 100)
+
+        // 2. Redirect to huge Content-Length should be rejected
+        let hugeRedirectURI = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/redirect-to-huge"), &thrown)
+        #expect(thrown == 0)
+        let hugeBuilderRaw = kk_http_request_newBuilder_uri(hugeRedirectURI)
+        _ = kk_http_request_builder_GET(hugeBuilderRaw)
+        let hugeRequestRaw = kk_http_request_builder_build(hugeBuilderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let hugeResponseRaw = kk_http_client_send(clientRaw, hugeRequestRaw, responseHandlerRaw, &thrown)
+        #expect(hugeResponseRaw == 0)
+        #expect(thrown != 0)
+
+        // 3. Redirect to chunked oversize should be canceled
+        let chunkedRedirectURI = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/redirect-to-chunked-oversize"), &thrown)
+        #expect(thrown == 0)
+        let chunkedBuilderRaw = kk_http_request_newBuilder_uri(chunkedRedirectURI)
+        _ = kk_http_request_builder_GET(chunkedBuilderRaw)
+        let chunkedRequestRaw = kk_http_request_builder_build(chunkedBuilderRaw, &thrown)
+        #expect(thrown == 0)
+
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 50)
+        let chunkedResponseRaw = kk_http_client_send(clientRaw, chunkedRequestRaw, responseHandlerRaw, &thrown)
+        #expect(chunkedResponseRaw == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func httpClientConfigurableLimitUpdatesDynamically() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+        let uri = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/exact"), &thrown)
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        // Default limit (10MB) accepts 100 bytes
+        let res1 = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(res1) == 200)
+
+        // Tighten limit to 50 bytes -> rejects 100-byte response
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 50)
+        let res2 = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(res2 == 0)
+        #expect(thrown != 0)
+
+        // Relax limit to 200 bytes -> accepts 100-byte response again
+        _ = kk_http_client_setMaxResponseBodyBytes(clientRaw, 200)
+        let res3 = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(res3) == 200)
     }
 }

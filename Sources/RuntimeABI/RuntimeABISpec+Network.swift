@@ -46,6 +46,15 @@ public extension RuntimeABISpec {
             section: "Network"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_http_client_setMaxResponseBodyBytes",
+            parameters: [
+                RuntimeABIParameter(name: "clientRaw", type: .intptr),
+                RuntimeABIParameter(name: "limit", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Network"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_http_response_statusCode",
             parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
             returnType: .intptr,
