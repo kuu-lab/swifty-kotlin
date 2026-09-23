@@ -937,6 +937,8 @@ public final class CompilerDriver {
                 collectTypeRefDependencies(typeRefID: returnType, ast: ast, interner: interner, depended: &depended)
             }
             collectFunctionBodyDependencies(body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+        case let .localNominalDecl(declID, _):
+            collectDeclDependencies(declID: declID, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
         case let .blockExpr(statements, trailingExpr, _):
             for statement in statements {
                 collectExprDependencies(exprID: statement, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)

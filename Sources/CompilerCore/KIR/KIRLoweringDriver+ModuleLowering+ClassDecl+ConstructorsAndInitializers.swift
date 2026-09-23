@@ -8,8 +8,7 @@ extension KIRLoweringDriver {
         ctorFQName: [InternedString],
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
-        shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
 
@@ -65,7 +64,7 @@ extension KIRLoweringDriver {
         let body = buildConstructorBody(
             ctorSymbol: ctorSymbol, ctorFQName: ctorFQName,
             classDecl: classDecl, ownerSymbol: ownerSymbol,
-            shared: shared, compilationCtx: compilationCtx
+            shared: shared
         )
 
         let decls = finalizeConstructorDecl(
@@ -83,14 +82,25 @@ extension KIRLoweringDriver {
         ctorFQName: [InternedString],
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
-        shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        shared: KIRLoweringSharedContext
     ) -> KIRLoweringEmitContext {
         let sema = shared.sema
         var body: KIRLoweringEmitContext = [.beginBlock]
         if let receiverBinding = ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+        // KUU-555: a local class's `<init>` is an independent KIR function —
+        // captured outer locals (stored into instance fields at the
+        // construction call site) must be read back before super-delegation
+        // args, initializers or init blocks reference them. No-ops for named
+        // classes, which carry no capture list.
+        objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: ctorSymbol,
+            sema: sema,
+            arena: shared.arena,
+            interner: shared.interner,
+            instructions: &body.instructions
+        )
         let constructorDeclSite = sema.symbols.symbol(ctorSymbol)?.declSite
         let isSecondary = classDecl.secondaryConstructors.contains { constructor in
             constructor.range == constructorDeclSite
@@ -98,19 +108,18 @@ extension KIRLoweringDriver {
         if !isSecondary {
             emitSuperConstructorDelegation(
                 classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             emitPrimaryConstructorPropertyInitializers(
                 classDecl: classDecl,
                 ownerSymbol: ownerSymbol,
                 shared: shared,
-                compilationCtx: compilationCtx,
                 body: &body
             )
             emitClassDelegationInitializers(
                 classDecl: classDecl, ownerSymbol: ownerSymbol,
                 receiverID: ctx.activeImplicitReceiverExprID()!,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             emitClassBodyInitializers(
                 classDecl: classDecl, shared: shared, body: &body
@@ -120,7 +129,7 @@ extension KIRLoweringDriver {
             emitSecondaryConstructorBody(
                 classDecl: classDecl, ctorSymbol: ctorSymbol,
                 ctorFQName: ctorFQName, ownerSymbol: ownerSymbol,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
         }
         if let receiver = ctx.activeImplicitReceiverExprID() {
@@ -145,7 +154,6 @@ extension KIRLoweringDriver {
         ctorSymbol: SymbolID,
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -170,9 +178,9 @@ extension KIRLoweringDriver {
         // constructor has no emitted body, so delegating to its bare `<init>`
         // would leave an unresolved linker symbol in the bundled stdlib.
         let syntheticAbstractMutableListFQName = [
-            compilationCtx.interner.intern("kotlin"),
-            compilationCtx.interner.intern("collections"),
-            compilationCtx.interner.intern("AbstractMutableList"),
+            shared.interner.intern("kotlin"),
+            shared.interner.intern("collections"),
+            shared.interner.intern("AbstractMutableList"),
         ]
         if superclassInfo.flags.contains(.synthetic),
            superclassInfo.fqName == syntheticAbstractMutableListFQName
@@ -181,20 +189,20 @@ extension KIRLoweringDriver {
         }
         let superCtorSymbol = sema.bindings.constructorDelegationTarget(for: ctorSymbol)
             ?? sema.symbols
-            .lookupAll(fqName: superclassInfo.fqName + [compilationCtx.interner.intern("<init>")])
+            .lookupAll(fqName: superclassInfo.fqName + [shared.interner.intern("<init>")])
             .first { $0 != ctorSymbol }
         guard let superCtorSymbol else {
             return
         }
 
-        let resolvedSuperclassFQName = superclassInfo.fqName.map(compilationCtx.interner.resolve)
+        let resolvedSuperclassFQName = superclassInfo.fqName.map(shared.interner.resolve)
         let isSourceBackedTimeSource =
             resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
                 || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
         let throwableFQName = [
-            compilationCtx.interner.intern("kotlin"),
-            compilationCtx.interner.intern("Throwable"),
+            shared.interner.intern("kotlin"),
+            shared.interner.intern("Throwable"),
         ]
         let isZeroArgumentThrowableFactory = sema.symbols.externalLinkName(for: superCtorSymbol)
             == "__kk_throwable_new"
@@ -236,7 +244,7 @@ extension KIRLoweringDriver {
 
             func setterSymbol(named name: String) -> SymbolID? {
                 sema.symbols.lookupAll(
-                    fqName: throwableFQName.dropLast() + [compilationCtx.interner.intern(name)]
+                    fqName: throwableFQName.dropLast() + [shared.interner.intern(name)]
                 ).first(where: { candidate in
                     sema.symbols.symbol(candidate)?.kind == .function
                 })
@@ -246,7 +254,7 @@ extension KIRLoweringDriver {
                 let resultID = arena.appendTemporary(type: sema.types.unitType)
                 body.append(.call(
                     symbol: symbol,
-                    callee: compilationCtx.interner.intern(
+                    callee: shared.interner.intern(
                         sema.symbols.externalLinkName(for: symbol) ?? fallbackName
                     ),
                     arguments: [receiverID, argument],
@@ -313,9 +321,9 @@ extension KIRLoweringDriver {
         // surface. Its synthetic protected constructor has no emitted body, so
         // a generated parent call would leave an unresolved `<init>` symbol.
         let hashSetFQName = [
-            compilationCtx.interner.intern("kotlin"),
-            compilationCtx.interner.intern("collections"),
-            compilationCtx.interner.intern("HashSet"),
+            shared.interner.intern("kotlin"),
+            shared.interner.intern("collections"),
+            shared.interner.intern("HashSet"),
         ]
         if sema.symbols.symbol(ownerSymbol)?.fqName == hashSetFQName,
            sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true
@@ -331,7 +339,7 @@ extension KIRLoweringDriver {
         let resultID = arena.appendTemporary(type: sema.types.unitType)
         body.append(.call(
             symbol: superCtorSymbol,
-            callee: compilationCtx.interner.intern("<init>"),
+            callee: shared.interner.intern("<init>"),
             arguments: argIDs,
             result: resultID,
             canThrow: false,
@@ -344,7 +352,6 @@ extension KIRLoweringDriver {
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx _: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -458,7 +465,6 @@ extension KIRLoweringDriver {
         ownerSymbol: SymbolID,
         receiverID: KIRExprID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -480,7 +486,7 @@ extension KIRLoweringDriver {
             let unusedResult = arena.appendTemporary(type: shared.sema.types.anyType)
             body.append(.call(
                 symbol: nil,
-                callee: compilationCtx.interner.intern("kk_array_set"),
+                callee: shared.interner.intern("kk_array_set"),
                 arguments: [receiverID, offsetExpr, delegateValue],
                 result: unusedResult,
                 canThrow: true,
@@ -674,7 +680,6 @@ extension KIRLoweringDriver {
         ctorFQName: [InternedString],
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -691,7 +696,6 @@ extension KIRLoweringDriver {
                     ctorSymbol: ctorSymbol,
                     sema: sema,
                     arena: arena,
-                    compilationCtx: compilationCtx,
                     shared: shared,
                     body: &body
                 )
@@ -700,7 +704,7 @@ extension KIRLoweringDriver {
                 // through: the superclass constructor is invoked implicitly.
                 emitSuperConstructorDelegation(
                     classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
-                    shared: shared, compilationCtx: compilationCtx, body: &body
+                    shared: shared, body: &body
                 )
             }
             // A class without a primary constructor runs its property

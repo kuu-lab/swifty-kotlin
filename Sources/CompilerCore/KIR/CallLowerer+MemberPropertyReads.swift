@@ -67,6 +67,13 @@ extension CallLowerer {
         guard let valueSym,
               let info = sema.symbols.symbol(valueSym),
               info.kind == .property,
+              // KUU-555: a local `object`'s member properties keep
+              // `.object`-parented symbols too, but their storage lives in
+              // the materialized instance's field array — reading them must
+              // continue to `tryLowerObjectLiteralStoredPropertyRead`'s
+              // field-offset load, not the object-global slot this path
+              // emits for file-scope object members.
+              !sema.bindings.isObjectLiteralPropertySymbol(valueSym),
               let parent = sema.symbols.parentSymbol(for: valueSym),
               sema.symbols.symbol(parent)?.kind == .object
         else { return nil }

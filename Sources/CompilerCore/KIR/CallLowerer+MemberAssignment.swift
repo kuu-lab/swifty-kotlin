@@ -136,8 +136,12 @@ extension CallLowerer {
         // writes via `copy`-to-`symbolRef`. The heap object some objects allocate
         // via `kk_object_new` (for interface/vtable dispatch) never holds the
         // object's own stored properties, so it must not be treated as
-        // field-offset storage here.
+        // field-offset storage here. A local `object` (KUU-555) is the
+        // exception: its members are object-literal instance fields, so the
+        // `.object` owner check must skip them and let the field-offset
+        // storage path below handle the write.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .object
@@ -154,6 +158,7 @@ extension CallLowerer {
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface
+               || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
         {
             // BUG-227: a stored open/abstract/override property whose owner
             // has known subtypes must dispatch through its setter's vtable
@@ -298,6 +303,7 @@ extension CallLowerer {
         let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
+                  !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol)
             else {
@@ -316,7 +322,8 @@ extension CallLowerer {
         }()
 
         // Direct field-offset storage for ordinary stored properties on
-        // class/interface instances.
+        // class/interface instances (and for a local `object`'s
+        // object-literal instance fields).
         let fieldOffset: Int? = {
             guard syntheticLinks == nil,
                   !isObjectOwned,
@@ -325,6 +332,7 @@ extension CallLowerer {
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
                   ownerInfo.kind == .class || ownerInfo.kind == .interface
+                      || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
             else {
                 return nil
             }

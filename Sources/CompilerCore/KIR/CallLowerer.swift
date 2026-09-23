@@ -1041,6 +1041,42 @@ final class CallLowerer {
                     }
                 }
             }
+            // KUU-555: a local class's `<init>` runs as an independent KIR
+            // function — materialize captured outer locals into the fresh
+            // instance's fields here, where the enclosing scope's locals are
+            // still active (same convention as object-literal capture
+            // materialization in `lowerStoredObjectLiteralExpr`).
+            if let ownerNominalSymbol,
+               let layout = sema.symbols.nominalLayout(for: ownerNominalSymbol)
+            {
+                for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerNominalSymbol) {
+                    guard let fieldOffset = layout.fieldOffsets[capturedSymbol],
+                          let captureValue = driver.lambdaLowerer.captureValueExpr(
+                              for: capturedSymbol,
+                              sema: sema,
+                              arena: arena,
+                              interner: interner,
+                              instructions: &instructions
+                          )
+                    else {
+                        continue
+                    }
+                    let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+                    instructions.append(.constValue(
+                        result: captureOffsetExpr,
+                        value: .intLiteral(Int64(fieldOffset))
+                    ))
+                    let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_set"),
+                        arguments: [allocatedObj, captureOffsetExpr, captureValue],
+                        result: captureSetResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+            }
             finalArgIDs.insert(allocatedObj, at: 0)
             if isSyntheticAnyConstructor(chosen, sema: sema) {
                 // Any's implicit constructor is represented by allocation only;
