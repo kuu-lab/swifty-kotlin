@@ -221,6 +221,20 @@ func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
     return true
 }
 
+/// Signed membership test for `element in range`: 1 when the element is a
+/// member of the stepped range, 0 otherwise. Shared by `kk_op_contains` and
+/// `kk_collection_containsAll`.
+func runtimeRangeContains(_ range: RuntimeRangeBox, _ element: Int) -> Int {
+    if range.step > 0 {
+        guard element >= range.first, element <= range.last else { return 0 }
+        return (element - range.first) % range.step == 0 ? 1 : 0
+    } else if range.step < 0 {
+        guard element <= range.first, element >= range.last else { return 0 }
+        return (range.first - element) % (-range.step) == 0 ? 1 : 0
+    }
+    return 0
+}
+
 func runtimeSignedRangeTraverse(
     _ range: RuntimeRangeBox,
     _ body: (_ current: Int, _ index: Int) -> Bool
@@ -1237,8 +1251,8 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
             elements.append(current)
             current &+= range.step
         }
+        elements.reverse()
     }
-    elements.sort()
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 

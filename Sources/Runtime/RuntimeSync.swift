@@ -63,7 +63,11 @@ final class RuntimeMutexHandle: @unchecked Sendable {
             let sema = DispatchSemaphore(value: 0)
             waiters.append(.blocking(sema))
             lock.unlock()
-            sema.wait()
+            // A blocking (non-suspend-context) acquisition may be running on a
+            // runBlocking event loop, where the holder that will release is
+            // itself a coroutine queued on that loop; keep draining rather than
+            // park the only thread that can run it.
+            runtimeWaitDrainingEventLoop(sema)
             return 0
         }
         waiters.append(.coroutine(continuation))
@@ -159,7 +163,11 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
             let sema = DispatchSemaphore(value: 0)
             waiters.append(.blocking(sema))
             lock.unlock()
-            sema.wait()
+            // A blocking (non-suspend-context) acquisition may be running on a
+            // runBlocking event loop, where the holder that will release is
+            // itself a coroutine queued on that loop; keep draining rather than
+            // park the only thread that can run it.
+            runtimeWaitDrainingEventLoop(sema)
             return 0
         }
         waiters.append(.coroutine(continuation))

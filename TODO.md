@@ -3963,7 +3963,6 @@
     - `kotlin.text.Regex.replaceFirst` — fun Regex.replaceFirst(CharSequence, String): String  -- `final fun replaceFirst(kotlin/CharSequence, kotlin/String): kotlin/String`
     - `kotlin.text.Regex.split` — fun Regex.split(CharSequence, Int): List  -- `final fun split(kotlin/CharSequence, kotlin/Int = ...): kotlin.collections/List<kotlin/String>`
     - `kotlin.text.Regex.splitToSequence` — fun Regex.splitToSequence(CharSequence, Int): Sequence  -- `final fun splitToSequence(kotlin/CharSequence, kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
-    - `kotlin.text.Regex.toString` — fun Regex.toString(): String  -- `final fun toString(): kotlin/String`
 
 - [x] KSP-1439: kotlin.text.StringBuilder top-level の未実装 stdlib API を実装する（4 件）
   - 実装 (2026-09-16): `StringBuilder.kt` に CharSequence constructor を追加し、lowerer / runtime / RuntimeABISpec の専用 bridge で StringBuilder・custom CharSequence の初期値を扱う。
