@@ -288,7 +288,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         // precompiled .kklib) keep their global-object symbolRef; only
         // compiler-synthesised enum entries (e.g. RegexOption.DOT_MATCHES_ALL)
         // are inlined as raw ordinals.
-        var syntheticEntryOrdinal: [SymbolID: Int] = [:]
+        var syntheticEntriesByParent: [[InternedString]: [SymbolID]] = [:]
         for sym in sema.symbols.allSymbols() {
             guard sym.kind == .field,
                   !sema.symbols.isSourceBackedSymbol(sym.id),
@@ -296,7 +296,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             else {
                 continue
             }
-            let parentFQ = Array(sym.fqName.dropLast())
+            syntheticEntriesByParent[Array(sym.fqName.dropLast()), default: []].append(sym.id)
+        }
+
+        var syntheticEntryOrdinal: [SymbolID: Int] = [:]
+        for (parentFQ, entryIDs) in syntheticEntriesByParent {
             guard let parentSymbol = sema.symbols.lookup(fqName: parentFQ),
                   let parentInfo = sema.symbols.symbol(parentSymbol),
                   parentInfo.kind == .enumClass,
@@ -305,14 +309,16 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 continue
             }
             // Ordinal = index among all field children of the parent enum.
+            // The sorted sibling list is computed once per enum, not per entry.
             let siblings = sema.symbols.children(ofFQName: parentFQ)
                 .filter { id in
                     guard let s = sema.symbols.symbol(id) else { return false }
                     return s.kind == .field
                 }
                 .sorted(by: { $0.rawValue < $1.rawValue })
-            if let ordinal = siblings.firstIndex(of: sym.id) {
-                syntheticEntryOrdinal[sym.id] = ordinal
+            let entrySet = Set(entryIDs)
+            for (ordinal, sibling) in siblings.enumerated() where entrySet.contains(sibling) {
+                syntheticEntryOrdinal[sibling] = ordinal
             }
         }
         guard !syntheticEntryOrdinal.isEmpty else { return }
