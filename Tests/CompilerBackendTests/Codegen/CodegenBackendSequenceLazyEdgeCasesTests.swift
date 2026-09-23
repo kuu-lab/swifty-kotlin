@@ -548,6 +548,33 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testSequenceElementAtOutOfBoundsThrowsCatchableIndexException() throws {
+        let source = """
+        fun main() {
+            try {
+                sequenceOf(1, 2, 3).elementAt(10)
+                println("missing-positive")
+            } catch (e: IndexOutOfBoundsException) {
+                println("caught-index")
+            }
+
+            try {
+                sequenceOf(1, 2, 3).elementAt(-1)
+                println("missing-negative")
+            } catch (e: Exception) {
+                println("caught-exception")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceElementAtOutOfBounds",
+            expected: "caught-index\ncaught-exception\n"
+        )
+    }
+
+    @Test
     func testSequenceFilterIsInstanceKeepsMatchingTypes() throws {
         let source = """
         fun main() {

@@ -1456,6 +1456,7 @@ final class CallLowerer {
             "__kk_mutable_map_putAll",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
+            "kk_sequence_elementAt",
             "kk_iterable_iterator",
             "__kk_file_readText",
             "__kk_buffered_reader_useLines",
@@ -1543,6 +1544,7 @@ final class CallLowerer {
             "__kk_mutable_map_clear",
             "__kk_mutable_map_putAll",
             "__kk_list_get",
+            "kk_sequence_elementAt",
             "kk_iterator_next",
             "kk_list_iterator_next",
         ].contains(interner.resolve(calleeName))
