@@ -1,5 +1,11 @@
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 /// Manages the on-disk cache for incremental compilation.
 ///
 /// The primary cache files used by this type are:
@@ -145,6 +151,12 @@ public final class IncrementalCompilationCache {
             break
         }
 
+        // Refuse a cache whose on-disk tree contains an intermediate symlink
+        // hop (KUU-806), even when the leaf itself looks regular to lstat.
+        guard CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) != nil else {
+            return
+        }
+
         guard let digests = IncrementalCacheTrust.readIntegrityIndex(cachePath: cachePath) else {
             if fm.fileExists(atPath: cachePath + "/manifest.json") {
                 Self.writeStderr(
@@ -266,9 +278,16 @@ public final class IncrementalCompilationCache {
             return false
         }
 
-        guard let sourcePath = Self.resolvedAndContainedCachePath(
+        guard let rootFD = CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) else {
+            return false
+        }
+        defer { close(rootFD) }
+
+        guard let sourcePath = CacheSecurity.validateContainedArtifactPath(
+            cacheRootFD: rootFD,
+            cachePath: cachePath,
             relativePath: artifact.relativePath,
-            cachePath: cachePath
+            expectedKind: artifact.kind
         ) else {
             return false
         }
@@ -285,32 +304,29 @@ public final class IncrementalCompilationCache {
             return false
         }
 
-        var sourceIsDirectory = ObjCBool(false)
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: sourcePath, isDirectory: &sourceIsDirectory) else {
-            return false
-        }
-        if artifact.kind == .directory, !sourceIsDirectory.boolValue {
-            return false
-        }
-        if artifact.kind == .file, sourceIsDirectory.boolValue {
-            return false
-        }
-
         let destinationPath = Self.outputArtifactPath(for: options)
-        if URL(fileURLWithPath: sourcePath).standardizedFileURL.path
-            == URL(fileURLWithPath: destinationPath).standardizedFileURL.path
-        {
+        let normalizedSource = URL(fileURLWithPath: sourcePath).standardizedFileURL.path
+        let normalizedDest = URL(fileURLWithPath: destinationPath).standardizedFileURL.path
+        if normalizedSource == normalizedDest {
             return true
         }
+
+        let fm = FileManager.default
+        let destinationURL = URL(fileURLWithPath: destinationPath)
+        let parent = destinationURL.deletingLastPathComponent().path
+        let tempDestinationPath = destinationPath + ".tmp.\(UUID().uuidString)"
 
         do {
-            try Self.removeItemIfPresent(at: destinationPath, fileManager: fm)
-            let parent = URL(fileURLWithPath: destinationPath).deletingLastPathComponent().path
             try fm.createDirectory(atPath: parent, withIntermediateDirectories: true)
-            try fm.copyItem(atPath: sourcePath, toPath: destinationPath)
+            try? fm.removeItem(atPath: tempDestinationPath)
+            try fm.copyItem(atPath: sourcePath, toPath: tempDestinationPath)
+            if fm.fileExists(atPath: destinationPath) {
+                try fm.removeItem(atPath: destinationPath)
+            }
+            try fm.moveItem(atPath: tempDestinationPath, toPath: destinationPath)
             return true
         } catch {
+            try? fm.removeItem(atPath: tempDestinationPath)
             let message = "[IncrementalCompilationCache] Failed to restore cached output at '\(cachePath)': \(error)\n"
             if let data = message.data(using: .utf8) {
                 FileHandle.standardError.write(data)
@@ -320,29 +336,23 @@ public final class IncrementalCompilationCache {
     }
 
     /// Validates and resolves a manifest-derived `relativePath` against the
-    /// cache directory. Returns `nil` if the path is absolute, contains `..`
-    /// components, or resolves outside the cache.
-    private static func resolvedAndContainedCachePath(relativePath: String, cachePath: String) -> String? {
-        guard !relativePath.isEmpty, !relativePath.hasPrefix("/") else {
+    /// cache directory. Returns `nil` if the path is invalid, traverses symlinks,
+    /// or resolves outside the cache.
+    private static func resolvedAndContainedCachePath(
+        relativePath: String,
+        cachePath: String,
+        expectedKind: CachedOutputArtifactKind = .file
+    ) -> String? {
+        guard let rootFD = CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) else {
             return nil
         }
-
-        let components = relativePath.components(separatedBy: "/")
-        guard !components.contains("..") else {
-            return nil
-        }
-
-        let cacheURL = URL(fileURLWithPath: cachePath).standardized
-        let sourceURL = cacheURL.appendingPathComponent(relativePath).standardized
-        let sourceResolved = sourceURL.path
-        let cacheResolved = cacheURL.path
-
-        let cachePrefix = cacheResolved.hasSuffix("/") ? cacheResolved : cacheResolved + "/"
-        guard sourceResolved != cacheResolved, sourceResolved.hasPrefix(cachePrefix) else {
-            return nil
-        }
-
-        return sourceResolved
+        defer { close(rootFD) }
+        return CacheSecurity.validateContainedArtifactPath(
+            cacheRootFD: rootFD,
+            cachePath: cachePath,
+            relativePath: relativePath,
+            expectedKind: expectedKind
+        )
     }
 
     public var hasPreviousCache: Bool {
@@ -362,7 +372,8 @@ public final class IncrementalCompilationCache {
         guard previousBuildConfigurationHash == buildHash else {
             return nil
         }
-        guard let digests = trustedFileDigests,
+        guard CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) != nil,
+              let digests = trustedFileDigests,
               let data = IncrementalCacheTrust.authenticatedFileData(
                   cachePath: cachePath,
                   relativePath: "frontend.json",
@@ -401,39 +412,46 @@ public final class IncrementalCompilationCache {
             )
             return
         }
+        guard let rootFD = CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: true) else {
+            Self.writeStderr(
+                "[IncrementalCompilationCache] Insecure or inaccessible cache directory at '\(cachePath)'\n"
+            )
+            return
+        }
+        defer { close(rootFD) }
 
         do {
             let fingerprints = currentFingerprints.values.sorted(by: { $0.path < $1.path })
+            let cachedArtifact = options.flatMap {
+                cacheOutputArtifact(for: $0, rootFD: rootFD, fileManager: fm)
+            }
             let manifest = CacheManifest(
                 version: 1,
                 fingerprints: Array(fingerprints),
                 buildConfigurationHash: options.map(Self.buildConfigurationHash(for:)),
-                outputArtifact: options.flatMap { cacheOutputArtifact(for: $0, fileManager: fm) }
+                outputArtifact: cachedArtifact
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
             let manifestData = try encoder.encode(manifest)
-            try manifestData.write(
-                to: URL(fileURLWithPath: cachePath + "/manifest.json"),
-                options: .atomic
-            )
+            guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "manifest.json", data: manifestData) else {
+                return
+            }
 
             let depsData = try dependencyGraph.serialize()
-            try depsData.write(
-                to: URL(fileURLWithPath: cachePath + "/deps.json"),
-                options: .atomic
-            )
+            guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "deps.json", data: depsData) else {
+                return
+            }
 
             if let frontendState {
                 let frontendEncoder = JSONEncoder()
                 frontendEncoder.outputFormatting = [.sortedKeys, .prettyPrinted]
                 let frontendData = try frontendEncoder.encode(frontendState)
-                try frontendData.write(
-                    to: URL(fileURLWithPath: cachePath + "/frontend.json"),
-                    options: .atomic
-                )
+                guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "frontend.json", data: frontendData) else {
+                    return
+                }
             } else {
-                try? fm.removeItem(atPath: cachePath + "/frontend.json")
+                CacheSecurity.removeEntryIfPresent(in: rootFD, name: "frontend.json")
             }
 
             // Publish the authenticated index last so the new state is only
@@ -469,6 +487,7 @@ public final class IncrementalCompilationCache {
 
     private func cacheOutputArtifact(
         for options: CompilerOptions,
+        rootFD: Int32,
         fileManager fm: FileManager
     ) -> CachedOutputArtifact? {
         let sourcePath = Self.outputArtifactPath(for: options)
@@ -477,18 +496,36 @@ public final class IncrementalCompilationCache {
             return nil
         }
 
-        let relativePath = "artifacts/\(Self.buildConfigurationHash(for: options))/output"
-        let destinationPath = cachePath + "/" + relativePath
+        let buildHash = Self.buildConfigurationHash(for: options)
+        guard let artifactsFD = CacheSecurity.openSubdirectory(in: rootFD, name: "artifacts", allowCreate: true) else {
+            return nil
+        }
+        defer { close(artifactsFD) }
+
+        guard let hashFD = CacheSecurity.openSubdirectory(in: artifactsFD, name: buildHash, allowCreate: true) else {
+            return nil
+        }
+        defer { close(hashFD) }
+
+        CacheSecurity.removeEntryIfPresent(in: hashFD, name: "output")
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        let hashDirPath = cachePath + "/artifacts/" + buildHash
+        let tempDestinationPath = hashDirPath + "/output.tmp.\(UUID().uuidString)"
+
         do {
-            try Self.removeItemIfPresent(at: destinationPath, fileManager: fm)
-            let parent = URL(fileURLWithPath: destinationPath).deletingLastPathComponent().path
-            try fm.createDirectory(atPath: parent, withIntermediateDirectories: true)
-            try fm.copyItem(atPath: sourcePath, toPath: destinationPath)
+            try fm.copyItem(atPath: sourcePath, toPath: tempDestinationPath)
+            let tmpName = URL(fileURLWithPath: tempDestinationPath).lastPathComponent
+            if renameat(hashFD, tmpName, hashFD, "output") != 0 {
+                try? fm.removeItem(atPath: tempDestinationPath)
+                return nil
+            }
             return CachedOutputArtifact(
                 kind: isDirectory.boolValue ? .directory : .file,
                 relativePath: relativePath
             )
         } catch {
+            try? fm.removeItem(atPath: tempDestinationPath)
             let message = "[IncrementalCompilationCache] Failed to cache output artifact at '\(cachePath)': \(error)\n"
             if let data = message.data(using: .utf8) {
                 FileHandle.standardError.write(data)
@@ -652,4 +689,328 @@ private struct IncrementalTargetTriple: Encodable {
     let vendor: String
     let os: String
     let osVersion: String?
+}
+
+// MARK: - Cache security helper
+
+enum CacheSecurity {
+    /// Checks whether the file attributes correspond to ownership by the current effective user
+    /// and that neither group-write nor other-write permissions are set.
+    static func isOwnerAndModeSecure(st: stat) -> Bool {
+        guard st.st_uid == geteuid() else { return false }
+        guard (st.st_mode & (mode_t(S_IWGRP) | mode_t(S_IWOTH))) == 0 else { return false }
+        return true
+    }
+
+    /// Securely verifies and opens the cache root directory descriptor.
+    /// Rejects symlinks, unowned directories, and group/other-writable directories.
+    static func openSafeDirectory(at path: String, allowCreate: Bool) -> Int32? {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: path) {
+            guard allowCreate else { return nil }
+            do {
+                try fm.createDirectory(atPath: path, withIntermediateDirectories: true)
+                chmod(path, 0o700)
+            } catch {
+                return nil
+            }
+        }
+
+        var st = stat()
+        guard lstat(path, &st) == 0 else { return nil }
+        guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else { return nil }
+        guard (st.st_mode & mode_t(S_IFMT)) != mode_t(S_IFLNK) else { return nil }
+        guard isOwnerAndModeSecure(st: st) else { return nil }
+
+        let fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard fd >= 0 else { return nil }
+
+        var fst = stat()
+        guard fstat(fd, &fst) == 0 else {
+            close(fd)
+            return nil
+        }
+        guard (fst.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else {
+            close(fd)
+            return nil
+        }
+        guard isOwnerAndModeSecure(st: fst) else {
+            close(fd)
+            return nil
+        }
+        guard fst.st_dev == st.st_dev, fst.st_ino == st.st_ino else {
+            close(fd)
+            return nil
+        }
+
+        return fd
+    }
+
+    /// Opens a subdirectory inside parentFD with O_NOFOLLOW.
+    /// Rejects symlinks, unowned directories, and group/other-writable directories.
+    static func openSubdirectory(in parentFD: Int32, name: String, allowCreate: Bool) -> Int32? {
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/") else {
+            return nil
+        }
+
+        if allowCreate {
+            if mkdirat(parentFD, name, 0o700) != 0 && errno != EEXIST {
+                return nil
+            }
+        }
+
+        let fd = openat(parentFD, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { return nil }
+
+        var st = stat()
+        guard fstat(fd, &st) == 0 else {
+            close(fd)
+            return nil
+        }
+        guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else {
+            close(fd)
+            return nil
+        }
+        guard isOwnerAndModeSecure(st: st) else {
+            close(fd)
+            return nil
+        }
+
+        return fd
+    }
+
+    /// Reads data from a regular file inside parentFD using O_NOFOLLOW.
+    static func readData(in parentFD: Int32, filename: String) -> Data? {
+        guard !filename.isEmpty, filename != ".", filename != "..", !filename.contains("/") else {
+            return nil
+        }
+        let fd = openat(parentFD, filename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+
+        var st = stat()
+        guard fstat(fd, &st) == 0 else { return nil }
+        guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
+        guard isOwnerAndModeSecure(st: st) else { return nil }
+
+        var data = Data()
+        let bufferSize = 8192
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+        while true {
+            let bytesRead = read(fd, &buffer, bufferSize)
+            if bytesRead < 0 {
+                return nil
+            }
+            if bytesRead == 0 {
+                break
+            }
+            data.append(buffer, count: bytesRead)
+        }
+        return data
+    }
+
+    /// Writes data atomically into parentFD using a temporary file and renameat.
+    static func writeAtomicFile(in parentFD: Int32, filename: String, data: Data) -> Bool {
+        guard !filename.isEmpty, filename != ".", filename != "..", !filename.contains("/") else {
+            return false
+        }
+        let tmpName = "\(filename).tmp.\(UUID().uuidString)"
+        let fd = openat(parentFD, tmpName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { return false }
+
+        var writtenAll = true
+        data.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+            var remaining = rawBuffer.count
+            var offset = 0
+            while remaining > 0 {
+                let count = write(fd, baseAddress.advanced(by: offset), remaining)
+                if count <= 0 {
+                    writtenAll = false
+                    break
+                }
+                remaining -= count
+                offset += count
+            }
+        }
+        close(fd)
+
+        guard writtenAll else {
+            unlinkat(parentFD, tmpName, 0)
+            return false
+        }
+
+        if renameat(parentFD, tmpName, parentFD, filename) != 0 {
+            unlinkat(parentFD, tmpName, 0)
+            return false
+        }
+        return true
+    }
+
+    /// Verifies that a directory and all its contents recursively contain no symlinks,
+    /// and are owned by the current process euid with no group/other-writable permissions.
+    static func verifyNoSymlinksRecursively(dirFD: Int32) -> Bool {
+        let dupFD = dup(dirFD)
+        guard dupFD >= 0 else { return false }
+        guard let dir = fdopendir(dupFD) else {
+            close(dupFD)
+            return false
+        }
+        defer { closedir(dir) }
+
+        while let entry = readdir(dir) {
+            let name = withUnsafePointer(to: &entry.pointee.d_name) { ptr in
+                ptr.withMemoryRebound(to: CChar.self, capacity: 1) { cStr in
+                    String(cString: cStr)
+                }
+            }
+            if name == "." || name == ".." {
+                continue
+            }
+
+            var st = stat()
+            guard fstatat(dirFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
+                return false
+            }
+            if (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFLNK) {
+                return false
+            }
+            guard isOwnerAndModeSecure(st: st) else {
+                return false
+            }
+            if (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) {
+                let subFD = openat(dirFD, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                guard subFD >= 0 else { return false }
+                defer { close(subFD) }
+                if !verifyNoSymlinksRecursively(dirFD: subFD) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    /// Removes an entry (file, symlink, or directory) safely without following symlinks.
+    static func removeEntryIfPresent(in parentFD: Int32, name: String) {
+        var st = stat()
+        guard fstatat(parentFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
+            return
+        }
+        if (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) {
+            let dirFD = openat(parentFD, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            if dirFD >= 0 {
+                removeDirectoryContentsRecursively(dirFD: dirFD)
+                close(dirFD)
+            }
+            unlinkat(parentFD, name, AT_REMOVEDIR)
+        } else {
+            unlinkat(parentFD, name, 0)
+        }
+    }
+
+    private static func removeDirectoryContentsRecursively(dirFD: Int32) {
+        let dupFD = dup(dirFD)
+        guard dupFD >= 0 else { return }
+        guard let dir = fdopendir(dupFD) else {
+            close(dupFD)
+            return
+        }
+        defer { closedir(dir) }
+
+        while let entry = readdir(dir) {
+            let name = withUnsafePointer(to: &entry.pointee.d_name) { ptr in
+                ptr.withMemoryRebound(to: CChar.self, capacity: 1) { cStr in
+                    String(cString: cStr)
+                }
+            }
+            if name == "." || name == ".." {
+                continue
+            }
+
+            var st = stat()
+            guard fstatat(dirFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
+                continue
+            }
+            if (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) {
+                let subFD = openat(dirFD, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                if subFD >= 0 {
+                    removeDirectoryContentsRecursively(dirFD: subFD)
+                    close(subFD)
+                }
+                unlinkat(dirFD, name, AT_REMOVEDIR)
+            } else {
+                unlinkat(dirFD, name, 0)
+            }
+        }
+    }
+
+    /// Validates that `relativePath` is fully contained within `cacheRootFD`, traverses intermediate
+    /// directories with `O_NOFOLLOW`, rejects any intermediate or final symlinks, verifies owner/mode,
+    /// and ensures the actual filesystem kind matches `expectedKind`.
+    /// Returns the verified canonical source path if valid, or `nil` if rejected.
+    static func validateContainedArtifactPath(
+        cacheRootFD: Int32,
+        cachePath: String,
+        relativePath: String,
+        expectedKind: CachedOutputArtifactKind
+    ) -> String? {
+        guard !relativePath.isEmpty, !relativePath.hasPrefix("/") else {
+            return nil
+        }
+        let components = relativePath.components(separatedBy: "/")
+        guard !components.isEmpty else { return nil }
+        for comp in components {
+            guard !comp.isEmpty, comp != ".", comp != ".." else { return nil }
+        }
+
+        var currentFD = cacheRootFD
+        var fdsToClose: [Int32] = []
+        defer {
+            for fd in fdsToClose {
+                close(fd)
+            }
+        }
+
+        // Traverse intermediate directories with O_NOFOLLOW
+        if components.count > 1 {
+            for comp in components.dropLast() {
+                let nextFD = openat(currentFD, comp, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                guard nextFD >= 0 else { return nil }
+                fdsToClose.append(nextFD)
+
+                var st = stat()
+                guard fstat(nextFD, &st) == 0 else { return nil }
+                guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else { return nil }
+                guard isOwnerAndModeSecure(st: st) else { return nil }
+
+                currentFD = nextFD
+            }
+        }
+
+        let lastComp = components.last!
+        var st = stat()
+        guard fstatat(currentFD, lastComp, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
+            return nil
+        }
+        // Reject any symlink
+        guard (st.st_mode & mode_t(S_IFMT)) != mode_t(S_IFLNK) else {
+            return nil
+        }
+        guard isOwnerAndModeSecure(st: st) else {
+            return nil
+        }
+
+        switch expectedKind {
+        case .file:
+            guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
+        case .directory:
+            guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else { return nil }
+            let dirFD = openat(currentFD, lastComp, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard dirFD >= 0 else { return nil }
+            defer { close(dirFD) }
+            guard verifyNoSymlinksRecursively(dirFD: dirFD) else { return nil }
+        }
+
+        return cachePath + "/" + relativePath
+    }
 }
