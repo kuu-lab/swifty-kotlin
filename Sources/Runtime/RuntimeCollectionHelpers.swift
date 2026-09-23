@@ -897,6 +897,22 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == runtimeNullSentinelInt || rhs == runtimeNullSentinelInt {
         return lhs == rhs
     }
+    return runtimeNonNullValuesEqual(lhs, rhs)
+}
+
+/// The comparison body of `runtimeValuesEqual`, minus its two callers-facing
+/// shortcuts (bit-identical fast path, and the sentinel-implies-null guess).
+/// Callers that have already established — via means other than guessing
+/// from the raw bits, e.g. `kk_nullable_primitive_eq`'s object-pointer-registry
+/// check — that neither operand is genuinely null should call this directly:
+/// `runtimeValuesEqual`'s sentinel shortcut cannot tell a real null from a
+/// raw (never-boxed) `Long`/`ULong` value that happens to equal the sentinel's
+/// bit pattern (`Long.MIN_VALUE`, `ULong` `2^63`), so routing through it would
+/// reintroduce exactly the ambiguity the caller already resolved.
+func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
+    if lhs == rhs {
+        return true
+    }
     let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs)
     let lhsIsObjectPointer = runtimeStorage.withGCLock { state in
@@ -1181,6 +1197,61 @@ public func kk_structural_eq(_ lhs: Int, _ rhs: Int) -> Int {
 @_cdecl("kk_structural_ne")
 public func kk_structural_ne(_ lhs: Int, _ rhs: Int) -> Int {
     (runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 0 : 1
+}
+
+/// `true` when `raw` is a live handle registered by one of the `kk_box_*`
+/// entry points (or another GC-tracked allocation) — i.e. a boxed non-null
+/// value, never the bare runtime null sentinel.
+private func runtimeIsRegisteredObjectPointer(_ raw: Int) -> Bool {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return false
+    }
+    return runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+}
+
+/// Null-aware equality for `==`/`!=` where at least one operand is a
+/// nullable `Long`/`ULong`/`Double`/`Float`. Those are the only primitives
+/// whose full raw (unboxed) value range coincides with the runtime null
+/// sentinel (`Long.MIN_VALUE`, `ULong` `2^63`, `-0.0`'s bit pattern), so
+/// `kk_structural_eq`/`ne`'s "raw value equals the sentinel implies null"
+/// guess (in `runtimeValuesEqual`) cannot tell a genuine null apart from a
+/// genuine value that happens to share that bit pattern.
+///
+/// `nullableRaw` is the operand statically known to be nullable — per
+/// `needsBoxingForCopy`, a non-null value written to a nullable-primitive
+/// slot is always boxed, so a nullable primitive is null if and only if it
+/// is *not* a registered object pointer, regardless of its raw bits. The
+/// compiler resolves this unambiguously via each operand's static type
+/// (OperatorLoweringPass), which a pure runtime function operating on raw
+/// `Int`s alone cannot recover from the bits.  `peerRaw` is the other
+/// operand — a provably non-null value if `peerIsNullable == 0` (its raw
+/// bits are never treated as a possible null), otherwise checked the same
+/// way as `nullableRaw`. Once neither side is null, the comparison defers to
+/// `runtimeNonNullValuesEqual`, which already normalizes boxed-vs-raw pairs
+/// (e.g. a boxed `Long.MIN_VALUE` against the raw literal `Long.MIN_VALUE`).
+private func runtimeNullablePrimitiveEqualityCheck(
+    nullableRaw: Int,
+    peerRaw: Int,
+    peerIsNullable: Int
+) -> Bool {
+    let nullableIsNull = !runtimeIsRegisteredObjectPointer(nullableRaw)
+    let peerIsNull = peerIsNullable != 0 && !runtimeIsRegisteredObjectPointer(peerRaw)
+    if nullableIsNull || peerIsNull {
+        return nullableIsNull && peerIsNull
+    }
+    return runtimeNonNullValuesEqual(nullableRaw, peerRaw)
+}
+
+@_cdecl("kk_nullable_primitive_eq")
+public func kk_nullable_primitive_eq(_ nullableRaw: Int, _ peerRaw: Int, _ peerIsNullable: Int) -> Int {
+    runtimeNullablePrimitiveEqualityCheck(nullableRaw: nullableRaw, peerRaw: peerRaw, peerIsNullable: peerIsNullable) ? 1 : 0
+}
+
+@_cdecl("kk_nullable_primitive_ne")
+public func kk_nullable_primitive_ne(_ nullableRaw: Int, _ peerRaw: Int, _ peerIsNullable: Int) -> Int {
+    runtimeNullablePrimitiveEqualityCheck(nullableRaw: nullableRaw, peerRaw: peerRaw, peerIsNullable: peerIsNullable) ? 0 : 1
 }
 
 func runtimeElementToString(_ elem: Int) -> String {
