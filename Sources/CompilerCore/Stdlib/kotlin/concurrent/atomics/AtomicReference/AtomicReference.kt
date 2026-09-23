@@ -9,56 +9,29 @@ package kotlin.concurrent.atomics
 import kotlin.internal.KsSymbolName
 
 // The canonical atomics type is currently an alias of the runtime-backed
-// kotlin.concurrent.AtomicReference shell. Keep the runtime entry points
-// private and expose the public API as source-backed receiver declarations.
+// kotlin.concurrent.AtomicReference shell. Most receiver APIs keep their
+// runtime-linked member stubs as the source of truth: `value`, `load`,
+// `store`, `exchange`, `getAndSet` and `toString` already resolve to members
+// backed by `__kk_atomic_ref_*` links whose T marshal is correct for every T.
+// A source-backed extension would only shadow them with a function-generic
+// extern call whose T return mis-decodes a stored `null` for nullable value
+// types such as `Int?` (reading back the type default), and `var value: T`
+// cannot even be declared on a receiver here — a bundled extension property
+// cannot name the class type parameter, and a star-projected
+// `AtomicReference<*>` variant would shadow the member's T-typed getter for
+// atomics callers.
+//
+// `compareAndExchange` is the one decl whose member is already superseded by
+// the `kotlin.concurrent` migration extension, so the canonical decl lives
+// here and wins on the atomics package preference. Its private extern
+// delegates to the same runtime link the member used.
 @KsSymbolName("__kk_atomic_ref_compareAndExchange")
 private external fun <T> AtomicReference<T>.__kkAtomicRefCompareAndExchange(
     expectedValue: T,
     newValue: T
 ): T
 
-@KsSymbolName("__kk_atomic_ref_exchange")
-private external fun <T> AtomicReference<T>.__kkAtomicRefExchange(newValue: T): T
-
-@KsSymbolName("__kk_atomic_ref_load")
-private external fun <T> AtomicReference<T>.__kkAtomicRefLoad(): T
-
-@KsSymbolName("__kk_atomic_ref_store")
-private external fun <T> AtomicReference<T>.__kkAtomicRefStore(value: T): Unit
-
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun <T> AtomicReference<T>.compareAndExchange(expectedValue: T, newValue: T): T =
     __kkAtomicRefCompareAndExchange(expectedValue, newValue)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.exchange(newValue: T): T =
-    __kkAtomicRefExchange(newValue)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.getAndSet(newValue: T): T =
-    exchange(newValue)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.load(): T =
-    __kkAtomicRefLoad()
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.store(value: T): Unit {
-    __kkAtomicRefStore(value)
-}
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.toString(): String =
-    __kkAtomicRefLoad().toString()
-
-// `var value: T` is owned by the runtime-backed class shell. A bundled
-// extension property cannot name the class type parameter, and a
-// star-projected `AtomicReference<*>` variant would shadow the member's
-// T-typed getter for atomics callers, so the member stays the source of
-// truth for value reads and writes.
