@@ -240,7 +240,7 @@ final class CallTypeChecker {
 
         // --- iterator { ... } builder (STDLIB-331/564) ---
         if let calleeName,
-           calleeName == knownNames.iteratorFn,
+           calleeName == knownNames.iterator,
            args.count == 1,
            locals[calleeName] == nil
         {

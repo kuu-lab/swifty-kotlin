@@ -302,28 +302,19 @@ package struct KnownCompilerNames {
 
     // Free-function names intercepted on CallTypeChecker's per-call
     // special-case dispatch; InternedString id compares avoid a locked
-    // resolve + String compare per call expression.
+    // resolve + String compare per call expression. `sequenceFn` is the
+    // `sequence {}` builder function — `sequence` already interns the
+    // "Sequence" type name (Fn suffix per `emptyListFn`).
     let contextOf: InternedString
     let sequenceFn: InternedString
-    let iteratorFn: InternedString
-    let typeOf: InternedString
     let contract: InternedString
     let compareBy: InternedString
     let compareByDescending: InternedString
     let compareValuesBy: InternedString
     let delay: InternedString
-    let toList: InternedString
     let atomicArrayOf: InternedString
     let atomicIntArray: InternedString
     let atomicLongArray: InternedString
-    let maxOf: InternedString
-    let minOf: InternedString
-    let removeAll: InternedString
-    let retainAll: InternedString
-    let indexOf: InternedString
-    let indexOfFirst: InternedString
-    let indexOfLast: InternedString
-    let kotlin: InternedString
     let collections: InternedString
 
     // Scope function names (STDLIB-004 / STDLIB-250)
@@ -725,25 +716,14 @@ package struct KnownCompilerNames {
 
         contextOf = interner.intern("contextOf")
         sequenceFn = interner.intern("sequence")
-        iteratorFn = interner.intern("iterator")
-        typeOf = interner.intern("typeOf")
         contract = interner.intern("contract")
         compareBy = interner.intern("compareBy")
         compareByDescending = interner.intern("compareByDescending")
         compareValuesBy = interner.intern("compareValuesBy")
         delay = interner.intern("delay")
-        toList = interner.intern("toList")
         atomicArrayOf = interner.intern("atomicArrayOf")
         atomicIntArray = interner.intern("AtomicIntArray")
         atomicLongArray = interner.intern("AtomicLongArray")
-        maxOf = interner.intern("maxOf")
-        minOf = interner.intern("minOf")
-        removeAll = interner.intern("removeAll")
-        retainAll = interner.intern("retainAll")
-        indexOf = interner.intern("indexOf")
-        indexOfFirst = interner.intern("indexOfFirst")
-        indexOfLast = interner.intern("indexOfLast")
-        kotlin = interner.intern("kotlin")
         collections = interner.intern("collections")
 
         // Scope function names (STDLIB-004 / STDLIB-250)
@@ -772,8 +752,10 @@ package struct KnownCompilerNames {
         ensureCapacity = interner.intern("ensureCapacity")
         trimToSize = interner.intern("trimToSize")
 
+        let kotlin = interner.intern("kotlin")
         let kotlinCoroutines = interner.intern("coroutines")
         let kotlinText = interner.intern("text")
+        let kotlinCollections = interner.intern("collections")
         let kotlinSequences = interner.intern("sequences")
         let kotlinx = interner.intern("kotlinx")
         let coroutines = interner.intern("coroutines")
