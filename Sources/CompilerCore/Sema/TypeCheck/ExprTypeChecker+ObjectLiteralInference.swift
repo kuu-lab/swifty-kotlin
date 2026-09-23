@@ -809,7 +809,8 @@ extension ExprTypeChecker {
             for: ownerSymbol,
             overriddenNames: overriddenNames,
             delegatedInterfaces: sema.symbols.delegatedInterfaces(forClass: ownerSymbol),
-            symbols: sema.symbols
+            symbols: sema.symbols,
+            interner: interner
         ) {
             guard let missingSymbol = sema.symbols.symbol(missingMember) else {
                 continue
