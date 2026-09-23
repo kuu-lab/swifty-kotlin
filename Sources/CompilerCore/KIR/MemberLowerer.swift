@@ -164,18 +164,37 @@ final class MemberLowerer {
             // same situation — a write through a base-typed reference must
             // dispatch to the actual runtime type's setter the same way a
             // read dispatches to the getter above.
-            if !hasCustomSetterBody, !hasDelegate, !isInterfaceContext, needsVirtualAccessor,
+            if !hasCustomSetterBody, !hasDelegate,
                propFlags?.contains(.mutable) == true,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
-                synthesizeStoredPropertySetterAccessor(
-                    propertySymbol: symbol,
-                    ownerSymbol: ownerSymbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    allDecls: &allDecls
-                )
+                let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
+                if isInterfaceContext, !isExternalLinked {
+                    // An abstract interface `var`'s setter had no registered
+                    // symbol at all (unlike its getter, which
+                    // `synthesizeInterfacePropertyGetterStub` above already
+                    // covers) — anything that referenced it by symbol, such
+                    // as a `by`-delegation forwarder falling back to the
+                    // interface's own declaration for a class that has no
+                    // concrete override, linked against an undefined name.
+                    synthesizeInterfacePropertySetterStub(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                } else if !isInterfaceContext, needsVirtualAccessor {
+                    synthesizeStoredPropertySetterAccessor(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
             }
 
             // Lower delegated property: emit delegate storage global and
