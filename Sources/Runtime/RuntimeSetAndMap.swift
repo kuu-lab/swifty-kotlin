@@ -484,7 +484,8 @@ public func kk_mutable_map_put(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMutableMapPut(mapRaw, key: key, value: value, outThrown: outThrown)
+            ?? runtimeNullSentinelInt
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
@@ -504,7 +505,8 @@ public func kk_mutable_map_remove(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMutableMapRemove(mapRaw, key: key, outThrown: outThrown)
+            ?? runtimeNullSentinelInt
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
@@ -519,7 +521,7 @@ public func kk_mutable_map_clear(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return 0
+        return runtimeSourceMutableMapClear(mapRaw, outThrown: outThrown) ?? 0
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
@@ -535,8 +537,10 @@ public func kk_mutable_map_putAll(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw),
-          let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return runtimeSourceMutableMapPutAll(mapRaw, otherMapRaw: otherMapRaw, outThrown: outThrown) ?? 0
+    }
+    guard let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
     }

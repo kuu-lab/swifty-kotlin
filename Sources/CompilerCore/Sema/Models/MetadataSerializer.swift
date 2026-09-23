@@ -1584,7 +1584,17 @@ package final class MetadataEncoder {
                 return nil
             }
             if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
-                return nil
+                // Public synthetic interface members (e.g. MutableMap.put /
+                // putAll) are not exported as symbol records: consumers
+                // re-register them by fqName during residual synthesis, so
+                // their slots must still serialize for the interface layout
+                // to round-trip.
+                guard symbol.flags.contains(.synthetic), symbol.visibility == .public,
+                      let parentID = symbols.parentSymbol(for: symbol.id),
+                      symbols.symbol(parentID)?.kind == .interface
+                else {
+                    return nil
+                }
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {

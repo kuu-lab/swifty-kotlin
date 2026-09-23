@@ -103,12 +103,26 @@ func unimplementedAbstractMembers(
     delegatedInterfaces: [SymbolID],
     symbols: SymbolTable
 ) -> [SymbolID] {
-    collectInheritedAbstractMembers(for: classSymbol, symbols: symbols).filter { abstractMember in
+    // A `by`-delegated interface covers members inherited through its
+    // super-interfaces too: `class C : MutableMap<K,V> by m` must not owe an
+    // implementation for `Map.values`, which is declared on MutableMap's
+    // parent interface rather than on MutableMap itself (BUG-240).
+    var delegatedNominals: Set<SymbolID> = []
+    var delegatedQueue = delegatedInterfaces
+    while let interface = delegatedQueue.popLast() {
+        guard delegatedNominals.insert(interface).inserted else { continue }
+        for supertype in symbols.directSupertypes(for: interface)
+        where symbols.symbol(supertype)?.kind == .interface {
+            delegatedQueue.append(supertype)
+        }
+    }
+
+    return collectInheritedAbstractMembers(for: classSymbol, symbols: symbols).filter { abstractMember in
         guard let abstractSym = symbols.symbol(abstractMember) else {
             return false
         }
         if let owner = symbols.parentSymbol(for: abstractMember),
-           delegatedInterfaces.contains(owner)
+           delegatedNominals.contains(owner)
         {
             return false
         }
