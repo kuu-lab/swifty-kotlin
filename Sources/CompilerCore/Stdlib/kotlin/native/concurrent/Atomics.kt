@@ -7,13 +7,18 @@
 
 @file:OptIn(ExperimentalForeignApi::class)
 @file:Suppress("DEPRECATION_ERROR")
-
 package kotlin.native.concurrent
 
 import kotlin.concurrent.Volatile
 import kotlin.internal.KsSymbolName
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.NativePtr
+
+@KsSymbolName("__kk_lazy_sync_lock")
+private external fun __atomicSyncLock(lock: Any): Unit
+
+@KsSymbolName("__kk_lazy_sync_unlock")
+private external fun __atomicSyncUnlock(lock: Any): Unit
 
 // KSP-1221: The legacy native AtomicInt receiver surface is source-backed
 // while its storage remains owned by the shared runtime atomic box. Keep the
@@ -180,18 +185,28 @@ public class AtomicReference<T>(value: T) {
 
     /** Atomically replaces the value and returns the value observed before the replacement. */
     public fun getAndSet(newValue: T): T {
-        val oldValue = value
-        value = newValue
-        return oldValue
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            value = newValue
+            return oldValue
+        } finally {
+            __atomicSyncUnlock(this)
+        }
     }
 
     /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSwap(expected: T, newValue: T): T {
-        val oldValue = value
-        if (oldValue === expected) {
-            value = newValue
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            if (oldValue === expected) {
+                value = newValue
+            }
+            return oldValue
+        } finally {
+            __atomicSyncUnlock(this)
         }
-        return oldValue
     }
 
     /** Returns the debug representation used by Kotlin/Native's legacy API. */
@@ -221,21 +236,31 @@ public class FreezableAtomicReference<T>(value: T) {
 
     /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSet(expected: T, newValue: T): Boolean {
-        val oldValue = value
-        if (oldValue === expected) {
-            value = newValue
-            return true
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            if (oldValue === expected) {
+                value = newValue
+                return true
+            }
+            return false
+        } finally {
+            __atomicSyncUnlock(this)
         }
-        return false
     }
 
     /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSwap(expected: T, newValue: T): T {
-        val oldValue = value
-        if (oldValue === expected) {
-            value = newValue
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            if (oldValue === expected) {
+                value = newValue
+            }
+            return oldValue
+        } finally {
+            __atomicSyncUnlock(this)
         }
-        return oldValue
     }
 
     /** Returns the debug representation used by Kotlin/Native's legacy API. */
