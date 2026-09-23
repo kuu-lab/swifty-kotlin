@@ -3018,6 +3018,87 @@ final class CallTypeChecker {
                     return resultType
                 }
             }
+            // Kotlin's implicit-receiver tower: when the innermost receiver
+            // has no matching member, unqualified calls continue outward
+            // through enclosing receivers — e.g. a class enclosing an object
+            // literal (`object : Any() { fun f() = fetch(0) }`). Only entries
+            // carrying a receiver symbol participate: the symbol is what
+            // capture analysis stores into the object literal's fields, so
+            // KIR lowering can materialize the receiver value from it.
+            for outerReceiver in ctx.outerReceiverTypes.reversed() {
+                let outerNonNullReceiver = sema.types.makeNonNullable(outerReceiver.type)
+                guard let outerReceiverSymbol = outerReceiver.symbol,
+                      outerNonNullReceiver != nonNullReceiver
+                else {
+                    continue
+                }
+                let outerCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: outerNonNullReceiver,
+                    sema: sema,
+                    interner: interner
+                )
+                guard !outerCandidates.isEmpty else {
+                    continue
+                }
+                let outerArgTypes = args.map { argument in
+                    driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                }
+                let resolvedOuterArgs = zip(args, outerArgTypes).map { argument, type in
+                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                }
+                let resolvedOuter = ctx.resolver.resolveCall(
+                    candidates: outerCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: calleeName,
+                        args: resolvedOuterArgs,
+                        explicitTypeArgs: explicitTypeArgs
+                    ),
+                    expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
+                    implicitReceiverType: outerReceiver.type,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = resolvedOuter.chosenCallee {
+                    let resultType = bindCallAndResolveReturnType(
+                        id,
+                        chosen: chosen,
+                        resolved: resolvedOuter,
+                        sema: sema
+                    )
+                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: outerReceiverSymbol)
+                    markCoroutineScopeImplicitReceiverCallIfNeeded(
+                        id,
+                        chosenCallee: chosen,
+                        receiverType: outerReceiver.type,
+                        ctx: ctx
+                    )
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
+                }
+                if outerCandidates.count == 1,
+                   let bestCandidate = outerCandidates.first,
+                   let sig = sema.symbols.functionSignature(for: bestCandidate)
+                {
+                    var mapping: [Int: Int] = [:]
+                    for i in args.indices { mapping[i] = i }
+                    sema.bindings.bindCall(
+                        id,
+                        binding: CallBinding(
+                            chosenCallee: bestCandidate,
+                            substitutedTypeArguments: [],
+                            parameterMapping: mapping
+                        )
+                    )
+                    sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
+                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: outerReceiverSymbol)
+                    let resultType = sig.returnType
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
+                }
+            }
             if let fallbackType = tryBindImplicitReceiverSyntheticExtensionCall(
                 id, calleeName: calleeName, receiverType: nonNullReceiver, args: args,
                 range: range, ctx: ctx, locals: &locals, expectedType: expectedType,

@@ -1051,7 +1051,13 @@ final class CallLowerer {
                   let signature = sema.symbols.functionSignature(for: chosen),
                   signature.receiverType != nil
         {
-            var implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+            // A call that Sema resolved on an *outer* implicit receiver (e.g.
+            // an enclosing class's member invoked unqualified from an object
+            // literal's member body) reads the receiver through the captured
+            // enclosing `this`, not the member's own implicit receiver.
+            var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
+                .flatMap { driver.ctx.localValue(for: $0) }
+                ?? driver.ctx.activeImplicitReceiverExprID()
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
             {

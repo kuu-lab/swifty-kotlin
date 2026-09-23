@@ -2123,16 +2123,22 @@ extension ExprTypeChecker {
         }
         if let label {
             if let qualifiedType = ctx.resolveQualifiedThis(label: label) {
-                // An extension function's receiver is also addressable by the
-                // function-name label (for example `this@describe`). Bind that
-                // reference to the same synthetic receiver symbol used by KIR
-                // so nested receiver lambdas capture the outer receiver rather
-                // than accidentally reading their own receiver.
-                if let currentDeclSymbol = ctx.currentDeclSymbol,
-                   let currentDecl = sema.symbols.symbol(currentDeclSymbol),
-                   currentDecl.name == label,
-                   sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
+                // An outer receiver whose enclosing `this` is capturable (e.g.
+                // the class around an object literal) binds to its receiver
+                // parameter symbol so capture analysis stores it and KIR
+                // reads the captured value instead of the innermost receiver.
+                if let receiverSymbol = ctx.resolveQualifiedThisReceiverSymbol(label: label) {
+                    sema.bindings.bindIdentifier(id, symbol: receiverSymbol)
+                } else if let currentDeclSymbol = ctx.currentDeclSymbol,
+                          let currentDecl = sema.symbols.symbol(currentDeclSymbol),
+                          currentDecl.name == label,
+                          sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
                 {
+                    // An extension function's receiver is also addressable by the
+                    // function-name label (for example `this@describe`). Bind that
+                    // reference to the same synthetic receiver symbol used by KIR
+                    // so nested receiver lambdas capture the outer receiver rather
+                    // than accidentally reading their own receiver.
                     sema.bindings.bindIdentifier(
                         id,
                         symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)

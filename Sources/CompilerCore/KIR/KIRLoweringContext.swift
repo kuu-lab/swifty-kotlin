@@ -93,6 +93,7 @@ final class KIRLoweringContext {
         let lambdaParamNameToSymbol: [InternedString: SymbolID]
         let currentImplicitReceiverExprID: KIRExprID?
         let currentImplicitReceiverSymbol: SymbolID?
+        let qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID]
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
@@ -111,6 +112,7 @@ final class KIRLoweringContext {
             lambdaParamNameToSymbol: lambdaParamNameToSymbol,
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
+            qualifiedThisReceiverExprsByLabel: qualifiedThisReceiverExprsByLabel,
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
@@ -129,6 +131,7 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol = snapshot.lambdaParamNameToSymbol
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
+        qualifiedThisReceiverExprsByLabel = snapshot.qualifiedThisReceiverExprsByLabel
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
@@ -155,6 +158,12 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol.removeAll(keepingCapacity: true)
         currentImplicitReceiverExprID = nil
         currentImplicitReceiverSymbol = nil
+        // `this@Label` entries only ever hold values valid inside one KIR
+        // function's instruction stream — the exprIDs they point at are
+        // dangling past a member-function/lambda boundary. Clear them so a
+        // labeled `this` inside the next body cannot resolve to a stale
+        // exprID from an unrelated context.
+        qualifiedThisReceiverExprsByLabel.removeAll(keepingCapacity: true)
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
