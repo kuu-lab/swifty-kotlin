@@ -3,6 +3,21 @@ import Foundation
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
+    /// Cached `BuiltinTypeNames` for the active interner. Builtin name
+    /// interning is compilation-invariant, so building it once avoids the
+    /// locked `interner.intern` calls being repeated on every type-reference
+    /// resolution (mirrors `TypeCheckDriver.builtinTypeNamesCache`).
+    private var builtinTypeNamesCache: (names: BuiltinTypeNames, interner: StringInterner)?
+
+    func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
+        if let cached = builtinTypeNamesCache, cached.interner === interner {
+            return cached.names
+        }
+        let names = BuiltinTypeNames(interner: interner)
+        builtinTypeNamesCache = (names, interner)
+        return names
+    }
+
     init() {}
 
     func run(_ ctx: CompilationContext) throws {
@@ -328,6 +343,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // ARCH-021: body type checking and later KIR lowering must use the
+        // same exact compiler-owned SymbolIDs. Resolve after all headers and
+        // validation-created symbols are present, but before body analysis.
+        sema.wellKnownSymbols = WellKnownSymbols(
+            symbols: symbols,
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager
+        )
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
@@ -582,6 +605,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
+        // KUU-655: after delegation forwarders exist (so a `by`-delegated
+        // interface method's forwarder inherits its defaults too), before
+        // vtable/itable layout (layout only keys off arity/suspend, not
+        // default flags, so ordering relative to it doesn't matter).
+        inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
         synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
         attachCompilerMetadataAnnotations(
             symbols: symbols,

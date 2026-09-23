@@ -1319,12 +1319,16 @@ struct RuntimeSequenceTests {
         #expect(result == 20)
     }
 
-    @Test func elementAtReportsOutOfBounds() {
-        var thrown = 0
-        let result = kk_sequence_elementAt(makeSequence([10]), 3, &thrown)
+    @Test func elementAtReportsIndexOutOfBoundsException() throws {
+        for index in [3, -1] {
+            var thrown = 0
+            let result = kk_sequence_elementAt(makeSequence([10]), index, &thrown)
 
-        #expect(thrown != 0)
-        #expect(result == runtimeNullSentinelInt)
+            #expect(thrown != 0)
+            #expect(result == runtimeNullSentinelInt)
+            let box = try #require(throwableBox(from: thrown))
+            #expect(box.exceptionFQName == "kotlin.IndexOutOfBoundsException")
+        }
     }
 
     @Test func filterIndexedKeepsElementsMatchingIndexedPredicate() {

@@ -536,6 +536,23 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
     }
 
     @Test
+    func testCodegenMutableListRemoveAtOutOfBoundsThrows() throws {
+        let source = """
+        fun main() {
+            val values = mutableListOf(1, 2)
+            try {
+                values.removeAt(5)
+                println("not thrown")
+            } catch (e: IndexOutOfBoundsException) {
+                println("caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "MutableListRemoveAtOutOfBounds", expected: "caught\n")
+    }
+
+    @Test
     func testCodegenListMinOrNullReturnsSmallestElementAndNullOnEmpty() throws {
         let source = """
         fun main() {

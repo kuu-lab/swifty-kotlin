@@ -71,6 +71,16 @@ public fun Char.titlecaseChar(): Char {
     return if (mapped < 0) uppercaseChar() else __charFromCode(mapped)
 }
 
+/**
+ * Returns this character incremented by one UTF-16 code unit.
+ */
+public operator fun Char.inc(): Char = __charFromCode(this.code + 1)
+
+/**
+ * Returns this character decremented by one UTF-16 code unit.
+ */
+public operator fun Char.dec(): Char = __charFromCode(this.code - 1)
+
 public fun Char.digitToInt(): Int = digitToInt(10)
 
 public fun Char.digitToInt(radix: Int): Int {

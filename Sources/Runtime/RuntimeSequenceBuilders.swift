@@ -160,7 +160,7 @@ public func __kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
         return iter.probeHasNext() ? 1 : 0
     }
     if let iter = runtimeListIteratorBox(from: iterRaw) {
-        return iter.index < iter.elements.count ? 1 : 0
+        return iter.index < iter.values.count ? 1 : 0
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_hasNext received invalid iterator handle")
 }
@@ -172,10 +172,10 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     }
     // Backwards compatibility: older lowering paths may pass a RuntimeListIteratorBox.
     if let iter = runtimeListIteratorBox(from: iterRaw) {
-        guard iter.index < iter.elements.count else {
+        guard iter.index < iter.values.count else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
         }
-        let value = iter.elements[iter.index]
+        let value = iter.values[iter.index].legacyRawValue
         iter.index += 1
         return value
     }
@@ -205,7 +205,7 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
 public func __kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw: Int) -> Int {
     guard let iter = runtimeIteratorBuilderBox(from: iterRaw) else {
         if let iter = runtimeListIteratorBox(from: iterRaw) {
-            return iter.index < iter.elements.count ? 1 : 0
+            return iter.index < iter.values.count ? 1 : 0
         }
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_hasNext_coro received invalid iterator handle")
     }
@@ -229,10 +229,10 @@ public func __kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
         return iter.consumeNext()
     }
     if let iter = runtimeListIteratorBox(from: iterRaw) {
-        guard iter.index < iter.elements.count else {
+        guard iter.index < iter.values.count else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
         }
-        let value = iter.elements[iter.index]
+        let value = iter.values[iter.index].legacyRawValue
         iter.index += 1
         return value
     }

@@ -28,6 +28,7 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
 
         let memberName = interner.resolve(calleeName)
         if sema.bindings.exprTypes[receiverID] == nil {
@@ -315,7 +316,7 @@ extension CallTypeChecker {
         // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
         // cannot be sure — it may be List<Any> wrapping real lists at runtime,
         // so we let it through to preserve the pre-migration behaviour.
-        if interner.resolve(calleeName) == "flatten", !isSequenceReceiver,
+        if calleeName == knownNames.flatten, !isSequenceReceiver,
            receiverElementType != sema.types.anyType,
            !receiverClassifier.isCollectionLikeType(receiverElementType) {
             return nil
@@ -444,11 +445,7 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            let sourceFQName = [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                calleeName,
-            ]
+            let sourceFQName = knownNames.kotlinCollectionsPackage + [calleeName]
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -508,11 +505,7 @@ extension CallTypeChecker {
                 typeArguments = [receiverElementType, otherElementType]
             }
 
-            let sourceFQName = [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                calleeName,
-            ]
+            let sourceFQName = knownNames.kotlinCollectionsPackage + [calleeName]
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -529,11 +522,7 @@ extension CallTypeChecker {
                 guard let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
                     return false
                 }
-                return receiverSymbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Iterable"),
-                ]
+                return receiverSymbol.fqName == knownNames.kotlinCollectionsIterableFQName
             }) else {
                 return false
             }
@@ -632,9 +621,10 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
-        let kotlinSequences = [interner.intern("kotlin"), interner.intern("sequences")]
-        let iterableFQName = kotlinCollections + [interner.intern("Iterable")]
+        let knownNames = KnownCompilerNames(interner: interner)
+        let kotlinCollections = knownNames.kotlinCollectionsPackage
+        let kotlinSequences = knownNames.kotlinSequencesPackage
+        let iterableFQName = knownNames.kotlinCollectionsIterableFQName
         guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
             return []
         }
@@ -680,8 +670,9 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let package = [interner.intern("kotlin"), interner.intern("ranges")]
-        let charRangeFQName = package + [interner.intern("CharRange")]
+        let knownNames = KnownCompilerNames(interner: interner)
+        let package = knownNames.kotlinRangesPackage
+        let charRangeFQName = knownNames.kotlinRangesCharRangeFQName
         guard let charRangeSymbol = sema.symbols.lookup(fqName: charRangeFQName) else {
             return []
         }
@@ -796,8 +787,8 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
-        let iterableFQName = kotlinCollections + [interner.intern("Iterable")]
+        let knownNames = KnownCompilerNames(interner: interner)
+        let iterableFQName = knownNames.kotlinCollectionsIterableFQName
 
         guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
             return nil
@@ -840,11 +831,7 @@ extension CallTypeChecker {
         let resolutionCandidates: [SymbolID] = {
             guard memberName == "flatMap",
                   let lambdaBodyReturnType,
-                  let sequenceSymbol = sema.symbols.lookup(fqName: [
-                      interner.intern("kotlin"),
-                      interner.intern("sequences"),
-                      interner.intern("Sequence"),
-                  ])
+                  let sequenceSymbol = sema.symbols.lookup(fqName: knownNames.kotlinSequenceFQName)
             else {
                 return candidates
             }
@@ -933,22 +920,18 @@ extension CallTypeChecker {
         guard args.count == 1 else { return nil }
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         guard let (_, receiverSymbol) = resolveClassTypeSymbol(
             sema.types.makeNonNullable(receiverType),
             sema: sema
         ),
-        receiverSymbol.fqName == [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableCollection"),
-        ]
+        receiverSymbol.fqName == knownNames.kotlinCollectionsMutableCollectionFQName
         else {
             return nil
         }
 
-        let name = interner.resolve(memberName)
-        guard name == "addAll" || name == "removeAll" || name == "retainAll" else {
+        guard memberName == knownNames.addAll || memberName == knownNames.removeAll || memberName == knownNames.retainAll else {
             return nil
         }
 
@@ -972,46 +955,41 @@ extension CallTypeChecker {
             })
             argumentSymbolIndex += 1
         }
-        func hasNominalType(_ fqName: [String]) -> Bool {
+        func hasNominalType(_ fqName: [InternedString]) -> Bool {
             argumentNominalSymbols.contains { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                return symbol.fqName == fqName.map(interner.intern)
+                return symbol.fqName == fqName
             }
         }
-        let kotlinCollections = ["kotlin", "collections"]
-        let parameterName: String?
+        let parameterID: InternedString?
         if classifier.isArrayLikeType(argumentType)
-            || hasNominalType(["kotlin", "Array"])
+            || hasNominalType(knownNames.kotlinArrayFQName)
         {
-            parameterName = "Array"
+            parameterID = knownNames.array
         } else if classifier.isSequenceLikeType(argumentType)
-                    || hasNominalType(["kotlin", "sequences", "Sequence"])
+                    || hasNominalType(knownNames.kotlinSequenceFQName)
         {
-            parameterName = "Sequence"
+            parameterID = knownNames.sequence
         } else if classifier.isCollectionLikeType(argumentType)
-                    || hasNominalType(kotlinCollections + ["Collection"])
-                    || hasNominalType(kotlinCollections + ["MutableCollection"])
+                    || hasNominalType(knownNames.kotlinCollectionsCollectionFQName)
+                    || hasNominalType(knownNames.kotlinCollectionsMutableCollectionFQName)
         {
             // Kotlin gives the MutableCollection member overload priority for
             // Collection arguments; the extension must not replace that call.
-            parameterName = nil
+            parameterID = nil
         } else if classifier.isIterableLikeType(argumentType)
-                    || hasNominalType(kotlinCollections + ["Iterable"])
-                    || hasNominalType(kotlinCollections + ["MutableIterable"])
+                    || hasNominalType(knownNames.kotlinCollectionsIterableFQName)
+                    || hasNominalType(knownNames.kotlinCollectionsMutableIterableFQName)
         {
-            parameterName = "Iterable"
+            parameterID = knownNames.iterable
         } else {
-            parameterName = nil
+            parameterID = nil
         }
-        guard let parameterName else {
+        guard let parameterID else {
             return nil
         }
 
-        let sourceFQName = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            memberName,
-        ]
+        let sourceFQName = knownNames.kotlinCollectionsPackage + [memberName]
         let candidate = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
@@ -1035,7 +1013,7 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            return interner.resolve(parameterSymbol.name) == parameterName
+            return parameterSymbol.name == parameterID
         }
         guard let candidate else {
             return nil
@@ -1086,8 +1064,8 @@ extension CallTypeChecker {
 
         let sema = ctx.sema
         let interner = ctx.interner
-        let memberNameString = interner.resolve(memberName)
-        guard memberNameString == "removeAll" || memberNameString == "retainAll",
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard memberName == knownNames.removeAll || memberName == knownNames.retainAll,
               let predicateExpr = ctx.ast.arena.expr(args[0].expr),
               predicateExpr.isLambdaOrCallableRef
         else {
@@ -1099,11 +1077,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        let sourceFQName = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            memberName,
-        ]
+        let sourceFQName = knownNames.kotlinCollectionsPackage + [memberName]
         let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
@@ -1115,11 +1089,7 @@ extension CallTypeChecker {
                       sema.types.makeNonNullable(signatureReceiver),
                       sema: sema
                   ),
-                  receiverSymbol.fqName == [
-                      interner.intern("kotlin"),
-                      interner.intern("collections"),
-                      interner.intern("MutableIterable"),
-                  ],
+                  receiverSymbol.fqName == knownNames.kotlinCollectionsMutableIterableFQName,
                   case let .functionType(predicateType) = sema.types.kind(of:
                       sema.types.makeNonNullable(signature.parameterTypes[0])
                   )
@@ -1341,21 +1311,18 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         // MutableMap contributes both the delegated `getValue` accessor and
         // the read-only Map `getValue(key)` extension. Resolve the latter
         // before the collection fallback's owner walk can select the delegate
         // accessor by short name.
-        if interner.resolve(memberName) == "getValue",
+        if memberName == knownNames.getValue,
            argCount == 1,
            receiverClassifier.isMutableMapType(receiverType)
         {
-            let mapGetValueFQName = [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                memberName,
-            ]
+            let mapGetValueFQName = knownNames.kotlinCollectionsPackage + [memberName]
             if let chosen = sema.symbols.lookupAll(fqName: mapGetValueFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -1368,11 +1335,7 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return receiverInfo.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Map"),
-                ]
+                return receiverInfo.fqName == knownNames.kotlinCollectionsMapFQName
             }) {
                 return chosen
             }
@@ -1380,7 +1343,7 @@ extension CallTypeChecker {
         // MutableMap.putAll(Map) is a member surface; the Iterable/Sequence/
         // Array overloads are source-backed extensions. Keep the member path
         // for Map arguments and choose the exact source parameter otherwise.
-        if interner.resolve(memberName) == "putAll",
+        if memberName == knownNames.putAll,
            argCount == 1,
            receiverClassifier.isMutableMapType(receiverType),
            let firstArgExpr = argExprs.first,
@@ -1389,11 +1352,7 @@ extension CallTypeChecker {
         {
             let isArrayArgument = receiverClassifier.isArrayLikeReceiver(receiverID: firstArgExpr)
             let isSequenceArgument = receiverClassifier.isSequenceLikeType(firstArgType)
-            if let chosen = sema.symbols.lookupAll(fqName: [
-                   interner.intern("kotlin"),
-                   interner.intern("collections"),
-                   memberName,
-               ]).first(where: { candidate in
+            if let chosen = sema.symbols.lookupAll(fqName: knownNames.kotlinCollectionsPackage + [memberName]).first(where: { candidate in
                    guard let symbol = sema.symbols.symbol(candidate),
                          symbol.kind == .function,
                          (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
@@ -1409,31 +1368,16 @@ extension CallTypeChecker {
                    else {
                        return false
                    }
-                   guard receiverInfo.fqName == [
-                       interner.intern("kotlin"),
-                       interner.intern("collections"),
-                       interner.intern("MutableMap"),
-                   ] else {
+                   guard receiverInfo.fqName == knownNames.kotlinCollectionsMutableMapFQName else {
                        return false
                    }
                    if isArrayArgument {
-                       return parameterInfo.fqName == [
-                           interner.intern("kotlin"),
-                           interner.intern("Array"),
-                       ]
+                       return parameterInfo.fqName == knownNames.kotlinArrayFQName
                    }
                    if isSequenceArgument {
-                       return parameterInfo.fqName == [
-                           interner.intern("kotlin"),
-                           interner.intern("sequences"),
-                           interner.intern("Sequence"),
-                       ]
+                       return parameterInfo.fqName == knownNames.kotlinSequenceFQName
                    }
-                   return parameterInfo.fqName == [
-                       interner.intern("kotlin"),
-                       interner.intern("collections"),
-                       interner.intern("Iterable"),
-                   ]
+                   return parameterInfo.fqName == knownNames.kotlinCollectionsIterableFQName
                })
             {
                 return chosen
@@ -1448,9 +1392,11 @@ extension CallTypeChecker {
             return nil
         }
         var queue: [SymbolID] = roots
+        var queueHead = 0
         var visited: Set<SymbolID> = []
-        while !queue.isEmpty {
-            let owner = queue.removeFirst()
+        while queueHead < queue.count {
+            let owner = queue[queueHead]
+            queueHead += 1
             guard visited.insert(owner).inserted,
                   let ownerSymbol = sema.symbols.symbol(owner)
             else {
@@ -1503,7 +1449,7 @@ extension CallTypeChecker {
             // overloads. The collection fallback is intentionally arity-based
             // for most legacy members, but selecting the first slice overload
             // would route a List<Int> argument to the IntRange declaration.
-            if memberName == interner.intern("slice"),
+            if memberName == knownNames.slice,
                argCount == 1,
                let firstArgExpr = argExprs.first
             {
@@ -1511,14 +1457,14 @@ extension CallTypeChecker {
                     if let (_, argumentSymbol) = resolveClassTypeSymbol(
                         sema.types.makeNonNullable(firstArgType), sema: sema
                     ) {
-                        interner.resolve(argumentSymbol.name) == "IntRange"
+                        argumentSymbol.name == knownNames.intRange
                     } else {
                         sema.bindings.isRangeExpr(firstArgExpr) && firstArgType == sema.types.intType
                     }
                 } else {
                     sema.bindings.isRangeExpr(firstArgExpr)
                 }
-                let targetParameterName = isIntRangeArgument ? "IntRange" : "Iterable"
+                let targetParameterID = isIntRangeArgument ? knownNames.intRange : knownNames.iterable
                 if let sliceMatch = allCandidates.first(where: { candidate in
                     guard let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == 1,
@@ -1528,12 +1474,12 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    return interner.resolve(parameterSymbol.name) == targetParameterName
+                    return parameterSymbol.name == targetParameterID
                 }) {
                     return sliceMatch
                 }
             }
-            if memberName == interner.intern("addAll"),
+            if memberName == knownNames.addAll,
                argCount == 1,
                let firstArgExpr = argExprs.first,
                receiverClassifier.isArrayLikeReceiver(receiverID: firstArgExpr),
@@ -1548,7 +1494,7 @@ extension CallTypeChecker {
             {
                 return arrayMatch
             }
-            if memberName == interner.intern("addAll"),
+            if memberName == knownNames.addAll,
                argCount == 1,
                let firstArgExpr = argExprs.first,
                let firstArgType = sema.bindings.exprTypes[firstArgExpr],
@@ -1565,7 +1511,7 @@ extension CallTypeChecker {
             {
                 return sequenceMatch
             }
-            if memberName == interner.intern("addAll"),
+            if memberName == knownNames.addAll,
                argCount == 1,
                let firstArgExpr = argExprs.first,
                receiverClassifier.isIterableLikeReceiver(receiverID: firstArgExpr),
@@ -1717,14 +1663,8 @@ extension CallTypeChecker {
         _ memberName: InternedString,
         interner: StringInterner
     ) -> Bool {
-        switch memberName {
-        case interner.intern("intersect"),
-             interner.intern("union"),
-             interner.intern("subtract"):
-            return true
-        default:
-            return false
-        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return knownNames.setReturningCollectionBinaryMembers.contains(memberName)
     }
 
     func isSupportedCollectionFallbackMember(
@@ -1758,130 +1698,12 @@ extension CallTypeChecker {
         ).isEmpty {
             return true
         }
-        let collectionMembers: Set = [
-            knownNames.size,
-            knownNames.isEmpty,
-            interner.intern("contains"),
-            interner.intern("containsAll"),
-            interner.intern("first"),
-            interner.intern("last"),
-            interner.intern("indexOf"),
-            interner.intern("lastIndexOf"),
-            interner.intern("indexOfFirst"),
-            interner.intern("indexOfLast"),
-            interner.intern("count"),
-            interner.intern("iterator"),
-            interner.intern("filter"),
-            interner.intern("filterNotNull"),
-            interner.intern("filterIsInstanceTo"),
-            interner.intern("filterNotNullTo"),
-            interner.intern("fold"),
-            interner.intern("foldRight"),
-            interner.intern("foldIndexed"),
-            interner.intern("foldRightIndexed"),
-            interner.intern("reduce"),
-            interner.intern("reduceRight"),
-            interner.intern("reduceRightIndexed"),
-            interner.intern("reduceRightIndexedOrNull"),
-            interner.intern("reduceRightOrNull"),
-            interner.intern("reduceOrNull"),
-            interner.intern("reduceIndexed"),
-            interner.intern("reduceIndexedOrNull"),
-            interner.intern("scan"),
-            interner.intern("scanIndexed"),
-            interner.intern("runningFold"),
-            interner.intern("runningFoldIndexed"),
-            interner.intern("runningReduce"),
-            interner.intern("runningReduceIndexed"),
-            interner.intern("scanReduce"),
-            interner.intern("sortedBy"),
-            interner.intern("find"),
-            interner.intern("zip"),
-            interner.intern("unzip"),
-            interner.intern("withIndex"),
-            interner.intern("min"),
-            interner.intern("maxOrNull"),
-            interner.intern("minOrNull"),
-            interner.intern("asSequence"),
-            interner.intern("asIterable"),
-            interner.intern("toList"),
-            interner.intern("toCollection"),
-            interner.intern("toTypedArray"),
-            interner.intern("toCharArray"),
-            interner.intern("toBooleanArray"),
-            interner.intern("toShortArray"),
-            interner.intern("toDoubleArray"),
-            interner.intern("toFloatArray"),
-            interner.intern("toIntArray"),
-            interner.intern("toLongArray"),
-            interner.intern("toByteArray"),
-            interner.intern("toUByteArray"),
-            interner.intern("toUShortArray"),
-            interner.intern("toUIntArray"),
-            interner.intern("toULongArray"),
-            interner.intern("take"),
-            interner.intern("drop"),
-            interner.intern("reversed"),
-            interner.intern("asReversed"),
-            interner.intern("sorted"),
-            interner.intern("shuffled"),
-            interner.intern("distinct"),
-            interner.intern("distinctBy"),
-            interner.intern("flatten"),
-            interner.intern("chunked"),
-            interner.intern("windowed"),
-            interner.intern("firstNotNullOf"),
-            interner.intern("firstNotNullOfOrNull"),
-            interner.intern("sortedDescending"),
-            interner.intern("sortedByDescending"),
-            interner.intern("sortedWith"),
-            interner.intern("partition"),
-            interner.intern("filterIsInstance"),
-            interner.intern("firstOrNull"),
-            interner.intern("lastOrNull"),
-            interner.intern("singleOrNull"),
-            interner.intern("joinToString"),
-            interner.intern("elementAt"),
-            interner.intern("single"),
-            interner.intern("toMutableList"),
-            interner.intern("sum"),
-            interner.intern("average"),
-            interner.intern("minusElement"),
-        ]
-        let listOnlyMembers: Set = [
-            interner.intern("get"),
-            interner.intern("subList"),
-            interner.intern("slice"),
-            interner.intern("getOrNull"),
-            interner.intern("elementAtOrNull"),
-            interner.intern("binarySearch"),
-            interner.intern("binarySearchBy"),
-        ]
-        let collectionSpecificMembers: Set = [
-            interner.intern("firstOrNull"),
-            interner.intern("lastOrNull"),
-            interner.intern("singleOrNull"),
-        ]
-        let mutableListOnlyMembers: Set = [
-            interner.intern("sort"),
-            interner.intern("sortBy"),
-            interner.intern("sortByDescending"),
-        ]
-        let mutableCollectionMembers: Set = [
-            interner.intern("add"),
-            interner.intern("addAll"),
-            interner.intern("remove"),
-            interner.intern("removeAll"),
-            interner.intern("retainAll"),
-            interner.intern("clear"),
-        ]
-        let mapOnlyMembers: Set = [
-            interner.intern("containsKey"),
-            interner.intern("containsValue"),
-            knownNames.getValue,
-            knownNames.getOrDefault,
-            interner.intern("plus"),
-        ]
+        let collectionMembers = knownNames.collectionMembers
+        let listOnlyMembers = knownNames.listOnlyMembers
+        let collectionSpecificMembers = knownNames.collectionSpecificMembers
+        let mutableListOnlyMembers = knownNames.mutableListOnlyMembers
+        let mutableCollectionMembers = knownNames.mutableCollectionMembers
+        let mapOnlyMembers = knownNames.mapOnlyMembers
         if listOnlyMembers.contains(memberName) {
             return isListReceiver
         }
@@ -1891,10 +1713,10 @@ extension CallTypeChecker {
         if memberName == knownNames.getOrElse {
             return isListReceiver || isMapReceiver
         }
-        if memberName == interner.intern("elementAtOrElse") {
+        if memberName == knownNames.elementAtOrElse {
             return isListReceiver
         }
-        if memberName == interner.intern("minus") {
+        if memberName == knownNames.minus {
             return isMapReceiver || isListReceiver || isSetReceiver
         }
         if mapOnlyMembers.contains(memberName) {
@@ -1909,9 +1731,9 @@ extension CallTypeChecker {
         if mutableCollectionMembers.contains(memberName) {
             return isMutableListReceiver
                 || isMutableSetReceiver
-                || (memberName == interner.intern("add") && isMutableCollectionReceiver)
+                || (memberName == knownNames.add && isMutableCollectionReceiver)
                 || (
-                    memberName == interner.intern("addAll")
+                    memberName == knownNames.addAll
                         && isMutableCollectionReceiver
                         && (isAddAllArrayArgument || isAddAllSequenceArgument || isAddAllIterableArgument)
                 )
@@ -1919,7 +1741,7 @@ extension CallTypeChecker {
         if memberName == knownNames.getOrPut || memberName == knownNames.putAll {
             return isMutableMapReceiver
         }
-        if memberName == interner.intern("requireNoNulls") {
+        if memberName == knownNames.requireNoNulls {
             return isIterableReceiver || isListReceiver || isSetReceiver || isSequenceReceiver
         }
         return collectionMembers.contains(memberName)
@@ -1932,6 +1754,7 @@ extension CallTypeChecker {
         isSetReceiver: Bool,
         interner: StringInterner
     ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         let surfaceOwnerKinds: [StdlibSurfaceOwnerKind] = if isMapReceiver {
             [.map]
         } else if isSetReceiver {
@@ -1949,26 +1772,9 @@ extension CallTypeChecker {
             return stdlibSurfaceCollectionReturning(spec)
         }
 
-        let collectionReturningMembers: Set = [
-            interner.intern("asSequence"), interner.intern("asIterable"), interner.intern("filterNotNull"), interner.intern("requireNoNulls"),
-            interner.intern("filter"),
-            interner.intern("filterIsInstanceTo"), interner.intern("reduceTo"),
-            interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
-            interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"),
-            interner.intern("shuffled"),
-            interner.intern("sortedDescending"), interner.intern("sortedByDescending"), interner.intern("sortedWith"),
-            interner.intern("filterIsInstance"),
-            interner.intern("toCollection"),
-            interner.intern("subList"), interner.intern("slice"),
-            interner.intern("scan"), interner.intern("scanIndexed"),
-            interner.intern("runningFold"), interner.intern("runningFoldIndexed"),
-            interner.intern("runningReduce"), interner.intern("runningReduceIndexed"),
-            interner.intern("scanReduce"),
-            interner.intern("toMutableList"),
-            interner.intern("minusElement"),
-        ]
-        if memberName == interner.intern("plus") ||
-            memberName == interner.intern("minus")
+        let collectionReturningMembers = knownNames.collectionReturningMembers
+        if memberName == knownNames.plus ||
+            memberName == knownNames.minus
         {
             return isMapReceiver
         }
@@ -2014,48 +1820,48 @@ extension CallTypeChecker {
             return (isListReceiver || isSetReceiver) && argCount == 1
         }
         switch memberName {
-        case knownNames.size, knownNames.isEmpty, interner.intern("iterator"), interner.intern("asSequence"),
-             interner.intern("asIterable"),
-             interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("reversed"),
-            interner.intern("asReversed"), interner.intern("sorted"),
-             interner.intern("distinct"), interner.intern("flatten"), interner.intern("withIndex"),
-             interner.intern("min"), interner.intern("maxOrNull"), interner.intern("minOrNull"), interner.intern("sortedDescending"), interner.intern("filterIsInstance"),
-             interner.intern("firstOrNull"), interner.intern("lastOrNull"), interner.intern("singleOrNull"), interner.intern("sort"),
-             interner.intern("toMutableList"), interner.intern("sum"), interner.intern("average"),
-             interner.intern("requireNoNulls"):
+        case knownNames.size, knownNames.isEmpty, knownNames.iterator, knownNames.asSequence,
+             knownNames.asIterable,
+             knownNames.toList, knownNames.toTypedArray, knownNames.reversed,
+            knownNames.asReversed, knownNames.sorted,
+             knownNames.distinct, knownNames.flatten, knownNames.withIndex,
+             knownNames.min, knownNames.maxOrNull, knownNames.minOrNull, knownNames.sortedDescending, knownNames.filterIsInstance,
+             knownNames.firstOrNull, knownNames.lastOrNull, knownNames.singleOrNull, knownNames.sort,
+             knownNames.toMutableList, knownNames.sum, knownNames.average,
+             knownNames.requireNoNulls:
             return argCount == 0
-        case interner.intern("filter"):
+        case knownNames.filter:
             return argCount == 1
-        case interner.intern("joinToString"):
+        case knownNames.joinToString:
             return (0 ... 4).contains(argCount)
-        case interner.intern("shuffled"):
+        case knownNames.shuffled:
             return argCount == 0 || argCount == 1
-        case interner.intern("filterNotNull"), interner.intern("unzip"), interner.intern("eachCount"):
+        case knownNames.filterNotNull, knownNames.unzip, knownNames.eachCount:
             return argCount == 0
-        case interner.intern("get"), interner.intern("getOrNull"), interner.intern("elementAtOrNull"),
-             interner.intern("contains"), interner.intern("containsAll"), interner.intern("indexOf"), interner.intern("lastIndexOf"), interner.intern("indexOfFirst"), interner.intern("indexOfLast"), interner.intern("binarySearch"),
-             interner.intern("sortedBy"), interner.intern("find"), interner.intern("reduce"), interner.intern("reduceOrNull"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduce"), interner.intern("runningReduceIndexed"), interner.intern("scanReduce"), interner.intern("take"), interner.intern("drop"), interner.intern("zip"),
-             interner.intern("filterIndexed"),
-             interner.intern("sortedByDescending"), interner.intern("sortedWith"), interner.intern("partition"),
-             interner.intern("sortBy"), interner.intern("sortByDescending"), interner.intern("distinctBy"),
-             interner.intern("maxBy"), interner.intern("minBy"), interner.intern("maxByOrNull"), interner.intern("minByOrNull"),
-             interner.intern("maxOfOrNull"), interner.intern("minOfOrNull"),
-             interner.intern("maxOf"), interner.intern("minOf"),
-             interner.intern("maxWith"), interner.intern("maxWithOrNull"),
-             interner.intern("minWith"), interner.intern("minWithOrNull"),
-             interner.intern("elementAt"),
-             interner.intern("minusElement"):
-            if memberName == interner.intern("binarySearch") {
+        case knownNames.get, knownNames.getOrNull, knownNames.elementAtOrNull,
+             knownNames.contains, knownNames.containsAll, knownNames.indexOf, knownNames.lastIndexOf, knownNames.indexOfFirst, knownNames.indexOfLast, knownNames.binarySearch,
+             knownNames.sortedBy, knownNames.find, knownNames.reduce, knownNames.reduceOrNull, knownNames.reduceIndexedOrNull, knownNames.runningReduce, knownNames.runningReduceIndexed, knownNames.scanReduce, knownNames.take, knownNames.drop, knownNames.zip,
+             knownNames.filterIndexed,
+             knownNames.sortedByDescending, knownNames.sortedWith, knownNames.partition,
+             knownNames.sortBy, knownNames.sortByDescending, knownNames.distinctBy,
+             knownNames.maxBy, knownNames.minBy, knownNames.maxByOrNull, knownNames.minByOrNull,
+             knownNames.maxOfOrNull, knownNames.minOfOrNull,
+             knownNames.maxOf, knownNames.minOf,
+             knownNames.maxWith, knownNames.maxWithOrNull,
+             knownNames.minWith, knownNames.minWithOrNull,
+             knownNames.elementAt,
+             knownNames.minusElement:
+            if memberName == knownNames.binarySearch {
                 return (1...4).contains(argCount)
             }
             return argCount == 1
-        case interner.intern("binarySearchBy"):
+        case knownNames.binarySearchBy:
             return argCount == 2 || argCount == 3 || argCount == 4
-        case interner.intern("toCollection"), interner.intern("filterIsInstanceTo"), interner.intern("filterNotNullTo"):
+        case knownNames.toCollection, knownNames.filterIsInstanceTo, knownNames.filterNotNullTo:
             return argCount == 1
-        case interner.intern("reduceTo"):
+        case knownNames.reduceTo:
             return argCount == 2
-        case interner.intern("containsKey"):
+        case knownNames.containsKey:
             return isMapReceiver && argCount == 1
         case knownNames.getValue:
             return isMapReceiver && argCount == 1
@@ -2063,42 +1869,42 @@ extension CallTypeChecker {
             return isMapReceiver && argCount == 2
         case knownNames.getOrElse:
             return argCount == 2
-        case interner.intern("elementAtOrElse"):
+        case knownNames.elementAtOrElse:
             return argCount == 2
         case knownNames.getOrPut:
             return isMutableMapReceiver && argCount == 2
-        case interner.intern("add"), interner.intern("addAll"), interner.intern("remove"), interner.intern("removeAll"),
-             interner.intern("retainAll"):
+        case knownNames.add, knownNames.addAll, knownNames.remove, knownNames.removeAll,
+             knownNames.retainAll:
             return (
                 isMutableListReceiver
                     || isMutableSetReceiver
-                    || (memberName == interner.intern("add") && isMutableCollectionReceiver)
+                    || (memberName == knownNames.add && isMutableCollectionReceiver)
                     || (
-                        memberName == interner.intern("addAll")
+                        memberName == knownNames.addAll
                             && isMutableCollectionReceiver
                             && (isAddAllArrayArgument || isAddAllSequenceArgument || isAddAllIterableArgument)
                     )
             ) && argCount == 1
-        case interner.intern("clear"):
+        case knownNames.clear:
             return (isMutableListReceiver || isMutableSetReceiver) && argCount == 0
         case knownNames.putAll:
             return isMutableMapReceiver && argCount == 1
-        case interner.intern("plus"):
+        case knownNames.plus:
             return isMapReceiver && argCount == 1
-        case interner.intern("minus"):
+        case knownNames.minus:
             return (isMapReceiver || isListReceiver || isSetReceiver) && argCount == 1
-        case interner.intern("fold"), interner.intern("foldRight"), interner.intern("foldIndexed"), interner.intern("foldRightIndexed"), interner.intern("scan"), interner.intern("scanIndexed"), interner.intern("runningFold"), interner.intern("runningFoldIndexed"), interner.intern("subList"):
+        case knownNames.fold, knownNames.foldRight, knownNames.foldIndexed, knownNames.foldRightIndexed, knownNames.scan, knownNames.scanIndexed, knownNames.runningFold, knownNames.runningFoldIndexed, knownNames.subList:
             return argCount == 2
-        case interner.intern("slice"):
+        case knownNames.slice:
             return argCount == 1
-        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceRightIndexedOrNull"), interner.intern("reduceRightOrNull"), interner.intern("reduceIndexed"):
+        case knownNames.reduceRight, knownNames.reduceRightIndexed, knownNames.reduceRightIndexedOrNull, knownNames.reduceRightOrNull, knownNames.reduceIndexed:
             return argCount == 1
-        case interner.intern("windowed"):
+        case knownNames.windowed:
             return argCount == 1 || argCount == 2 || argCount == 3 || argCount == 4
-        case interner.intern("chunked"):
+        case knownNames.chunked:
             return argCount == 1 || argCount == 2
-        case interner.intern("count"), interner.intern("first"), interner.intern("last"),
-             interner.intern("single"):
+        case knownNames.count, knownNames.first, knownNames.last,
+             knownNames.single:
             return argCount == 0 || argCount == 1
         default:
             return true
@@ -2114,6 +1920,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         switch spec.returnStrategy {
         case .any, .nullableAny:
             return nil
@@ -2143,10 +1950,10 @@ extension CallTypeChecker {
         case .double:
             return sema.types.doubleType
         case .list:
-            if memberName == interner.intern("flatMapIndexed") {
+            if memberName == knownNames.flatMapIndexed {
                 return nil
             }
-            let elementType = memberName == interner.intern("filterNotNull")
+            let elementType = memberName == knownNames.filterNotNull
                 ? sema.types.makeNonNullable(receiverElementType)
                 : receiverElementType
             return makeSyntheticListType(
@@ -2171,10 +1978,10 @@ extension CallTypeChecker {
                 valueType: sema.types.anyType
             )
         case .sequence:
-            if memberName == interner.intern("flatMapIndexed") {
+            if memberName == knownNames.flatMapIndexed {
                 return nil
             }
-            let elementType = memberName == interner.intern("filterNotNull")
+            let elementType = memberName == knownNames.filterNotNull
                 ? sema.types.makeNonNullable(receiverElementType)
                 : receiverElementType
             return makeSyntheticSequenceType(
@@ -2210,7 +2017,7 @@ extension CallTypeChecker {
         )
         // chunked(size): returns Sequence<List<T>> for sequence receivers,
         // List<List<T>> for list/collection receivers.
-        if memberName == interner.intern("chunked"), args.count == 1 {
+        if memberName == knownNames.chunked, args.count == 1 {
             let chunkType = makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -2225,11 +2032,7 @@ extension CallTypeChecker {
                     elementType: chunkType
                 )
             }
-            if let listSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("List"),
-            ]) {
+            if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.out(chunkType)],
@@ -2242,7 +2045,7 @@ extension CallTypeChecker {
         // above), so it has no stdlibSurfaceSpecForCollectionFallback entry.
         // Compute its List<T> result type explicitly instead of falling
         // through to the generic `Any` default below.
-        if memberName == interner.intern("filterNotNull"), isListReceiver, args.isEmpty {
+        if memberName == knownNames.filterNotNull, isListReceiver, args.isEmpty {
             return makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -2267,7 +2070,7 @@ extension CallTypeChecker {
            ) {
             return resultType
         }
-        if memberName == interner.intern("filter") {
+        if memberName == knownNames.filter {
             return makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -2275,32 +2078,23 @@ extension CallTypeChecker {
                 elementType: receiverElementType
             )
         }
-        let intReturningMembers: Set = [
-            interner.intern("size"),
-            interner.intern("indexOf"),
-            interner.intern("lastIndexOf"),
-            interner.intern("indexOfFirst"),
-            interner.intern("indexOfLast"),
-            interner.intern("count"),
-            interner.intern("binarySearch"),
-            interner.intern("binarySearchBy"),
-        ]
+        let intReturningMembers = knownNames.intReturningMembers
         if intReturningMembers.contains(memberName) {
             return sema.types.make(.primitive(.int, .nonNull))
         }
 
         // sum()/maxBy() use the receiver element type as the result.
-        if memberName == interner.intern("sum") || memberName == interner.intern("maxBy") {
+        if memberName == knownNames.sum || memberName == knownNames.maxBy {
             return receiverElementType
         }
 
-        if memberName == interner.intern("average") {
+        if memberName == knownNames.average {
             return sema.types.doubleType
         }
 
-        let transformExpr: ExprID? = if memberName == interner.intern("chunked"), args.count == 2 {
+        let transformExpr: ExprID? = if memberName == knownNames.chunked, args.count == 2 {
             args[1].expr
-        } else if memberName == interner.intern("windowed"), (2...4).contains(args.count),
+        } else if memberName == knownNames.windowed, (2...4).contains(args.count),
                   let lastExpr = args.last?.expr,
                   let lastExprNode = ctx.ast.arena.expr(lastExpr),
                   lastExprNode.isLambdaOrCallableRef
@@ -2327,7 +2121,7 @@ extension CallTypeChecker {
                 )
             }
 
-            if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
+            if let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.out(lambdaReturnType)],
@@ -2337,7 +2131,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
 
-        if memberName == interner.intern("windowed") {
+        if memberName == knownNames.windowed {
             let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
                                                  let lastExprNode = ctx.ast.arena.expr(lastExpr) {
                 lastExprNode.isLambdaOrCallableRef
@@ -2345,7 +2139,7 @@ extension CallTypeChecker {
                 false
             }
             if !lastArgIsFunctionLike,
-               let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+               let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
             {
                 let windowType = sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
@@ -2368,7 +2162,7 @@ extension CallTypeChecker {
             }
         }
 
-        if memberName == interner.intern("requireNoNulls") {
+        if memberName == knownNames.requireNoNulls {
             let elementType = sema.types.makeNonNullable(receiverElementType)
             if isSequenceReceiver {
                 return makeSyntheticSequenceType(
@@ -2378,11 +2172,7 @@ extension CallTypeChecker {
                     elementType: elementType
                 )
             }
-            if let iterableSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Iterable"),
-            ]) {
+            if let iterableSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIterableFQName) {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: iterableSymbol,
                     args: [.out(elementType)],
@@ -2391,25 +2181,20 @@ extension CallTypeChecker {
             }
         }
 
-        let boolReturningMembers: Set = [
-            knownNames.isEmpty, interner.intern("contains"), interner.intern("containsAll"),
-            interner.intern("containsKey"), interner.intern("containsValue"),
-            interner.intern("add"), interner.intern("addAll"), interner.intern("remove"), interner.intern("removeAll"),
-            interner.intern("retainAll"),
-        ]
+        let boolReturningMembers = knownNames.boolReturningMembers
         if boolReturningMembers.contains(memberName) {
             return sema.types.make(.primitive(.boolean, .nonNull))
         }
 
-        if memberName == interner.intern("sort") ||
-            memberName == interner.intern("sortBy") ||
-            memberName == interner.intern("sortByDescending") ||
-            memberName == interner.intern("clear")
+        if memberName == knownNames.sort ||
+            memberName == knownNames.sortBy ||
+            memberName == knownNames.sortByDescending ||
+            memberName == knownNames.clear
         {
             return sema.types.unitType
         }
 
-        if memberName == interner.intern("joinToString") {
+        if memberName == knownNames.joinToString {
             return sema.types.stringType
         }
 
@@ -2417,19 +2202,14 @@ extension CallTypeChecker {
             return sema.types.unitType
         }
 
-        let destinationCollectionReturningMembers: Set = [
-            interner.intern("filterIsInstanceTo"),
-            interner.intern("filterNotNullTo"),
-            interner.intern("reduceTo"),
-            interner.intern("toCollection"),
-        ]
+        let destinationCollectionReturningMembers = knownNames.destinationCollectionReturningMembers
         if destinationCollectionReturningMembers.contains(memberName),
            let firstArg = args.first
         {
             return sema.bindings.exprTypes[firstArg.expr] ?? sema.types.anyType
         }
 
-        if memberName == interner.intern("flatMapIndexed") {
+        if memberName == knownNames.flatMapIndexed {
             let lambdaReturnType: TypeID = if let firstArg = args.first,
                                               case let .functionType(fnType) = sema.types.kind(
                                                   of: sema.bindings.exprTypes[firstArg.expr] ?? sema.types.anyType
@@ -2458,7 +2238,7 @@ extension CallTypeChecker {
                     elementType: flattenedElementType
                 )
             }
-            if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
+            if let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.invariant(flattenedElementType)],
@@ -2468,11 +2248,11 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
 
-        if memberName == interner.intern("find") {
+        if memberName == knownNames.find {
             return sema.types.makeNullable(receiverElementType)
         }
 
-        if memberName == interner.intern("firstNotNullOf") {
+        if memberName == knownNames.firstNotNullOf {
             if let expectedType {
                 return sema.types.makeNonNullable(expectedType)
             }
@@ -2483,7 +2263,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
 
-        if memberName == interner.intern("firstNotNullOfOrNull") {
+        if memberName == knownNames.firstNotNullOfOrNull {
             if let expectedType {
                 return sema.types.makeNullable(sema.types.makeNonNullable(expectedType))
             }
@@ -2494,7 +2274,7 @@ extension CallTypeChecker {
             return sema.types.nullableAnyType
         }
 
-        if memberName == interner.intern("asIterable") {
+        if memberName == knownNames.asIterable {
             return makeSyntheticIterableType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -2503,17 +2283,17 @@ extension CallTypeChecker {
             )
         }
 
-        if memberName == interner.intern("elementAt")
-            || memberName == interner.intern("single")
+        if memberName == knownNames.elementAt
+            || memberName == knownNames.single
         {
             return receiverElementType
         }
 
-        if memberName == interner.intern("getOrNull")
-            || memberName == interner.intern("elementAtOrNull")
-            || memberName == interner.intern("firstOrNull")
-            || memberName == interner.intern("lastOrNull")
-            || memberName == interner.intern("singleOrNull")
+        if memberName == knownNames.getOrNull
+            || memberName == knownNames.elementAtOrNull
+            || memberName == knownNames.firstOrNull
+            || memberName == knownNames.lastOrNull
+            || memberName == knownNames.singleOrNull
         {
             return sema.types.makeNullable(receiverElementType)
         }
@@ -2522,11 +2302,11 @@ extension CallTypeChecker {
             return receiverElementType
         }
 
-        if memberName == interner.intern("elementAtOrElse") {
+        if memberName == knownNames.elementAtOrElse {
             return receiverElementType
         }
 
-        if memberName == interner.intern("plus") || memberName == interner.intern("minus") {
+        if memberName == knownNames.plus || memberName == knownNames.minus {
             // plus/minus return the same Map type as the receiver.
             // receiverElementType for maps is Map.Entry<K,V>, so reconstruct Map<K,V>.
             if case let .classType(entryType) = sema.types.kind(of: receiverElementType),
@@ -2534,11 +2314,7 @@ extension CallTypeChecker {
             {
                 let keyArg = entryType.args[0]
                 let valueArg = entryType.args[1]
-                if let mapSymbol = sema.symbols.lookup(fqName: [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Map"),
-                ]) {
+                if let mapSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMapFQName) {
                     // Map.Entry<out K, out V> declares K covariantly, but the enclosing
                     // Map<K, V> declares K invariant. Reusing keyArg's `.out` projection
                     // as-is here would make this reconstructed type a strict supertype of
@@ -2574,30 +2350,30 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
 
-        if memberName == interner.intern("minBy") || memberName == interner.intern("min") {
+        if memberName == knownNames.minBy || memberName == knownNames.min {
             return receiverElementType
         }
 
-        if memberName == interner.intern("maxOrNull")
-            || memberName == interner.intern("minOrNull")
-            || memberName == interner.intern("maxByOrNull")
-            || memberName == interner.intern("minByOrNull")
-            || memberName == interner.intern("firstOrNull")
-            || memberName == interner.intern("lastOrNull")
-            || memberName == interner.intern("singleOrNull")
+        if memberName == knownNames.maxOrNull
+            || memberName == knownNames.minOrNull
+            || memberName == knownNames.maxByOrNull
+            || memberName == knownNames.minByOrNull
+            || memberName == knownNames.firstOrNull
+            || memberName == knownNames.lastOrNull
+            || memberName == knownNames.singleOrNull
         {
             return sema.types.makeNullable(receiverElementType)
         }
 
-        if memberName == interner.intern("maxOfOrNull")
-            || memberName == interner.intern("minOfOrNull")
+        if memberName == knownNames.maxOfOrNull
+            || memberName == knownNames.minOfOrNull
         {
             return sema.types.nullableAnyType
         }
 
         // Map.toList() pairs up each entry instead of yielding Map.Entry values.
-        if memberName == interner.intern("toList"), isMapReceiver,
-           let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first
+        if memberName == knownNames.toList, isMapReceiver,
+           let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first
         {
             let entryTypes = stdlibSurfaceMapEntryTypes(receiverElementType: receiverElementType, sema: sema)
             let pairType = sema.types.make(.classType(ClassType(
@@ -2614,9 +2390,9 @@ extension CallTypeChecker {
         }
 
         // MutableList<E>.subList(...): MutableList<E> overrides List<E>.subList(...): List<E>.
-        if memberName == interner.intern("subList"),
+        if memberName == knownNames.subList,
            let subListOwnerSymbol = sema.symbols.lookupByShortName(
-               interner.intern(isMutableReceiver ? "MutableList" : "List")
+               isMutableReceiver ? knownNames.mutableList : knownNames.list
            ).first
         {
             return sema.types.make(.classType(ClassType(
@@ -2625,12 +2401,12 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
         }
-        if memberName == interner.intern("toList")
-            || memberName == interner.intern("slice")
-            || memberName == interner.intern("minusElement"),
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+        if memberName == knownNames.toList
+            || memberName == knownNames.slice
+            || memberName == knownNames.minusElement,
+           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
-            if memberName == interner.intern("minusElement"), isSequenceReceiver {
+            if memberName == knownNames.minusElement, isSequenceReceiver {
                 return makeSyntheticSequenceType(
                     symbols: sema.symbols,
                     types: sema.types,
@@ -2645,7 +2421,7 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toTypedArray") {
+        if memberName == knownNames.toTypedArray {
             return makeSyntheticArrayType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -2654,11 +2430,8 @@ extension CallTypeChecker {
             )
         }
 
-        if memberName == interner.intern("toIntArray"),
-           let intArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("IntArray"),
-           ])
+        if memberName == knownNames.toIntArray,
+           let intArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinIntArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: intArraySymbol,
@@ -2667,11 +2440,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toCharArray"),
-           let charArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("CharArray"),
-           ])
+        if memberName == knownNames.toCharArray,
+           let charArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinCharArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: charArraySymbol,
@@ -2680,11 +2450,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toBooleanArray"),
-           let booleanArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("BooleanArray"),
-           ])
+        if memberName == knownNames.toBooleanArray,
+           let booleanArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinBooleanArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: booleanArraySymbol,
@@ -2693,11 +2460,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toShortArray"),
-           let shortArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("ShortArray"),
-           ])
+        if memberName == knownNames.toShortArray,
+           let shortArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinShortArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: shortArraySymbol,
@@ -2706,11 +2470,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toDoubleArray"),
-           let doubleArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("DoubleArray"),
-           ])
+        if memberName == knownNames.toDoubleArray,
+           let doubleArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinDoubleArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: doubleArraySymbol,
@@ -2719,11 +2480,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toFloatArray"),
-           let floatArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("FloatArray"),
-           ])
+        if memberName == knownNames.toFloatArray,
+           let floatArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinFloatArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: floatArraySymbol,
@@ -2732,11 +2490,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toLongArray"),
-           let longArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("LongArray"),
-           ])
+        if memberName == knownNames.toLongArray,
+           let longArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinLongArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: longArraySymbol,
@@ -2745,11 +2500,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toByteArray"),
-           let byteArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("ByteArray"),
-           ])
+        if memberName == knownNames.toByteArray,
+           let byteArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinByteArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: byteArraySymbol,
@@ -2758,11 +2510,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toUByteArray"),
-           let ubyteArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("UByteArray"),
-           ])
+        if memberName == knownNames.toUByteArray,
+           let ubyteArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinUByteArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: ubyteArraySymbol,
@@ -2771,11 +2520,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toUShortArray"),
-           let ushortArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("UShortArray"),
-           ])
+        if memberName == knownNames.toUShortArray,
+           let ushortArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinUShortArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: ushortArraySymbol,
@@ -2784,11 +2530,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toUIntArray"),
-           let uintArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("UIntArray"),
-           ])
+        if memberName == knownNames.toUIntArray,
+           let uintArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinUIntArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: uintArraySymbol,
@@ -2797,11 +2540,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toULongArray"),
-           let ulongArraySymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("ULongArray"),
-           ])
+        if memberName == knownNames.toULongArray,
+           let ulongArraySymbol = sema.symbols.lookup(fqName: knownNames.kotlinULongArrayFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: ulongArraySymbol,
@@ -2810,8 +2550,8 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("toMutableList"),
-           let mutableListSymbol = sema.symbols.lookupByShortName(interner.intern("MutableList")).first
+        if memberName == knownNames.toMutableList,
+           let mutableListSymbol = sema.symbols.lookupByShortName(knownNames.mutableList).first
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: mutableListSymbol,
@@ -2820,16 +2560,16 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("reduceOrNull")
-            || memberName == interner.intern("reduceIndexedOrNull")
+        if memberName == knownNames.reduceOrNull
+            || memberName == knownNames.reduceIndexedOrNull
         {
             return sema.types.makeNullable(receiverElementType)
         }
 
-        if memberName == interner.intern("runningReduce")
-            || memberName == interner.intern("runningReduceIndexed")
-            || memberName == interner.intern("scanReduce"),
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+        if memberName == knownNames.runningReduce
+            || memberName == knownNames.runningReduceIndexed
+            || memberName == knownNames.scanReduce,
+           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: listSymbol,
@@ -2838,11 +2578,11 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("scan")
-            || memberName == interner.intern("scanIndexed")
-            || memberName == interner.intern("runningFold")
-            || memberName == interner.intern("runningFoldIndexed"),
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+        if memberName == knownNames.scan
+            || memberName == knownNames.scanIndexed
+            || memberName == knownNames.runningFold
+            || memberName == knownNames.runningFoldIndexed,
+           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
             // scan/runningFold variants return List<R> where R is the accumulator type,
             // derived from the initial value (first argument).
@@ -2861,11 +2601,7 @@ extension CallTypeChecker {
 
         if isListReceiver || isSetReceiver,
            isSetReturningCollectionBinaryMember(memberName, interner: interner),
-           let setSymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("collections"),
-               interner.intern("Set"),
-           ])
+           let setSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsSetFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: setSymbol,
@@ -2874,17 +2610,9 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("withIndex"),
-           let iterableSymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("collections"),
-               interner.intern("Iterable"),
-           ]),
-           let indexedValueSymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("collections"),
-               interner.intern("IndexedValue"),
-           ])
+        if memberName == knownNames.withIndex,
+           let iterableSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIterableFQName),
+           let indexedValueSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIndexedValueFQName)
         {
             let indexedValueType = sema.types.make(.classType(ClassType(
                 classSymbol: indexedValueSymbol,
@@ -2900,17 +2628,8 @@ extension CallTypeChecker {
 
         // sorted(), sortedDescending(), sortedWith(), sorted(comparator): return List<E>
         // reversed(), asReversed(), distinct(), distinctBy(): return List<E>
-        let listPreservingMembers: Set = [
-            interner.intern("sorted"),
-            interner.intern("sortedDescending"),
-            interner.intern("sortedWith"),
-            interner.intern("shuffled"),
-            interner.intern("reversed"),
-            interner.intern("asReversed"),
-            interner.intern("distinct"),
-            interner.intern("distinctBy"),
-        ]
-        if memberName == interner.intern("shuffled"), isSequenceReceiver {
+        let listPreservingMembers = knownNames.listPreservingMembers
+        if memberName == knownNames.shuffled, isSequenceReceiver {
             return makeSyntheticSequenceType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -2918,7 +2637,7 @@ extension CallTypeChecker {
                 elementType: receiverElementType
             )
         }
-        if memberName == interner.intern("sorted") || memberName == interner.intern("sortedDescending"),
+        if memberName == knownNames.sorted || memberName == knownNames.sortedDescending,
            isSequenceReceiver
         {
             return makeSyntheticSequenceType(
@@ -2929,7 +2648,7 @@ extension CallTypeChecker {
             )
         }
         if listPreservingMembers.contains(memberName),
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: listSymbol,
@@ -2941,9 +2660,9 @@ extension CallTypeChecker {
         // flatten(): for List<List<E>>, returns List<E> (element type of the outer list elements).
         // Skip this for sequence receivers — the existing sequence HOF logic handles them,
         // and mixed-type sequence flatten should fail gracefully (matching kotlinc).
-        if memberName == interner.intern("flatten"),
+        if memberName == knownNames.flatten,
            !isSequenceReceiver,
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
             // The receiverElementType is List<E> (the inner list). Extract E from it.
             let innerElementType: TypeID
@@ -2966,9 +2685,9 @@ extension CallTypeChecker {
 
         // zip(other): returns List<Pair<A,B>> or Sequence<Pair<A,B>> where A
         // is receiver element type and B is the other collection element type.
-        if memberName == interner.intern("zip"),
+        if memberName == knownNames.zip,
            !args.isEmpty,
-           let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first
+           let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first
         {
             let otherElementType: TypeID
             if let otherListType = sema.bindings.exprTypes[args[0].expr] {
@@ -3031,9 +2750,9 @@ extension CallTypeChecker {
         }
 
         // unzip(): for List<Pair<A,B>>, returns Pair<List<A>, List<B>>
-        if memberName == interner.intern("unzip"),
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first,
-           let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first
+        if memberName == knownNames.unzip,
+           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first,
+           let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first
         {
             // receiverElementType should be Pair<A, B>; extract A and B
             let aType: TypeID
@@ -3073,13 +2792,9 @@ extension CallTypeChecker {
         // iterator(): returns MutableIterator<E> for Mutable{Collection,List,Set}
         // receivers (real Kotlin's covariant MutableIterable override), Iterator<E>
         // otherwise.
-        if memberName == interner.intern("iterator") {
+        if memberName == knownNames.iterator {
             if isMutableReceiver,
-               let mutableIteratorSymbol = sema.symbols.lookup(fqName: [
-                   interner.intern("kotlin"),
-                   interner.intern("collections"),
-                   interner.intern("MutableIterator"),
-               ])
+               let mutableIteratorSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableIteratorFQName)
             {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: mutableIteratorSymbol,
@@ -3087,11 +2802,7 @@ extension CallTypeChecker {
                     nullability: .nonNull
                 )))
             }
-            if let iteratorSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Iterator"),
-            ]) {
+            if let iteratorSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIteratorFQName) {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: iteratorSymbol,
                     args: [.out(receiverElementType)],
@@ -3101,7 +2812,7 @@ extension CallTypeChecker {
         }
 
         if isSequenceReceiver,
-           memberName == interner.intern("windowed"),
+           memberName == knownNames.windowed,
            args.count == 4
         {
             let transformExpr = args[3].expr
@@ -3121,7 +2832,7 @@ extension CallTypeChecker {
         }
 
         if isSequenceReceiver,
-           memberName == interner.intern("chunked"),
+           memberName == knownNames.chunked,
            args.count == 2
         {
             let transformExpr = args[1].expr
@@ -3140,7 +2851,7 @@ extension CallTypeChecker {
             )
         }
 
-        if memberName == interner.intern("asSequence") {
+        if memberName == knownNames.asSequence {
             return makeSyntheticSequenceType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -3240,6 +2951,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
+        let knownNames = KnownCompilerNames(interner: interner)
         let destinationTypes = stdlibSurfaceDestinationTypes(args: args, sema: sema)
         switch strategy {
         case .any:
@@ -3261,7 +2973,7 @@ extension CallTypeChecker {
         case .destinationMapValue:
             return destinationTypes.mapValue
         case .collectionOfDestinationElement:
-            if let collectionSymbol = sema.symbols.lookupByShortName(interner.intern("Collection")).first {
+            if let collectionSymbol = sema.symbols.lookupByShortName(knownNames.collection).first {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: collectionSymbol,
                     args: [.out(destinationTypes.collectionElement)],
@@ -3270,7 +2982,7 @@ extension CallTypeChecker {
             }
             return sema.types.anyType
         case .pairOfDestinationKeyValue:
-            if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first {
+            if let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: pairSymbol,
                     args: [.out(destinationTypes.mapKey), .out(destinationTypes.mapValue)],
@@ -3342,6 +3054,7 @@ extension CallTypeChecker {
         interner: StringInterner,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
+        let knownNames = KnownCompilerNames(interner: interner)
         let surfaceOwnerKinds: [StdlibSurfaceOwnerKind] = if isMapReceiver {
             [.map]
         } else if isSetReceiver {
@@ -3371,8 +3084,8 @@ extension CallTypeChecker {
         // binds the source declaration.
         if isMapReceiver,
            argCount == 1,
-           memberName == interner.intern("firstNotNullOf")
-               || memberName == interner.intern("firstNotNullOfOrNull")
+           memberName == knownNames.firstNotNullOf
+               || memberName == knownNames.firstNotNullOfOrNull
         {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [receiverElementType],
@@ -3383,41 +3096,9 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        let boolOneParamMembers: Set = [
-            interner.intern("filter"),
-            interner.intern("count"),
-            interner.intern("first"),
-            interner.intern("last"),
-            interner.intern("single"),
-            interner.intern("find"),
-            interner.intern("indexOfFirst"),
-            interner.intern("indexOfLast"),
-            interner.intern("partition"),
-        ]
-        let knownNames = KnownCompilerNames(interner: interner)
-        let oneParamMembers: Set = [
-            interner.intern("filter"),
-            interner.intern("sortedBy"),
-            interner.intern("count"),
-            interner.intern("first"),
-            interner.intern("last"),
-            interner.intern("single"),
-            interner.intern("find"),
-            interner.intern("sortedByDescending"),
-            interner.intern("partition"),
-            interner.intern("sortBy"),
-            interner.intern("sortByDescending"),
-            interner.intern("maxByOrNull"),
-            interner.intern("minByOrNull"),
-            interner.intern("maxOfOrNull"),
-            interner.intern("minOfOrNull"),
-            interner.intern("maxOf"),
-            interner.intern("minOf"),
-        ]
-        let mapOnlyMembers: Set = [
-            knownNames.getOrDefault,
-        ]
-        if mapOnlyMembers.contains(memberName) {
+        let boolOneParamMembers = knownNames.boolOneParamMembers
+        let oneParamMembers = knownNames.oneParamMembers
+        if memberName == knownNames.getOrDefault {
             guard isMapReceiver else {
                 return nil
             }
@@ -3425,13 +3106,13 @@ extension CallTypeChecker {
         if oneParamMembers.contains(memberName), argCount == 1 {
             let lambdaReturnType = boolOneParamMembers.contains(memberName)
                 ? sema.types.make(.primitive(.boolean, .nonNull))
-                : memberName == interner.intern("sumOf") || memberName == interner.intern("sumBy")
+                : memberName == knownNames.sumOf || memberName == knownNames.sumBy
                 ? sema.types.intType
-                : memberName == interner.intern("sumByDouble")
+                : memberName == knownNames.sumByDouble
                 ? sema.types.doubleType
-                : memberName == interner.intern("firstNotNullOf") || memberName == interner.intern("firstNotNullOfOrNull")
+                : memberName == knownNames.firstNotNullOf || memberName == knownNames.firstNotNullOfOrNull
                 ? sema.types.nullableAnyType
-                : memberName == interner.intern("sortedByDescending")
+                : memberName == knownNames.sortedByDescending
                 ? sema.types.nullableAnyType
                 : sema.types.anyType
             let expectedType = sema.types.make(.functionType(FunctionType(
@@ -3443,15 +3124,12 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("maxWith")
-            || memberName == interner.intern("maxWithOrNull")
-            || memberName == interner.intern("minWith")
-            || memberName == interner.intern("minWithOrNull"),
+        if memberName == knownNames.maxWith
+            || memberName == knownNames.maxWithOrNull
+            || memberName == knownNames.minWith
+            || memberName == knownNames.minWithOrNull,
            argCount == 1,
-           let comparatorSymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("Comparator"),
-           ])
+           let comparatorSymbol = sema.symbols.lookup(fqName: knownNames.kotlinComparatorFQName)
         {
             let expectedType = sema.types.make(.classType(ClassType(
                 classSymbol: comparatorSymbol,
@@ -3461,10 +3139,10 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("maxOfWith")
-            || memberName == interner.intern("maxOfWithOrNull")
-            || memberName == interner.intern("minOfWith")
-            || memberName == interner.intern("minOfWithOrNull"),
+        if memberName == knownNames.maxOfWith
+            || memberName == knownNames.maxOfWithOrNull
+            || memberName == knownNames.minOfWith
+            || memberName == knownNames.minOfWithOrNull,
            argCount == 2
         {
             let expectedType = sema.types.make(.functionType(FunctionType(
@@ -3478,7 +3156,7 @@ extension CallTypeChecker {
 
         // zip(other, transform): transform receives the receiver element and
         // the other collection element.
-        if memberName == interner.intern("zip"), argCount == 2 {
+        if memberName == knownNames.zip, argCount == 2 {
             let otherElementType: TypeID
             if let otherCollectionType = sema.bindings.exprTypes[args[0].expr] {
                 let nonNullOther = sema.types.makeNonNullable(otherCollectionType)
@@ -3505,15 +3183,11 @@ extension CallTypeChecker {
         }
 
         // chunked(size, transform): transform receives List<T> and returns R
-        if memberName == interner.intern("chunked"), argCount == 2 {
+        if memberName == knownNames.chunked, argCount == 2 {
             // Build List<T> for the lambda parameter type; the transform receives
             // a List<T> chunk.
             let listType: TypeID
-            if let listSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("List"),
-            ]) {
+            if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
                 listType = sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.invariant(receiverElementType)],
@@ -3532,7 +3206,7 @@ extension CallTypeChecker {
         }
 
         // windowed(size, step, partialWindows, transform): transform receives List<T> and returns R
-        if memberName == interner.intern("windowed"), (2...4).contains(argCount) {
+        if memberName == knownNames.windowed, (2...4).contains(argCount) {
             let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
                                                  let lastExprNode = ctx.ast.arena.expr(lastExpr) {
                 lastExprNode.isLambdaOrCallableRef
@@ -3541,11 +3215,7 @@ extension CallTypeChecker {
             }
             if lastArgIsFunctionLike {
                 let listType: TypeID
-                if let listSymbol = sema.symbols.lookup(fqName: [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("List"),
-                ]) {
+                if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
                     listType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
                         args: [.invariant(receiverElementType)],
@@ -3567,7 +3237,7 @@ extension CallTypeChecker {
         // joinToString(separator?, prefix?, postfix?, transform): transform receives the
         // element and returns a CharSequence (modeled loosely as Any, like chunked/windowed
         // above); it is always the trailing argument when the call site supplies one.
-        if memberName == interner.intern("joinToString"), (1...4).contains(argCount) {
+        if memberName == knownNames.joinToString, (1...4).contains(argCount) {
             let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
                                                  let lastExprNode = ctx.ast.arena.expr(lastExpr) {
                 lastExprNode.isLambdaOrCallableRef
@@ -3585,7 +3255,7 @@ extension CallTypeChecker {
             }
         }
 
-        if memberName == interner.intern("fold"), argCount == 2 {
+        if memberName == knownNames.fold, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3595,7 +3265,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("foldIndexed"), argCount == 2 {
+        if memberName == knownNames.foldIndexed, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType, sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3605,7 +3275,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("foldRight"), argCount == 2 {
+        if memberName == knownNames.foldRight, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3615,7 +3285,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("foldRightIndexed"), argCount == 2 {
+        if memberName == knownNames.foldRightIndexed, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType, sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3625,7 +3295,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("reduceRight"), argCount == 1 {
+        if memberName == knownNames.reduceRight, argCount == 1 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3635,7 +3305,7 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("reduce") || memberName == interner.intern("reduceOrNull"), argCount == 1 {
+        if memberName == knownNames.reduce || memberName == knownNames.reduceOrNull, argCount == 1 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3645,7 +3315,7 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("reduceIndexed"), argCount == 1 {
+        if memberName == knownNames.reduceIndexed, argCount == 1 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType, sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -3655,16 +3325,16 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("scan")
-            || memberName == interner.intern("scanIndexed")
-            || memberName == interner.intern("runningFold")
-            || memberName == interner.intern("runningFoldIndexed"), argCount == 2
+        if memberName == knownNames.scan
+            || memberName == knownNames.scanIndexed
+            || memberName == knownNames.runningFold
+            || memberName == knownNames.runningFoldIndexed, argCount == 2
         {
             // scan/runningFold variants: (acc: R, element: T) -> R
             // The accumulator type is unknown in the fallback path, so use Any;
             // indexed variants prepend the Int index parameter.
-            let params: [TypeID] = if memberName == interner.intern("scanIndexed")
-                || memberName == interner.intern("runningFoldIndexed")
+            let params: [TypeID] = if memberName == knownNames.scanIndexed
+                || memberName == knownNames.runningFoldIndexed
             {
                 [sema.types.intType, sema.types.anyType, receiverElementType]
             } else {
@@ -3679,19 +3349,19 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("runningReduce")
-            || memberName == interner.intern("runningReduceIndexed")
-            || memberName == interner.intern("scanReduce")
-            || memberName == interner.intern("reduceRightIndexed")
-            || memberName == interner.intern("reduceRightIndexedOrNull")
-            || memberName == interner.intern("reduceRightOrNull")
-            || memberName == interner.intern("reduceIndexedOrNull"), argCount == 1
+        if memberName == knownNames.runningReduce
+            || memberName == knownNames.runningReduceIndexed
+            || memberName == knownNames.scanReduce
+            || memberName == knownNames.reduceRightIndexed
+            || memberName == knownNames.reduceRightIndexedOrNull
+            || memberName == knownNames.reduceRightOrNull
+            || memberName == knownNames.reduceIndexedOrNull, argCount == 1
         {
             // reduce/runningReduce variants use receiver element type.
-            let params: [TypeID] = if memberName == interner.intern("runningReduceIndexed")
-                || memberName == interner.intern("reduceIndexedOrNull")
-                || memberName == interner.intern("reduceRightIndexed")
-                || memberName == interner.intern("reduceRightIndexedOrNull")
+            let params: [TypeID] = if memberName == knownNames.runningReduceIndexed
+                || memberName == knownNames.reduceIndexedOrNull
+                || memberName == knownNames.reduceRightIndexed
+                || memberName == knownNames.reduceRightIndexedOrNull
             {
                 [sema.types.intType, receiverElementType, receiverElementType]
             } else {
@@ -3706,11 +3376,8 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("sortedWith"), argCount == 1 {
-            let comparatorFQName: [InternedString] = [
-                interner.intern("kotlin"),
-                interner.intern("Comparator"),
-            ]
+        if memberName == knownNames.sortedWith, argCount == 1 {
+            let comparatorFQName: [InternedString] = knownNames.kotlinComparatorFQName
             let expectedType: TypeID = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: comparatorSymbol,
@@ -3775,7 +3442,7 @@ extension CallTypeChecker {
         }
 
         // List.elementAtOrElse(index, { default }) — same as getOrElse
-        if memberName == interner.intern("elementAtOrElse"), argCount == 2 {
+        if memberName == knownNames.elementAtOrElse, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType],
                 returnType: receiverElementType,
@@ -3785,7 +3452,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("binarySearchBy"), (2...4).contains(argCount) {
+        if memberName == knownNames.binarySearchBy, (2...4).contains(argCount) {
             let keyType = args.indices.contains(0)
                 ? (sema.bindings.exprTypes[args[0].expr] ?? sema.types.nullableAnyType)
                 : sema.types.nullableAnyType
@@ -3891,12 +3558,7 @@ extension CallTypeChecker {
             case .star:
                 sema.types.anyType
             }
-            let entrySymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Map"),
-                interner.intern("Entry"),
-            ])
+            let entrySymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMapEntryFQName)
             guard let entrySymbol else {
                 return sema.types.anyType
             }

@@ -966,8 +966,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         guard root != 0 else { return }
         var visited: Set<UInt> = []
         var queue: [Int] = [root]
-        while !queue.isEmpty {
-            let raw = queue.removeFirst()
+        var index = 0
+        while index < queue.count {
+            let raw = queue[index]
+            index += 1
             guard raw != 0 else { continue }
             let key = UInt(bitPattern: raw)
             guard visited.insert(key).inserted else { continue }
@@ -1033,7 +1035,9 @@ public func kk_is_frozen(_ objectRaw: Int) -> Int {
 /// `execute` are run in FIFO order on that queue.  `requestTermination` drains
 /// the queue and prevents new work from being submitted.
 final class RuntimeWorkerBox: @unchecked Sendable {
-    private let lock = NSLock()
+    /// Guards `terminated`/`pendingJobs` and doubles as the condition
+    /// `waitForTermination` parks on until `requestTermination` broadcasts.
+    private let lock = NSCondition()
     private let queue: DispatchQueue
     let name: String?
     private let queueSpecificKey = DispatchSpecificKey<Void>()
@@ -1118,6 +1122,7 @@ final class RuntimeWorkerBox: @unchecked Sendable {
     func requestTermination(processScheduled: Bool) {
         lock.lock()
         terminated = true
+        lock.broadcast()
         lock.unlock()
 
         if processScheduled {
@@ -1135,6 +1140,15 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return terminated
+    }
+
+    /// Blocks until `requestTermination` marks this worker terminated.
+    func waitForTermination() {
+        lock.lock()
+        defer { lock.unlock() }
+        while !terminated {
+            lock.wait()
+        }
     }
 
     /// Schedule a closure on the worker's serial queue at the given deadline.

@@ -658,6 +658,32 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([illegalStateExceptionSymbol], for: cancellationSymbol)
         }
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
+        // `kotlinx.coroutines.TimeoutCancellationException`: what an expired
+        // `withTimeout` deadline throws (kk_with_timeout's outThrown channel).
+        // Registered as a *subclass* of CancellationException, as in
+        // kotlinx.coroutines, so `catch (e: CancellationException)` also catches a
+        // timeout. The reverse does not hold: `isCancellationExceptionSymbol`
+        // matches on the short name `CancellationException`, so this class keeps
+        // routing through the nominal `kk_op_is` check and a plain `job.cancel()`
+        // cancellation is not caught by `catch (e: TimeoutCancellationException)`.
+        // No constructors are registered -- kotlinx.coroutines declares them
+        // `internal`, so user code can only catch this type, never throw it.
+        let timeoutCancellationSymbol = ensureClassSymbol(
+            named: "TimeoutCancellationException",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setPropertyType(
+            types.make(.classType(ClassType(
+                classSymbol: timeoutCancellationSymbol,
+                args: [],
+                nullability: .nonNull
+            ))),
+            for: timeoutCancellationSymbol
+        )
+        symbols.setDirectSupertypes([cancellationSymbol], for: timeoutCancellationSymbol)
+        types.setNominalDirectSupertypes([cancellationSymbol], for: timeoutCancellationSymbol)
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         // Preserve the declaration-site `in` variance once Continuation has
@@ -1206,6 +1232,26 @@ extension DataFlowSemaPhase {
                 isSuspend: true,
                 nullability: .nonNull
             ))),
+            returnType: deferredType,
+            symbols: symbols,
+            interner: interner
+        )
+        // STDLIB-CORO-001: async(start: CoroutineStart, block:) overload.
+        // Mirrors the launch(start:, block:) registration above. Lowering reads
+        // the CoroutineStart value and routes the call to the async runtime
+        // entry point implementing that mode (see rewriteStartModeLauncherCall).
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "async",
+            packageFQName: coroutinesPkg,
+            parameters: [
+                (name: "start", type: coroutineStartType),
+                (name: "block", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))),
+            ],
             returnType: deferredType,
             symbols: symbols,
             interner: interner

@@ -28,6 +28,11 @@ func nominalRangeElementType(
 }
 
 struct TypeCheckHelpers {
+    /// Per-compilation memoization for opt-in requirement derivation and
+    /// annotation-class resolution (see `OptInResolutionCache`). A class, so
+    /// copies of this struct and every `driver.helpers` call site share it.
+    let optInResolutionCache = OptInResolutionCache()
+
     private func syntheticCoroutineNominalType(
         packageName: [InternedString],
         shortName: String,
