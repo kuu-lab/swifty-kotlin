@@ -443,6 +443,11 @@ public final class SymbolTable {
     private var propertyTypes: [SymbolID: TypeID] = [:]
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
+    /// Inverse of `directSupertypes`: supertype symbol → the nominal types
+    /// that declare it. Kept in sync by `setDirectSupertypes` so
+    /// `directSubtypes(of:)` reads a precomputed list instead of scanning
+    /// every nominal type in the module on each call.
+    private var directSubtypesIndex: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
@@ -851,7 +856,18 @@ public final class SymbolTable {
     }
 
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
+        if let previous = directSupertypes[symbol] {
+            for removedSupertype in previous where !supertypes.contains(removedSupertype) {
+                directSubtypesIndex[removedSupertype]?.removeAll { $0 == symbol }
+            }
+        }
         directSupertypes[symbol] = supertypes
+        var seen: Set<SymbolID> = []
+        for supertype in supertypes where seen.insert(supertype).inserted {
+            if directSubtypesIndex[supertype]?.contains(symbol) != true {
+                directSubtypesIndex[supertype, default: []].append(symbol)
+            }
+        }
     }
 
     public func directSupertypes(for symbol: SymbolID) -> [SymbolID] {
@@ -867,11 +883,7 @@ public final class SymbolTable {
     }
 
     public func directSubtypes(of symbol: SymbolID) -> [SymbolID] {
-        var result: [SymbolID] = []
-        for (candidate, supertypes) in directSupertypes where supertypes.contains(symbol) {
-            result.append(candidate)
-        }
-        return result.sorted(by: { $0.rawValue < $1.rawValue })
+        (directSubtypesIndex[symbol] ?? []).sorted(by: { $0.rawValue < $1.rawValue })
     }
 
     /// CLASS-008: Record that a class delegates to an interface.
@@ -2019,6 +2031,9 @@ public final class SemaModule {
     /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
     /// CallLowerer+MemberCalls.swift).
     var bundledIndex: BundledDeclarationIndex
+    /// ARCH-021: compiler-owned well-known declarations resolved by exact
+    /// SymbolID after header collection.
+    var wellKnownSymbols: WellKnownSymbols
 
     public init(
         symbols: SymbolTable,
@@ -2035,6 +2050,7 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
+        self.wellKnownSymbols = .empty
     }
 
     /// Module-internal overload that also accepts the bundled declaration
@@ -2058,5 +2074,6 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex
+        self.wellKnownSymbols = .empty
     }
 }

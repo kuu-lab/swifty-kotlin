@@ -1,6 +1,5 @@
 extension CallLowerer {
     func tryLowerCollectionFactoryCall(
-        sourceCalleeName: InternedString,
         args: [CallArgument],
         loweredArgIDs: [KIRExprID],
         chosenCallee: SymbolID?,
@@ -10,19 +9,13 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        let name = interner.resolve(sourceCalleeName)
-        guard isStdlibCollectionFactoryTarget(
-            name: name,
-            chosenCallee: chosenCallee,
-            sema: sema,
-            interner: interner
-        ) else {
+        guard let factory = sema.wellKnownSymbols.collectionFactory(for: chosenCallee) else {
             return nil
         }
 
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-        switch name {
-        case "emptyList", "listOf":
+        switch factory {
+        case .emptyList, .listOf:
             if loweredArgIDs.isEmpty {
                 emitNoArgCall("__kk_emptyList", result: result, interner: interner, instructions: &instructions)
                 return result
@@ -45,7 +38,7 @@ extension CallLowerer {
             )
             return result
 
-        case "mutableListOf", "arrayListOf":
+        case .mutableListOf, .arrayListOf:
             // Both declare a mutable result (`MutableList` / `ArrayList`), so they
             // need the ArrayList-tagged bridge: `__kk_list_of` tags its box as the
             // read-only `List`, which makes `is MutableList` / `is ArrayList`
@@ -81,7 +74,7 @@ extension CallLowerer {
             )
             return result
 
-        case "emptySet", "setOf", "setOfNotNull":
+        case .emptySet, .setOf, .setOfNotNull:
             if loweredArgIDs.isEmpty {
                 emitNoArgCall("__kk_emptySet", result: result, interner: interner, instructions: &instructions)
                 return result
@@ -95,7 +88,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                name == "setOfNotNull" ? "__kk_set_of_not_null" : "__kk_set_of",
+                factory == .setOfNotNull ? "__kk_set_of_not_null" : "__kk_set_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -104,13 +97,13 @@ extension CallLowerer {
             )
             return result
 
-        case "mutableSetOf", "hashSetOf", "linkedSetOf":
+        case .mutableSetOf, .hashSetOf, .linkedSetOf:
             // Each factory keeps its own nominal tag: hashSetOf is a HashSet,
             // mutableSetOf/linkedSetOf a LinkedHashSet. `__kk_set_of` tags the
             // read-only `Set` and is shared with `setOf`, so routing these two
             // there made `is MutableSet` / `is LinkedHashSet` answer false
             // (BUG-254). Keep this in step with CollectionLiteralLoweringPass.
-            let runtimeCallee = name == "hashSetOf" ? "__kk_hash_set_of" : "__kk_linked_hash_set_of"
+            let runtimeCallee = factory == .hashSetOf ? "__kk_hash_set_of" : "__kk_linked_hash_set_of"
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
                     runtimeCallee,
@@ -141,7 +134,7 @@ extension CallLowerer {
             )
             return result
 
-        case "emptyMap", "mapOf":
+        case .emptyMap, .mapOf:
             if loweredArgIDs.isEmpty {
                 emitNoArgCall("__kk_emptyMap", result: result, interner: interner, instructions: &instructions)
                 return result
@@ -159,22 +152,14 @@ extension CallLowerer {
                 instructions: &instructions
             )
 
-        case "mutableMapOf", "hashMapOf", "linkedMapOf":
+        case .mutableMapOf, .hashMapOf, .linkedMapOf:
             // KUU-646: `__kk_map_of` is the read-only `Map` tag shared with `mapOf`.
             // Mutable factories need their own nominal identity the way
             // `mutableListOf` uses `__kk_array_list_of` and `mutableSetOf` uses
             // `__kk_linked_hash_set_of`. Kotlin's `mutableMapOf` returns
             // LinkedHashMap, `hashMapOf` returns HashMap.
-            let runtimeCallee: String
-            let spreadCallee: String
-            switch name {
-            case "hashMapOf":
-                runtimeCallee = "__kk_hash_map_of"
-                spreadCallee = "__kk_hash_map_of_pairs"
-            default:
-                runtimeCallee = "__kk_linked_hash_map_of"
-                spreadCallee = "__kk_linked_hash_map_of_pairs"
-            }
+            let runtimeCallee = factory == .hashMapOf ? "__kk_hash_map_of" : "__kk_linked_hash_map_of"
+            let spreadCallee = factory == .hashMapOf ? "__kk_hash_map_of_pairs" : "__kk_linked_hash_map_of_pairs"
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
                     runtimeCallee,
@@ -200,32 +185,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
 
-        default:
-            return nil
         }
-    }
-
-    private func isStdlibCollectionFactoryTarget(
-        name: String,
-        chosenCallee: SymbolID?,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard [
-            "emptyList", "listOf", "mutableListOf", "arrayListOf",
-            "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
-            "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
-        ].contains(name),
-            let chosenCallee,
-            let symbol = sema.symbols.symbol(chosenCallee),
-            symbol.kind == .function,
-            symbol.name == interner.intern(name),
-            symbol.fqName.count >= 3
-        else {
-            return false
-        }
-        return interner.resolve(symbol.fqName[0]) == "kotlin"
-            && interner.resolve(symbol.fqName[1]) == "collections"
     }
 
     private func emitPackedCollectionFactoryArguments(

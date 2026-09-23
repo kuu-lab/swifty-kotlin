@@ -322,18 +322,15 @@ extension CoroutineLoweringPass {
 
         if firstLowered == nil && call.arguments.count >= 2 {
             let launchCallee = rewrite.ctx.interner.intern("launch")
-            guard call.callee == launchCallee else {
-                // Dispatcher-aware pattern is only valid for `launch`.
-                rewrite.ctx.diagnostics.error(
-                    "KSWIFTK-CORO-0002",
-                    "Coroutine launcher '\(rewrite.ctx.interner.resolve(call.callee))' requires a suspend function reference argument.",
-                    range: nil
-                )
-                return [call.instruction]
-            }
+            let asyncCallee = rewrite.ctx.interner.intern("async")
 
-            // STDLIB-CORO-001: launch(start = CoroutineStart.X) overload.
-            if isCoroutineStartExpression(call.arguments[0], using: rewrite) {
+            // STDLIB-CORO-001: launch/async (start = CoroutineStart.X) overload.
+            // Tested before the launch-only gate below, because `async` has a
+            // start-mode overload but no dispatcher-aware one: falling through
+            // to that gate would reject `async(start = ...)` outright.
+            if call.callee == launchCallee || call.callee == asyncCallee,
+               isCoroutineStartExpression(call.arguments[0], using: rewrite)
+            {
                 return rewriteStartModeLauncherCall(
                     startExpr: call.arguments[0],
                     suspendArgExpr: call.arguments[1],
@@ -342,6 +339,16 @@ extension CoroutineLoweringPass {
                     symbolByExprRaw: symbolByExprRaw,
                     using: rewrite
                 )
+            }
+
+            guard call.callee == launchCallee else {
+                // Dispatcher-aware pattern is only valid for `launch`.
+                rewrite.ctx.diagnostics.error(
+                    "KSWIFTK-CORO-0002",
+                    "Coroutine launcher '\(rewrite.ctx.interner.resolve(call.callee))' requires a suspend function reference argument.",
+                    range: nil
+                )
+                return [call.instruction]
             }
 
             // First argument is not a suspend function. Try to interpret it as a dispatcher.
@@ -558,7 +565,7 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    // STDLIB-CORO-001: Rewrite launch(start = CoroutineStart.X) { block }.
+    // STDLIB-CORO-001: Rewrite launch/async (start = CoroutineStart.X) { block }.
     //
     // Kotlin's four start modes are not interchangeable. DEFAULT and ATOMIC
     // schedule the body right away (they differ only in whether a cancel before
@@ -568,6 +575,10 @@ extension CoroutineLoweringPass {
     // suspension. Every mode used to be routed to the lazy runtime, so
     // `launch(start = CoroutineStart.DEFAULT)` and `UNDISPATCHED` both silently
     // behaved as LAZY -- the body did not run at all until something joined it.
+    //
+    // `async` shares this rewrite, differing only in which runtime entry points
+    // the start mode selects: its handles are `Deferred`s carrying the block's
+    // result, so it has a parallel `kk_kxmini_async*` family.
     func rewriteStartModeLauncherCall(
         startExpr: KIRExprID,
         suspendArgExpr: KIRExprID,
@@ -583,7 +594,7 @@ extension CoroutineLoweringPass {
         ), let loweredTarget = rewrite.loweredBySymbol[suspendSymbol] else {
             rewrite.ctx.diagnostics.error(
                 "KSWIFTK-CORO-0002",
-                "Coroutine launcher 'launch' requires a suspend function reference argument.",
+                "Coroutine launcher '\(rewrite.ctx.interner.resolve(call.callee))' requires a suspend function reference argument.",
                 range: nil
             )
             return [call.instruction]
@@ -593,7 +604,7 @@ extension CoroutineLoweringPass {
         guard extraArgs.count == targetArity else {
             rewrite.ctx.diagnostics.error(
                 "KSWIFTK-CORO-0003",
-                "Coroutine launcher 'launch' passed \(extraArgs.count) capture argument(s) but referenced suspend function expects \(targetArity).",
+                "Coroutine launcher '\(rewrite.ctx.interner.resolve(call.callee))' passed \(extraArgs.count) capture argument(s) but referenced suspend function expects \(targetArity).",
                 range: nil
             )
             return [call.instruction]
@@ -601,6 +612,7 @@ extension CoroutineLoweringPass {
 
         let callees = coroutineStartRuntimeCallees(
             startExpr: startExpr,
+            builderCallee: call.callee,
             symbolByExprRaw: symbolByExprRaw,
             using: rewrite
         )
@@ -615,7 +627,7 @@ extension CoroutineLoweringPass {
         }
 
         guard let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol] else {
-            assertionFailure("Internal compiler error: launcher thunk missing for launch(start:)")
+            assertionFailure("Internal compiler error: launcher thunk missing for \(rewrite.ctx.interner.resolve(call.callee))(start:)")
             return [call.instruction]
         }
         return rewriteArgBearingLauncherCall(
@@ -631,21 +643,51 @@ extension CoroutineLoweringPass {
     /// The runtime launchers implementing the `CoroutineStart` mode named by
     /// `startExpr`, for the no-capture and capture-bearing call shapes.
     ///
+    /// `builderCallee` picks the family: `launch` returns a `Job` handle,
+    /// `async` a `Deferred` one carrying the block's result, so the two cannot
+    /// share entry points even where their scheduling is identical.
+    ///
     /// A start argument that is not a compile-time-known entry (a
     /// `CoroutineStart` read out of a variable, say) falls back to DEFAULT:
     /// that is Kotlin's own default, and the only mode whose scheduling can be
     /// chosen without knowing the value.
+    ///
+    /// Each name is spelled out rather than assembled from a base and a suffix
+    /// so that every emitted `kk_*` symbol stays greppable (and so reachable by
+    /// `Scripts/validate_runtime_abi_links.sh`).
     private func coroutineStartRuntimeCallees(
         startExpr: KIRExprID,
+        builderCallee: InternedString,
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> (zeroArg: InternedString, withCont: InternedString) {
         let interner = rewrite.ctx.interner
-        switch coroutineStartEntryName(
+        let startMode = coroutineStartEntryName(
             startExpr,
             symbolByExprRaw: symbolByExprRaw,
             using: rewrite
-        ) {
+        )
+        if builderCallee == interner.intern("async") {
+            switch startMode {
+            case "LAZY":
+                return (
+                    interner.intern("kk_kxmini_async_lazy"),
+                    interner.intern("kk_kxmini_async_lazy_with_cont")
+                )
+            case "UNDISPATCHED":
+                return (
+                    interner.intern("kk_kxmini_async_undispatched"),
+                    interner.intern("kk_kxmini_async_undispatched_with_cont")
+                )
+            default:
+                // DEFAULT, ATOMIC, and anything unresolved: schedule immediately.
+                return (
+                    interner.intern("kk_kxmini_async"),
+                    interner.intern("kk_kxmini_async_with_cont")
+                )
+            }
+        }
+        switch startMode {
         case "LAZY":
             return (
                 interner.intern("kk_kxmini_launch_lazy"),

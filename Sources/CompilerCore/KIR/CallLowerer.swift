@@ -686,7 +686,6 @@ final class CallLowerer {
             return loweredToList
         }
         if let loweredCollectionFactory = tryLowerCollectionFactoryCall(
-            sourceCalleeName: sourceCalleeName,
             args: args,
             loweredArgIDs: loweredArgIDs,
             chosenCallee: chosen,
@@ -712,6 +711,7 @@ final class CallLowerer {
                     objectValue: loweredCollectionFactory,
                     nominalSymbol: factoryResultClass,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
@@ -983,6 +983,7 @@ final class CallLowerer {
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions

@@ -76,6 +76,50 @@ func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {
     return unsafeBitCast(rawValue, to: KKSuspendEntryPoint.self)
 }
 
+/// FIFO queue with amortized O(1) `enqueue`/`dequeue`.
+///
+/// Elements are stored in an array behind a head index: `dequeue` advances the
+/// head (releasing the slot) instead of shifting every element like
+/// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
+/// storage is compacted back to `head == 0`, which keeps the steady-state cost
+/// O(1) amortized; a fully drained queue resets its head so alternating
+/// enqueue/dequeue never accumulates dead slots.
+struct RuntimeFIFOQueue<Element> {
+    private var elements: [Element?] = []
+    private var head = 0
+
+    var isEmpty: Bool { head >= elements.count }
+    var count: Int { elements.count - head }
+
+    mutating func enqueue(_ element: Element) {
+        elements.append(element)
+    }
+
+    mutating func dequeue() -> Element? {
+        guard head < elements.count, let element = elements[head] else {
+            return nil
+        }
+        elements[head] = nil
+        head += 1
+        if head == elements.count {
+            elements.removeAll(keepingCapacity: true)
+            head = 0
+        } else if head >= 32 && head * 2 >= elements.count {
+            elements.removeFirst(head)
+            head = 0
+        }
+        return element
+    }
+
+    /// Removes all queued elements and returns them in FIFO order.
+    mutating func drain() -> [Element] {
+        let queued = elements[head...].compactMap { $0 }
+        elements.removeAll(keepingCapacity: true)
+        head = 0
+        return queued
+    }
+}
+
 func runtimeArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil

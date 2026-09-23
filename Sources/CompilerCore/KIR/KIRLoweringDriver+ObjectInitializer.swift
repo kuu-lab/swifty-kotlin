@@ -94,7 +94,10 @@ extension KIRLoweringDriver {
         // A source-backed top-level singleton must have a real runtime handle
         // even when it has no interfaces or virtual slots: it may cross an Any
         // boundary.
-        let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: objectSymbol, sema: sema)
+        let interfaceSupertypes = ctx.nominalDispatchCache.transitiveInterfaceSupertypes(
+            of: objectSymbol,
+            sema: sema
+        )
 
         let arena = shared.arena
         let interner = shared.interner
@@ -181,12 +184,12 @@ extension KIRLoweringDriver {
                 ) {
                     let methodSlot = Int64(methodSlotInt)
                     // Find the override in the object's member functions.
-                    let implementationSymbol = kirFindOverrideMethod(
+                    let implementationSymbol = ctx.nominalDispatchCache.itableImplementation(
                         for: methodSymbol,
                         in: objectSymbol,
                         sema: sema,
                         interner: interner
-                    ) ?? methodSymbol
+                    )
                     let bridgeSymbol = itableBridgeSymbolForMethod(
                         interfaceMethod: methodSymbol,
                         implementation: implementationSymbol,
@@ -216,6 +219,7 @@ extension KIRLoweringDriver {
                 objectValue: allocatedObj,
                 nominalSymbol: objectSymbol,
                 sema: sema,
+                cache: ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &body.instructions

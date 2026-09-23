@@ -23,6 +23,9 @@ KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_V
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
+KOTLINC_KOTLINX_IO_VERSION="${KOTLINC_KOTLINX_IO_VERSION:-${KOTLINX_IO_VERSION:-0.9.1}}"
+KOTLINC_KOTLINX_IO_SHA256="${KOTLINC_KOTLINX_IO_SHA256:-}"
+KOTLINC_KOTLINX_IO_JAR="${KOTLINC_KOTLINX_IO_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-core-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
 # Reference jars are cached across runs by default. Set to empty
 # (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
 # explicitly empty value as "disabled" instead of re-applying the default.
@@ -298,15 +301,15 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-requires_kotlinx_coroutines() {
-  local target="$1"
-  # Plain grep (POSIX ERE) + find, not rg: this must keep working on hosts/CI
-  # jobs without ripgrep installed. A missing `rg` here previously made
-  # `rg -q` exit non-zero for "command not found" the same way it does for
-  # "no match", so this silently reported "does not need kotlinx.coroutines"
-  # and skipped downloading the jar — the reference kotlinc then failed
-  # every coroutines diff case with "unresolved reference 'kotlinx'".
-  local import_pattern='import[[:space:]]+kotlinx\.coroutines'
+# Shared by requires_kotlinx_coroutines/requires_kotlinx_io. Plain grep
+# (POSIX ERE) + find, not rg: this must keep working on hosts/CI jobs without
+# ripgrep installed. A missing `rg` here previously made `rg -q` exit
+# non-zero for "command not found" the same way it does for "no match", so
+# this silently reported "does not need <dependency>" and skipped
+# downloading the jar — the reference kotlinc then failed every case for
+# that dependency with "unresolved reference 'kotlinx'".
+target_matches_import() {
+  local target="$1" import_pattern="$2"
   if [[ -f "$target" ]]; then
     grep -Eq "$import_pattern" "$target"
     return $?
@@ -323,12 +326,34 @@ requires_kotlinx_coroutines() {
   return 1
 }
 
+requires_kotlinx_coroutines() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.coroutines'
+}
+
+# kotlinx-io-core's package is `kotlinx.io` (not a sub-package of
+# kotlinx.coroutines), so this pattern does not overlap with the coroutines
+# one above. A case needing both dependencies gets both jars (see
+# ensure_kotlinc_classpath).
+requires_kotlinx_io() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.io'
+}
+
 # Known checksums per kotlinx-coroutines version. For other versions, set
 # KOTLINC_COROUTINES_SHA256 explicitly — otherwise the download is refused
 # rather than silently skipping verification.
 known_coroutines_sha256() {
   case "$1" in
     1.10.2) printf '5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd' ;;
+    *) printf '' ;;
+  esac
+}
+
+# Known checksums per kotlinx-io-core version. For other versions, set
+# KOTLINC_KOTLINX_IO_SHA256 explicitly — otherwise the download is refused
+# rather than silently skipping verification.
+known_kotlinx_io_sha256() {
+  case "$1" in
+    0.9.1) printf '765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370' ;;
     *) printf '' ;;
   esac
 }
@@ -387,74 +412,115 @@ resolve_kotlinc_lib_jar() {
   done
 }
 
-ensure_kotlinc_classpath() {
-  if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-    return 0
-  fi
-
-  if ! requires_kotlinx_coroutines "$TARGET"; then
-    return 0
-  fi
+# Downloads and checksum-verifies a single jar from Maven Central into
+# $jar_path, unless it is already present. $known_sha256_fn is the name of a
+# `known_*_sha256 <version>` function (known_coroutines_sha256,
+# known_kotlinx_io_sha256, ...) consulted when $override_sha256 is empty.
+ensure_maven_jar() {
+  local dep_label="$1" maven_path="$2" version="$3" jar_path="$4" override_sha256="$5" known_sha256_fn="$6"
 
   if ! command -v curl >/dev/null 2>&1; then
-    echo "curl is required to download kotlinx-coroutines dependency" >&2
+    echo "curl is required to download $dep_label dependency" >&2
     return 1
   fi
 
   mkdir -p "$KOTLINC_DEP_DIR"
 
-  local expected_sha256="$KOTLINC_COROUTINES_SHA256"
+  local expected_sha256="$override_sha256"
   if [[ -z "$expected_sha256" ]]; then
-    expected_sha256="$(known_coroutines_sha256 "$KOTLINC_COROUTINES_VERSION")"
+    expected_sha256="$("$known_sha256_fn" "$version")"
   fi
   if [[ -z "$expected_sha256" ]]; then
-    echo "No known checksum for kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}." >&2
-    echo "Set KOTLINC_COROUTINES_SHA256 to the expected SHA-256 of the jar." >&2
+    echo "No known checksum for $dep_label ${version}." >&2
+    echo "Set the corresponding *_SHA256 override to the expected SHA-256 of the jar." >&2
     return 1
   fi
 
-  if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
-    local artifact_path="org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
+  if [[ ! -s "$jar_path" ]]; then
     local download_url
     local downloaded=false
     # Hosted runners can intermittently receive HTTP 403 from one Maven
     # Central hostname. Retry transient failures and try the alternate
     # canonical hostname before giving up, then verify the checksum below.
     local download_urls=(
-      "https://repo.maven.apache.org/maven2/${artifact_path}"
-      "https://repo1.maven.org/maven2/${artifact_path}"
+      "https://repo.maven.apache.org/maven2/${maven_path}"
+      "https://repo1.maven.org/maven2/${maven_path}"
     )
     for download_url in "${download_urls[@]}"; do
-      echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION} from ${download_url}..."
-      rm -f "$KOTLINC_COROUTINES_JAR"
+      echo "Downloading $dep_label ${version} from ${download_url}..."
+      rm -f "$jar_path"
       if curl -fSL --retry 3 --retry-delay 2 --retry-max-time 120 \
         --connect-timeout 30 --max-time 120 \
-        -o "$KOTLINC_COROUTINES_JAR" "$download_url"; then
+        -o "$jar_path" "$download_url"; then
         downloaded=true
         break
       fi
       echo "Download failed from ${download_url}; trying the next Maven Central hostname." >&2
     done
     if [[ "$downloaded" != true ]]; then
-      echo "Failed to download kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION} from Maven Central." >&2
+      echo "Failed to download $dep_label ${version} from Maven Central." >&2
       return 1
     fi
   fi
 
   local actual_sha256
-  if ! actual_sha256="$(sha256_file "$KOTLINC_COROUTINES_JAR")"; then
+  if ! actual_sha256="$(sha256_file "$jar_path")"; then
     echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
     actual_sha256="$expected_sha256"
   fi
   if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-    echo "Error: checksum mismatch for kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar" >&2
+    echo "Error: checksum mismatch for $dep_label-${version}.jar" >&2
     echo "Expected: $expected_sha256" >&2
     echo "Actual:   $actual_sha256" >&2
-    rm -f "$KOTLINC_COROUTINES_JAR"
+    rm -f "$jar_path"
     return 1
   fi
+}
 
-  KOTLINC_CLASSPATH="$KOTLINC_COROUTINES_JAR"
+ensure_coroutines_jar() {
+  ensure_maven_jar \
+    "kotlinx-coroutines-core-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar" \
+    "$KOTLINC_COROUTINES_VERSION" "$KOTLINC_COROUTINES_JAR" "$KOTLINC_COROUTINES_SHA256" known_coroutines_sha256
+}
+
+ensure_kotlinx_io_jar() {
+  ensure_maven_jar \
+    "kotlinx-io-core-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-io-core-jvm/${KOTLINC_KOTLINX_IO_VERSION}/kotlinx-io-core-jvm-${KOTLINC_KOTLINX_IO_VERSION}.jar" \
+    "$KOTLINC_KOTLINX_IO_VERSION" "$KOTLINC_KOTLINX_IO_JAR" "$KOTLINC_KOTLINX_IO_SHA256" known_kotlinx_io_sha256
+}
+
+ensure_kotlinc_classpath() {
+  if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+    return 0
+  fi
+
+  local jars=()
+
+  if requires_kotlinx_coroutines "$TARGET"; then
+    ensure_coroutines_jar || return 1
+    jars+=("$KOTLINC_COROUTINES_JAR")
+  fi
+
+  if requires_kotlinx_io "$TARGET"; then
+    ensure_kotlinx_io_jar || return 1
+    jars+=("$KOTLINC_KOTLINX_IO_JAR")
+  fi
+
+  if [[ ${#jars[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  local joined="" jar
+  for jar in "${jars[@]}"; do
+    if [[ -z "$joined" ]]; then
+      joined="$jar"
+    else
+      joined="$joined:$jar"
+    fi
+  done
+  KOTLINC_CLASSPATH="$joined"
 }
 
 if [[ -z "$TARGET" ]]; then

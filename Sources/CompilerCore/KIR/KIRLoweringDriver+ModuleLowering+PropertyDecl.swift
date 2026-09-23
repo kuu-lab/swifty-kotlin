@@ -523,7 +523,7 @@ extension KIRLoweringDriver {
         )
         appendObjectItablePropertyGetterRegistrations(
             objectValue: allocatedObj, nominalSymbol: ownerSymbol,
-            sema: sema, arena: arena, interner: interner,
+            sema: sema, cache: ctx.nominalDispatchCache, arena: arena, interner: interner,
             instructions: &instructions.instructions
         )
         appendObjectVtableMethodRegistrations(
