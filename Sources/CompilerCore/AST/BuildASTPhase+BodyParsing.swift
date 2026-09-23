@@ -274,7 +274,7 @@ extension BuildASTPhase {
         var current: [Token] = []
         var depth = BracketDepth()
         for (idx, token) in tokens.enumerated() {
-            if depth.isAtTopLevel {
+            if depth.isBracketBraceParenTopLevel {
                 if token.kind == .symbol(.semicolon) {
                     if !current.isEmpty {
                         groups.append(current)
