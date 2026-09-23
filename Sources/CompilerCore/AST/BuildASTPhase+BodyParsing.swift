@@ -163,6 +163,14 @@ extension BuildASTPhase {
         if hasUnclosedStatementDelimiter(previousTail) {
             return true
         }
+        // `a or\n    (b)`: Kotlin allows a newline after an infix function
+        // name, and `if (a)\n    body`: the branch body may start on the line
+        // after the condition. The CST parser splits both at the newline.
+        if KotlinParser.endsWithPendingInfixOperator(previousTail)
+            || KotlinParser.endsWithControlFlowCondition(previousTail)
+        {
+            return true
+        }
         guard let first = nextHead.first else {
             return false
         }

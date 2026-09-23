@@ -326,6 +326,20 @@ func runtimeAllocateCancellationException(message: String? = "CancellationExcept
     return Int(bitPattern: ptr)
 }
 
+/// Allocates a `kotlinx.coroutines.TimeoutCancellationException` for an expired
+/// `withTimeout` deadline. The message matches kotlinx.coroutines verbatim so
+/// `e.message` agrees with Kotlin/JVM.
+func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
+    let timeout = RuntimeTimeoutCancellationBox(
+        message: "Timed out waiting for \(timeoutMillis) ms"
+    )
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(timeout).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
     let normalized = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: ptr)) ?? ptr
     let unmanaged = Unmanaged<AnyObject>.fromOpaque(normalized)
@@ -358,7 +372,7 @@ func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> 
     return runtimeKotlinStringFromUTF16CodeUnits(Array(utf16[startIndex ..< endIndex]))
 }
 
-func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
+func extractStringBox(from ptr: UnsafeMutableRawPointer?) -> RuntimeStringBox? {
     guard let ptr = normalizeNullableRuntimePointer(ptr) else {
         return nil
     }
@@ -368,10 +382,18 @@ func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
     guard isObjectPointer else {
         return nil
     }
-    guard let box = tryCast(ptr, to: RuntimeStringBox.self) else {
+    return tryCast(ptr, to: RuntimeStringBox.self)
+}
+
+func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
+    extractStringBox(from: ptr)?.value
+}
+
+func runtimeStringBox(fromRaw raw: Int) -> RuntimeStringBox? {
+    guard raw != runtimeNullSentinelInt else {
         return nil
     }
-    return box.value
+    return extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
 }
 
 /// Text of a value whose static type is `CharSequence`: either a String box or
@@ -397,14 +419,96 @@ func runtimeCharSequenceText(from raw: Int) -> String? {
         return stringBox.value
     }
     if let builderBox = object as? RuntimeStringBuilderBox {
-        return builderBox.value
+        return builderBox.stringValue
     }
+    guard let units = runtimeCharSequenceItableCodeUnits(raw: raw) else {
+        return nil
+    }
+    return String(decoding: units, as: UTF16.self)
+}
 
-    // Source-defined CharSequence implementations expose their get/length
-    // methods through the dynamic itable slot assigned at object construction.
-    // Reading those slots here keeps CharSequence-taking APIs (for example
-    // StringBuilder(CharSequence)) faithful for custom implementations instead
-    // of falling back to an opaque object rendering.
+/// UTF-16 code units of a String or StringBuilder box without round-tripping
+/// through a materialized String. String boxes serve their lazily cached
+/// array; StringBuilder boxes share their live buffer (copy-on-write keeps the
+/// aliased array value semantics intact). Returns nil for any other handle.
+func runtimeStringOrBuilderUTF16Units(from raw: Int) -> [UInt16]? {
+    guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let stringBox = object as? RuntimeStringBox {
+        return stringBox.utf16CodeUnits
+    }
+    if let builderBox = object as? RuntimeStringBuilderBox {
+        return builderBox.units
+    }
+    return nil
+}
+
+/// Kotlin UTF-16 code units of a value whose static type is `CharSequence`:
+/// cached on String boxes, the live buffer on StringBuilder boxes, or
+/// materialized through the itable for source-defined implementations.
+func runtimeCharSequenceUTF16Units(from raw: Int) -> [UInt16]? {
+    if let units = runtimeStringOrBuilderUTF16Units(from: raw) {
+        return units
+    }
+    guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)),
+          runtimeIsObjectPointer(ptr)
+    else {
+        return nil
+    }
+    return runtimeCharSequenceItableCodeUnits(raw: raw)
+}
+
+/// UTF-16 length of a CharSequence handle without materializing its contents:
+/// box caches/buffers when available, the itable length getter otherwise.
+/// Returns nil when `raw` is not a CharSequence at all.
+func runtimeCharSequenceUTF16Length(from raw: Int) -> Int? {
+    guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let stringBox = object as? RuntimeStringBox {
+        return stringBox.utf16Length
+    }
+    if let builderBox = object as? RuntimeStringBuilderBox {
+        return builderBox.units.count
+    }
+    let lengthPointer = kk_itable_lookup_dynamic(
+        raw,
+        Int(runtimeCharSequenceInterfaceTypeID),
+        2
+    )
+    guard lengthPointer != 0 else {
+        return nil
+    }
+    let lengthGetter = unsafeBitCast(lengthPointer, to: RuntimeCharSequenceLength.self)
+    var lengthThrown = 0
+    let length = lengthGetter(raw, &lengthThrown)
+    guard lengthThrown == 0, length >= 0, length <= 1 << 26 else {
+        return nil
+    }
+    return length
+}
+
+/// Source-defined CharSequence implementations expose their get/length
+/// methods through the dynamic itable slot assigned at object construction.
+/// Reading those slots here keeps CharSequence-taking APIs (for example
+/// StringBuilder(CharSequence)) faithful for custom implementations instead
+/// of falling back to an opaque object rendering.
+private func runtimeCharSequenceItableCodeUnits(raw: Int) -> [UInt16]? {
     let lengthPointer = kk_itable_lookup_dynamic(
         raw,
         Int(runtimeCharSequenceInterfaceTypeID),
@@ -444,7 +548,7 @@ func runtimeCharSequenceText(from raw: Int) -> String? {
         }
         units.append(UInt16(truncatingIfNeeded: value))
     }
-    return String(decoding: units, as: UTF16.self)
+    return units
 }
 
 let runtimeNullSentinelInt64 = Int64.min

@@ -453,21 +453,25 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // mutableMapOf()/hashMapOf() -> fresh instance via kk_map_of(null, null, 0).
-                // linkedMapOf() -> kk_linked_hash_map_of instead (KUU-556: it's
-                // declared to return LinkedHashMap<K, V>, now a real HashMap
-                // subclass with its own runtime tag; hashMapOf()/mutableMapOf()
-                // keep the pre-existing generic tag -- a known, separately
-                // tracked gap, not introduced by this change).
+                // KUU-646: `__kk_map_of` is now the read-only `Map` tag used by
+                // `mapOf`. Mutable factories take the same split List/Set
+                // already use: hashMapOf → HashMap, mutableMapOf/linkedMapOf →
+                // LinkedHashMap (Kotlin's mutableMapOf returns LinkedHashMap).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullKeysExpr, value: .intLiteral(0)))
                 let nullValsExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullValsExpr, value: .intLiteral(0)))
+                let runtimeCallee: InternedString
+                if callee == lookup.hashMapOfName {
+                    runtimeCallee = lookup.kkHashMapOfName
+                } else {
+                    runtimeCallee = lookup.kkLinkedHashMapOfName
+                }
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
+                    callee: runtimeCallee,
                     arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -543,9 +547,17 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 loweredBody.append(.call(
                     symbol: nil,
-                    // KUU-556: linkedMapOf(pairs) also gets its own runtime tag;
-                    // see the count == 0 branch above for the rationale.
-                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
+                    // KUU-646: mapOf keeps the read-only Map tag; hashMapOf /
+                    // mutableMapOf / linkedMapOf use their concrete mutable tags.
+                    callee: {
+                        if callee == lookup.hashMapOfName {
+                            return lookup.kkHashMapOfName
+                        }
+                        if callee == lookup.mutableMapOfName || callee == lookup.linkedMapOfName {
+                            return lookup.kkLinkedHashMapOfName
+                        }
+                        return lookup.kkMapOfName
+                    }(),
                     arguments: [keysArrayExpr, valuesArrayExpr, countExpr],
                     result: result,
                     canThrow: false,

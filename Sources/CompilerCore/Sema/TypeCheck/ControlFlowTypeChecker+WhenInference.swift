@@ -349,7 +349,18 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
-            if !isExhaustive {
+            // A subject-ful `when` used as a statement (its value discarded) only
+            // needs to be exhaustive when the subject is Boolean, enum, or sealed —
+            // for any other subject type, Kotlin requires exhaustiveness only when
+            // the when's value is actually used (see the subjectless `when` path
+            // below, which already applies this rule).
+            if !isExhaustive,
+               isStatementContext,
+               !ctx.dataFlow.subjectRequiresStatementExhaustiveness(subjectType: subjectType, sema: sema)
+            {
+                // Not exhaustive, but legal as a statement: fall through without
+                // diagnosing, matching the subjectless `when` statement behavior.
+            } else if !isExhaustive {
                 let hasQualifiedObjectCondition = branches.contains { branch in
                     branch.conditions.contains { conditionID in
                         guard let conditionExpr = ast.arena.expr(conditionID) else {
@@ -384,14 +395,23 @@ extension ControlFlowTypeChecker {
             }
 
             // Propagate definite initialization across exhaustive when branches.
-            if isExhaustive, !allBranchLocals.isEmpty {
-                for (name, local) in locals where !local.isInitialized {
-                    let allInit = allBranchLocals.allSatisfy { branchLocal in
-                        guard let bl = branchLocal[name] else { return false }
-                        return bl.isInitialized && bl.symbol == local.symbol
-                    }
-                    if allInit {
-                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+            // A branch whose body never completes normally (`return`/`throw`/
+            // `break`/`continue`, typed `Nothing`) vacuously satisfies any
+            // initialization requirement: control can only reach the code after
+            // the `when` through a branch that does complete normally.
+            if isExhaustive {
+                let completingBranchLocals = zip(branchTypes, allBranchLocals)
+                    .filter { type, _ in type != sema.types.nothingType }
+                    .map(\.1)
+                if !completingBranchLocals.isEmpty {
+                    for (name, local) in locals where !local.isInitialized {
+                        let allInit = completingBranchLocals.allSatisfy { branchLocal in
+                            guard let bl = branchLocal[name] else { return false }
+                            return bl.isInitialized && bl.symbol == local.symbol
+                        }
+                        if allInit {
+                            locals[name] = (local.type, local.symbol, local.isMutable, true)
+                        }
                     }
                 }
             }
@@ -502,14 +522,23 @@ extension ControlFlowTypeChecker {
             }
 
             // Propagate definite initialization across exhaustive when branches.
-            if isExhaustive, !allBranchLocals.isEmpty {
-                for (name, local) in locals where !local.isInitialized {
-                    let allInit = allBranchLocals.allSatisfy { branchLocal in
-                        guard let bl = branchLocal[name] else { return false }
-                        return bl.isInitialized && bl.symbol == local.symbol
-                    }
-                    if allInit {
-                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+            // A branch whose body never completes normally (`return`/`throw`/
+            // `break`/`continue`, typed `Nothing`) vacuously satisfies any
+            // initialization requirement: control can only reach the code after
+            // the `when` through a branch that does complete normally.
+            if isExhaustive {
+                let completingBranchLocals = zip(branchTypes, allBranchLocals)
+                    .filter { type, _ in type != sema.types.nothingType }
+                    .map(\.1)
+                if !completingBranchLocals.isEmpty {
+                    for (name, local) in locals where !local.isInitialized {
+                        let allInit = completingBranchLocals.allSatisfy { branchLocal in
+                            guard let bl = branchLocal[name] else { return false }
+                            return bl.isInitialized && bl.symbol == local.symbol
+                        }
+                        if allInit {
+                            locals[name] = (local.type, local.symbol, local.isMutable, true)
+                        }
                     }
                 }
             }

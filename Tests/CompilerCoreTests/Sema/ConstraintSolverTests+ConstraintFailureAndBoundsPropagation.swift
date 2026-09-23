@@ -101,6 +101,28 @@ extension ConstraintSolverTests {
         #expect(!message.contains("Class#"))
     }
 
+    @Test func testConflictingNumberInferenceDiagnosticDoesNotExposeSymbolID() throws {
+        let (solver, types) = makeDeps()
+        let numberSymbol = SymbolID(rawValue: 294)
+        types.numberClassSymbol = numberSymbol
+        let t0 = TypeVarID(rawValue: 294)
+
+        let solution = solver.solve(
+            vars: [t0],
+            constraints: [
+                VariableConstraint(kind: .subtype, left: .type(types.intType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .type(types.longType), right: .variable(t0)),
+                VariableConstraint(kind: .subtype, left: .variable(t0), right: .type(types.intType)),
+            ],
+            typeSystem: types
+        )
+
+        let message = try #require(solution.failure?.message)
+        #expect(!(solution.isSuccess))
+        #expect(message.contains("inferred Number is not a subtype of Int"))
+        #expect(!message.contains("Class#"))
+    }
+
     @Test func testSolveEliminatesEquivalentProjectedLowerBounds() {
         let (solver, types) = makeDeps()
         let listSymbol = SymbolID(rawValue: 290)
