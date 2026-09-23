@@ -10,7 +10,6 @@ protocol RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (_ value: Int, _ index: Int) -> Bool) -> Bool
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool
     static func doubleValue(_ value: Int) -> Double
-    static func sortValues(_ values: inout [Int])
     static func firstMatch(
         _ range: RuntimeRangeBox,
         _ fnPtr: Int,
@@ -40,10 +39,6 @@ enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func doubleValue(_ value: Int) -> Double {
         Double(value)
-    }
-
-    static func sortValues(_ values: inout [Int]) {
-        values.sort()
     }
 
     static func firstMatch(
@@ -89,10 +84,6 @@ enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func doubleValue(_ value: Int) -> Double {
         Double(UInt(bitPattern: value))
-    }
-
-    static func sortValues(_ values: inout [Int]) {
-        values.sort { UInt(bitPattern: $0) < UInt(bitPattern: $1) }
     }
 
     static func firstMatch(
@@ -499,7 +490,11 @@ private func runtimeRangeAverage<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ rang
 
 private func runtimeRangeSorted<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
     var elements = runtimeRangeValues(Kind.self, range)
-    Kind.sortValues(&elements)
+    // Traversal yields the progression monotonically: ascending for a
+    // positive step, descending for a negative step.
+    if range.step < 0 {
+        elements.reverse()
+    }
     return runtimeRangeList(elements)
 }
 
