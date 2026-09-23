@@ -17,25 +17,45 @@ public func kk_box_unit(_ value: Int) -> Int {
     }
 }
 
+/// Boxes a primitive under a single `withGCLock` critical section: the
+/// already-registered pass-through probe and the fresh box's registration
+/// share one acquisition. Boxing is a hot ABI path, so paying two GC-lock
+/// round trips per call would double contention on the global lock.
+///
+/// `registeredPassThrough` refines the pass-through condition once the value
+/// is known to be a registered object pointer (e.g. Float only passes through
+/// a RuntimeFloatBox, not an unrelated registered handle).
+@inline(__always)
+private func runtimeBoxPrimitive<T: AnyObject>(
+    _ value: Int,
+    preservesNullSentinel: Bool = true,
+    registeredPassThrough: (UnsafeMutableRawPointer) -> Bool = { _ in true },
+    makeBox: () -> T
+) -> Int {
+    if preservesNullSentinel, value == runtimeNullSentinelInt {
+        return value
+    }
+    return runtimeStorage.withGCLock { state in
+        if let objectPointer = UnsafeMutableRawPointer(bitPattern: value),
+           state.objectPointers.contains(UInt(bitPattern: objectPointer)),
+           registeredPassThrough(objectPointer)
+        {
+            return value
+        }
+        let box = makeBox()
+        let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+        return Int(bitPattern: opaque)
+    }
+}
+
 private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32) -> Int {
-    if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo, or an already-boxed RuntimeIntBox), pass it
     // through without double-boxing.
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    runtimeBoxPrimitive(value) {
+        RuntimeIntBox(value, anyFallbackTag: anyFallbackTag)
     }
-    let box = RuntimeIntBox(value, anyFallbackTag: anyFallbackTag)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 @inline(__always)
@@ -47,26 +67,25 @@ private func runtimeStaticBox<T: AnyObject>(
     if preservesNullSentinel, value == runtimeNullSentinelInt {
         return value
     }
-    // Some runtime values use a primitive ABI type while carrying a registered
-    // object handle at runtime (for example RuntimeRangeBox and coroutine
-    // handles). Preserve those handles exactly as the legacy boxing entry
-    // points do; wrapping them in a primitive box would make the downstream
-    // object-specific runtime entry point reject the value.
-    if let objectPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isRegisteredObject = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objectPointer))
-        }
-        if isRegisteredObject {
+    return runtimeStorage.withGCLock { state in
+        // Some runtime values use a primitive ABI type while carrying a registered
+        // object handle at runtime (for example RuntimeRangeBox and coroutine
+        // handles). Preserve those handles exactly as the legacy boxing entry
+        // points do; wrapping them in a primitive box would make the downstream
+        // object-specific runtime entry point reject the value.
+        if let objectPointer = UnsafeMutableRawPointer(bitPattern: value),
+           state.objectPointers.contains(UInt(bitPattern: objectPointer))
+        {
             return value
         }
+        // A tagged handle is already the result of this fast path. Keeping this
+        // check makes the helper idempotent for compiler-generated value flows
+        // without reintroducing the object registry lookup used by the legacy ABI.
+        if runtimePrimitiveBoxBasePointer(from: value) != nil {
+            return value
+        }
+        return registerTaggedPrimitiveBox(makeBox(), inLockedState: &state)
     }
-    // A tagged handle is already the result of this fast path. Keeping this
-    // check makes the helper idempotent for compiler-generated value flows
-    // without reintroducing the object registry lookup used by the legacy ABI.
-    if runtimePrimitiveBoxBasePointer(from: value) != nil {
-        return value
-    }
-    return registerTaggedPrimitiveBox(makeBox())
 }
 
 @inline(__always)
@@ -123,24 +142,12 @@ public func kk_box_ushort(_ value: Int) -> Int {
 
 @_cdecl("kk_box_bool")
 public func kk_box_bool(_ value: Int) -> Int {
-    if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object (e.g. a Boolean
     // returned by a runtime helper that already boxed it), pass it through
     // without double-boxing so source-level println() preserves the value.
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    runtimeBoxPrimitive(value) {
+        RuntimeBoolBox(value != 0)
     }
-    let box = RuntimeBoolBox(value != 0)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_lateinit_is_initialized")
@@ -208,28 +215,16 @@ public func kk_unbox_bool(_ obj: Int) -> Int {
 @_cdecl("kk_box_long")
 public func kk_box_long(_ value: Int) -> Int {
     // Callers whose source may genuinely be null (e.g. a nullable Long?
-    // flowing into an Any?-typed argument) rely on this early-return to
-    // preserve the null sentinel — see kk_box_long_nonnull below for the
+    // flowing into an Any?-typed argument) rely on the sentinel pass-through
+    // to preserve null — see kk_box_long_nonnull below for the
     // counterpart used when the source's static type is provably non-null.
-    if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo for LongRange), pass it through without
     // double-boxing so that __kk_print_raw / runtimeElementToString can
     // recognise the original object type.
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    return runtimeBoxPrimitive(value) {
+        RuntimeLongBox(value)
     }
-    let box = RuntimeLongBox(value)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 /// Boxes a Long known (via static typing) to be non-null. Unlike kk_box_long,
@@ -241,20 +236,9 @@ public func kk_box_long(_ value: Int) -> Int {
 /// `.nonNull`, so a genuine null can never reach this function.
 @_cdecl("kk_box_long_nonnull")
 public func kk_box_long_nonnull(_ value: Int) -> Int {
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    runtimeBoxPrimitive(value, preservesNullSentinel: false) {
+        RuntimeLongBox(value)
     }
-    let box = RuntimeLongBox(value)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_unbox_long")
@@ -284,25 +268,13 @@ public func kk_unbox_long(_ obj: Int) -> Int {
 @_cdecl("kk_box_ulong")
 public func kk_box_ulong(_ value: Int) -> Int {
     // See kk_box_long: callers whose source may genuinely be null rely on
-    // this early-return. kk_box_ulong_nonnull is the counterpart used when
-    // the source's static type is provably non-null.
-    if value == runtimeNullSentinelInt { return value }
+    // the sentinel pass-through. kk_box_ulong_nonnull is the counterpart used
+    // when the source's static type is provably non-null.
     // If the value is already a registered runtime object, pass it through
     // without double-boxing (mirrors kk_box_long).
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    return runtimeBoxPrimitive(value) {
+        RuntimeULongBox(value)
     }
-    let box = RuntimeULongBox(value)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 /// Boxes a ULong known (via static typing) to be non-null. Unlike
@@ -315,20 +287,9 @@ public func kk_box_ulong(_ value: Int) -> Int {
 /// genuine null can never reach this function.
 @_cdecl("kk_box_ulong_nonnull")
 public func kk_box_ulong_nonnull(_ value: Int) -> Int {
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    runtimeBoxPrimitive(value, preservesNullSentinel: false) {
+        RuntimeULongBox(value)
     }
-    let box = RuntimeULongBox(value)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_unbox_ulong")
@@ -352,25 +313,16 @@ public func kk_unbox_ulong(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_float")
 public func kk_box_float(_ value: Int) -> Int {
-    if value == runtimeNullSentinelInt { return value }
     // Preserve an already boxed Float, but do not treat an unrelated runtime
     // object handle as a boxed Float. Primitive Float values use raw IEEE-754
     // bits, so pass-through must be type-specific at this boundary.
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer, tryCast(objPointer, to: RuntimeFloatBox.self) != nil {
-            return value
-        }
-    }
     let floatBits = Float(bitPattern: UInt32(truncatingIfNeeded: value))
-    let box = RuntimeFloatBox(floatBits)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+    return runtimeBoxPrimitive(
+        value,
+        registeredPassThrough: { tryCast($0, to: RuntimeFloatBox.self) != nil }
+    ) {
+        RuntimeFloatBox(floatBits)
     }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_unbox_float")
@@ -392,28 +344,16 @@ public func kk_unbox_float(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_double")
 public func kk_box_double(_ value: Int) -> Int {
-    // Callers whose source may genuinely be null rely on this early-return —
-    // see kk_box_double_nonnull below for the counterpart used when the
-    // source's static type is provably non-null.
-    if value == runtimeNullSentinelInt { return value }
+    // Callers whose source may genuinely be null rely on the sentinel
+    // pass-through — see kk_box_double_nonnull below for the counterpart used
+    // when the source's static type is provably non-null.
     // A nullable Double? read out of a generic container is already a
     // RuntimeDoubleBox pointer; re-boxing it would reinterpret the pointer
     // as an IEEE754 payload (mirrors kk_box_int / kk_box_long).
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
-    }
     let doubleBits = Double(bitPattern: UInt64(bitPattern: Int64(value)))
-    let box = RuntimeDoubleBox(doubleBits)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+    return runtimeBoxPrimitive(value) {
+        RuntimeDoubleBox(doubleBits)
     }
-    return Int(bitPattern: opaque)
 }
 
 /// Boxes a Double known (via static typing) to be non-null. Unlike
@@ -454,23 +394,11 @@ public func kk_unbox_double(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_char")
 public func kk_box_char(_ value: Int) -> Int {
-    if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object, pass it through
     // without double-boxing.
-    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: objPointer))
-        }
-        if isObjectPointer {
-            return value
-        }
+    return runtimeBoxPrimitive(value) {
+        RuntimeCharBox(value)
     }
-    let box = RuntimeCharBox(value)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_unbox_char")
