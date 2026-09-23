@@ -1955,7 +1955,7 @@ extension CallTypeChecker {
                 candidates = regexStringBridgeCandidates
             }
         }
-        let resolved = resolveCallRespectingLambdaReturnType(
+        var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
             argTypes: preparedArgs.argTypes,
@@ -2112,19 +2112,39 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            if let projectionDiagnostic = makeProjectionViolationDiagnostic(
+            if let retried = retryResolutionReinferringNestedCallArguments(
                 candidates: candidates,
-                receiverType: lookupReceiverType,
-                calleeName: calleeName,
+                args: args,
+                argTypes: preparedArgs.argTypes,
                 range: range,
-                sema: sema,
-                interner: interner
+                calleeName: calleeName,
+                explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
+                implicitReceiverType: effectiveReceiverType,
+                lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx,
+                locals: &locals
             ) {
-                ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
-            } else {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                resolved = retried
             }
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            if resolved.diagnostic != nil {
+                if let projectionDiagnostic = makeProjectionViolationDiagnostic(
+                    candidates: candidates,
+                    receiverType: lookupReceiverType,
+                    calleeName: calleeName,
+                    range: range,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
+                } else {
+                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                }
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
         }
         guard let chosen = resolved.chosenCallee else {
             if isClassNameReceiver,

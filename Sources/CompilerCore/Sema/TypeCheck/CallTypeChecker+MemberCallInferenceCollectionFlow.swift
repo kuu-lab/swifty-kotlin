@@ -2363,44 +2363,29 @@ extension CallTypeChecker {
                 } else {
                     nil
                 }
-                let destinationType = driver.inferExpr(
+                var destinationType = driver.inferExpr(
                     args[0].expr,
                     ctx: ctx,
                     locals: &locals,
                     expectedType: destinationExpectedType
                 )
-                let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
-                let destinationElementType: TypeID = if case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
-                                                        destClassType.args.count >= 1
-                {
-                    switch destClassType.args[0] {
+                var nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
+                func destinationTypeArgument(at argIndex: Int, minimumArity: Int) -> TypeID {
+                    guard case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
+                          destClassType.args.count >= minimumArity,
+                          argIndex < destClassType.args.count
+                    else {
+                        return sema.types.anyType
+                    }
+                    return switch destClassType.args[argIndex] {
                     case let .invariant(id), let .out(id), let .in(id): id
                     case .star: sema.types.anyType
                     }
-                } else {
-                    sema.types.anyType
                 }
-                let destinationMapKeyType: TypeID = if case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
-                                                       destClassType.args.count >= 2
-                {
-                    switch destClassType.args[0] {
-                    case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
-                    }
-                } else {
-                    sema.types.anyType
-                }
-                let destinationMapValueType: TypeID = if case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
-                                                         destClassType.args.count >= 2
-                {
-                    switch destClassType.args[1] {
-                    case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
-                    }
-                } else {
-                    sema.types.anyType
-                }
-                let pairReturnType: TypeID = if calleeStr == "associateTo" {
+                var destinationElementType = destinationTypeArgument(at: 0, minimumArity: 1)
+                var destinationMapKeyType = destinationTypeArgument(at: 0, minimumArity: 2)
+                var destinationMapValueType = destinationTypeArgument(at: 1, minimumArity: 2)
+                var pairReturnType: TypeID = if calleeStr == "associateTo" {
                     if let pairSymbol = lookupStdlibSymbol("Pair", symbols: sema.symbols, interner: interner) {
                         sema.types.make(.classType(ClassType(
                             classSymbol: pairSymbol,
@@ -2413,6 +2398,17 @@ extension CallTypeChecker {
                 } else {
                     sema.types.anyType
                 }
+                // `mutableListOf()`/`mutableMapOf()` and similar factories infer
+                // `Nothing` element types before the destination constraint is
+                // known. While the argument is still an inferable nested call,
+                // keep the lambda expectation unconstrained, then re-infer the
+                // destination once the lambda's result type is known — the same
+                // participation the nested call's type variable gets in
+                // kotlinc's outer constraint set.
+                let destinationNeedsDeferredInference = isInferableNestedCallExpr(args[0].expr, ast: ast)
+                    && (typeContainsNothingType(destinationElementType, sema: sema)
+                        || typeContainsNothingType(destinationMapKeyType, sema: sema)
+                        || typeContainsNothingType(destinationMapValueType, sema: sema))
                 let lambdaExpectedType: TypeID = switch calleeStr {
                 case "filterTo", "filterNotTo":
                     sema.types.make(.functionType(FunctionType(
@@ -2558,10 +2554,143 @@ extension CallTypeChecker {
                 default:
                     sema.types.anyType
                 }
+                let effectiveLambdaExpectedType: TypeID
+                if destinationNeedsDeferredInference,
+                   case let .functionType(lambdaFunctionType) = sema.types.kind(of: lambdaExpectedType)
+                {
+                    effectiveLambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: lambdaFunctionType.params,
+                        returnType: sema.types.nullableAnyType,
+                        isSuspend: lambdaFunctionType.isSuspend,
+                        nullability: .nonNull
+                    )))
+                } else {
+                    effectiveLambdaExpectedType = lambdaExpectedType
+                }
                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
                 }
-                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: effectiveLambdaExpectedType)
+                if destinationNeedsDeferredInference {
+                    // The destination argument's element types only become
+                    // knowable once the transform lambda has produced its
+                    // result type: rebuild the `C : MutableCollection<in R>` /
+                    // `M : MutableMap<in K, in V>` bound from that result and
+                    // steer the deferred factory call with it.
+                    let rawLambdaReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
+                    let deferredDestinationElementType: TypeID = switch calleeStr {
+                    case "filterTo", "filterNotTo", "filterIndexedTo":
+                        collectionElementType
+                    case "mapTo", "mapIndexedTo":
+                        rawLambdaReturnType
+                    case "mapNotNullTo", "mapIndexedNotNullTo":
+                        sema.types.makeNonNullable(rawLambdaReturnType)
+                    case "flatMapTo", "flatMapIndexedTo":
+                        !isSequenceReceiver && isIterableReceiver
+                            && !receiverClassification.isListReceiver
+                            && !receiverClassification.isSetReceiver
+                            && !receiverClassification.isMapReceiver
+                            ? extractIterableOrSequenceElementType(rawLambdaReturnType, sema: sema, interner: interner)
+                            : extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
+                    default:
+                        sema.types.anyType
+                    }
+                    func unwrappedTypeArgument(_ arg: TypeArg) -> TypeID {
+                        switch arg {
+                        case let .invariant(id), let .out(id), let .in(id): id
+                        case .star: sema.types.anyType
+                        }
+                    }
+                    let deferredMapPairTypes: (key: TypeID, value: TypeID)? = if case let .classType(pairClassType) = sema.types.kind(
+                        of: sema.types.makeNonNullable(rawLambdaReturnType)
+                    ), pairClassType.args.count == 2 {
+                        (
+                            unwrappedTypeArgument(pairClassType.args[0]),
+                            unwrappedTypeArgument(pairClassType.args[1])
+                        )
+                    } else {
+                        nil
+                    }
+                    func mutableMapExpectedType(key: TypeID, value: TypeID) -> TypeID? {
+                        guard let mutableMapSymbol = lookupStdlibSymbol("MutableMap", symbols: sema.symbols, interner: interner) else {
+                            return nil
+                        }
+                        return sema.types.make(.classType(ClassType(
+                            classSymbol: mutableMapSymbol,
+                            args: [.in(key), .in(value)],
+                            nullability: .nonNull
+                        )))
+                    }
+                    let reinferBoundType: TypeID? = switch calleeStr {
+                    case "mapKeysTo":
+                        mutableMapExpectedType(key: rawLambdaReturnType, value: collectionMapTypes.value)
+                    case "mapValuesTo":
+                        mutableMapExpectedType(key: collectionMapTypes.key, value: rawLambdaReturnType)
+                    case "associateTo":
+                        if let deferredMapPairTypes {
+                            mutableMapExpectedType(key: deferredMapPairTypes.key, value: deferredMapPairTypes.value)
+                        } else {
+                            nil
+                        }
+                    default:
+                        if let mutableCollectionSymbol = lookupStdlibSymbol("MutableCollection", symbols: sema.symbols, interner: interner) {
+                            sema.types.make(.classType(ClassType(
+                                classSymbol: mutableCollectionSymbol,
+                                args: [.in(deferredDestinationElementType)],
+                                nullability: .nonNull
+                            )))
+                        } else {
+                            nil
+                        }
+                    }
+                    let reinferExpectedType = reinferBoundType.flatMap { boundType in
+                        concreteNestedCallExpectedType(
+                            originalArgumentType: nonNullableDestinationType,
+                            boundType: boundType,
+                            sema: sema
+                        )
+                    }
+                    if let reinferExpectedType {
+                        let reinferDiagnosticsCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                        let reinferredType = driver.inferExpr(
+                            args[0].expr,
+                            ctx: ctx,
+                            locals: &locals,
+                            expectedType: reinferExpectedType
+                        )
+                        if reinferredType != sema.types.errorType,
+                           !typeContainsNothingType(reinferredType, sema: sema)
+                        {
+                            destinationType = reinferredType
+                            nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
+                            destinationElementType = destinationTypeArgument(at: 0, minimumArity: 1)
+                            destinationMapKeyType = destinationTypeArgument(at: 0, minimumArity: 2)
+                            destinationMapValueType = destinationTypeArgument(at: 1, minimumArity: 2)
+                            if calleeStr == "associateTo",
+                               let pairSymbol = lookupStdlibSymbol("Pair", symbols: sema.symbols, interner: interner)
+                            {
+                                pairReturnType = sema.types.make(.classType(ClassType(
+                                    classSymbol: pairSymbol,
+                                    args: [.invariant(destinationMapKeyType), .invariant(destinationMapValueType)],
+                                    nullability: .nonNull
+                                )))
+                            }
+                        } else {
+                            // The factory could not be steered to a concrete
+                            // type; drop the speculative diagnostics and
+                            // restore the destination-shaped lambda
+                            // expectation so the original failure still
+                            // diagnoses at the transform.
+                            ctx.semaCtx.diagnostics.rollback(to: reinferDiagnosticsCheckpoint)
+                            _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                        }
+                    } else {
+                        // No destination type could be derived (e.g. a non-Pair
+                        // associateTo transform); restore the destination-shaped
+                        // lambda expectation so the mismatch still diagnoses.
+                        _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    }
+                }
                 resultType = destinationType
                 // Sequence and List now share top-level source-backed overload names.
                 // Bind the Sequence overload explicitly to avoid selecting List.associateTo.
