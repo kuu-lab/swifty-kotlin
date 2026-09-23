@@ -911,6 +911,29 @@ extension CallLowerer {
         )
         var finalArguments = safeNormalized.arguments
         if let chosen,
+           sema.symbols.symbol(chosen)?.kind == .constructor,
+           let innerClassSymbol = sema.symbols.parentSymbol(for: chosen),
+           sema.symbols.symbol(innerClassSymbol)?.flags.contains(.innerClass) == true
+        {
+            // BUG-inner-outer: `outer?.Inner(args)` resolves to Inner's own
+            // constructor just like the non-safe `outer.Inner(args)` form
+            // (see `lowerMemberLikeCallExpr`'s matching intercept) --
+            // allocate a real `Inner` instance and store `outer` (confirmed
+            // non-null past `callLabel` above) into its `$outer` link,
+            // instead of splicing `outer`'s own value in as if it already
+            // were the constructed object.
+            let allocatedObj = allocateAndRegisterConstructedObject(
+                chosen: chosen,
+                boundType: boundType.map { sema.types.makeNonNullable($0) },
+                outerReceiver: loweredReceiverID,
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions
+            )
+            finalArguments.insert(allocatedObj, at: 0)
+        } else if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen),
            let declaredReceiverType = signature.receiverType
         {

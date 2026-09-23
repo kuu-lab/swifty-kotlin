@@ -916,179 +916,25 @@ final class CallLowerer {
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
         {
-            // Constructor calls need an allocated object as the implicit receiver (p0).
-            // Allocate via kk_object_new(slotCount) and prepend it to the argument list.
-            // Derive slot count from NominalLayout.instanceSizeWords of the owning class.
-            let allocType = boundType ?? sema.types.anyType
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            var slotCount: Int64 = 1
-            var ownerNominalSymbol: SymbolID?
-            if let parentClassID = sema.symbols.parentSymbol(for: chosen),
-               let layout = sema.symbols.nominalLayout(for: parentClassID)
-            {
-                ownerNominalSymbol = parentClassID
-                slotCount = Int64(max(layout.instanceSizeWords, 1))
-            }
-            let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
-            instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
-            let classIDValue: Int64 = if let ownerNominalSymbol {
-                RuntimeTypeCheckToken.stableNominalTypeID(symbol: ownerNominalSymbol, sema: sema, interner: interner)
-            } else {
-                0
-            }
-            let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
-            instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-            let allocatedObj = arena.appendTemporary(type: allocType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_object_new"),
-                arguments: [slotCountExpr, classIDExpr],
-                result: allocatedObj,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let ownerNominalSymbol {
-                if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
-                    let registerDataClassResult = arena.appendTemporary(type: intType)
-                    emitNonThrowingCall(
-                        callee: interner.intern("kk_runtime_register_data_class"),
-                        arg: classIDExpr,
-                        result: registerDataClassResult,
-                        into: &instructions
-                    )
-                }
-                let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: ownerNominalSymbol,
-                    sema: sema,
-                    interner: interner
-                )
-                appendNominalSupertypeEdgeRegistrations(
-                    childSymbol: ownerNominalSymbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                appendObjectItableMethodRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    driver: driver,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                // BUG-141: register interface property getters into the itable.
-                appendObjectItablePropertyGetterRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    sema: sema,
-                    cache: driver.ctx.nominalDispatchCache,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                // Setter counterpart: register interface property setters
-                // into the itable so a write through an interface-typed
-                // receiver can dispatch to them.
-                appendObjectItablePropertySetterRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    sema: sema,
-                    cache: driver.ctx.nominalDispatchCache,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                appendObjectVtableMethodRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    driver: driver,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                appendObjectAnyToStringRegistration(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    driver: driver,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                // REFL-005: Register KClass metadata for this nominal type.
-                emitKClassMetadataRegistration(
-                    objectSymbol: ownerNominalSymbol,
-                    typeID: childTypeID,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                if let throwableSymbol = sema.symbols.lookup(
-                    fqName: [interner.intern("kotlin"), interner.intern("Throwable")]
-                ) {
-                    let ownerType = sema.types.make(.classType(ClassType(
-                        classSymbol: ownerNominalSymbol,
-                        args: [],
-                        nullability: .nonNull
-                    )))
-                    let throwableType = sema.types.make(.classType(ClassType(
-                        classSymbol: throwableSymbol,
-                        args: [],
-                        nullability: .nonNull
-                    )))
-                    // Capture a Kotlin-defined Throwable subclass at allocation time,
-                    // before its constructor body can observe the receiver.
-                    if sema.types.isSubtype(ownerType, throwableType) {
-                        let captureResult = arena.appendTemporary(type: intType)
-                        emitNonThrowingCall(
-                            callee: interner.intern("__kk_throwable_captureStackTrace"),
-                            arg: allocatedObj,
-                            result: captureResult,
-                            into: &instructions
-                        )
-                    }
-                }
-            }
-            // KUU-555: a local class's `<init>` runs as an independent KIR
-            // function — materialize captured outer locals into the fresh
-            // instance's fields here, where the enclosing scope's locals are
-            // still active (same convention as object-literal capture
-            // materialization in `lowerStoredObjectLiteralExpr`).
-            if let ownerNominalSymbol,
-               let layout = sema.symbols.nominalLayout(for: ownerNominalSymbol)
-            {
-                for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerNominalSymbol) {
-                    guard let fieldOffset = layout.fieldOffsets[capturedSymbol],
-                          let captureValue = driver.lambdaLowerer.captureValueExpr(
-                              for: capturedSymbol,
-                              sema: sema,
-                              arena: arena,
-                              interner: interner,
-                              instructions: &instructions
-                          )
-                    else {
-                        continue
-                    }
-                    let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
-                    instructions.append(.constValue(
-                        result: captureOffsetExpr,
-                        value: .intLiteral(Int64(fieldOffset))
-                    ))
-                    let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_set"),
-                        arguments: [allocatedObj, captureOffsetExpr, captureValue],
-                        result: captureSetResult,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                }
-            }
+            // Constructor calls need an allocated object as the implicit
+            // receiver (p0). A bare/implicit `Inner(...)` call (no explicit
+            // receiver) is only legal while an enclosing instance is in
+            // scope, so the active implicit receiver -- walked up as many
+            // `$outer` hops as needed for a nested `inner class` calling
+            // another one declared further out -- is the right outer value
+            // when the constructed class turns out to be an inner class.
+            // `allocateAndRegisterConstructedObject` also keeps master's
+            // itable/vtable/KClass/Throwable/local-capture registrations.
+            let allocatedObj = allocateAndRegisterConstructedObject(
+                chosen: chosen,
+                boundType: boundType,
+                outerReceiver: driver.ctx.activeImplicitReceiverExprID(),
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             finalArgIDs.insert(allocatedObj, at: 0)
             if isSyntheticAnyConstructor(chosen, sema: sema) {
                 // Any's implicit constructor is represented by allocation only;
