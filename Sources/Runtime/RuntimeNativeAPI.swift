@@ -615,7 +615,9 @@ public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
 ///
 /// Pinning prevents the GC from moving (or collecting) a heap object while
 /// the pin is held.  In the KSwiftK stop-the-world mark-sweep GC objects
-/// are never moved, so pinning is implemented as a simple reference hold.
+/// are never moved, so pinning is implemented as a simple reference hold:
+/// `GCState.pinnedObjectCounts` keeps a per-target refcount of outstanding
+/// pins, and the mark phase roots every target with a non-zero count.
 ///
 /// ABI-005: `unpinned` guards against double-unpin UB.  Once `kk_unpin_object`
 /// executes the release path, the flag is set to `true`; any subsequent call
@@ -647,9 +649,12 @@ public func kk_pin_object(_ objectRaw: Int) -> Int {
         return 0
     }
     // Register the object as a GC root so the mark-sweep collector treats it
-    // as reachable for as long as the pin is held.
+    // as reachable for as long as the pin is held. Each call returns an
+    // independent handle, so the root is a per-target refcount rather than a
+    // single membership: unpinning one handle must not unroot the target
+    // while sibling pins are still held.
     runtimeStorage.withGCLock { state in
-        state.pinnedObjects.insert(UInt(bitPattern: objectRaw))
+        state.pinnedObjectCounts[UInt(bitPattern: objectRaw), default: 0] += 1
     }
     return registerRuntimeObject(RuntimePinnedBox(objectRaw: objectRaw))
 }
@@ -659,26 +664,43 @@ public func kk_unpin_object(_ pinnedHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pinnedHandle) else {
         return 0
     }
-    // ABI-005: guard is not registered at all → silently no-op.
-    let isKnown = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
+    // The whole handle lifetime protocol — registration check, box cast,
+    // double-unpin guard, and root refcount decrement — runs inside one
+    // GC-lock critical section. The membership check before tryCast keeps
+    // takeUnretainedValue safe (a registered box is still passRetained, and
+    // the release path cannot drop it while the lock is held), and bundling
+    // the refcount update with the handle checks leaves no window for a
+    // concurrent unpin/release to observe intermediate state.
+    var shouldReleaseHandle = false
+    let objectRaw = runtimeStorage.withGCLock { state -> Int? in
+        // ABI-005: guard is not registered at all → silently no-op.
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)),
+              let box = tryCast(ptr, to: RuntimePinnedBox.self)
+        else {
+            return nil
+        }
+        // ABI-005: idempotency guard — second unpin on same handle is a no-op.
+        guard box.tryUnpin() else {
+            return box.objectRaw
+        }
+        shouldReleaseHandle = true
+        let objectRaw = box.objectRaw
+        // Drop this handle's share of the GC root; the target stays rooted
+        // until the last independent pin on it is released.
+        let key = UInt(bitPattern: objectRaw)
+        if let count = state.pinnedObjectCounts[key], count > 1 {
+            state.pinnedObjectCounts[key] = count - 1
+        } else {
+            state.pinnedObjectCounts.removeValue(forKey: key)
+        }
+        return objectRaw
     }
-    guard isKnown else {
+    guard let objectRaw else {
         return 0
     }
-    guard let box = tryCast(ptr, to: RuntimePinnedBox.self) else {
-        return 0
+    if shouldReleaseHandle {
+        _ = runtimeReleaseObject(pinnedHandle)
     }
-    // ABI-005: idempotency guard — second unpin on same handle is a no-op.
-    guard box.tryUnpin() else {
-        return box.objectRaw
-    }
-    let objectRaw = box.objectRaw
-    // Drop GC root registration so the object can be collected again; see kk_pin_object.
-    runtimeStorage.withGCLock { state in
-        state.pinnedObjects.remove(UInt(bitPattern: objectRaw))
-    }
-    _ = runtimeReleaseObject(pinnedHandle)
     return objectRaw
 }
 
@@ -688,10 +710,16 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pinnedHandle) else {
         return 0
     }
-    guard let box = tryCast(ptr, to: RuntimePinnedBox.self) else {
-        return 0
+    // Same atomic handle-lifetime protocol as kk_unpin_object: only a box
+    // still registered in objectPointers is safe to takeUnretainedValue on.
+    return runtimeStorage.withGCLock { state in
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)),
+              let box = tryCast(ptr, to: RuntimePinnedBox.self)
+        else {
+            return 0
+        }
+        return box.objectRaw
     }
-    return box.objectRaw
 }
 
 // MARK: - StableRef<T>
@@ -700,9 +728,11 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
 ///
 /// Same GC-root-pinning mechanism as `Pinned<T>` above (KSwiftK never moves
 /// heap objects, so pinning is a reachability hold rather than a real pin),
-/// but refcounted per target object rather than a plain membership set:
-/// unlike `Pinned<T>`, the public StableRef contract allows the same target
-/// to be wrapped by several independent handles at once (e.g.
+/// backed by its own per-target refcount table (`stableRefCounts`) because
+/// the handle mechanics differ: StableRef handles are COpaquePointer boxes
+/// disposed by target address rather than per-handle boxes, and the public
+/// contract allows the same target to be wrapped by several independent
+/// handles at once (e.g.
 /// `kotlin.native.concurrent.Continuation1.invoke` creates a fresh
 /// `StableRef` per call while the block's own StableRef stays alive across
 /// many calls), and disposing one handle must never unpin a sibling handle
