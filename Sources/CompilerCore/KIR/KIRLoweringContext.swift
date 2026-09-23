@@ -9,6 +9,14 @@ final class KIRLoweringContext {
         let exprID: KIRExprID
     }
 
+    /// BUG-274: the lazy "ensure initialized" function and `$initialized`
+    /// flag registered for one source-backed `object`/`companion object`.
+    struct ObjectLazyInit {
+        let ensureInitSymbol: SymbolID
+        let ensureInitName: InternedString
+        let flagSymbol: SymbolID
+    }
+
     // MARK: - Scope State (saved/restored per function/lambda)
 
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
@@ -82,6 +90,14 @@ final class KIRLoweringContext {
     /// Companion object initializer functions registered during class lowering.
     /// These are called in order during module initialization.
     private var companionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
+
+    /// BUG-274: maps a source-backed `object`/`companion object`'s own
+    /// symbol to its lazily-run "ensure initialized" function and its
+    /// `$initialized` flag global. Populated only for objects synthesized in
+    /// THIS compilation via `synthesizeObjectInitializer`/
+    /// `synthesizeCompanionInitializerIfNeeded`. Imported-library entries
+    /// live in `SymbolTable` after metadata restoration instead.
+    private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
     // MARK: - Structured Scope Management
 
@@ -500,6 +516,29 @@ final class KIRLoweringContext {
         companionInitializerFunctions
     }
 
+    /// BUG-274: registers `objectSymbol`'s lazy "ensure initialized"
+    /// function so read/write/call sites that touch its state can insert a
+    /// guard call before the eager module-init call is removed for it.
+    func registerObjectLazyInit(
+        for objectSymbol: SymbolID,
+        ensureInitSymbol: SymbolID,
+        ensureInitName: InternedString,
+        flagSymbol: SymbolID
+    ) {
+        objectLazyInitBySymbol[objectSymbol] = ObjectLazyInit(
+            ensureInitSymbol: ensureInitSymbol,
+            ensureInitName: ensureInitName,
+            flagSymbol: flagSymbol
+        )
+    }
+
+    /// Returns `objectSymbol`'s lazy-init entry, or `nil` for any object this
+    /// compilation did not itself synthesize an initializer for. Imported
+    /// library singletons are restored separately in `SymbolTable`.
+    func objectLazyInit(for objectSymbol: SymbolID) -> ObjectLazyInit? {
+        objectLazyInitBySymbol[objectSymbol]
+    }
+
     func resetModuleState() {
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
         callableValueInfoByExprID.removeAll(keepingCapacity: true)
@@ -509,5 +548,6 @@ final class KIRLoweringContext {
         itableBridgeSymbolsByKey.removeAll(keepingCapacity: true)
         anyToStringBridgeSymbolsByImplementation.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
+        objectLazyInitBySymbol.removeAll(keepingCapacity: true)
     }
 }

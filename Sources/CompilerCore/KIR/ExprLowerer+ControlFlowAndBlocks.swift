@@ -777,6 +777,23 @@ extension ExprLowerer {
                        return pk == nil || pk == .package || pk == .object
                    }()
                 {
+                    // BUG-274: this branch also covers a same-class-body
+                    // reference like `Companion.tag`, which Sema binds
+                    // directly to the property symbol -- collapsing the
+                    // "Companion" qualifier away entirely, unlike an
+                    // external `Comp.tag` access whose receiver still goes
+                    // through this function's class-name redirect and the
+                    // bare-object-reference fallback below (both guarded
+                    // there). Without this, that collapsing silently skips
+                    // the object's lazy clinit-equivalent.
+                    if let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                       sema.symbols.symbol(ownerSymbol)?.kind == .object
+                    {
+                        driver.emitObjectLazyInitGuardIfNeeded(
+                            objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                            instructions: &instructions
+                        )
+                    }
                     let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
                     instructions.append(.loadGlobal(result: id, symbol: symbol))
                     return wrapLateinitReadIfNeeded(
@@ -809,6 +826,24 @@ extension ExprLowerer {
                         thrownResult: nil
                     ))
                     return result
+                }
+                // BUG-274: this is the generic bare-name fallback -- reached
+                // for a real user `object`/`companion object` whenever it is
+                // referenced as a value in its own right (an explicit-receiver
+                // qualifier for a member call or property access, since
+                // both `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr`
+                // and `CallLowerer`'s member-call dispatch lower the receiver
+                // through here, or a plain value crossing an `Any`/interface
+                // boundary). Trigger the object's lazy clinit-equivalent
+                // before handing out its value, mirroring the JVM's
+                // clinit-on-first-access trigger. A no-op for any symbol
+                // that isn't a source-backed object (this compilation only
+                // ever registers one for those; see `objectLazyInit`).
+                if sema.symbols.symbol(symbol)?.kind == .object {
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: symbol, arena: arena, sema: sema,
+                        instructions: &instructions
+                    )
                 }
                 let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
                 instructions.append(.constValue(result: id, value: .symbolRef(symbol)))

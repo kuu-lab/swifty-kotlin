@@ -1129,6 +1129,84 @@ extension NativeEmitter {
             )
         }
 
+        /// BUG-B: `.length` on a String must throw `NullPointerException`
+        /// when the value is *actually* null at runtime, regardless of its
+        /// statically-declared non-null type -- exactly like calling any
+        /// method on a null reference. This can genuinely happen: an
+        /// overridden non-null `String` property read during superclass
+        /// construction observes the not-yet-run subclass initializer's
+        /// zero-filled backing field, which `stringAggregateFields` bridges
+        /// to a null data pointer (mirroring `kk_string_to_flat`'s existing
+        /// raw-handle-zero-means-null convention). `lowerBuiltinCall`'s
+        /// ordinary fast path for this accessor has no way to signal a
+        /// thrown exception, so this handles it here instead, before that
+        /// fast path runs, with direct access to the thrown-channel
+        /// plumbing (`storeOutThrownIfNonNull`, `currentBlock`) that
+        /// `lowerBuiltinCall` does not have.
+        func emitThrowingStringLength(
+            receiverValue: LLVMCAPIBindings.LLVMValueRef,
+            result: KIRExprID?,
+            usesThrownChannel: Bool,
+            thrownResult: KIRExprID?,
+            instructionIndex: Int
+        ) -> Bool {
+            guard let typeLowering,
+                  let fields = stringAggregateFields(receiverValue, suffix: "len_npe_\(instructionIndex)"),
+                  let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                  let isNull = bindings.buildICmpEqual(
+                      builder, lhs: fields[0], rhs: nullData, name: "len_npe_isnull_\(instructionIndex)"
+                  ),
+                  let npeFunction = declareExternalFunction(
+                      named: "__kk_null_pointer_exception_new", argumentCount: 0, appendThrownChannel: false
+                  ),
+                  let throwBlock = bindings.appendBasicBlock(
+                      context: context, function: llvmFunction.value, name: "len_npe_throw_\(instructionIndex)"
+                  ),
+                  let okBlock = bindings.appendBasicBlock(
+                      context: context, function: llvmFunction.value, name: "len_npe_ok_\(instructionIndex)"
+                  )
+            else {
+                return false
+            }
+            let continueBlock = usesThrownChannel
+                ? bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "len_npe_cont_\(instructionIndex)")
+                : nil
+            _ = bindings.buildCondBr(builder, condition: isNull, thenBlock: throwBlock, elseBlock: okBlock)
+
+            currentBlock = throwBlock
+            bindings.positionBuilder(builder, at: throwBlock)
+            let exceptionHandle = bindings.buildCall(
+                builder, functionType: npeFunction.type, callee: npeFunction.value, arguments: [],
+                name: "len_npe_exc_\(instructionIndex)"
+            ) ?? zeroValue
+            storeResult(result, zeroValue)
+            if usesThrownChannel, let thrownResult, let continueBlock {
+                storeResult(thrownResult, exceptionHandle)
+                _ = bindings.buildBr(builder, destination: continueBlock)
+            } else {
+                // No enclosing catch reachable for this call within this
+                // function: propagate to this function's own caller
+                // immediately, matching the `nullAssert` case's pattern.
+                storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
+                _ = bindings.buildRet(builder, value: zeroReturnValue)
+            }
+
+            currentBlock = okBlock
+            bindings.positionBuilder(builder, at: okBlock)
+            storeResult(result, fields[1])
+            if usesThrownChannel, let thrownResult {
+                storeResult(thrownResult, zeroValue)
+            }
+            if let continueBlock {
+                _ = bindings.buildBr(builder, destination: continueBlock)
+                currentBlock = continueBlock
+                bindings.positionBuilder(builder, at: continueBlock)
+            } else {
+                currentBlock = okBlock
+            }
+            return true
+        }
+
         func isStringAggregateType(_ type: TypeID?) -> Bool {
             guard let type,
                   let typeSystem,
@@ -2246,6 +2324,26 @@ extension NativeEmitter {
                         }
                     }
                     storeResult(result, zeroValue)
+                    continue
+                }
+
+                // BUG-B: must run before `emitBuiltinCall`'s ordinary fast
+                // path for this accessor, which has no way to signal a
+                // thrown exception. Gated on the receiver's KIR-level type
+                // actually being String -- not merely "an aggregate struct
+                // value" -- so a CharSequence/StringBuilder handle bridged
+                // through the same struct shape never starts throwing.
+                if Self.isStringLengthAggregateAccessorName(externalCalleeName),
+                   argumentValues.count == 1,
+                   isStringAggregateType(argumentTypes.first ?? nil),
+                   emitThrowingStringLength(
+                       receiverValue: argumentValues[0],
+                       result: result,
+                       usesThrownChannel: usesThrownChannel,
+                       thrownResult: thrownResult,
+                       instructionIndex: instructionIndex
+                   )
+                {
                     continue
                 }
 

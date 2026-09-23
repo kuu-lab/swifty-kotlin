@@ -470,6 +470,7 @@ public final class SymbolTable {
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
     private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
@@ -1168,6 +1169,14 @@ public final class SymbolTable {
 
     public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
         objectInitializerSymbols[object]
+    }
+
+    public func setObjectLazyInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
+        objectLazyInitializerSymbols[object] = initializer
+    }
+
+    public func objectLazyInitializerSymbol(for object: SymbolID) -> SymbolID? {
+        objectLazyInitializerSymbols[object]
     }
 
     public func setCompanionObjectInitializerSymbol(_ initializer: SymbolID, for owner: SymbolID) {

@@ -70,6 +70,23 @@ struct LibMetadataSerializationTests {
         #expect(r.itableSlots == "ext.IFace@0")
     }
 
+    @Test func testMetadataRoundTripPreservesObjectLazyInitializerLink() throws {
+        let record = MetadataRecord(
+            kind: .object,
+            mangledName: "_kk_ext_Singleton",
+            fqName: "ext.Singleton",
+            objectInitializerLinkName: "_kk_object_init",
+            objectLazyInitializerLinkName: "_kk_object_lazy_init"
+        )
+
+        let serialized = MetadataEncoder().serialize([record])
+        #expect(serialized.contains("objectLazyInitLink=_kk_object_lazy_init"))
+
+        let decoded = try #require(MetadataDecoder().decode(serialized).first)
+        #expect(decoded.objectInitializerLinkName == "_kk_object_init")
+        #expect(decoded.objectLazyInitializerLinkName == "_kk_object_lazy_init")
+    }
+
     @Test func testSyntheticValueClassAnchorPreservesUnderlyingTypeMetadata() throws {
         let encoder = MetadataEncoder()
         let interner = StringInterner()
