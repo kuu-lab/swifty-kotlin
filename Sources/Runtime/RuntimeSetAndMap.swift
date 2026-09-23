@@ -168,9 +168,28 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
 
 @_cdecl("__kk_collection_containsAll")
 public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int {
+    // Resolve the receiver once: calling kk_op_contains per argument element
+    // would re-run the range/list/set/array handle resolution chain (each
+    // taking the GC lock) m times. List/Array receivers are additionally
+    // hashed once into a Set so each probe is O(1) instead of an O(n)
+    // linear scan — same equality as kk_op_contains via RuntimeElementKey.
+    let contains: (Int) -> Int
+    if let range = runtimeRangeBox(from: collRaw) {
+        contains = { runtimeRangeContains(range, $0) }
+    } else if let list = runtimeListBox(from: collRaw) {
+        let elementSet = Set(list.values.lazy.map { RuntimeElementKey(value: $0.legacyRawValue) })
+        contains = { elementSet.contains(RuntimeElementKey(value: $0)) ? 1 : 0 }
+    } else if let set = runtimeSetBox(from: collRaw) {
+        contains = { set.contains(rawValue: $0) ? 1 : 0 }
+    } else if let array = runtimeArrayBox(from: collRaw) {
+        let elementSet = Set(array.values.lazy.map { RuntimeElementKey(value: $0.legacyRawValue) })
+        contains = { elementSet.contains(RuntimeElementKey(value: $0)) ? 1 : 0 }
+    } else {
+        contains = { _ in 0 }
+    }
     let iteratorRaw = kk_list_iterator(elementsRaw)
     while kk_list_iterator_hasNext(iteratorRaw) != 0 {
-        if kk_op_contains(collRaw, kk_list_iterator_next(iteratorRaw)) == 0 {
+        if contains(kk_list_iterator_next(iteratorRaw)) == 0 {
             return 0
         }
     }
