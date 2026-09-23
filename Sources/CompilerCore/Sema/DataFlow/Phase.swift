@@ -197,7 +197,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
                 bundledIndex: bundledIndex,
                 stdlibModuleName: stdlibModuleName,
-                importedBindings: importDeferredWork.importedBindings,
                 symbols: symbols,
                 types: types,
                 interner: ctx.interner
@@ -395,62 +394,16 @@ final class DataFlowSemaPhase: CompilerPhase {
     func mergeImportedStdlibSymbolsIntoBundledIndex(
         bundledIndex: BundledDeclarationIndex,
         stdlibModuleName: InternedString,
-        importedBindings: [ImportedLibraryBinding] = [],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
-        if symbols.hasLazyImportedMetadataLoader {
-            // The compact index carries the receiver's nominal FQ name so the
-            // synthetic overlap gate can be restored without decoding every
-            // callable signature. This preserves the eager artifact path's
-            // routing while keeping declaration bodies lazy.
-            var indexedKeys: Set<BundledMemberKey> = []
-            for binding in importedBindings {
-                guard let symbol = symbols.symbol(binding.symbol),
-                      symbol.flags.contains(.importedLibrary),
-                      symbols.moduleFQN(for: symbol.id) == stdlibModuleName,
-                      symbol.kind == .function || symbol.kind == .property || symbol.kind == .field
-                else {
-                    continue
-                }
-                let ownerFQName = binding.record.receiverOwnerFQName
-                    ?? Array(symbol.fqName.dropLast())
-                let arity = symbol.kind == .function ? binding.record.arity : 0
-                let key = BundledMemberKey(
-                    ownerFQName: ownerFQName,
-                    name: symbol.name,
-                    arity: arity
-                )
-                indexedKeys.insert(key)
-
-                guard symbol.kind == .function,
-                      !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(
-                        key,
-                        interner: interner
-                      ),
-                      let receiverFQName = binding.record.receiverOwnerFQName,
-                      let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
-                        guard let candidateSymbol = symbols.symbol(candidate) else { return false }
-                        switch candidateSymbol.kind {
-                        case .class, .interface, .object, .enumClass, .annotationClass:
-                            return true
-                        default:
-                            return false
-                        }
-                      })
-                else {
-                    continue
-                }
-                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
-            }
-            var updatedIndex = bundledIndex
-            updatedIndex.insertImportedStdlibSymbols(keys: indexedKeys, interner: interner)
-            return updatedIndex
-        }
         var importedStdlibKeys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
             guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+            // `memberKey` answers arity/receiver-owner from the compact
+            // `ImportedMemberIndexShape` when the symbol is an unmaterialized
+            // lazy shell, so this scan does not decode declaration bodies.
             guard let key = BundledDeclarationIndex.memberKey(
                 for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
             ) else { continue }
@@ -462,15 +415,32 @@ final class DataFlowSemaPhase: CompilerPhase {
             // parentSymbol == owner) can find them. Skip retained runtime-bridge
             // overlaps so synthetic ABI stubs keep routing through kk_* entries.
             guard symbol.kind == .function,
-                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
-                  let signature = symbols.functionSignature(for: symbol.id),
-                  let receiverType = signature.receiverType,
-                  let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
-                      for: receiverType,
-                      types: types
-                  )
+                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
             else { continue }
-            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
+                // Lazy shells carry the receiver's nominal FQ name in the
+                // compact index, so the parent edge is restored without
+                // materializing the callable signature.
+                if let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
+                    guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+                    switch candidateSymbol.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass:
+                        return true
+                    default:
+                        return false
+                    }
+                }) {
+                    symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+                }
+            } else if symbols.importedMemberIndexShape(for: symbol.id) == nil,
+                      let signature = symbols.functionSignature(for: symbol.id),
+                      let receiverType = signature.receiverType,
+                      let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                          for: receiverType,
+                          types: types
+                      ) {
+                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            }
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)

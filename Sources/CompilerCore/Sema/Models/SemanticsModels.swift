@@ -518,8 +518,13 @@ public final class SymbolTable {
     /// override chain).
     private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
 
-    /// Thread safety lock for concurrent access
-    private let lock = NSLock()
+    /// Thread safety lock for concurrent access. Recursive because the lazy
+    /// imported-metadata loader re-enters this table (`define`, `lookupAll`,
+    /// `setFunctionSignature`, ...) while materializing a symbol, and that
+    /// materialization can be triggered from inside `define`'s critical
+    /// section (e.g. `canCoexistAsOverload` → `extensionPropertyReceiverType`).
+    /// A plain NSLock would self-deadlock on that path.
+    private let lock = NSRecursiveLock()
 
     public init() {}
 
@@ -550,6 +555,8 @@ public final class SymbolTable {
     }
 
     private func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
         guard let loader = lazyImportedMetadataLoader,
               !lazyImportedMetadataLoaded.contains(symbol),
               !lazyImportedMetadataLoadInProgress.contains(symbol)
