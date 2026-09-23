@@ -711,6 +711,7 @@ final class CallLowerer {
                     objectValue: loweredCollectionFactory,
                     nominalSymbol: factoryResultClass,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
@@ -982,6 +983,7 @@ final class CallLowerer {
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions

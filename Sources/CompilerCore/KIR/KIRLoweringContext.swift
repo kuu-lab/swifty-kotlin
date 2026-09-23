@@ -85,6 +85,9 @@ final class KIRLoweringContext {
     var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
     /// Caches raw-returning bridges used by runtime Any.toString dispatch.
     var anyToStringBridgeSymbolsByImplementation: [SymbolID: SymbolID] = [:]
+    /// Per-nominal vtable/itable registration entries, computed once per type
+    /// instead of once per construction site.
+    let nominalDispatchCache = KIRNominalDispatchCache()
     var nextSyntheticLambdaSymbolRawValue: Int32 = -60_000_000
 
     /// Companion object initializer functions registered during class lowering.
