@@ -46,8 +46,14 @@ public extension TypeSystem {
             let suspendPrefix = functionType.isSuspend ? "suspend " : ""
             let params = functionType.params.map(renderType).joined(separator: ", ")
             let retType = renderType(functionType.returnType)
+            let core = "\(contextPrefix)\(suspendPrefix)\(receiverPrefix)(\(params)) -> \(retType)"
             let suffix = nullabilitySuffix(functionType.nullability)
-            return "\(contextPrefix)\(suspendPrefix)\(receiverPrefix)(\(params)) -> \(retType)\(suffix)"
+            // A nullable function type needs its own parens so it stays
+            // distinct from a non-nullable function returning a nullable
+            // value: `((Int) -> Int)?` vs. `(Int) -> Int?`. Only the
+            // function type's own nullability triggers this — the return
+            // type's suffix is already inside `retType`.
+            return functionType.nullability == .nonNull ? "\(core)\(suffix)" : "(\(core))\(suffix)"
         case let .kClassType(kClassType):
             return "KClass<\(renderType(kClassType.argument))>\(nullabilitySuffix(kClassType.nullability))"
         case let .intersection(parts):
