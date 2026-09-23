@@ -86,6 +86,32 @@ extension BuildKIRRegressionTests {
                 val transform: (Int) -> Int = { it + 1 }
             }
             fun use10(h: Holder): Int = h.transform(5)
+            """,
+            """
+            package sample11
+            interface Foo11 {
+                fun bar11(x: Int, y: Int = x + 1): Int
+            }
+            class FooImpl11 : Foo11 {
+                override fun bar11(x: Int, y: Int): Int = x + y
+            }
+            fun main11(): Int {
+                val f: Foo11 = FooImpl11()
+                return f.bar11(10)
+            }
+            """,
+            """
+            package sample12
+            open class Base12 {
+                open fun baz12(x: Int, y: Int = 100): Int = x + y
+            }
+            class Derived12 : Base12() {
+                override fun baz12(x: Int, y: Int): Int = x - y
+            }
+            fun main12(): Int {
+                val d: Base12 = Derived12()
+                return d.baz12(5)
+            }
             """
         ]
         let ctx = makeContextFromSources(sources)
@@ -342,6 +368,102 @@ extension BuildKIRRegressionTests {
             !(callees.contains("invoke")),
             "Function-typed property calls must not be rewritten to 'invoke'."
         )
+    }
+
+    // MARK: - Open/interface member default-argument virtual dispatch
+
+    // An abstract interface member's `$default` bridge was never generated at
+    // all: `CallSupportLowerer.collectFunctionDefaults` had no `.interfaceDecl`
+    // case, so `Foo11.bar11`'s default-argument metadata never entered the
+    // stub-generation mapping and callers routing through `bar11$default`
+    // hit an undefined symbol at link time.
+    @Test
+    func testInterfaceMemberDefaultArgGeneratesStubWithItableDispatch() throws {
+        let ctx = try sharedDefaultArgsCtx()
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main11", in: module, interner: ctx.interner)
+        let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
+        #expect(mainCallees.contains("bar11$default"),
+                      "Expected call to bar11$default stub, got: \(mainCallees)")
+
+        let stubFunction = findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "bar11$default"
+        }
+        #expect(stubFunction != nil, "Expected bar11$default stub function to be generated")
+        guard let stub = stubFunction else { return }
+
+        // The stub must be able to reach FooImpl11.bar11 through a dynamic
+        // itable lookup -- before the fix, it only ever statically
+        // re-invoked the abstract Foo11.bar11 declaration (which has no
+        // runnable body). A static `.call(bar11)` also legitimately remains
+        // in the stub as the fallback for a (Kotlin-illegal, not yet
+        // diagnosed) `super.bar11(...)` caller that omits the default --
+        // see CallSupportLowerer.superCallMaskBit -- guarded by a
+        // `jumpIfEqual` that selects between the two at runtime.
+        let hasRuntimeDispatchGuard = stub.body.contains { instruction in
+            if case .jumpIfEqual = instruction { return true }
+            return false
+        }
+        #expect(hasRuntimeDispatchGuard,
+                      "Expected a runtime branch selecting between static (super) and virtual dispatch")
+
+        let virtualDispatches = stub.body.compactMap { instruction -> KIRDispatchKind? in
+            guard case let .virtualCall(_, callee, _, _, _, _, _, dispatch) = instruction else { return nil }
+            return ctx.interner.resolve(callee) == "bar11" ? dispatch : nil
+        }
+        #expect(virtualDispatches.count == 1, "Expected exactly one virtual dispatch to bar11 in the stub")
+        if case .itableDynamic = virtualDispatches.first {
+            // Expected: the stub's own receiver type is the interface itself,
+            // so the concrete implementer's itable slot is resolved at runtime.
+        } else {
+            Issue.record("Expected itableDynamic dispatch, got: \(String(describing: virtualDispatches.first))")
+        }
+    }
+
+    // An open class member's `$default` bridge always statically re-invoked
+    // the declaring class's own body (`originalSymbol`), bypassing vtable
+    // dispatch. A subclass override was therefore silently skipped whenever
+    // the call omitted a defaulted trailing argument.
+    @Test
+    func testOpenClassMemberDefaultArgGeneratesStubWithVtableDispatch() throws {
+        let ctx = try sharedDefaultArgsCtx()
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main12", in: module, interner: ctx.interner)
+        let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
+        #expect(mainCallees.contains("baz12$default"),
+                      "Expected call to baz12$default stub, got: \(mainCallees)")
+
+        let stubFunction = findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "baz12$default"
+        }
+        #expect(stubFunction != nil, "Expected baz12$default stub function to be generated")
+        guard let stub = stubFunction else { return }
+
+        // A static `.call(baz12)` legitimately remains in the stub as the
+        // fallback for a (Kotlin-illegal, not yet diagnosed)
+        // `super.baz12(...)` caller that omits the default -- see
+        // CallSupportLowerer.superCallMaskBit -- guarded by a `jumpIfEqual`
+        // that selects between it and the virtual dispatch below at runtime.
+        let hasRuntimeDispatchGuard = stub.body.contains { instruction in
+            if case .jumpIfEqual = instruction { return true }
+            return false
+        }
+        #expect(hasRuntimeDispatchGuard,
+                      "Expected a runtime branch selecting between static (super) and virtual dispatch")
+
+        let virtualDispatches = stub.body.compactMap { instruction -> KIRDispatchKind? in
+            guard case let .virtualCall(_, callee, _, _, _, _, _, dispatch) = instruction else { return nil }
+            return ctx.interner.resolve(callee) == "baz12" ? dispatch : nil
+        }
+        #expect(virtualDispatches.count == 1, "Expected exactly one virtual dispatch to baz12 in the stub")
+        if case .vtable = virtualDispatches.first {
+            // Expected: Base12 has a subtype (Derived12), so calls through the
+            // stub must resolve via vtable at the receiver's runtime type.
+        } else {
+            Issue.record("Expected vtable dispatch, got: \(String(describing: virtualDispatches.first))")
+        }
     }
 
 }

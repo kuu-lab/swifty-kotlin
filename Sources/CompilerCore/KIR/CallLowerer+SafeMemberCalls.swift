@@ -896,8 +896,17 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
+            // See CallSupportLowerer.superCallMaskBit: a `super.foo(...)`
+            // caller omitting a default is Kotlin-illegal and not yet
+            // diagnosed. Until that diagnostic exists, such a caller still
+            // shares this `$default` bridge with ordinary callers but must
+            // keep the bridge's internal dispatch static so it does not
+            // re-enter (and recurse through) the override it is bypassing.
+            let safeMaskWithSuperFlag = isSuperCall
+                ? safeNormalized.defaultMask | CallSupportLowerer.superCallMaskBit
+                : safeNormalized.defaultMask
             appendDefaultMaskArgument(
-                safeNormalized.defaultMask,
+                safeMaskWithSuperFlag,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions.instructions,

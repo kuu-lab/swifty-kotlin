@@ -7,6 +7,24 @@ struct NormalizedCallResult {
 final class CallSupportLowerer {
     unowned let driver: KIRLoweringDriver
 
+    /// Kotlin prohibits `super.foo(...)` from omitting a defaulted trailing
+    /// argument (kotlinc: "super-calls with default arguments are
+    /// prohibited"), but KSwiftK's Sema does not yet diagnose that -- see the
+    /// tracked follow-up bug. Absent that diagnostic, such a call still
+    /// reaches this same `$default` bridge that ordinary callers use, and an
+    /// ordinary caller needs the bridge's internal call to dispatch
+    /// virtually (so an override is reached). Dispatching virtually for a
+    /// `super` caller too would re-enter the very override it is bypassing
+    /// and recurse forever, so this reserved high bit in the mask argument
+    /// (set by `super` call sites) lets the bridge fall back to a static
+    /// call instead -- preserving the pre-existing (if technically
+    /// Kotlin-illegal) behavior rather than crashing. Parameter counts never
+    /// approach 62, so this bit never collides with a real per-parameter bit.
+    /// Once the missing diagnostic is added, this branch becomes dead and
+    /// can be removed.
+    static let superCallMaskBitIndex = 62
+    static let superCallMaskBit: Int64 = Int64(1) << superCallMaskBitIndex
+
     init(driver: KIRLoweringDriver) {
         self.driver = driver
     }
@@ -46,6 +64,10 @@ final class CallSupportLowerer {
             }
         case let .objectDecl(objectDecl):
             for item in objectDecl.memberFunctions + objectDecl.nestedClasses + objectDecl.nestedObjects {
+                collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
+            }
+        case let .interfaceDecl(interfaceDecl):
+            for item in interfaceDecl.memberFunctions + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
             }
         default:
@@ -230,14 +252,75 @@ final class CallSupportLowerer {
         }
 
         let result = arena.appendTemporary(type: signature.returnType)
-        body.append(.call(
-            symbol: originalSymbol,
-            callee: originalName,
-            arguments: callArgs,
-            result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        // A member's `$default` bridge must dispatch to the override chosen
+        // at the actual runtime receiver, not statically re-invoke
+        // `originalSymbol`'s own declaring class/interface body -- otherwise
+        // an open/abstract member's default-argument call would always run
+        // the base implementation even when the receiver is an overriding
+        // subclass. The one exception is a (Kotlin-illegal, not yet
+        // diagnosed) `super.foo(...)` caller omitting a default: it shares
+        // this same bridge but must stay static -- see superCallMaskBit.
+        if let receiverType = signature.receiverType,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let dispatchKind = resolveVirtualDispatchKind(
+               callee: originalSymbol,
+               receiverTypeID: receiverType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            let superBitValue = Self.superCallMaskBit
+            let superBitDivisorExpr = arena.appendExpr(.intLiteral(superBitValue), type: intType)
+            body.append(.constValue(result: superBitDivisorExpr, value: .intLiteral(superBitValue)))
+            let superBitDividedExpr = arena.appendTemporary(type: intType)
+            body.append(.binary(op: .divide, lhs: maskExpr, rhs: superBitDivisorExpr, result: superBitDividedExpr))
+            let superModulusExpr = arena.appendExpr(.intLiteral(2), type: intType)
+            body.append(.constValue(result: superModulusExpr, value: .intLiteral(2)))
+            let superBitExpr = arena.appendTemporary(type: intType)
+            body.append(.binary(op: .modulo, lhs: superBitDividedExpr, rhs: superModulusExpr, result: superBitExpr))
+            let superZeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+            body.append(.constValue(result: superZeroExpr, value: .intLiteral(0)))
+
+            // superBitExpr == 0 (ordinary caller) jumps to the virtual-call
+            // path; the super-call bit set (fallthrough) reaches the static
+            // call directly below.
+            let virtualDispatchLabel = driver.ctx.makeLoopLabel()
+            let afterDispatchLabel = driver.ctx.makeLoopLabel()
+            body.append(.jumpIfEqual(lhs: superBitExpr, rhs: superZeroExpr, target: virtualDispatchLabel))
+
+            body.append(.call(
+                symbol: originalSymbol,
+                callee: originalName,
+                arguments: callArgs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.jump(afterDispatchLabel))
+
+            body.append(.label(virtualDispatchLabel))
+            body.append(.virtualCall(
+                symbol: originalSymbol,
+                callee: originalName,
+                receiver: receiverExprID,
+                arguments: Array(callArgs.dropFirst()),
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatchKind
+            ))
+
+            body.append(.label(afterDispatchLabel))
+        } else {
+            body.append(.call(
+                symbol: originalSymbol,
+                callee: originalName,
+                arguments: callArgs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         body.append(.returnValue(result))
         body.append(.endBlock)
 
