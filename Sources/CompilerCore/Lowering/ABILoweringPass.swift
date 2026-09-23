@@ -336,7 +336,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        module: module, types: types, symbols: symbols,
                        interner: ctx.interner,
                        boxingCalleeTable: boxingCalleeTable,
-                       sema: ctx.sema
+                       sema: ctx.sema,
+                       cache: ctx.nominalDispatchCache
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -745,7 +746,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         symbols: SymbolTable?,
         interner: StringInterner,
         boxingCalleeTable: BoxingCalleeTable,
-        sema: SemaModule?
+        sema: SemaModule?,
+        cache: KIRNominalDispatchCache?
     ) -> [KIRInstruction]? {
         guard let fromType = intrinsicArgType(from, arena: module.arena, types: types),
               let toType = module.arena.exprType(to)
@@ -794,6 +796,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 interner: interner,
                 arena: module.arena,
                 sema: sema,
+                cache: cache,
                 into: &instructions
             )
             return instructions

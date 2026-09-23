@@ -38,6 +38,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     requireNonNull: Bool = false,
     boxingCalleeTable: BoxingCalleeTable? = nil,
     sema: SemaModule? = nil,
+    cache: KIRNominalDispatchCache? = nil,
     into instructions: inout C
 ) -> KIRExprID where C.Element == KIRInstruction {
     let rawKind = types.kind(of: sourceType)
@@ -59,6 +60,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
         interner: interner,
         arena: arena,
         sema: sema,
+        cache: cache,
         into: &instructions
     )
     return boxedResult
@@ -196,6 +198,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     interner: StringInterner,
     arena: KIRArena,
     sema: SemaModule? = nil,
+    cache: KIRNominalDispatchCache? = nil,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     func emitPlainBoxCall() {
@@ -231,6 +234,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
             interner: interner,
             arena: arena,
             sema: sema,
+            cache: cache,
             into: &instructions
         )
         return
@@ -283,6 +287,7 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     interner: StringInterner,
     arena: KIRArena,
     sema: SemaModule? = nil,
+    cache: KIRNominalDispatchCache? = nil,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let classSym = symbols.symbol(classSymbol),
@@ -343,6 +348,7 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         interner: interner,
         arena: arena,
         sema: sema,
+        cache: cache,
         into: &instructions
     )
 }
@@ -355,6 +361,7 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
     interner: StringInterner,
     arena: KIRArena,
     sema: SemaModule?,
+    cache: KIRNominalDispatchCache?,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let objectLayout = symbols.nominalLayout(for: classSymbol) else {
@@ -407,6 +414,7 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
             objectValue: boxedValue,
             nominalSymbol: classSymbol,
             sema: sema,
+            cache: cache ?? KIRNominalDispatchCache(),
             arena: arena,
             interner: interner,
             instructions: &instructions
