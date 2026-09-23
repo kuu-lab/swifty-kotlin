@@ -12,7 +12,7 @@ import Testing
 //   4. Named-capture-group access chains produce no sema errors and lower to KIR
 //   5. toRegex() String extension lowers to __kk_string_toRegex_flat
 //   6. String.split(Regex) and String.contains(Regex) lower to the correct KIR callees
-//   7. Regex.replace with lambda lowers to __kk_regex_replace_lambda
+//   7. Regex.replace with lambda resolves to the source-backed CharSequence overload
 //   8. Regex.fromLiteral (companion) lowers to __kk_regex_from_literal_flat in KIR
 //
 // Scope: sema resolution + KIR lowering only. No runtime edits.
@@ -399,7 +399,7 @@ struct RegexSemaLoweringTests {
             #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat")
     }
 
-    @Test func testFindAllBindingResolvesToKkRegexFindAll() throws {
+    @Test func testFindAllBindingResolvesToSourceBackedFindAll() throws {
         let (ctx, paths) = try sharedSema()
         let path = paths[6]
             let ast = try #require(ctx.ast)
@@ -413,10 +413,13 @@ struct RegexSemaLoweringTests {
                 "Expected .findAll(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_findAll_flat")
+            // KUU-770: findAll is a single source-backed CharSequence signature
+            // returning Sequence<MatchResult>; the String -> List extern is gone.
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
-    @Test func testReplaceWithLambdaBindingResolvesToKkRegexReplaceLambda() throws {
+    @Test func testReplaceWithLambdaBindingResolvesToSourceBackedReplace() throws {
         let (ctx, paths) = try sharedSema()
         let path = paths[7]
             let ast = try #require(ctx.ast)
@@ -435,9 +438,10 @@ struct RegexSemaLoweringTests {
                 "Expected .replace(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_replace_lambda"
-            )
+            // KUU-770: the (MatchResult) -> String extern overload was removed;
+            // every transform lambda now binds the source-backed CharSequence decl.
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
     // MARK: - 4. Named capture group access chain
@@ -530,12 +534,16 @@ struct RegexSemaLoweringTests {
         #expect(callees.contains("__kk_regex_find_flat"), Comment(rawValue: "KIR must contain kk_regex_find; found: \(callees)"))
     }
 
-    @Test func testRegexFindAllLowersToKkRegexFindAll() throws {
+    @Test func testRegexFindAllLowersToSourceBackedFindAll() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase6", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_findAll_flat"), Comment(rawValue: "KIR must contain kk_regex_findAll; found: \(callees)"))
+        // KUU-770: the String -> List flat bridge is gone; findAll lowers to
+        // the source-backed CharSequence overload (lazy Sequence via
+        // generateSequence + MatchResult.next()).
+        #expect(callees.contains("findAll"), Comment(rawValue: "KIR must contain findAll; found: \(callees)"))
+        #expect(!callees.contains("__kk_regex_findAll_flat"), Comment(rawValue: "KIR must not contain kk_regex_findAll; found: \(callees)"))
     }
 
     @Test func testRegexMatchEntireLowersToKkRegexMatchEntire() throws {
@@ -546,12 +554,15 @@ struct RegexSemaLoweringTests {
         #expect(callees.contains("__kk_regex_matchEntire_flat"), Comment(rawValue: "KIR must contain kk_regex_matchEntire; found: \(callees)"))
     }
 
-    @Test func testRegexReplaceWithLambdaLowersToKkRegexReplaceLambda() throws {
+    @Test func testRegexReplaceWithLambdaLowersToSourceBackedReplace() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase8", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_replace_lambda"), Comment(rawValue: "KIR must contain __kk_regex_replace_lambda; found: \(callees)"))
+        // KUU-770: replace(input, transform) lowers to the source-backed
+        // CharSequence overload instead of the __kk_regex_replace_lambda bridge.
+        #expect(callees.contains("replace"), Comment(rawValue: "KIR must contain replace; found: \(callees)"))
+        #expect(!callees.contains("__kk_regex_replace_lambda"), Comment(rawValue: "KIR must not contain __kk_regex_replace_lambda; found: \(callees)"))
     }
 
     // MARK: - 7. KIR lowering: String.toRegex()

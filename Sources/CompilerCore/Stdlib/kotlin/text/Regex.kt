@@ -48,22 +48,20 @@ public class Regex {
         return findFrom(source, startIndex)
     }
 
-    @KsSymbolName("__kk_regex_findAll_flat")
-    public external fun findAll(input: String): List<MatchResult>
-
+    // Laziness mirrors upstream: the returned sequence must not run any
+    // matching until iterated, so `first()`-style short-circuiting only pays
+    // for the matches actually consumed. `MatchResult.next()` advances past
+    // zero-width matches, so empty patterns stay productive.
     public fun findAll(input: CharSequence): Sequence<MatchResult> = findAll(input, 0)
 
-    public fun findAll(input: CharSequence, startIndex: Int): Sequence<MatchResult> {
-        val source = input.regexInputString()
-        require(startIndex >= 0 && startIndex <= source.length) {
-            "Start index out of bounds: $startIndex"
-        }
-        val result = ArrayList<MatchResult>()
-        for (match in findAll(source)) {
-            if (match.range.first >= startIndex) result.add(match)
-        }
-        return result.asSequence()
-    }
+    public fun findAll(input: CharSequence, startIndex: Int): Sequence<MatchResult> =
+        generateSequence({
+            val source = input.regexInputString()
+            require(startIndex >= 0 && startIndex <= source.length) {
+                "Start index out of bounds: $startIndex"
+            }
+            findFrom(source, startIndex)
+        }) { it.next() }
 
     @KsSymbolName("__kk_regex_matchEntire_flat")
     public external fun matchEntire(input: String): MatchResult?
@@ -103,18 +101,15 @@ public class Regex {
     public fun replaceFirst(input: CharSequence, replacement: String): String =
         replaceFirst(input.regexInputString(), replacement)
 
-    @KsSymbolName("__kk_regex_replace_lambda")
-    public external fun replace(input: String, transform: (MatchResult) -> String): String
-
+    // Upstream Regex only exposes the CharSequence transform overload.
     public fun replace(
         input: CharSequence,
         transform: (MatchResult) -> CharSequence
     ): String {
         val source = input.regexInputString()
-        val matches = findAll(source)
         val result = StringBuilder()
         var cursor = 0
-        for (match in matches) {
+        for (match in findAll(source)) {
             val start = match.range.first
             val end = match.range.last + 1
             if (start < cursor) continue

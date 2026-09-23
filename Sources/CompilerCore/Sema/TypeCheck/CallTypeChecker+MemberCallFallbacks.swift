@@ -36,27 +36,27 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             if nonNullReceiverType == regexType {
-                let listMatchResultType: TypeID
-                if let listSymbol = sema.symbols.lookup(fqName: [
+                let sequenceMatchResultType: TypeID
+                if let sequenceSymbol = sema.symbols.lookup(fqName: [
                     interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("List"),
+                    interner.intern("sequences"),
+                    interner.intern("Sequence"),
                 ]), let matchResultSymbol {
                     let matchResultType = sema.types.make(.classType(ClassType(
                         classSymbol: matchResultSymbol,
                         args: [],
                         nullability: .nonNull
                     )))
-                    listMatchResultType = sema.types.make(.classType(ClassType(
-                        classSymbol: listSymbol,
+                    sequenceMatchResultType = sema.types.make(.classType(ClassType(
+                        classSymbol: sequenceSymbol,
                         args: [.out(matchResultType)],
                         nullability: .nonNull
                     )))
                 } else {
-                    listMatchResultType = sema.types.anyType
+                    sequenceMatchResultType = sema.types.anyType
                 }
                 let resultType: TypeID? = switch (memberName, args.count) {
-                case ("find", 1):
+                case ("find", 1), ("find", 2):
                     matchResultSymbol.map {
                         sema.types.makeNullable(sema.types.make(.classType(ClassType(
                             classSymbol: $0,
@@ -64,8 +64,8 @@ extension CallTypeChecker {
                             nullability: .nonNull
                         ))))
                     } ?? sema.types.anyType
-                case ("findAll", 1):
-                    listMatchResultType
+                case ("findAll", 1), ("findAll", 2):
+                    sequenceMatchResultType
                 case ("pattern", 0):
                     sema.types.stringType
                 default:
@@ -73,7 +73,8 @@ extension CallTypeChecker {
                 }
                 if let resultType {
                     if args.indices.contains(0) {
-                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.stringType)
+                        let inputExpectedType = syntheticCharSequenceType(sema: sema) ?? sema.types.stringType
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: inputExpectedType)
                     }
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                     sema.bindings.bindExprType(id, type: finalType)

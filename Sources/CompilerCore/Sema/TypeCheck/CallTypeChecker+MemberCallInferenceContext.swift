@@ -29,24 +29,6 @@ extension CallTypeChecker {
         }
     }
 
-    func markRegexReplaceLambdaIfNeeded(
-        chosenCallee: SymbolID,
-        args: [CallArgument],
-        ctx: TypeInferenceContext
-    ) {
-        guard ctx.sema.symbols.externalLinkName(for: chosenCallee) == "__kk_regex_replace_lambda",
-              args.count == 2,
-              let lambdaExpr = ctx.ast.arena.expr(args[1].expr),
-              lambdaExpr.isLambdaOrCallableRef
-        else {
-            return
-        }
-        // KUU-600: Regex.replace invokes this transform through the native
-        // collection-HOF callback ABI, which requires a closure-aware lambda
-        // entry point even when the lambda does not capture values.
-        ctx.sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
-    }
-
     func tryInferMemberCallWithoutReceiverSpecials(
         _ request: MemberCallInferenceRequest,
         locals: inout LocalBindings

@@ -269,12 +269,17 @@ struct RegexAPISurfaceInventoryTests {
 
     @Test func testRegexFindAllIsRegistered() throws {
         let (sema, interner) = try sharedSema()
-        let link = externalLink(
+        let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "findAll"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "__kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
+        // KUU-770: findAll's public surface is the source-backed CharSequence
+        // overloads returning Sequence<MatchResult>; no extern bridge remains.
+        #expect(links.isEmpty, "Regex.findAll must be source-backed; found: \(links)")
+        let interned = ["kotlin", "text", "Regex", "findAll"].map { interner.intern($0) }
+        #expect(!sema.symbols.lookupAll(fqName: interned).isEmpty,
+                "Regex.findAll source-backed overloads must be registered")
     }
 
     @Test func testRegexMatchEntireIsRegistered() throws {
@@ -295,10 +300,16 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
+        // KUU-770: Regex.replace(input, transform) is now the source-backed
+        // CharSequence overload only; the (MatchResult) -> String extern was
+        // removed so CharSequence transforms are no longer ambiguous.
         #expect(
-            links.contains("__kk_regex_replace_lambda"),
-            "Regex.replace(input, transform) must link to __kk_regex_replace_lambda"
+            !links.contains("__kk_regex_replace_lambda"),
+            "Regex.replace(input, transform) must be source-backed; found: \(links)"
         )
+        let interned = ["kotlin", "text", "Regex", "replace"].map { interner.intern($0) }
+        #expect(!sema.symbols.lookupAll(fqName: interned).isEmpty,
+                "Regex.replace source-backed overloads must be registered")
     }
 
     // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
@@ -631,9 +642,7 @@ struct RegexAPISurfaceInventoryTests {
             (["kotlin", "text", "Regex", "matches"], "__kk_regex_matches_flat"),
             (["kotlin", "text", "Regex", "containsMatchIn"], "__kk_regex_containsMatchIn_flat"),
             (["kotlin", "text", "Regex", "find"], "__kk_regex_find_flat"),
-            (["kotlin", "text", "Regex", "findAll"], "__kk_regex_findAll_flat"),
             (["kotlin", "text", "Regex", "matchEntire"], "__kk_regex_matchEntire_flat"),
-            (["kotlin", "text", "Regex", "replace"], "__kk_regex_replace_lambda"),
             // Companion
             (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "__kk_regex_from_literal_flat"),
             // String extension runtime bridges
@@ -658,6 +667,8 @@ struct RegexAPISurfaceInventoryTests {
         // Public source-backed symbols must also be present (they have no external link themselves).
         let mandatoryPublicSymbols = [
             ["kotlin", "text", "Regex"],
+            ["kotlin", "text", "Regex", "findAll"],
+            ["kotlin", "text", "Regex", "replace"],
             ["kotlin", "text", "matches"],
             ["kotlin", "text", "contains"],
             ["kotlin", "text", "toRegex"],

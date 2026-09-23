@@ -1878,8 +1878,6 @@ extension CallLowerer {
                 let runtimeCallee: String? = switch calleeStr {
                 case "find":
                     usesStringFlatABI ? "__kk_regex_find_flat" : nil
-                case "findAll":
-                    usesStringFlatABI ? "__kk_regex_findAll_flat" : nil
                 default:
                     nil
                 }
