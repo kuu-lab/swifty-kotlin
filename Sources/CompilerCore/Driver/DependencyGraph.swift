@@ -78,51 +78,61 @@ public final class DependencyGraph: Codable {
             return []
         }
 
-        var invalidatedSymbols = Set<String>()
-        var invalidatedPackages = Set<String>()
-        for changed in changedFiles {
-            if let provided = providedSymbols[changed] {
-                invalidatedSymbols.formUnion(provided)
+        // Reverse indexes, built once: each depended-on symbol or wildcard-imported
+        // package maps to the files in `allFiles` that reference it.
+        var symbolDependents: [String: Set<String>] = [:]
+        var packageDependents: [String: Set<String>] = [:]
+        for filePath in allFiles {
+            for symbol in dependedSymbols[filePath] ?? [] {
+                symbolDependents[symbol, default: []].insert(filePath)
             }
-            if let package = providedPackages[changed] {
-                invalidatedPackages.insert(package)
+            for package in wildcardImportedPackages[filePath] ?? [] {
+                packageDependents[package, default: []].insert(filePath)
             }
         }
 
         var affected = changedFiles
-        var frontier = changedFiles
-        var visited = changedFiles
+        var seenSymbols = Set<String>()
+        var seenPackages = Set<String>()
+        var pendingSymbols: [String] = []
+        var pendingPackages: [String] = []
+        var pendingFiles: [String] = []
 
-        // Iterate to handle transitive dependencies: if file A depends on file B's
-        // symbol and file B is newly added to the recompilation set, file A's
-        // provided symbols may also need to invalidate further files.
-        while !frontier.isEmpty {
-            var nextFrontier = Set<String>()
-            for filePath in allFiles {
-                guard !visited.contains(filePath) else { continue }
-                let dependsOnChangedSymbol = if let depended = dependedSymbols[filePath] {
-                    !depended.isDisjoint(with: invalidatedSymbols)
-                } else {
-                    false
+        for changed in changedFiles {
+            for symbol in providedSymbols[changed] ?? [] where seenSymbols.insert(symbol).inserted {
+                pendingSymbols.append(symbol)
+            }
+            if let package = providedPackages[changed], seenPackages.insert(package).inserted {
+                pendingPackages.append(package)
+            }
+        }
+
+        // A wildcard import of the root ("") package matches any invalidated
+        // package, so those files are affected whenever something changed.
+        for filePath in packageDependents[""] ?? [] where !affected.contains(filePath) {
+            pendingFiles.append(filePath)
+        }
+
+        // Worklist propagation: each symbol/package expands its dependents once,
+        // and each newly-affected file contributes its provided symbols once.
+        while !pendingFiles.isEmpty || !pendingSymbols.isEmpty || !pendingPackages.isEmpty {
+            if let filePath = pendingFiles.popLast() {
+                guard affected.insert(filePath).inserted else { continue }
+                for symbol in providedSymbols[filePath] ?? [] where seenSymbols.insert(symbol).inserted {
+                    pendingSymbols.append(symbol)
                 }
-                let dependsOnChangedWildcard = wildcardImportedPackages[filePath]?.contains { package in
-                    package.isEmpty || invalidatedPackages.contains(package)
-                } ?? false
-                if dependsOnChangedSymbol || dependsOnChangedWildcard {
-                    affected.insert(filePath)
-                    nextFrontier.insert(filePath)
-                    // The newly-affected file's provided symbols may cause
-                    // further invalidation.
-                    if let provided = providedSymbols[filePath] {
-                        invalidatedSymbols.formUnion(provided)
-                    }
-                    if let package = providedPackages[filePath] {
-                        invalidatedPackages.insert(package)
-                    }
+                if let package = providedPackages[filePath], seenPackages.insert(package).inserted {
+                    pendingPackages.append(package)
+                }
+            } else if let symbol = pendingSymbols.popLast() {
+                for filePath in symbolDependents[symbol] ?? [] where !affected.contains(filePath) {
+                    pendingFiles.append(filePath)
+                }
+            } else if let package = pendingPackages.popLast() {
+                for filePath in packageDependents[package] ?? [] where !affected.contains(filePath) {
+                    pendingFiles.append(filePath)
                 }
             }
-            visited.formUnion(nextFrontier)
-            frontier = nextFrontier
         }
 
         return allFiles.filter { affected.contains($0) }
