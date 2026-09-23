@@ -1779,7 +1779,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicReference.<init>` — constructor ()  -- `constructor <init>(#A)`
 
-- [ ] KSP-1123: kotlin.concurrent.atomics.AtomicReference.AtomicReference の未実装 stdlib API を実装する（7 件）
+- [x] KSP-1123: kotlin.concurrent.atomics.AtomicReference.AtomicReference の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.concurrent.atomics.AtomicReference` / receiver `AtomicReference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicReference/AtomicReference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1794,6 +1794,7 @@
     - `kotlin.concurrent.atomics.AtomicReference.store` — fun AtomicReference.store(): Unit  -- `final fun store(#A)`
     - `kotlin.concurrent.atomics.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
+  - 完了根拠（2026-09-23）: `AtomicReference/AtomicReference.kt` に receiver API を source-backed 実装し、既存の `__kk_atomic_ref_*` bridge へ委譲（`getAndSet` は `exchange` へ合成）。`var value` は class shell の synthetic member（mutable・T 型・`__kk_atomic_ref_load`/`store` link 済み）がそのままオーナー。bundled extension property は class 型パラメータを書けず、`*` 投影の `Any?` 版は atomics 呼び出し側で member の T 型 getter を隠して劣化させるため source 化しない（KClasses.kt に記録済みの KSWIFTK-PARSE-0002 制約）。String 型 T の `compareAndExchange`/`compareAndSet` が extern 境界で expected 参照を別ポインタに marshal してしまう既存バグ（member 経路でも再現、本 PR 起因ではない）は KUU-837 へ起票。
 
 - [ ] KSP-1137: kotlin.coroutines.AbstractCoroutineContextElement.AbstractCoroutineContextElement の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.coroutines.AbstractCoroutineContextElement` / receiver `AbstractCoroutineContextElement`
