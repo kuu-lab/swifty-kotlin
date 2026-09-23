@@ -208,6 +208,26 @@ extension ControlFlowLowerer {
             return negatedResult
         }
 
+        // `in a..b -> ...` / `!in a..b -> ...`: unlike a plain value condition
+        // (which desugars to `subject == condition`), `in`/`!in` already
+        // stands alone as a complete Boolean test against the subject
+        // (`.inExpr`/`.notInExpr` embed the subject as their own `lhs`), so
+        // its lowered value is the match result directly.
+        let isInCondition: Bool = if let conditionExpr = ast.arena.expr(conditionExprID) {
+            switch conditionExpr {
+            case .inExpr, .notInExpr: true
+            default: false
+            }
+        } else {
+            false
+        }
+        if loweredSubjectID != nil, isInCondition {
+            return driver.lowerExpr(
+                conditionExprID, ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+            )
+        }
+
         let conditionValueID = driver.lowerExpr(
             conditionExprID,
             ast: ast,

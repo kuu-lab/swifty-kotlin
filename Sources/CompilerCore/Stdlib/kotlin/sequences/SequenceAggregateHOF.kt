@@ -26,65 +26,20 @@ private external fun kk_max_double(a: Double, b: Double): Double
 //   Sources/Runtime/RuntimeSequenceAssociation.swift
 //   Sources/Runtime/RuntimeSequenceFoldScan.swift
 //
-// Migrated: reduce, reduceOrNull, reduceIndexed, reduceIndexedOrNull,
-//           reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
+// Migrated: reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
 //           scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
 //           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy,
 //           groupBy, Sequence.toMap
+//
+// reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull moved to
+// SequenceConversionsAndSetOps.kt (package kotlin.sequences) with the canonical
+// <S, T : S> signature in KSP-1355.
 //
 // Sorting variants are in SequenceSortingHOF.kt (package kotlin.sequences) to avoid
 // FQ-name collisions with List sorting extensions.
 //
 // Implementations materialize through toList() before looping so they reuse the
 // stable list indexing path instead of the still-limited Sequence for-loop path.
-
-public fun <T> Sequence<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceOrNull(operation: (T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceIndexedOrNull(operation: (Int, T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
 
 public fun <T> Sequence<T>.reduceRight(operation: (T, T) -> T): T {
     val elements = this.toList()
@@ -1094,6 +1049,53 @@ public fun <T> Sequence<T>.count(predicate: (T) -> Boolean): Int {
     }
     return count
 }
+
+// KSP-1353: Double/Float-specialized maxOrNull()/max() overloads, mirroring
+// Iterables.kt's own specializations. Pairwise kk_max_double/kk_max_float
+// keeps NaN propagation and signed-zero ordering on Kotlin's IEEE-754
+// semantics instead of the Comparable.compareTo total ordering used by the
+// generic <T : Comparable<T>> overloads below. These declarations sit ahead
+// of the generic ones so the Sequence aggregate fast path's first-match
+// lookup prefers them for concrete Double/Float receivers; other element
+// types still resolve to the generic overloads through the receiver
+// element-type filter.
+@SinceKotlin("1.4")
+public fun Sequence<Double>.maxOrNull(): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var max = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        max = kk_max_double(max, elements[i])
+        i += 1
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun Sequence<Float>.maxOrNull(): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var max = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        max = kk_max_float(max, elements[i])
+        i += 1
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Double>.max(): Double = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Float>.max(): Float = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
 
 public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
     val elements = this.toList()

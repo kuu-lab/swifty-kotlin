@@ -507,12 +507,16 @@ public func kk_indexing_iterable_hasNext(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("kk_indexing_iterable_next")
-public func kk_indexing_iterable_next(_ iterRaw: Int) -> Int {
+public func kk_indexing_iterable_next(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: iterRaw),
           let iter = tryCast(ptr, to: RuntimeIndexingIteratorBox.self),
           iter.index < iter.values.count
     else {
-        return 0
+        return runtimeThrowIteratorExhausted(outThrown)
     }
     let idx = iter.index
     let elem = iter.values[idx]

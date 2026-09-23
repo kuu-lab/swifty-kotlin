@@ -248,9 +248,14 @@ struct CaptureAnalyzer {
                 visit(iterable)
                 visit(body)
 
+            case .thisRef:
+                // Qualified extension-receiver references such as
+                // `this@describe` are bound to the receiver parameter symbol.
+                recordCapture(for: currentExprID)
+
             case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
                  .charLiteral, .boolLiteral, .stringLiteral,
-                 .breakExpr, .continueExpr, .superRef, .thisRef:
+                 .breakExpr, .continueExpr, .superRef:
                 break
 
             case let .objectLiteral(_, declID, _):
