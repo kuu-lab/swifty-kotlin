@@ -398,7 +398,11 @@ extension DataFlowSemaPhase {
         // record before returning the requested value.
         let bindingsBySymbol = Dictionary(uniqueKeysWithValues: importedBindings.map { ($0.symbol, $0) })
         if lazyMetadataEnabled {
-            symbols.setLazyImportedMetadataLoader(alreadyLoaded: preloadedGetterBindingSymbols) { [self] symbol in
+            // `symbols` is weak: this closure is stored on the symbol table
+            // itself, so a strong capture would be a retain cycle leaking the
+            // table (and every captured import structure) past compilation end.
+            symbols.setLazyImportedMetadataLoader(alreadyLoaded: preloadedGetterBindingSymbols) { [self, weak symbols] symbol in
+            guard let symbols else { return }
             guard let binding = bindingsBySymbol[symbol] else { return }
             var loadedInlineFunctions: [SymbolID: KIRFunction] = [:]
             var bindingEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
@@ -431,7 +435,10 @@ extension DataFlowSemaPhase {
                 lazyLoaderState.inlineFunctionSink?(inlineSymbol, function)
             }
             }
-            lazyLoaderState.resolveDemandedInlineBodies = { [self] module in
+            // Stored on `lazyLoaderState` itself; weak captures break the
+            // self-cycle and the state -> symbols back-reference.
+            lazyLoaderState.resolveDemandedInlineBodies = { [self, weak symbols, weak lazyLoaderState] module in
+                guard let symbols, let lazyLoaderState else { return }
                 self.resolveDemandedImportedInlineBodies(
                     module: module,
                     state: lazyLoaderState,

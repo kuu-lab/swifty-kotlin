@@ -947,5 +947,39 @@ struct LibMetadataSerializationTests {
         #expect(decoded[0].fqName == "demo.ID")
         #expect(decoded[0].typeSignature == "L")
     }
+
+    /// The lazy loader closure lives on the symbol table itself, so capturing
+    /// the table strongly would retain the entire import state for the life of
+    /// the process — leaking every compilation's symbols and decoded records.
+    @Test func testLazyMetadataLoaderDoesNotRetainSymbolTable() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        weak var weakSymbols: SymbolTable?
+        weak var weakTypes: TypeSystem?
+        do {
+            let ctx = makeCompilationContext(
+                inputs: [],
+                moduleName: "LazyLoaderLifetime",
+                stdlibLibraryPath: stdlibPath
+            )
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            types.symbolTable = symbols
+            let diagnostics = DiagnosticEngine()
+            var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: ctx.interner,
+                importedInlineFunctions: &importedInlineFunctions
+            )
+            weakSymbols = symbols
+            weakTypes = types
+        }
+        #expect(weakSymbols == nil, "SymbolTable must deallocate once the import scope ends")
+        #expect(weakTypes == nil, "TypeSystem must deallocate once the import scope ends")
+    }
 }
 #endif
