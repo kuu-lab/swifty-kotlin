@@ -504,7 +504,7 @@ extension CallLowerer {
         }
 
         let effectiveCalleeName = if sema.bindings.isInvokeOperatorCall(exprID) {
-            interner.intern("invoke")
+            KnownCompilerNames(interner: interner).invoke
         } else {
             calleeName
         }

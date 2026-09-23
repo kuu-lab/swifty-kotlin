@@ -2717,6 +2717,11 @@ extension ExprLowerer {
             return unit
 
         case let .thisRef(label, _):
+            if let receiverSymbol = sema.bindings.identifierSymbol(for: exprID),
+               let receiverExprID = driver.ctx.localValue(for: receiverSymbol)
+            {
+                return receiverExprID
+            }
             if let label,
                let receiverExprID = driver.ctx.qualifiedThisReceiverExprID(for: label)
             {

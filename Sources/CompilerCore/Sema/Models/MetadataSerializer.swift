@@ -396,17 +396,17 @@ package final class MetadataEncoder {
                 }
                 return true
             }
+            .map { (symbol: $0, resolvedFQName: $0.fqName.map { interner.resolve($0) }) }
             .sorted { lhs, rhs in
-                if lhs.fqName.count != rhs.fqName.count {
-                    return lhs.fqName.count < rhs.fqName.count
+                if lhs.resolvedFQName.count != rhs.resolvedFQName.count {
+                    return lhs.resolvedFQName.count < rhs.resolvedFQName.count
                 }
-                let lhsResolved = lhs.fqName.map { interner.resolve($0) }
-                let rhsResolved = rhs.fqName.map { interner.resolve($0) }
-                if lhsResolved != rhsResolved {
-                    return lhsResolved.lexicographicallyPrecedes(rhsResolved)
+                if lhs.resolvedFQName != rhs.resolvedFQName {
+                    return lhs.resolvedFQName.lexicographicallyPrecedes(rhs.resolvedFQName)
                 }
-                return lhs.id.rawValue < rhs.id.rawValue
+                return lhs.symbol.id.rawValue < rhs.symbol.id.rawValue
             }
+            .map { $0.symbol }
 
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []

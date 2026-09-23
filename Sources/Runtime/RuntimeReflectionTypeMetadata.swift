@@ -50,20 +50,21 @@ private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
     (kTypeParameterRuntimeTypeID, kClassifierRuntimeTypeID),
 ]
 
-private let reflectionRuntimeTypeMetadataRegistration: Void = {
-    for (childTypeID, parentTypeID) in reflectionRuntimeTypeMetadataEdges {
-        runtimeRegisterTypeEdge(childTypeID: childTypeID, parentTypeID: parentTypeID)
-    }
-}()
-
-/// Registers the reflection hierarchy before a handle is tagged.
+/// Registers the reflection hierarchy before a handle is tagged. The edges are
+/// static, so they are inserted once; the flag is cleared with `typeParents`
+/// when test isolation resets metadata, which triggers re-registration.
 @inline(__always)
 func registerReflectionRuntimeTypeMetadata() {
-    _ = reflectionRuntimeTypeMetadataRegistration
-    // Runtime test isolation clears type edges; Set insertion makes this safe
-    // and keeps newly created handles castable after a metadata reset.
-    for (childTypeID, parentTypeID) in reflectionRuntimeTypeMetadataEdges {
-        runtimeRegisterTypeEdge(childTypeID: childTypeID, parentTypeID: parentTypeID)
+    runtimeStorage.withMetadataLock { state in
+        if state.reflectionTypeEdgesRegistered {
+            return
+        }
+        for (childTypeID, parentTypeID) in reflectionRuntimeTypeMetadataEdges {
+            var parents = state.typeParents[childTypeID] ?? []
+            parents.insert(parentTypeID)
+            state.typeParents[childTypeID] = parents
+        }
+        state.reflectionTypeEdgesRegistered = true
     }
 }
 

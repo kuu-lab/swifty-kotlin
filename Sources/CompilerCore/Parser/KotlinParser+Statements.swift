@@ -79,17 +79,42 @@ extension KotlinParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        // Whether this statement's own flat tokens (not a nested block's) have
+        // included an `if` or `try` keyword. A newline-leading `else` /
+        // `catch` / `finally` only continues *this* statement when one did —
+        // otherwise it is indistinguishable from the start of an unrelated
+        // construct that merely follows on the next line (most notably a
+        // subject-less `when`'s next branch: `x > 0 -> 1` has no `if`/`try`,
+        // so its own trailing `else ->` must end this statement, not extend
+        // it, matching `return if (a) b\nelse c`, which does have one).
+        var sawIfOrTryKeyword = false
 
         while !stream.atEOF() {
             let token = stream.peek()
+            let canContinueWithElseLikeKeyword = sawIfOrTryKeyword
+                && ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
+            let canContinueWithSymbol: Bool = if case .symbol = token.kind {
+                ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
+            } else {
+                false
+            }
             if inBlock,
                !children.isEmpty,
                parenDepth == 0,
                bracketDepth == 0,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind)
+               shouldSplitStatementOnNewline(token.kind),
+               !canContinueWithSymbol,
+               !canContinueWithElseLikeKeyword,
+               !endsWithPendingInfixOperator(children),
+               !endsWithControlFlowCondition(children)
             {
                 break
+            }
+            if case .keyword(.if) = token.kind {
+                sawIfOrTryKeyword = true
+            } else if case .keyword(.try) = token.kind {
+                sawIfOrTryKeyword = true
             }
             let closesTopLevelExpressionBrace: Bool = if case .symbol(.rBrace) = token.kind {
                 !inBlock && braceDepth > 0
@@ -352,6 +377,16 @@ extension KotlinParser {
             if !inBlock, hasLeadingNewline(stream.peek()) {
                 let stillGrouped = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
                 if stillGrouped {
+                    continue
+                }
+                // Only symbol continuations here: a newline-leading `else` /
+                // `catch` / `finally` belongs to the enclosing control-flow
+                // statement, which consumes it itself.
+                let nextKind = stream.peek().kind
+                if case .symbol = nextKind, ParserBoundaryPolicy.continuesExpressionBeforeNewline(nextKind) {
+                    continue
+                }
+                if endsWithPendingInfixOperator(children) {
                     continue
                 }
                 break
@@ -731,7 +766,7 @@ extension KotlinParser {
 
     /// Advances a lookahead offset past a balanced bracket group whose
     /// opening symbol sits at `offset`, without consuming any tokens.
-    private func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
+    func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
         var depth = 0
         var index = offset
         repeat {
@@ -846,6 +881,17 @@ extension KotlinParser {
                     if startsGenuineDeclaration(at: 0), !isObjectExpressionStart(nextToken) {
                         break
                     }
+                    continue
+                }
+                // A line that starts with `.member` / `?.` / `?:` / `&&` / `||`
+                // (or `else` / `catch` / `finally`) can only continue the
+                // expression body, as can the line after an infix operator
+                // name (`a or\n    (b)`) or after an `if (...)` condition whose
+                // branch body starts on the next line.
+                if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
+                    || endsWithPendingInfixOperator(children)
+                    || endsWithControlFlowCondition(children)
+                {
                     continue
                 }
                 break
