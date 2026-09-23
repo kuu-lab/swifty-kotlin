@@ -121,13 +121,48 @@ extension ExprTypeChecker {
         } else {
             []
         }
-        let operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+        var operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
             collectedOperatorCandidates,
             receiverType: lhs,
             argumentTypes: [rhs],
             sema: sema,
             interner: interner
         )
+        // `collectOperatorCandidates` deliberately excludes primitive receivers
+        // from member lookup for non-range operators (Int/Long/etc. never have
+        // an applicable arithmetic *member*), but that also hides a
+        // user-declared extension such as `operator fun Int.times(v: Vec)`:
+        // extension functions aren't members, so they can't be found that way
+        // regardless of receiver type. Only search scope for one when the RHS
+        // isn't itself numeric, i.e. when the built-in primitive arithmetic
+        // below cannot apply — this leaves built-in arithmetic (and the
+        // member-wins behavior `operator_extension.kt` checks) unaffected.
+        if operatorCandidates.isEmpty,
+           lhsIsPrimitive,
+           [.add, .subtract, .multiply, .divide, .modulo].contains(op)
+        {
+            let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
+            if !rhsIsNumeric {
+                let extensionCandidates = operatorNames.flatMap { name in
+                    ctx.cachedScopeLookup(name).filter { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate),
+                              symbol.kind == .function,
+                              symbol.flags.contains(.operatorFunction),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let declaredReceiver = signature.receiverType
+                        else { return false }
+                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: lhs,
+                            declaredReceiver: declaredReceiver,
+                            sema: sema
+                        )
+                    }
+                }
+                if !extensionCandidates.isEmpty {
+                    operatorCandidates = extensionCandidates
+                }
+            }
+        }
         // Kotlin's `+` resolves against the LHS (receiver) type: `String.plus(Any?)`
         // accepts any RHS, but non-String receivers don't get string concatenation
         // just because the RHS happens to be a String (e.g. `1 + "x"` is not valid
