@@ -1350,6 +1350,22 @@ final class LambdaLowerer {
             captureArguments.append(implicitReceiver)
         }
 
+        // BUG-B: a bare `::name` reference to a LOCAL function that itself
+        // captures enclosing locals (e.g. an anonymous-function-expression
+        // desugar capturing an outer `val`) must forward those same captures
+        // as leading call arguments — the target's own compiled signature is
+        // `capturedParams + declaredParams` (ExprLowerer+ControlFlowAndBlocks
+        // .swift), so calling it with too few arguments crashes or reads
+        // garbage. A direct call to the same function already does this
+        // lookup (CallLowerer.swift); a callable reference to it must match.
+        // `localValue(for:)` only ever resolves for local declarations, so
+        // this is a no-op for top-level/member function targets.
+        if let targetSymbol,
+           let capturedInfo = driver.ctx.localValue(for: targetSymbol).flatMap({ driver.ctx.callableValueInfo(for: $0) })
+        {
+            captureArguments = capturedInfo.captureArguments + captureArguments
+        }
+
         // BUG-162: KProperty0/1 references need a real object implementing the
         // bundled KProperty and Function interfaces. A raw property symbol is
         // sufficient for a direct getter call, but it has no itable entries for
