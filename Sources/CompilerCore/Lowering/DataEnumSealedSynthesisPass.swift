@@ -18,22 +18,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return
         }
 
-        appendReferencedSyntheticMemoryModelNominalIfNeeded(
-            module: module,
-            sema: sema,
-            interner: ctx.interner
-        )
-        appendReferencedSourceBackedOsFamilyNominalIfNeeded(
-            module: module,
-            sema: sema,
-            interner: ctx.interner
-        )
-        appendReferencedSourceBackedKVarianceNominalIfNeeded(
-            module: module,
-            sema: sema,
-            interner: ctx.interner
-        )
-        appendReferencedSourceBackedCpuArchitectureNominalIfNeeded(
+        appendReferencedBundledEnumNominalsIfNeeded(
             module: module,
             sema: sema,
             interner: ctx.interner
@@ -143,252 +128,150 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// Makes the synthetic Native MemoryModel visible to the shared enum
-    /// synthesis pass only when one of its generated APIs is referenced.
-    private func appendReferencedSyntheticMemoryModelNominalIfNeeded(
+    /// Describes a bundled enum nominal that is appended to consumer KIR only
+    /// when referenced: where it lives in the bundled sources and which
+    /// generated members count as a reference.
+    private struct BundledEnumSpec {
+        let pathSegments: [String]
+        let requiresSourceBacked: Bool
+        /// Member names looked up directly under the enum's fqName.
+        let ownMemberNames: [String]
+        /// Member names looked up under the companion object's fqName.
+        let companionMemberNames: [String]
+        /// Whether a typed expression of this enum type also counts as a reference.
+        let checksExprTypes: Bool
+    }
+
+    /// A bundled enum resolved against `sema.symbols`, ready for membership
+    /// checks during the combined binding scan.
+    private struct BundledEnumProbe {
+        let classSymbol: SymbolID
+        let memberSymbols: Set<SymbolID>
+        let checksExprTypes: Bool
+    }
+
+    /// Makes the bundled MemoryModel / OsFamily / KVariance / CpuArchitecture
+    /// enum nominals visible to the shared enum synthesis pass when a consumer
+    /// KIR references one of their generated APIs or the enum type itself.
+    /// Bundled source declarations are omitted from consumer KIR, but their
+    /// source-backed nominal identity is still required by enum helper bodies.
+    /// A single combined pass over the binding maps records which enums are
+    /// referenced instead of rescanning each map once per enum.
+    private func appendReferencedBundledEnumNominalsIfNeeded(
         module: KIRModule,
         sema: SemaModule,
         interner: StringInterner
     ) {
-        let memoryModelFQName = [
-            interner.intern("kotlin"),
-            interner.intern("native"),
-            interner.intern("MemoryModel"),
+        let specs: [BundledEnumSpec] = [
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "native", "MemoryModel"],
+                requiresSourceBacked: false,
+                ownMemberNames: ["entries", "valueOf", "values"],
+                companionMemberNames: [],
+                checksExprTypes: false
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "native", "OsFamily"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "reflect", "KVariance"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "native", "CpuArchitecture"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
         ]
-        guard let memoryModelSymbol = sema.symbols.lookup(fqName: memoryModelFQName),
-              let memoryModel = sema.symbols.symbol(memoryModelSymbol),
-              memoryModel.kind == .enumClass
-        else {
+
+        var probes: [BundledEnumProbe] = []
+        for spec in specs {
+            let enumFQName = spec.pathSegments.map { interner.intern($0) }
+            guard let classSymbol = sema.symbols.lookup(fqName: enumFQName),
+                  let classInfo = sema.symbols.symbol(classSymbol),
+                  classInfo.kind == .enumClass,
+                  !spec.requiresSourceBacked || sema.symbols.isSourceBackedSymbol(classSymbol)
+            else {
+                continue
+            }
+
+            var memberSymbols = Set(spec.ownMemberNames.flatMap { name in
+                sema.symbols.lookupAll(fqName: enumFQName + [interner.intern(name)])
+            })
+            if let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
+               let companion = sema.symbols.symbol(companionSymbol)
+            {
+                memberSymbols.formUnion(spec.companionMemberNames.flatMap { name in
+                    sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern(name)])
+                })
+            }
+            guard !memberSymbols.isEmpty else {
+                continue
+            }
+            probes.append(BundledEnumProbe(
+                classSymbol: classSymbol,
+                memberSymbols: memberSymbols,
+                checksExprTypes: spec.checksExprTypes
+            ))
+        }
+        guard !probes.isEmpty else {
             return
         }
 
-        let generatedMemberNames = [
-            interner.intern("entries"),
-            interner.intern("valueOf"),
-            interner.intern("values"),
-        ]
-        let generatedMembers = Set(generatedMemberNames.flatMap { name in
-            sema.symbols.lookupAll(fqName: memoryModelFQName + [name])
+        var memberToProbes: [SymbolID: [Int]] = [:]
+        for (index, probe) in probes.enumerated() {
+            for member in probe.memberSymbols {
+                memberToProbes[member, default: []].append(index)
+            }
+        }
+        var classToProbes: [SymbolID: [Int]] = [:]
+        for (index, probe) in probes.enumerated() where probe.checksExprTypes {
+            classToProbes[probe.classSymbol, default: []].append(index)
+        }
+
+        var isReferenced = [Bool](repeating: false, count: probes.count)
+        for symbol in sema.bindings.identifierSymbols.values {
+            for index in memberToProbes[symbol] ?? [] {
+                isReferenced[index] = true
+            }
+        }
+        for binding in sema.bindings.callBindings.values {
+            for index in memberToProbes[binding.chosenCallee] ?? [] {
+                isReferenced[index] = true
+            }
+        }
+        if !classToProbes.isEmpty {
+            for type in sema.bindings.exprTypes.values {
+                guard case let .classType(classType) = sema.types.kind(of: type) else {
+                    continue
+                }
+                for index in classToProbes[classType.classSymbol] ?? [] {
+                    isReferenced[index] = true
+                }
+            }
+        }
+
+        let declaredNominalSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .nominalType(nominal) = declaration else {
+                return nil
+            }
+            return nominal.symbol
         })
-        guard !generatedMembers.isEmpty else {
-            return
-        }
-
-        let isReferenced = sema.bindings.identifierSymbols.values.contains {
-            generatedMembers.contains($0)
-        } || sema.bindings.callBindings.values.contains {
-            generatedMembers.contains($0.chosenCallee)
-        }
-        guard isReferenced else {
-            return
-        }
-
-        let alreadyDeclared = module.arena.declarations.contains { declaration in
-            guard case let .nominalType(nominal) = declaration else {
-                return false
+        for (index, probe) in probes.enumerated() where isReferenced[index] {
+            guard !declaredNominalSymbols.contains(probe.classSymbol) else {
+                continue
             }
-            return nominal.symbol == memoryModelSymbol
+            _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: probe.classSymbol)))
         }
-        guard !alreadyDeclared else {
-            return
-        }
-        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: memoryModelSymbol)))
-    }
-
-    /// Makes the bundled Native OsFamily enum available to the shared enum
-    /// synthesis pass when a consumer KIR references one of its generated APIs.
-    /// Bundled source declarations are omitted from consumer KIR, but their
-    /// source-backed nominal identity is still required by enum helper bodies.
-    private func appendReferencedSourceBackedOsFamilyNominalIfNeeded(
-        module: KIRModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) {
-        let osFamilyFQName = [
-            interner.intern("kotlin"),
-            interner.intern("native"),
-            interner.intern("OsFamily"),
-        ]
-        guard let osFamilySymbol = sema.symbols.lookup(fqName: osFamilyFQName),
-              let osFamily = sema.symbols.symbol(osFamilySymbol),
-              osFamily.kind == .enumClass,
-              sema.symbols.isSourceBackedSymbol(osFamilySymbol)
-        else {
-            return
-        }
-
-        var generatedMembers = Set(
-            sema.symbols.lookupAll(fqName: osFamilyFQName + [interner.intern("values")])
-        )
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: osFamilySymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
-            generatedMembers.formUnion(
-                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("entries")])
-            )
-            generatedMembers.formUnion(
-                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("valueOf")])
-            )
-        }
-        guard !generatedMembers.isEmpty else {
-            return
-        }
-
-        let isReferenced = sema.bindings.identifierSymbols.values.contains {
-            generatedMembers.contains($0)
-        } || sema.bindings.callBindings.values.contains {
-            generatedMembers.contains($0.chosenCallee)
-        } || sema.bindings.exprTypes.values.contains {
-            guard case let .classType(classType) = sema.types.kind(of: $0) else {
-                return false
-            }
-            return classType.classSymbol == osFamilySymbol
-        }
-        guard isReferenced else {
-            return
-        }
-
-        let alreadyDeclared = module.arena.declarations.contains { declaration in
-            guard case let .nominalType(nominal) = declaration else {
-                return false
-            }
-            return nominal.symbol == osFamilySymbol
-        }
-        guard !alreadyDeclared else {
-            return
-        }
-        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: osFamilySymbol)))
-    }
-
-    /// Makes the bundled KVariance enum available to the shared enum
-    /// synthesis pass when a consumer KIR references its generated APIs.
-    /// Bundled source declarations are omitted from consumer KIR, but their
-    /// source-backed nominal identity is required by enum helper bodies.
-    private func appendReferencedSourceBackedKVarianceNominalIfNeeded(
-        module: KIRModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) {
-        let kVarianceFQName = [
-            interner.intern("kotlin"),
-            interner.intern("reflect"),
-            interner.intern("KVariance"),
-        ]
-        guard let kVarianceSymbol = sema.symbols.lookup(fqName: kVarianceFQName),
-              let kVariance = sema.symbols.symbol(kVarianceSymbol),
-              kVariance.kind == .enumClass,
-              sema.symbols.isSourceBackedSymbol(kVarianceSymbol)
-        else {
-            return
-        }
-
-        var generatedMembers = Set(
-            sema.symbols.lookupAll(fqName: kVarianceFQName + [interner.intern("values")])
-        )
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: kVarianceSymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
-            generatedMembers.formUnion(
-                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("entries")])
-            )
-            generatedMembers.formUnion(
-                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("valueOf")])
-            )
-        }
-        guard !generatedMembers.isEmpty else {
-            return
-        }
-
-        let isReferenced = sema.bindings.identifierSymbols.values.contains {
-            generatedMembers.contains($0)
-        } || sema.bindings.callBindings.values.contains {
-            generatedMembers.contains($0.chosenCallee)
-        } || sema.bindings.exprTypes.values.contains {
-            guard case let .classType(classType) = sema.types.kind(of: $0) else {
-                return false
-            }
-            return classType.classSymbol == kVarianceSymbol
-        }
-        guard isReferenced else {
-            return
-        }
-
-        let alreadyDeclared = module.arena.declarations.contains { declaration in
-            guard case let .nominalType(nominal) = declaration else {
-                return false
-            }
-            return nominal.symbol == kVarianceSymbol
-        }
-        guard !alreadyDeclared else {
-            return
-        }
-        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: kVarianceSymbol)))
-    }
-
-    /// Makes the bundled Native CpuArchitecture enum available to the shared
-    /// enum synthesis pass when a consumer KIR references one of its generated
-    /// APIs or the `Platform.cpuArchitecture` property type.
-    /// Bundled source declarations are omitted from consumer KIR, but their
-    /// source-backed nominal identity is still required by enum helper bodies.
-    private func appendReferencedSourceBackedCpuArchitectureNominalIfNeeded(
-        module: KIRModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) {
-        let cpuArchitectureFQName = [
-            interner.intern("kotlin"),
-            interner.intern("native"),
-            interner.intern("CpuArchitecture"),
-        ]
-        guard let cpuArchitectureSymbol = sema.symbols.lookup(fqName: cpuArchitectureFQName),
-              let cpuArchitecture = sema.symbols.symbol(cpuArchitectureSymbol),
-              cpuArchitecture.kind == .enumClass,
-              sema.symbols.isSourceBackedSymbol(cpuArchitectureSymbol)
-        else {
-            return
-        }
-
-        var generatedMembers = Set(
-            sema.symbols.lookupAll(fqName: cpuArchitectureFQName + [interner.intern("values")])
-        )
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: cpuArchitectureSymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
-            generatedMembers.formUnion(
-                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("entries")])
-            )
-            generatedMembers.formUnion(
-                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("valueOf")])
-            )
-        }
-        guard !generatedMembers.isEmpty else {
-            return
-        }
-
-        let isReferenced = sema.bindings.identifierSymbols.values.contains {
-            generatedMembers.contains($0)
-        } || sema.bindings.callBindings.values.contains {
-            generatedMembers.contains($0.chosenCallee)
-        } || sema.bindings.exprTypes.values.contains {
-            guard case let .classType(classType) = sema.types.kind(of: $0) else {
-                return false
-            }
-            return classType.classSymbol == cpuArchitectureSymbol
-        }
-        guard isReferenced else {
-            return
-        }
-
-        let alreadyDeclared = module.arena.declarations.contains { declaration in
-            guard case let .nominalType(nominal) = declaration else {
-                return false
-            }
-            return nominal.symbol == cpuArchitectureSymbol
-        }
-        guard !alreadyDeclared else {
-            return
-        }
-        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: cpuArchitectureSymbol)))
     }
 
     /// Replaces `constValue(result: r, value: .symbolRef(sym))` where `sym`
