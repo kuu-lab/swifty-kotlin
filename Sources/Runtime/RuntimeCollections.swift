@@ -1,21 +1,201 @@
 
 /// Hashable wrapper around an opaque runtime value (`Int`) that uses
-/// `kk_any_hashCode` / `runtimeValuesEqual` so value-equal objects (e.g.
+/// `runtimeElementKeyHash` / `runtimeValuesEqual` so value-equal objects (e.g.
 /// two distinct String handles with the same content) are treated as
-/// equal keys.  Used by Set deduplication, Map key lookup, and Sequence
-/// terminal operations (toMap, groupBy).
+/// equal keys while feeding actual content directly into Swift's randomized
+/// `Hasher` to protect against hash-collision denial-of-service (KUU-812).
+/// Used by Set deduplication, Map key lookup, and Sequence terminal operations.
 internal struct RuntimeElementKey: Hashable {
     let value: Int
 
     func hash(into hasher: inout Hasher) {
-        // Keep the runtime's floating-point hash normalization in one helper
-        // so every indexed collection uses the same value-level hash.
-        hasher.combine(runtimeValueHash(value))
+        runtimeElementKeyHash(value, into: &hasher)
     }
 
     static func == (lhs: RuntimeElementKey, rhs: RuntimeElementKey) -> Bool {
         runtimeValuesEqual(lhs.value, rhs.value)
     }
+}
+
+/// Hashes an opaque runtime value directly into Swift's randomized `Hasher`
+/// for internal hash-table placement in Set and Map collections.
+///
+/// Unlike public `kk_any_hashCode` (which produces a deterministic 32-bit
+/// polynomial hash matching Kotlin/JVM), this feeds actual UTF-16 code units
+/// and composite elements into Swift's SipHash to ensure linear-time operations
+/// even when given an attacker-crafted hash collision corpus (KUU-812).
+func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int = 0) {
+    if depth >= 32 {
+        hasher.combine(value)
+        return
+    }
+    if value == runtimeNullSentinelInt {
+        hasher.combine(0)
+        return
+    }
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: value) else {
+        hasher.combine(1)
+        hasher.combine(value)
+        return
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: pointer))
+    }
+    guard isObjectPointer else {
+        hasher.combine(1)
+        hasher.combine(value)
+        return
+    }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        hasher.combine(10)
+        hasher.combine(range.kind.rawValue)
+        if runtimeRangeIsEmpty(range) {
+            hasher.combine(true)
+        } else {
+            hasher.combine(false)
+            hasher.combine(range.first)
+            hasher.combine(range.last)
+            if range.kind.isProgression {
+                hasher.combine(range.step)
+            }
+        }
+        return
+    }
+    if runtimeIsUnitBox(value) {
+        hasher.combine(13)
+        return
+    }
+    if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
+        hasher.combine(3)
+        hasher.combine(stringBox.value.utf16.count)
+        for codeUnit in stringBox.value.utf16 {
+            hasher.combine(codeUnit)
+        }
+        return
+    }
+    if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+        if let enumClassID = intBox.enumClassID {
+            hasher.combine(2)
+            hasher.combine(enumClassID)
+            hasher.combine(intBox.value)
+        } else {
+            hasher.combine(1)
+            hasher.combine(intBox.value)
+        }
+        return
+    }
+    if let boolBox = tryCast(pointer, to: RuntimeBoolBox.self) {
+        hasher.combine(1)
+        hasher.combine(boolBox.value ? 1 : 0)
+        return
+    }
+    if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
+        hasher.combine(1)
+        hasher.combine(longBox.value)
+        return
+    }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        hasher.combine(1)
+        hasher.combine(ulongBox.value)
+        return
+    }
+    if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
+        hasher.combine(1)
+        hasher.combine(Int(floatBox.value.bitPattern))
+        return
+    }
+    if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
+        hasher.combine(1)
+        hasher.combine(Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern)))
+        return
+    }
+    if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
+        hasher.combine(1)
+        hasher.combine(charBox.value)
+        return
+    }
+    if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
+        hasher.combine(11)
+        hasher.combine(durationBox.nanoseconds)
+        return
+    }
+    if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
+        hasher.combine(12)
+        hasher.combine(instantBox.epochSeconds)
+        hasher.combine(instantBox.nanoOfSecond)
+        return
+    }
+    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+        hasher.combine(4)
+        let elements = listBox.elements
+        hasher.combine(elements.count)
+        for elem in elements {
+            runtimeElementKeyHash(elem, into: &hasher, depth: depth + 1)
+        }
+        return
+    }
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        hasher.combine(5)
+        let elements = setBox.elements
+        hasher.combine(elements.count)
+        var sum: UInt64 = 0
+        for elem in elements {
+            var subHasher = Hasher()
+            runtimeElementKeyHash(elem, into: &subHasher, depth: depth + 1)
+            sum = sum &+ UInt64(bitPattern: Int64(subHasher.finalize()))
+        }
+        hasher.combine(sum)
+        return
+    }
+    if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
+        hasher.combine(6)
+        hasher.combine(mapBox.keys.count)
+        var sum: UInt64 = 0
+        for (key, value) in zip(mapBox.keys, mapBox.values) {
+            var subHasher = Hasher()
+            runtimeElementKeyHash(key, into: &subHasher, depth: depth + 1)
+            runtimeElementKeyHash(value, into: &subHasher, depth: depth + 1)
+            sum = sum &+ UInt64(bitPattern: Int64(subHasher.finalize()))
+        }
+        hasher.combine(sum)
+        return
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    {
+        hasher.combine(7)
+        runtimeElementKeyHash(pairBox.firstValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(pairBox.secondValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        return
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
+       let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
+    {
+        hasher.combine(8)
+        runtimeElementKeyHash(tripleBox.firstValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(tripleBox.secondValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(tripleBox.thirdValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        return
+    }
+    if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
+        hasher.combine(9)
+        hasher.combine(localeBox.language)
+        hasher.combine(localeBox.country)
+        hasher.combine(localeBox.variant)
+        return
+    }
+    if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        hasher.combine(14)
+        hasher.combine(objBox.classID)
+        let elements = objBox.elements
+        hasher.combine(elements.count)
+        for elem in elements {
+            runtimeElementKeyHash(elem, into: &hasher, depth: depth + 1)
+        }
+        return
+    }
+    hasher.combine(15)
+    hasher.combine(Int(bitPattern: pointer))
 }
 
 /// Extracts elements from an opaque `otherRaw` handle that may be either a
