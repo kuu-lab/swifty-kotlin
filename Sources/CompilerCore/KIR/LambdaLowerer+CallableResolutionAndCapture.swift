@@ -285,9 +285,11 @@ extension LambdaLowerer {
                 )
             }
             // A receiver-bearing lambda receives its own receiver explicitly;
-            // do not also forward the enclosing receiver as a closure capture.
+            // do not also forward the enclosing receiver unless the body has
+            // an explicit qualified-this binding to that outer receiver.
             if hasExplicitReceiver,
-               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+               !boundCaptures.contains(receiverSymbol)
             {
                 captures.removeAll { $0 == receiverSymbol }
             }

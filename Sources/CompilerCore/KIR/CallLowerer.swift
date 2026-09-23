@@ -214,7 +214,7 @@ final class CallLowerer {
         guard let externalLinkName = sema.symbols.externalLinkName(for: symbolID),
               !externalLinkName.isEmpty,
               let signature = sema.symbols.functionSignature(for: symbolID),
-              let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == externalLinkName })
+              let spec = RuntimeABISpec.byName[externalLinkName]
         else {
             return false
         }
@@ -1444,13 +1444,30 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
+            "__kk_mutable_list_removeAt",
             "__kk_list_get",
             "__kk_mutable_set_add",
+            "__kk_mutable_set_remove",
+            "__kk_mutable_set_clear",
             "__kk_mutable_map_put",
+            "__kk_mutable_map_remove",
+            "__kk_mutable_map_clear",
+            "__kk_mutable_map_putAll",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
+            "kk_iterator_next",
+            "kk_list_iterator_next",
         ].contains(name)
+    }
+
+    func isIteratorNextName(_ name: String) -> Bool {
+        switch name {
+        case "next", "kk_iterator_next", "kk_list_iterator_next":
+            true
+        default:
+            false
+        }
     }
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
@@ -1465,9 +1482,18 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
+            "__kk_mutable_list_removeAt",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_mutable_set_remove",
+            "__kk_mutable_set_clear",
+            "__kk_mutable_map_put",
+            "__kk_mutable_map_remove",
+            "__kk_mutable_map_clear",
+            "__kk_mutable_map_putAll",
             "__kk_list_get",
+            "kk_iterator_next",
+            "kk_list_iterator_next",
         ].contains(interner.resolve(calleeName))
     }
 

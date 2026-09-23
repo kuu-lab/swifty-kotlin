@@ -179,6 +179,19 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
+        // Parenthesized receiver type: `fun (() -> R).name()`,
+        // `fun <R> (suspend () -> R).name()`, `fun (A.() -> Unit)?.name()`.
+        // The group is followed by `.` / `?.` (optionally after `?`), which
+        // distinguishes it from a value-parameter list.
+        if case .symbol(.lParen) = stream.peek().kind, parenthesizedReceiverPrecedesFunctionName() {
+            let receiverGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            children.append(.node(receiverGroup))
+            range.append(childRange(.node(receiverGroup)))
+            if case .symbol(.question) = stream.peek().kind {
+                _ = consumeToken(into: &children, range: &range)
+            }
+            _ = consumeToken(into: &children, range: &range) // `.` or `?.`
+        }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else {
@@ -203,6 +216,22 @@ extension KotlinParser {
             kind: .funDecl,
             range: range.value ?? invalidRange, children
         )
+    }
+
+    /// Lookahead for `fun (Type).name(`: a parenthesized receiver group that is
+    /// followed by `.` / `?.` (optionally after a `?` nullability marker), as
+    /// opposed to the `(` that opens a value-parameter list.
+    private func parenthesizedReceiverPrecedesFunctionName() -> Bool {
+        var offset = offsetPastBalancedGroup(from: 0, open: .symbol(.lParen), close: .symbol(.rParen))
+        if stream.peek(offset).kind == .symbol(.question) {
+            offset += 1
+        }
+        switch stream.peek(offset).kind {
+        case .symbol(.dot), .symbol(.questionDot):
+            return true
+        default:
+            return false
+        }
     }
 
     func parsePropertyDeclaration(

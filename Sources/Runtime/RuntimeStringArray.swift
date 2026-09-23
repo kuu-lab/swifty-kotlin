@@ -530,6 +530,10 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
     let length: Int
     let byteCount: Int
     let hash: Int
+    /// Kotlin UTF-16 code units decoded on first positional access; the flat
+    /// bytes never change, so the cache stays valid for the storage's lifetime.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
@@ -546,6 +550,18 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         }
     }
 
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+        let units = runtimeKotlinStringUTF16CodeUnits(String(decoding: buffer, as: UTF8.self))
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
     deinit {
         data.deallocate()
     }
@@ -553,16 +569,35 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage: [RuntimeFlatStringStorage] = []
+    private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
 
     func append(_ entry: RuntimeFlatStringStorage) {
         lock.lock()
-        storage.append(entry)
+        storageByDataPointer[UInt(bitPattern: entry.data)] = entry
         lock.unlock()
+    }
+
+    /// Storage whose `data` pointer is `data`, when the flat string was
+    /// produced by this runtime. Registered storages are retained forever, so
+    /// the pointer key stays unique for the process lifetime.
+    func storage(for data: UnsafePointer<UInt8>?) -> RuntimeFlatStringStorage? {
+        guard let data else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer[UInt(bitPattern: data)]
     }
 }
 
 private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
+
+/// Lazily cached UTF-16 code units of a runtime-produced flat string, keyed by
+/// its flat `data` pointer. Returns nil when the pointer did not come from
+/// `runtimeRegisterFlatString` (string literals and other foreign buffers).
+func runtimeFlatStringRegisteredUTF16CodeUnits(
+    data: UnsafePointer<UInt8>?
+) -> [UInt16]? {
+    runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
+}
 
 func runtimeStringFromFlatFields(
     data: UnsafePointer<UInt8>?,
@@ -2257,7 +2292,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
-        return sbBox.value
+        return sbBox.stringValue
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

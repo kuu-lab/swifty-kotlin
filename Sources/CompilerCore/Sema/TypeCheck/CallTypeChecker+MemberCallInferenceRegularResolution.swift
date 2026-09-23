@@ -3,6 +3,12 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Names of stdlib collection members backed by bundled Kotlin sources.
+    /// Shared by member-call resolution paths that compare the resolved callee
+    /// text; interned-String comparisons live on `KnownCompilerNames`.
+    private static let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear"]
+    private static let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach"]
+
     func inferRegularMemberCall(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -20,6 +26,7 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverID) {
             true
         } else if case .nameRef = ast.arena.expr(receiverID),
@@ -46,7 +53,7 @@ extension CallTypeChecker {
         // Skip lambda literals and callable refs so that their first inference
         // happens inside prepareCallArguments with a contextual expected type,
         // preventing a stale no-expectedType binding from poisoning the cache.
-        let isLongRangeLiteralContainsCall = interner.resolve(calleeName) == "contains"
+        let isLongRangeLiteralContainsCall = calleeName == knownNames.contains
             && args.count == 1
             && MemberRuntimeDispatch.rangeReceiverKind(
                 receiverExpr: receiverID,
@@ -55,7 +62,7 @@ extension CallTypeChecker {
                 interner: interner
             ) == .longRange
             && driver.callChecker.isContextualizableIntegerLiteral(args[0].expr, ast: ast)
-        let isULongRangeLiteralContainsCall = interner.resolve(calleeName) == "contains"
+        let isULongRangeLiteralContainsCall = calleeName == knownNames.contains
             && args.count == 1
             && MemberRuntimeDispatch.rangeReceiverKind(
                 receiverExpr: receiverID,
@@ -91,7 +98,7 @@ extension CallTypeChecker {
             }
             let inferredType = sema.bindings.exprType(for: arg.expr)
                 ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
-            if calleeName == interner.intern("coerceIn"),
+            if calleeName == knownNames.coerceIn,
                let rangeType = floatingPointRangeArgumentType(
                    arg.expr,
                    ast: ast,
@@ -107,10 +114,10 @@ extension CallTypeChecker {
             return inferredType
         }
 
-        let hasLeadingLocaleArgument = calleeName == interner.intern("format")
+        let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
-        let isSyntacticRangeCollectionMember = ["plus", "minus"].contains(interner.resolve(calleeName))
+        let isSyntacticRangeCollectionMember = calleeName == knownNames.plus || calleeName == knownNames.minus
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
@@ -140,7 +147,7 @@ extension CallTypeChecker {
                         // Find the specified interface in direct supertypes
                         for superID in directSupertypes {
                             guard let superSym = sema.symbols.symbol(superID) else { continue }
-                            if superSym.kind == .interface, ctx.interner.resolve(superSym.name) == qualifierStr {
+                            if superSym.kind == .interface, superSym.name == qualifier {
                                 qualifiedSuperType = superID
                                 supertypeSymbols.insert(superID)
                                 break
@@ -170,8 +177,8 @@ extension CallTypeChecker {
             }
         }
 
-        let isULongProgressionFirstLastMember = ["first", "firstOrNull", "last", "lastOrNull"]
-            .contains(interner.resolve(calleeName))
+        let isULongProgressionFirstLastMember = knownNames.progressionFirstLastMemberNames
+            .contains(calleeName)
             && args.isEmpty
             && sourceLevelRangeMemberReceiverKind(
                 receiverExpr: receiverID,
@@ -200,7 +207,7 @@ extension CallTypeChecker {
         // extension before ordinary member resolution can select that broader
         // interface helper.
         if !isSuperCall,
-           interner.resolve(calleeName) == "isEmpty",
+           calleeName == knownNames.isEmpty,
            args.isEmpty,
            sourceLevelRangeMemberReceiverKind(
                receiverExpr: receiverID,
@@ -578,7 +585,7 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: nestedType)
                 return nestedType
             }
-            let nestedCtorFQName = owner.fqName + [calleeName, interner.intern("<init>")]
+            let nestedCtorFQName = owner.fqName + [calleeName, knownNames.initName]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
                     return false
@@ -587,7 +594,7 @@ extension CallTypeChecker {
             }
             if nestedCtorCandidates.isEmpty {
                 if !nestedOwnerSymbols.isEmpty {
-                    let initName = interner.intern("<init>")
+                    let initName = knownNames.initName
                     nestedCtorCandidates = sema.symbols.lookupByShortName(initName).filter { candidate in
                         guard let symbol = sema.symbols.symbol(candidate),
                               symbol.kind == .constructor
@@ -953,7 +960,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            let scopedRangeUserCandidates: [SymbolID] = if interner.resolve(calleeName) == "contains",
+            let scopedRangeUserCandidates: [SymbolID] = if calleeName == knownNames.contains,
                                                                let rangeSourceMemberLookupType,
                                                                rangeReceiverKind == .intRange
             {
@@ -980,7 +987,7 @@ extension CallTypeChecker {
                     }
                     return parameter.name == label
                 }
-            } else if interner.resolve(calleeName) == "contains",
+            } else if calleeName == knownNames.contains,
                       let rangeSourceMemberLookupType,
                       rangeReceiverKind == .uintRange
             {
@@ -1007,7 +1014,7 @@ extension CallTypeChecker {
                     }
                     return parameter.name == label
                 }
-            } else if interner.resolve(calleeName) == "contains",
+            } else if calleeName == knownNames.contains,
                       let rangeSourceMemberLookupType,
                       rangeReceiverKind == .longRange,
                       !isLongRangeLiteralContainsCall
@@ -1066,7 +1073,7 @@ extension CallTypeChecker {
                 interner: interner
             )
             var mutableMapPutAllSourceCandidates: [SymbolID] = []
-            if interner.resolve(calleeName) == "putAll",
+            if calleeName == knownNames.putAll,
                ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
                args.count == 1,
                let argumentType = argTypes.first,
@@ -1077,11 +1084,9 @@ extension CallTypeChecker {
                     .isArrayLikeReceiver(receiverID: argumentExpr)
                 let isSequenceArgument = ReceiverClassifier(sema: sema, interner: interner)
                     .isSequenceLikeType(argumentType)
-                mutableMapPutAllSourceCandidates = sema.symbols.lookupAll(fqName: [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    calleeName,
-                ]).filter { candidate in
+                mutableMapPutAllSourceCandidates = sema.symbols.lookupAll(
+                    fqName: knownNames.kotlinCollectionsPackage + [calleeName]
+                ).filter { candidate in
                     guard let candidateSymbol = sema.symbols.symbol(candidate),
                           candidateSymbol.kind == .function,
                           (!candidateSymbol.flags.contains(.synthetic)
@@ -1098,31 +1103,16 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    guard receiverInfo.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("MutableMap"),
-                    ] else {
+                    guard receiverInfo.fqName == knownNames.kotlinCollectionsMutableMapFQName else {
                         return false
                     }
                     if isArrayArgument {
-                        return parameterInfo.fqName == [
-                            interner.intern("kotlin"),
-                            interner.intern("Array"),
-                        ]
+                        return parameterInfo.fqName == knownNames.kotlinArrayFQName
                     }
                     if isSequenceArgument {
-                        return parameterInfo.fqName == [
-                            interner.intern("kotlin"),
-                            interner.intern("sequences"),
-                            interner.intern("Sequence"),
-                        ]
+                        return parameterInfo.fqName == knownNames.kotlinSequenceFQName
                     }
-                    return parameterInfo.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
+                    return parameterInfo.fqName == knownNames.kotlinCollectionsIterableFQName
                 }
             }
             let standardMemberCandidates: [SymbolID]
@@ -1166,7 +1156,7 @@ extension CallTypeChecker {
             // call would stop at the zero-argument member and never reach the
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
-                guard interner.resolve(calleeName) == "toString", !args.isEmpty else {
+                guard calleeName == knownNames.toString, !args.isEmpty else {
                     return []
                 }
                 let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
@@ -1264,10 +1254,7 @@ extension CallTypeChecker {
                             // Include bundled/user Kotlin source extensions, not only
                             // synthetic stubs, so source-backed Sequence transforms
                             // (map, filter, etc.) are visible as member-call candidates.
-                            let kotlinMathPackage = [
-                                interner.intern("kotlin"),
-                                interner.intern("math"),
-                            ]
+                            let kotlinMathPackage = knownNames.kotlinMathPackage
                             let isExplicitlyImportedKotlinMath = {
                                 guard Array(symbol.fqName.dropLast()) == kotlinMathPackage,
                                       let sourceFile = ctx.currentASTFile
@@ -1361,7 +1348,7 @@ extension CallTypeChecker {
         // addition to the retained interface member. Prefer the Kotlin source
         // declaration for ordinary MutableMap receiver calls while preserving
         // the synthetic member for interface and lowering bridges.
-        if interner.resolve(calleeName) == "remove",
+        if calleeName == knownNames.remove,
            ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
            args.count == 1
         {
@@ -1378,11 +1365,7 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return symbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("MutableMap"),
-                ]
+                return symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName
             }
             if !mutableMapRemoveCandidates.isEmpty {
                 allCandidates = mutableMapRemoveCandidates
@@ -1392,7 +1375,7 @@ extension CallTypeChecker {
         // is MutableIterator<MutableMap.MutableEntry<K, V>>. If the inherited
         // synthetic collection surface won the initial lookup, prefer the
         // exact bundled extension before ordinary overload resolution.
-        if interner.resolve(calleeName) == "iterator",
+        if calleeName == knownNames.iterator,
            ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType)
         {
             let mutableMapIteratorCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -1404,11 +1387,7 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return symbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("MutableMap"),
-                ]
+                return symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName
             }
             if !mutableMapIteratorCandidates.isEmpty {
                 allCandidates = mutableMapIteratorCandidates
@@ -1418,7 +1397,7 @@ extension CallTypeChecker {
         // MutableMap delegated accessor has the same short name but requires
         // `(thisRef, KProperty<*>)`; keep that two-argument delegate surface
         // out of ordinary one-argument member calls.
-        if interner.resolve(calleeName) == "getValue",
+        if calleeName == knownNames.getValue,
            ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
            args.count == 1
         {
@@ -1435,11 +1414,7 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return symbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Map"),
-                ]
+                return symbol.fqName == knownNames.kotlinCollectionsMapFQName
             }
             if !mapGetValueCandidates.isEmpty {
                 allCandidates = mapGetValueCandidates
@@ -1447,7 +1422,7 @@ extension CallTypeChecker {
         }
 
         let isNullLiteralReceiver = if case let .nameRef(name, _) = ast.arena.expr(receiverID) {
-            name == KnownCompilerNames(interner: interner).null
+            name == knownNames.null
         } else {
             false
         }
@@ -1483,7 +1458,7 @@ extension CallTypeChecker {
         // generic Comparable<T>.compareTo member, which otherwise leaves
         // String.compareTo(String) ambiguous after both surfaces are available.
         if !isClassNameReceiver,
-           interner.resolve(calleeName) == "compareTo",
+           calleeName == knownNames.compareTo,
            args.count == 1 || args.count == 2
         {
             let receiverTypeForCheck = safeCall
@@ -1626,7 +1601,7 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         )
-        if calleeName == interner.intern("forEach") {
+        if calleeName == knownNames.forEach {
             let receiverClassification = ReceiverClassifier(sema: sema, interner: interner).classify(
                 receiverID: receiverID,
                 receiverType: lookupReceiverType,
@@ -1641,11 +1616,7 @@ extension CallTypeChecker {
                         && !receiverClassification.isSetReceiver
                 )
             if !isEligibleIterableReceiver {
-                let iterableFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Iterable"),
-                ]
+                let iterableFQName = knownNames.kotlinCollectionsIterableFQName
                 candidates.removeAll { candidate in
                     guard sema.symbols.isSourceBackedSymbol(candidate),
                           let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
@@ -1661,7 +1632,7 @@ extension CallTypeChecker {
         // Map.withDefault extension for a MutableMap receiver. Resolve this
         // subtype preference before trailing-lambda overload inference sees
         // two otherwise identical function shapes.
-        if interner.resolve(calleeName) == "withDefault",
+        if calleeName == knownNames.withDefault,
            ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(lookupReceiverType)
         {
             let mutableMapCandidates = candidates.filter { candidate in
@@ -1673,17 +1644,13 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return symbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("MutableMap"),
-                ]
+                return symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName
             }
             if !mutableMapCandidates.isEmpty {
                 candidates = mutableMapCandidates
             }
         }
-        if interner.resolve(calleeName) == "coerceIn",
+        if calleeName == knownNames.coerceIn,
            !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
             // The generic ClosedFloatingPointRange overload must not turn a
@@ -1699,10 +1666,10 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return interner.resolve(parameterSymbol.name) == "ClosedFloatingPointRange"
+                return parameterSymbol.name == knownNames.closedFloatingPointRange
             }
         }
-        if interner.resolve(calleeName) == "coerceIn",
+        if calleeName == knownNames.coerceIn,
            args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
             // Imported `.kklib` metadata does not make a generic extension whose
@@ -1722,12 +1689,11 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                let parameterName = interner.resolve(parameterSymbol.name)
-                return parameterName == "ClosedFloatingPointRange"
+                return parameterSymbol.name == knownNames.closedFloatingPointRange
             }
             candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
         }
-        if interner.resolve(calleeName) == "toList" {
+        if calleeName == knownNames.toList {
             candidates = preferCollectionToListCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
@@ -1735,7 +1701,7 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
-        if interner.resolve(calleeName) == "take" {
+        if calleeName == knownNames.take {
             candidates = preferListTakeCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
@@ -1743,7 +1709,7 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
-        if interner.resolve(calleeName) == "unzip" {
+        if calleeName == knownNames.unzip {
             candidates = preferListUnzipCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
@@ -1753,7 +1719,7 @@ extension CallTypeChecker {
         }
         if isNullLiteralReceiver,
            args.isEmpty,
-           interner.resolve(calleeName) == "isNullOrEmpty",
+           calleeName == knownNames.isNullOrEmpty,
            let charSequenceType = syntheticCharSequenceType(sema: sema),
            candidates.contains(where: { candidate in
                sema.symbols.functionSignature(for: candidate)?.receiverType == sema.types.makeNullable(charSequenceType)
@@ -1776,7 +1742,7 @@ extension CallTypeChecker {
                 isSyntheticStringFormatCandidate(candidate, sema: sema, interner: interner)
             }
         }
-        if interner.resolve(calleeName) == "trimMargin" {
+        if calleeName == knownNames.trimMargin {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
@@ -1790,11 +1756,7 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
-                let trimMarginFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("text"),
-                    calleeName,
-                ]
+                let trimMarginFQName = knownNames.kotlinTextPackage + [calleeName]
                 let chosen = sema.symbols.lookupAll(fqName: trimMarginFQName).first(where: { symbolID in
                     guard let signature = sema.symbols.functionSignature(for: symbolID),
                           signature.receiverType == sema.types.stringType
@@ -1870,8 +1832,6 @@ extension CallTypeChecker {
         // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear"]
-        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach"]
         let memberNameText = interner.resolve(calleeName)
         let isMutableMapIteratorSource = memberNameText == "iterator"
             && ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType)
@@ -1893,13 +1853,13 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ).isEmpty
-        let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
-            || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+        let isSourceBackedMemberName = Self.sourceBackedCollectionMemberNames.contains(memberNameText)
+            || (Self.sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }
@@ -2323,6 +2283,31 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
+        // kotlinc prohibits a super-call from omitting an argument that carries
+        // a default value ("super-calls with default arguments are prohibited.
+        // Specify all arguments of 'super.<name>' explicitly.") -- resolving the
+        // default and dispatching statically to the base implementation can
+        // never re-evaluate an override's own default expression. The call is
+        // otherwise fully well-typed, so diagnose without erroring the
+        // expression's type -- an error type here would risk cascading into a
+        // second, spurious kswiftc-only diagnostic on an unrelated line.
+        if isSuperCall,
+           let signature = sema.symbols.functionSignature(for: chosen)
+        {
+            let suppliedParameterIndices = Set(resolved.parameterMapping.values)
+            let hasOmittedDefaultArgument = signature.valueParameterHasDefaultValues.indices.contains { index in
+                signature.valueParameterHasDefaultValues[index] && !suppliedParameterIndices.contains(index)
+            }
+            if hasOmittedDefaultArgument {
+                let memberName = interner.resolve(calleeName)
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0306",
+                    "Super-calls with default arguments are prohibited. Specify all arguments of 'super.\(memberName)' explicitly.",
+                    range: range
+                )
+            }
+        }
+
         // --- Use-site variance projection check ---
         // When the receiver has projected type arguments (e.g. MutableList<out Number>),
         // check that the member access respects variance constraints.
@@ -2406,12 +2391,11 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard sema.bindings.isFloatingPointRangeExpr(exprID),
-              let rangeSymbol = sema.symbols.lookup(fqName: [
-                  interner.intern("kotlin"),
-                  interner.intern("ranges"),
-                  interner.intern("ClosedFloatingPointRange"),
-              ])
+              let rangeSymbol = sema.symbols.lookup(
+                  fqName: knownNames.kotlinRangesClosedFloatingPointRangeFQName
+              )
         else {
             return nil
         }
@@ -2479,19 +2463,19 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let supportedNames: Set<String> = ["equals", "hashCode", "toString"]
-        guard supportedNames.contains(interner.resolve(calleeName)),
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.instantValueSemanticsMemberNames.contains(calleeName),
               let receiverOwner = driver.helpers.nominalSymbol(
                   of: sema.types.makeNonNullable(receiverType),
                   types: sema.types
               ),
               let receiverSymbol = sema.symbols.symbol(receiverOwner),
-              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "time", "Instant"]
+              receiverSymbol.fqName == knownNames.kotlinTimeInstantFQName
         else {
             return []
         }
 
-        let kotlinTimePackage = [interner.intern("kotlin"), interner.intern("time")]
+        let kotlinTimePackage = knownNames.kotlinTimePackage
         return sema.symbols.lookupByShortName(calleeName).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
@@ -2693,16 +2677,8 @@ extension CallTypeChecker {
         _ calleeName: InternedString,
         interner: StringInterner
     ) -> Bool {
-        switch interner.resolve(calleeName) {
-        case "contains", "isEmpty", "iterator",
-             "toList", "forEach", "map", "mapIndexed", "mapNotNull",
-             "filter", "filterIndexed", "filterNot",
-             "take", "drop", "chunked", "windowed", "sorted", "average",
-             "random", "randomOrNull", "step", "plus", "minus":
-            return true
-        default:
-            return false
-        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return knownNames.bundledRangeSourceMemberNames.contains(calleeName)
     }
 
     func sourceLevelRangeMemberLookupType(
@@ -2722,37 +2698,36 @@ extension CallTypeChecker {
             return nil
         }
 
-        let typeName: String
+        let knownNames = KnownCompilerNames(interner: interner)
+        let typeID: InternedString
         switch rangeKind {
         case .intRange:
-            typeName = "IntRange"
+            typeID = knownNames.intRange
         case .longRange:
-            typeName = "LongRange"
+            typeID = knownNames.longRange
         case .charRange:
-            typeName = "CharRange"
+            typeID = knownNames.charRange
         case .uintRange:
-            typeName = "UIntRange"
+            typeID = knownNames.uintRange
         case .ulongRange:
-            typeName = "ULongRange"
+            typeID = knownNames.ulongRange
         case .intProgression:
-            typeName = "IntProgression"
+            typeID = knownNames.intProgression
         case .longProgression:
-            typeName = "LongProgression"
+            typeID = knownNames.longProgression
         case .charProgression:
-            typeName = "CharProgression"
+            typeID = knownNames.charProgression
         case .uintProgression:
-            typeName = "UIntProgression"
+            typeID = knownNames.uintProgression
         case .ulongProgression:
-            typeName = "ULongProgression"
+            typeID = knownNames.ulongProgression
         case .iterable, .list, .set, .collection, .map, .sequence, .string, .charSequence:
             return nil
         }
 
-        guard let symbol = sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-            interner.intern(typeName),
-        ]) else {
+        guard let symbol = sema.symbols.lookup(
+            fqName: knownNames.kotlinRangesPackage + [typeID]
+        ) else {
             return nil
         }
         return sema.types.make(.classType(ClassType(
@@ -2771,26 +2746,27 @@ extension CallTypeChecker {
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
-            switch interner.resolve(symbol.name) {
-            case "IntRange":
+            let knownNames = KnownCompilerNames(interner: interner)
+            switch symbol.name {
+            case knownNames.intRange:
                 return .intRange
-            case "LongRange":
+            case knownNames.longRange:
                 return .longRange
-            case "CharRange":
+            case knownNames.charRange:
                 return .charRange
-            case "UIntRange":
+            case knownNames.uintRange:
                 return .uintRange
-            case "ULongRange":
+            case knownNames.ulongRange:
                 return .ulongRange
-            case "IntProgression":
+            case knownNames.intProgression:
                 return .intProgression
-            case "LongProgression":
+            case knownNames.longProgression:
                 return .longProgression
-            case "CharProgression":
+            case knownNames.charProgression:
                 return .charProgression
-            case "UIntProgression":
+            case knownNames.uintProgression:
                 return .uintProgression
-            case "ULongProgression":
+            case knownNames.ulongProgression:
                 return .ulongProgression
             default:
                 return nil
@@ -2827,10 +2803,8 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let rangesFQName = [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-        ]
+        let knownNames = KnownCompilerNames(interner: interner)
+        let rangesFQName = knownNames.kotlinRangesPackage
         guard let rangesPackageSymbol = sema.symbols.lookup(fqName: rangesFQName) else {
             return []
         }
@@ -2839,29 +2813,26 @@ extension CallTypeChecker {
             guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema) else {
                 return false
             }
-            return ["UIntRange", "UIntProgression"].contains(interner.resolve(symbol.name))
+            return symbol.name == knownNames.uintRange || symbol.name == knownNames.uintProgression
         }()
         let isUIntRangeMigrationMember = isUIntRangeReceiver
-            && ["iterator", "step", "take", "drop", "chunked", "windowed"]
-                .contains(interner.resolve(calleeName))
+            && knownNames.rangeMigrationMemberNames.contains(calleeName)
         let isULongRangeReceiver: Bool = {
             guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema) else {
                 return false
             }
-            return ["ULongRange", "ULongProgression"].contains(interner.resolve(symbol.name))
+            return symbol.name == knownNames.ulongRange || symbol.name == knownNames.ulongProgression
         }()
         let isULongRangeMigrationMember = isULongRangeReceiver
-            && ["iterator", "step", "take", "drop", "chunked", "windowed"]
-                .contains(interner.resolve(calleeName))
+            && knownNames.rangeMigrationMemberNames.contains(calleeName)
         let isULongProgressionReceiver: Bool = {
             guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema) else {
                 return false
             }
-            return interner.resolve(symbol.name) == "ULongProgression"
+            return symbol.name == knownNames.ulongProgression
         }()
         let isULongProgressionFirstLastMember = isULongProgressionReceiver
-            && ["first", "firstOrNull", "last", "lastOrNull"]
-                .contains(interner.resolve(calleeName))
+            && knownNames.progressionFirstLastMemberNames.contains(calleeName)
         return sema.symbols.lookupAll(fqName: rangesFQName + [calleeName])
             .filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
@@ -2891,10 +2862,8 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let rangesPackageFQName = [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-        ]
+        let knownNames = KnownCompilerNames(interner: interner)
+        let rangesPackageFQName = knownNames.kotlinRangesPackage
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         return ctx.cachedScopeLookup(calleeName).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),

@@ -999,6 +999,8 @@ struct BuildKIRCodegenRegressionTests {
             list.add(1)
             set.add(1)
             map.put("a", 1)
+            map.remove("a")
+            map.clear()
         }
         """
 
@@ -1013,6 +1015,8 @@ struct BuildKIRCodegenRegressionTests {
             #expect(throwFlags["__kk_mutable_list_add"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_mutable_set_add"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_mutable_map_put"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_map_remove"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_map_clear"]?.allSatisfy { $0 == true } == true)
         }
     }
 

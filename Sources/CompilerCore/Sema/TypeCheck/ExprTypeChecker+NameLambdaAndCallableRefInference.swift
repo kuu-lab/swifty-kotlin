@@ -2123,6 +2123,21 @@ extension ExprTypeChecker {
         }
         if let label {
             if let qualifiedType = ctx.resolveQualifiedThis(label: label) {
+                // An extension function's receiver is also addressable by the
+                // function-name label (for example `this@describe`). Bind that
+                // reference to the same synthetic receiver symbol used by KIR
+                // so nested receiver lambdas capture the outer receiver rather
+                // than accidentally reading their own receiver.
+                if let currentDeclSymbol = ctx.currentDeclSymbol,
+                   let currentDecl = sema.symbols.symbol(currentDeclSymbol),
+                   currentDecl.name == label,
+                   sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
+                {
+                    sema.bindings.bindIdentifier(
+                        id,
+                        symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
+                    )
+                }
                 sema.bindings.bindExprType(id, type: qualifiedType)
                 return qualifiedType
             }

@@ -206,5 +206,51 @@ struct CodegenBackendCollectionBuilderDSLTests {
             expected: "list-read-only\n[7]\nset-read-only\n[9]\nmap-read-only\n{x=1}\n"
         )
     }
+
+    /// KUU-646: frozen / read-only maps must not be rewritten through
+    /// `as MutableMap`. `mapOf` uses the read-only Map tag (ClassCastException,
+    /// matching `listOf as MutableList`). `buildMap` keeps the builder's
+    /// MutableMap identity after freeze, so the cast succeeds and mutation
+    /// throws UnsupportedOperationException.
+    @Test
+    func readOnlyMapRejectsMutableMapCastAndFrozenMutation() throws {
+        let source = """
+        fun main() {
+            val m = mapOf("a" to 1)
+            try {
+                val mm = m as MutableMap<String, Int>
+                mm.remove("a")
+                println("mapOf-mutated size=" + m.size)
+            } catch (e: ClassCastException) {
+                println("mapOf-cce")
+            } catch (e: UnsupportedOperationException) {
+                println("mapOf-uoe")
+            }
+            println("mapOf-size=" + m.size)
+
+            val bm = buildMap { put("x", 1) }
+            try {
+                (bm as MutableMap<String, Int>).clear()
+                println("buildMap-mutated size=" + bm.size)
+            } catch (e: ClassCastException) {
+                println("buildMap-cce")
+            } catch (e: UnsupportedOperationException) {
+                println("buildMap-uoe")
+            }
+            println("buildMap-size=" + bm.size)
+
+            val mutable = mutableMapOf("a" to 1)
+            mutable["b"] = 2
+            mutable.remove("a")
+            println("mutable-size=" + mutable.size)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ReadOnlyMapMutationRuntime",
+            expected: "mapOf-cce\nmapOf-size=1\nbuildMap-uoe\nbuildMap-size=1\nmutable-size=1\n"
+        )
+    }
 }
 #endif

@@ -461,6 +461,11 @@ extension BuildASTPhase {
                 close: .symbol(.greaterThan)
             )
         }
+        // `fun (() -> R).name(` / `fun (T)?.name(`: a parenthesized receiver
+        // type precedes the function name, so its `(` is not the parameter list.
+        if let afterReceiver = indexAfterParenthesizedReceiver(in: tokens, from: index) {
+            index = afterReceiver
+        }
         while index < tokens.count {
             let kind = tokens[index].kind
             if kind == .symbol(.lParen) {
@@ -472,6 +477,27 @@ extension BuildASTPhase {
             index += 1
         }
         return nil
+    }
+
+    /// When `tokens[index]` opens a parenthesized receiver type that is followed
+    /// by `.` / `?.` (optionally after `?`), returns the index just past that
+    /// separator; otherwise nil.
+    func indexAfterParenthesizedReceiver(in tokens: [Token], from index: Int) -> Int? {
+        guard index < tokens.count, tokens[index].kind == .symbol(.lParen) else {
+            return nil
+        }
+        var probe = skipBalancedBracket(
+            in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen)
+        )
+        if probe < tokens.count, tokens[probe].kind == .symbol(.question) {
+            probe += 1
+        }
+        guard probe < tokens.count,
+              tokens[probe].kind == .symbol(.dot) || tokens[probe].kind == .symbol(.questionDot)
+        else {
+            return nil
+        }
+        return probe + 1
     }
 
     func parseTypeRef(
