@@ -2,8 +2,22 @@
 // MARK: - StringBuilder Runtime Type (STDLIB-255/256/257)
 
 final class RuntimeStringBuilderBox {
-    var value: String
-    init(_ initial: String = "") { self.value = initial }
+    /// Contents as Kotlin UTF-16 code units. Positional runtime operations
+    /// (length/get/indexOf/insert/substring/...) work on this buffer directly;
+    /// a Swift `String` is materialized only when a result needs one.
+    var units: [UInt16]
+
+    init(_ initial: String = "") {
+        self.units = runtimeKotlinStringUTF16CodeUnits(initial)
+    }
+
+    init(units: [UInt16]) {
+        self.units = units
+    }
+
+    var stringValue: String {
+        runtimeKotlinStringFromUTF16CodeUnits(units)
+    }
 }
 
 // BUG-044: StringBuilder instances bypass normal kk_object_new-based class
@@ -65,8 +79,10 @@ public func __kk_string_builder_new_from_string_flat(
 
 @_cdecl("__kk_string_builder_new_from_char_sequence")
 public func __kk_string_builder_new_from_char_sequence(_ valueRaw: Int) -> Int {
-    let initial = runtimeCharSequenceText(from: valueRaw) ?? runtimeElementToString(valueRaw)
-    return runtimeStringBuilderNew(initial: initial)
+    if let units = runtimeCharSequenceUTF16Units(from: valueRaw) {
+        return runtimeStringBuilderNew(units: units)
+    }
+    return runtimeStringBuilderNew(initial: runtimeElementToString(valueRaw))
 }
 
 // BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body (see
@@ -91,6 +107,10 @@ private func runtimeStringBuilderNew(initial: String) -> Int {
     runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(initial)))
 }
 
+private func runtimeStringBuilderNew(units: [UInt16]) -> Int {
+    runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: units)))
+}
+
 private func runtimeStringBuilderObjectStringFromFlat(
     data: UnsafePointer<UInt8>?,
     length: Int,
@@ -101,14 +121,6 @@ private func runtimeStringBuilderObjectStringFromFlat(
         return "null"
     }
     return runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-}
-
-private func stringBuilderUTF16Units(_ value: String) -> [UInt16] {
-    runtimeKotlinStringUTF16CodeUnits(value)
-}
-
-private func stringBuilderString(from units: [UInt16]) -> String {
-    runtimeKotlinStringFromUTF16CodeUnits(units)
 }
 
 private func stringBuilderCharArrayUnits(
@@ -140,10 +152,10 @@ private func stringBuilderIndexOf(_ source: [UInt16], _ needle: [UInt16], from s
     guard start <= source.count - needle.count else {
         return -1
     }
-    for index in start ... (source.count - needle.count) {
-        if Array(source[index ..< index + needle.count]) == needle {
-            return index
-        }
+    for index in start ... (source.count - needle.count)
+        where source[index ..< index + needle.count].elementsEqual(needle)
+    {
+        return index
     }
     return -1
 }
@@ -161,7 +173,7 @@ private func stringBuilderLastIndexOf(_ source: [UInt16], _ needle: [UInt16], fr
     }
     var index = min(startIndex, lastStart)
     while index >= 0 {
-        if Array(source[index ..< index + needle.count]) == needle {
+        if source[index ..< index + needle.count].elementsEqual(needle) {
             return index
         }
         index -= 1
@@ -204,8 +216,7 @@ public func __kk_string_builder_append_char_array(
         )
         return sbRaw
     }
-    let source = Array(arrayUnits[startIndex ..< endIndex])
-    sb.value += stringBuilderString(from: source)
+    sb.units.append(contentsOf: arrayUnits[startIndex ..< endIndex])
     return sbRaw
 }
 
@@ -218,18 +229,16 @@ public func __kk_string_builder_insert_obj(
 ) -> Int {
     outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let current = stringBuilderUTF16Units(sb.value)
-    guard index >= 0, index <= current.count else {
+    guard index >= 0, index <= sb.units.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
-            message: "index=\(index), length=\(current.count)"
+            message: "index=\(index), length=\(sb.units.count)"
         )
         return sbRaw
     }
-    let inserted = stringBuilderUTF16Units(runtimeElementToString(valueRaw))
-    var result = current
-    result.insert(contentsOf: inserted, at: index)
-    sb.value = stringBuilderString(from: result)
+    let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+        ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+    sb.units.insert(contentsOf: inserted, at: index)
     return sbRaw
 }
 
@@ -242,42 +251,38 @@ public func __kk_string_builder_insert_char_sequence(
 ) -> Int {
     outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    var current = stringBuilderUTF16Units(sb.value)
-    guard index >= 0, index <= current.count else {
+    guard index >= 0, index <= sb.units.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
-            message: "index=\(index), length=\(current.count)"
+            message: "index=\(index), length=\(sb.units.count)"
         )
         return sbRaw
     }
 
     guard let sourceBuilder = runtimeStringBuilderBox(from: valueRaw) else {
-        let inserted = stringBuilderUTF16Units(runtimeElementToString(valueRaw))
-        current.insert(contentsOf: inserted, at: index)
-        sb.value = stringBuilderString(from: current)
+        let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+            ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+        sb.units.insert(contentsOf: inserted, at: index)
         return sbRaw
     }
 
-    let sourceLength = stringBuilderUTF16Units(sourceBuilder.value).count
+    let sourceLength = sourceBuilder.units.count
     if sourceBuilder === sb {
         // Java shifts the destination tail before reading a self-referential
         // CharSequence. Keep that overlap behavior by reading the working buffer
         // after the shift while filling the inserted window.
-        let originalLength = current.count
-        current.append(contentsOf: repeatElement(0, count: sourceLength))
+        let originalLength = sb.units.count
+        sb.units.append(contentsOf: repeatElement(0, count: sourceLength))
         if index < originalLength {
             for sourceIndex in stride(from: originalLength - 1, through: index, by: -1) {
-                current[sourceIndex + sourceLength] = current[sourceIndex]
+                sb.units[sourceIndex + sourceLength] = sb.units[sourceIndex]
             }
         }
         for offset in 0 ..< sourceLength {
-            current[index + offset] = current[offset]
+            sb.units[index + offset] = sb.units[offset]
         }
-        sb.value = stringBuilderString(from: current)
     } else {
-        let inserted = stringBuilderUTF16Units(sourceBuilder.value)
-        current.insert(contentsOf: inserted, at: index)
-        sb.value = stringBuilderString(from: current)
+        sb.units.insert(contentsOf: sourceBuilder.units, at: index)
     }
     return sbRaw
 }
@@ -296,11 +301,10 @@ public func __kk_string_builder_insert_char_array(
     guard let arrayUnits = stringBuilderCharArrayUnits(from: arrayRaw, outThrown: outThrown) else {
         return sbRaw
     }
-    var current = stringBuilderUTF16Units(sb.value)
-    guard index >= 0, index <= current.count else {
+    guard index >= 0, index <= sb.units.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
-            message: "index=\(index), length=\(current.count)"
+            message: "index=\(index), length=\(sb.units.count)"
         )
         return sbRaw
     }
@@ -311,25 +315,22 @@ public func __kk_string_builder_insert_char_array(
         )
         return sbRaw
     }
-    current.insert(contentsOf: arrayUnits[startIndex ..< endIndex], at: index)
-    sb.value = stringBuilderString(from: current)
+    sb.units.insert(contentsOf: arrayUnits[startIndex ..< endIndex], at: index)
     return sbRaw
 }
 
 @_cdecl("__kk_string_builder_index_of")
 public func __kk_string_builder_index_of(_ sbRaw: Int, _ stringRaw: Int, _ startIndex: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return -1 }
-    let source = stringBuilderUTF16Units(sb.value)
     let needle = runtimeStringUTF16CodeUnits(stringRaw)
-    return stringBuilderIndexOf(source, needle, from: startIndex)
+    return stringBuilderIndexOf(sb.units, needle, from: startIndex)
 }
 
 @_cdecl("__kk_string_builder_last_index_of")
 public func __kk_string_builder_last_index_of(_ sbRaw: Int, _ stringRaw: Int, _ startIndex: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return -1 }
-    let source = stringBuilderUTF16Units(sb.value)
     let needle = runtimeStringUTF16CodeUnits(stringRaw)
-    return stringBuilderLastIndexOf(source, needle, from: startIndex)
+    return stringBuilderLastIndexOf(sb.units, needle, from: startIndex)
 }
 
 @_cdecl("__kk_string_builder_set_length")
@@ -344,13 +345,11 @@ public func __kk_string_builder_set_length(
         stringBuilderIndexError(outThrown: outThrown, message: "newLength=\(newLength)")
         return sbRaw
     }
-    var units = stringBuilderUTF16Units(sb.value)
-    if newLength < units.count {
-        units.removeLast(units.count - newLength)
-    } else if newLength > units.count {
-        units.append(contentsOf: repeatElement(0, count: newLength - units.count))
+    if newLength < sb.units.count {
+        sb.units.removeLast(sb.units.count - newLength)
+    } else if newLength > sb.units.count {
+        sb.units.append(contentsOf: repeatElement(0, count: newLength - sb.units.count))
     }
-    sb.value = stringBuilderString(from: units)
     return sbRaw
 }
 
@@ -363,15 +362,16 @@ public func __kk_string_builder_substring(
 ) -> Int {
     outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return runtimeMakeStringRaw("") }
-    let units = stringBuilderUTF16Units(sb.value)
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= units.count else {
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= sb.units.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(units.count)"
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(sb.units.count)"
         )
         return 0
     }
-    return runtimeMakeStringRaw(stringBuilderString(from: Array(units[startIndex ..< endIndex])))
+    return runtimeMakeStringRaw(
+        runtimeKotlinStringFromUTF16CodeUnits(Array(sb.units[startIndex ..< endIndex]))
+    )
 }
 
 @_cdecl("__kk_string_builder_to_char_array")
@@ -392,7 +392,7 @@ public func __kk_string_builder_to_char_array(
         )
         return 0
     }
-    let source = stringBuilderUTF16Units(sb.value)
+    let source = sb.units
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= source.count else {
         stringBuilderIndexError(
             outThrown: outThrown,
@@ -418,7 +418,7 @@ public func __kk_string_builder_to_char_array(
 @_cdecl("__kk_string_builder_length_utf16")
 public func __kk_string_builder_length_utf16(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return runtimeKotlinStringUTF16Length(sb.value)
+    return sb.units.count
 }
 
 @_cdecl("__kk_string_builder_append_range")
@@ -434,7 +434,7 @@ public func __kk_string_builder_append_range(
     guard let source = runtimeStringFromRaw(stringRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
     }
-    let utf16 = runtimeKotlinStringUTF16CodeUnits(source)
+    let utf16 = runtimeStringUTF16CodeUnits(stringRaw)
     let length = utf16.count
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
@@ -442,10 +442,9 @@ public func __kk_string_builder_append_range(
         )
         return sbRaw
     }
-    let substringRaw = runtimeMakeStringRaw(
-        runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
-    )
-    return __kk_string_builder_append_obj(sbRaw, substringRaw)
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.units.append(contentsOf: utf16[startIndex ..< endIndex])
+    return sbRaw
 }
 
 @_cdecl("__kk_string_builder_append_obj_flat")
@@ -464,7 +463,7 @@ public func __kk_string_builder_append_obj_flat(
 
 private func runtimeStringBuilderAppend(_ sbRaw: Int, value: String) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(value)
+    runtimeAppendKotlinUTF16CodeUnits(of: value, to: &sb.units)
     return sbRaw
 }
 
@@ -473,7 +472,25 @@ public func __kk_string_builder_toString(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else {
         return sbMakeStringRaw("")
     }
-    return sbMakeStringRaw(sb.value)
+    return sbMakeStringRaw(sb.stringValue)
+}
+
+@_cdecl("__kk_string_builder_get")
+public func __kk_string_builder_get(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
+    guard index >= 0, index < sb.units.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "index=\(index), length=\(sb.units.count)"
+        )
+        return 0
+    }
+    return Int(sb.units[index])
 }
 
 @_cdecl("__kk_string_builder_length_prop")
@@ -481,12 +498,12 @@ public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
     // KSP-817: StringBuilder.length must agree with String.length and with
     // CharSequence.length dispatch, all of which count UTF-16 code units.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return runtimeKotlinStringUTF16Length(sb.value)
+    return sb.units.count
 }
 
 @_cdecl("__kk_string_builder_clear")
 public func __kk_string_builder_clear(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value = ""
+    sb.units.removeAll()
     return sbRaw
 }

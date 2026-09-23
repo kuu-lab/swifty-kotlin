@@ -132,31 +132,22 @@ public class Regex {
     public override fun toString(): String = __kkRegexPattern(this)
 
     public fun split(input: String, limit: Int = 0): List<String> {
+        requireNonNegativeLimit(limit)
         if (limit == 0) {
             return __kk_split_regex(input, this)
         }
         val result = ArrayList<String>()
-        var lastEnd = 0
+        var lastStart = 0
         var count = 0
-        val matches = findAll(input)
-        for (match in matches) {
-            if (limit > 0 && count >= limit - 1) {
+        for (match in findAll(input)) {
+            if (count >= limit - 1) {
                 break
             }
-            val start = match.range.first
-            if (start < lastEnd) {
-                continue
-            }
-            if (match.value.isEmpty() && start == lastEnd && lastEnd < input.length) {
-                result.add(input.substring(lastEnd, lastEnd + 1))
-                lastEnd++
-                continue
-            }
-            result.add(input.substring(lastEnd, start))
-            lastEnd = match.range.last + 1
+            result.add(input.substring(lastStart, match.range.first))
+            lastStart = match.range.last + 1
             count++
         }
-        result.add(input.substring(lastEnd, input.length))
+        result.add(input.substring(lastStart, input.length))
         return result
     }
 
@@ -166,6 +157,9 @@ public class Regex {
     public fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> =
         split(input.regexInputString(), limit).asSequence()
 }
+
+internal fun requireNonNegativeLimit(limit: Int) =
+    require(limit >= 0) { "Limit must be non-negative, but was $limit" }
 
 @KsSymbolName("__kk_string_replace_regex")
 private external fun __kk_replace_regex(input: String, regex: Regex, replacement: String): String

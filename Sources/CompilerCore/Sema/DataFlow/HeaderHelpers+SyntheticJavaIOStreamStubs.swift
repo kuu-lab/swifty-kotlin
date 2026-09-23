@@ -477,16 +477,29 @@ extension DataFlowSemaPhase {
             symbols.insertFlags(.operatorFunction, for: candidate)
         }
 
-        // BufferedReader.useLines { lines: List<String> -> T } (STDLIB-IO-FN-040)
+        // BufferedReader.useLines { lines: Sequence<String> -> T } (STDLIB-IO-FN-040)
         //
         // Kotlin declares `useLines` as an extension function on `kotlin.io.Reader`
         // (which `BufferedReader` extends). The lambda is invoked with the receiver's
         // remaining lines as a `Sequence<String>`, and the reader is closed before
-        // the function returns. We model the lambda parameter as `List<String>`,
-        // flowing through the same runtime helper shape (lines materialised
-        // eagerly into a `RuntimeListBox`).
-        let listOfStringToAnyTypeBR = types.make(.functionType(FunctionType(
-            params: [listOfStringType],
+        // the function returns. The runtime hands the block a lazy pull-source
+        // sequence, matching Kotlin's real `(Sequence<String>) -> T` signature —
+        // so a block that only scans a prefix never drains the whole reader.
+        let sequenceSymbol = resolveSequenceSymbol(symbols: symbols, interner: interner)
+        if sequenceSymbol == nil {
+            assertionFailure("kotlin.sequences.Sequence symbol not found; BufferedReader.useLines will use Any as fallback")
+        }
+        let sequenceOfStringType: TypeID = if let seqSym = sequenceSymbol {
+            types.make(.classType(ClassType(
+                classSymbol: seqSym,
+                args: [.out(types.stringType)],
+                nullability: .nonNull
+            )))
+        } else {
+            types.anyType
+        }
+        let sequenceOfStringToAnyTypeBR = types.make(.functionType(FunctionType(
+            params: [sequenceOfStringType],
             returnType: types.anyType,
             isSuspend: false,
             nullability: .nonNull
@@ -496,7 +509,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "__kk_buffered_reader_useLines",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
-            parameters: [("block", listOfStringToAnyTypeBR)],
+            parameters: [("block", sequenceOfStringToAnyTypeBR)],
             returnType: types.anyType,
             symbols: symbols,
             interner: interner
@@ -1307,6 +1320,18 @@ extension DataFlowSemaPhase {
             interner.intern("List"),
         ]
         return symbols.lookup(fqName: listFQName)
+    }
+
+    func resolveSequenceSymbol(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let sequenceFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("Sequence"),
+        ]
+        return symbols.lookup(fqName: sequenceFQName)
     }
 
     private func registerFileConstructor(

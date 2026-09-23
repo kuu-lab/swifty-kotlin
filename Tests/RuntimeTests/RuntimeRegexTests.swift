@@ -368,4 +368,44 @@ struct RuntimeRegexTests {
             #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 0)
         }
     }
+
+    // MARK: - KUU-635: empty pattern
+
+    @Test
+    func emptyPatternMatchesEmptyStringEverywhere() {
+        var thrown = 0
+        let regexRaw = withFlatString("") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+        #expect(regexRaw != 0)
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "")
+
+        withFlatString("") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(regexRaw, data, length, byteCount, hash)) == 1)
+        }
+        withFlatString("abc") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(regexRaw, data, length, byteCount, hash)) == 0)
+        }
+
+        let findAllRaw = withFlatString("ab") { data, length, byteCount, hash in
+            kk_regex_findAll_flat(regexRaw, data, length, byteCount, hash)
+        }
+        let findAll = runtimeListElements(findAllRaw)
+        #expect(findAll.count == 3)
+        #expect(findAll.map { __kk_match_result_group_start($0, 0) } == [0, 1, 2])
+        #expect(findAll.map { __kk_match_result_group_end($0, 0) } == [-1, 0, 1])
+
+        let splitRaw = withFlatString("ab") { data, length, byteCount, hash in
+            kk_string_split_regex_flat(data, length, byteCount, hash, regexRaw)
+        }
+        #expect(runtimeListStrings(splitRaw) == ["", "a", "b", ""])
+
+        let literalRegex = withFlatString("") { data, length, byteCount, hash in
+            kk_regex_from_literal_flat(0, data, length, byteCount, hash)
+        }
+        withFlatString("ab") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_containsMatchIn_flat(literalRegex, data, length, byteCount, hash)) == 1)
+        }
+    }
 }
