@@ -1286,7 +1286,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols
             ),
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
-            symbols: symbols
+            symbols: symbols,
+            interner: interner
         )
         guard !missingMembers.isEmpty else { return }
 
