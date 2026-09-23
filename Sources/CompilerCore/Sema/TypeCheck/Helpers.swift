@@ -72,7 +72,19 @@ struct TypeCheckHelpers {
 
     func isStableLocalSymbol(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID) else {
-            return false
+            // A symbol ID outside the registered table is either `.invalid`
+            // (-1), a genuinely unknown/out-of-range ID, or one of the
+            // synthetic per-binding schemes that deliberately never register
+            // a table entry -- lambda parameters
+            // (ExprTypeChecker+NameLambdaAndCallableRefInference's per-lambda
+            // negative IDs) and the extension/implicit-receiver `this`
+            // (SyntheticSymbolScheme.receiverParameterSymbol). Both schemes
+            // stay well below -1 (SyntheticSymbolScheme documents its bands
+            // as <= -10000; the lambda-parameter band starts past -1_000_000),
+            // and both name bindings that Kotlin never allows reassigning, so
+            // they are stable. Anything else (including -1 and other
+            // out-of-range IDs) is treated conservatively as unstable.
+            return symbolID.rawValue < -1
         }
         switch symbol.kind {
         case .valueParameter, .local:
