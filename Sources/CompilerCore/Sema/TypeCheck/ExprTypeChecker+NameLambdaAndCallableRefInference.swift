@@ -1145,7 +1145,12 @@ extension ExprTypeChecker {
         }
 
         var lambdaLocals = locals
+        // Outer receiver `this` symbols are reachable inside the lambda even
+        // though the enclosing member's `this` shadows them in `locals` — the
+        // enclosing context (e.g. an object literal) captured them, so the
+        // lambda can capture them through the same chain.
         let outerSymbols = Set(locals.values.map(\.symbol))
+            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema)
             : nil
