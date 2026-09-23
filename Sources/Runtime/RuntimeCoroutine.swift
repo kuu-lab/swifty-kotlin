@@ -1402,6 +1402,26 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 }
 
+/// Concrete object behind an opaque job/task handle pointer: a launched
+/// `RuntimeJobHandle` or an async `RuntimeAsyncTask`. Resolving once per call
+/// keeps join/cancel/status ABI entry points from re-running the `as?` chain
+/// for every operation they perform on the same handle.
+private enum RuntimeJobOrTask {
+    case job(RuntimeJobHandle)
+    case task(RuntimeAsyncTask)
+    case other
+
+    init(_ object: AnyObject) {
+        if let job = object as? RuntimeJobHandle {
+            self = .job(job)
+        } else if let task = object as? RuntimeAsyncTask {
+            self = .task(task)
+        } else {
+            self = .other
+        }
+    }
+}
+
 /// A coroutine scope that tracks child jobs and supports structured cancellation.
 ///
 /// CORO-003: Scope is no longer stored in Thread Local Storage. Instead it is
@@ -1554,11 +1574,12 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
                 // so it works correctly even with nested scopes or cross-thread joins.
                 let consumed: Bool
                 let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-                if let job = obj as? RuntimeJobHandle {
+                switch RuntimeJobOrTask(obj) {
+                case .job(let job):
                     consumed = job.consumedByUserCodeSnapshot()
-                } else if let task = obj as? RuntimeAsyncTask {
+                case .task(let task):
                     consumed = task.consumedByUserCodeSnapshot()
-                } else {
+                case .other:
                     consumed = false
                 }
                 // Release the extra retain taken in registerChild
@@ -3200,10 +3221,14 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
     // Mark on the handle object itself that user code is consuming the passRetained.
     // This is checked by scope's waitForChildren to avoid double-release.
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    let handle = RuntimeJobOrTask(obj)
+    switch handle {
+    case .job(let job):
         job.markConsumedByUserCode()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.markConsumedByUserCode()
+    case .other:
+        break
     }
 
     // CORO-004: suspend-aware join. Register a resumer and suspend when the job/task is
@@ -3220,7 +3245,8 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
     // instead of freeing memory a still-live Kotlin variable can reach.
     let releaseHandle: @Sendable () -> Void = {}
     if continuation != 0, let callerState = runtimeContinuationState(from: continuation) {
-        if let job = obj as? RuntimeJobHandle {
+        switch handle {
+        case .job(let job):
             job.startIfNeeded()
             if !job.completedSnapshot() {
                 job.addJoinResumer { value in
@@ -3229,7 +3255,7 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
                 }
                 return Int(bitPattern: kk_coroutine_suspended())
             }
-        } else if let task = obj as? RuntimeAsyncTask {
+        case .task(let task):
             switch task.awaitResult(callerState: callerState, afterResume: releaseHandle) {
             case .suspended:
                 return Int(bitPattern: kk_coroutine_suspended())
@@ -3238,14 +3264,17 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
                 releaseHandle()
                 return result
             }
+        case .other:
+            break
         }
     }
 
-    let result: Int = if let job = obj as? RuntimeJobHandle {
+    let result: Int = switch handle {
+    case .job(let job):
         job.join()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.awaitResult()
-    } else {
+    case .other:
         0
     }
     // See the NOTE above: do not release the original passRetained from launch here --
@@ -3425,10 +3454,13 @@ func runtimeCancelChild(_ handle: Int) {
         return
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         _ = job.cancel()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.cancel()
+    case .other:
+        break
     }
 }
 
@@ -3438,12 +3470,14 @@ func runtimeJoinChild(_ handle: Int) -> Int {
         return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.join()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.awaitResult()
+    case .other:
+        return 0
     }
-    return 0
 }
 
 // MARK: - Cancellation ABI (CORO-002 / spec.md J17)
@@ -3455,10 +3489,13 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_cancel received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         _ = job.cancel()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.cancel()
+    case .other:
+        break
     }
     return 0
 }
@@ -3470,10 +3507,13 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_cancel_with_cause received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         _ = job.cancel(cause: cause)
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.cancel()
+    case .other:
+        break
     }
     return 0
 }
@@ -3505,14 +3545,15 @@ public func kk_job_complete(_ jobHandle: Int, _ value: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_complete received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.complete(with: value) ? 1 : 0
-    }
-    if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.complete(with: value)
         return 1
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Mark a job as failed with an exception cause. Returns 1 if the transition succeeded.
@@ -3522,14 +3563,15 @@ public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) ->
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_complete_exceptionally received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.completeExceptionally(with: exception) ? 1 : 0
-    }
-    if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.completeExceptionally(with: exception)
         return 1
+    case .other:
+        return 0
     }
-    return 0
 }
 
 // MARK: - Job State Queries (STDLIB-CORO-070)
@@ -3543,12 +3585,14 @@ public func kk_job_is_active(_ jobHandle: Int) -> Int {
         return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.isActiveSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isActiveSnapshot() ? 1 : 0
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Zero-arg ABI backing for the bare `isActive` reference inside a coroutine
@@ -3602,12 +3646,14 @@ public func kk_job_is_completed(_ jobHandle: Int) -> Int {
         return 1 // invalid handle → treat as completed
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.completedSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isCompletedSnapshot() ? 1 : 0
+    case .other:
+        return 1
     }
-    return 1
 }
 
 /// Returns 1 if the job has been cancelled.
@@ -3618,12 +3664,14 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
         return 1 // invalid handle → treat as cancelled
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.cancellationSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isCancelledSnapshot() ? 1 : 0
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Returns 1 if the job has failed with an exception.
@@ -3634,12 +3682,14 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
         return 0 // invalid handle → treat as not failed
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.isFailedSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isFailedSnapshot() ? 1 : 0
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Check if the coroutine associated with `continuation` has been cancelled.
