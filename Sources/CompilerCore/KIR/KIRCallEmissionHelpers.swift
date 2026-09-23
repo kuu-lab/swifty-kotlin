@@ -37,6 +37,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     resultType: TypeID? = nil,
     requireNonNull: Bool = false,
     boxingCalleeTable: BoxingCalleeTable? = nil,
+    sema: SemaModule? = nil,
     into instructions: inout C
 ) -> KIRExprID where C.Element == KIRInstruction {
     let rawKind = types.kind(of: sourceType)
@@ -57,6 +58,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
         symbols: symbols,
         interner: interner,
         arena: arena,
+        sema: sema,
         into: &instructions
     )
     return boxedResult
@@ -193,6 +195,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     symbols: SymbolTable?,
     interner: StringInterner,
     arena: KIRArena,
+    sema: SemaModule? = nil,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     func emitPlainBoxCall() {
@@ -227,6 +230,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
             symbols: symbols,
             interner: interner,
             arena: arena,
+            sema: sema,
             into: &instructions
         )
         return
@@ -278,6 +282,7 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     symbols: SymbolTable,
     interner: StringInterner,
     arena: KIRArena,
+    sema: SemaModule? = nil,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let classSym = symbols.symbol(classSymbol),
@@ -287,9 +292,20 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         preconditionFailure("emitEnumOrdinalBoxCall requires a non-synthetic, source-backed enum class symbol")
     }
 
-    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
-    let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
-        symbols.symbol(id).map { $0.kind == .function } ?? false
+    // BUG-A: an Any-erased rendering of the box (println on a boxed
+    // value, list/collection elements, etc.) must honor a user `toString()`
+    // override the same way the direct, statically-typed path does --
+    // otherwise a boxed `Op.MUL` prints "MUL" instead of "times".
+    let nameHelperCallee: InternedString
+    let helperSymbol: SymbolID?
+    if let override = enumToStringOverrideHelper(for: classSym, symbols: symbols, interner: interner) {
+        nameHelperCallee = override.name
+        helperSymbol = override.symbol
+    } else {
+        nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+        helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
+            symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
     }
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
@@ -309,4 +325,91 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
+
+    // BUG-B: an enum value crossing into an interface-typed slot (e.g. `val
+    // nm: Named = Dir.S`) is boxed here the same way it is for Any-erasure,
+    // but a dynamic itable dispatch through that interface reference
+    // (`nm.label`, or a bound `Named::label` reference) resolves its itable
+    // slot per-*object* via `kk_object_register_itable_iface` -- the
+    // registration every other heap object gets from its own `<init>`
+    // (`appendObjectItableMethodRegistrations`). Enum entries never run a
+    // constructor that could register it, so register it here instead, once
+    // per box, using the enum class's statically known itable slot layout.
+    appendEnumBoxItableRegistrations(
+        boxedValue: result,
+        classSymbol: classSymbol,
+        types: types,
+        symbols: symbols,
+        interner: interner,
+        arena: arena,
+        sema: sema,
+        into: &instructions
+    )
+}
+
+private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
+    boxedValue: KIRExprID,
+    classSymbol: SymbolID,
+    types: TypeSystem,
+    symbols: SymbolTable,
+    interner: StringInterner,
+    arena: KIRArena,
+    sema: SemaModule?,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    guard let objectLayout = symbols.nominalLayout(for: classSymbol) else {
+        return
+    }
+    var pending = symbols.directSupertypes(for: classSymbol)
+    var visited: Set<SymbolID> = []
+    var interfaceSupertypes: [SymbolID] = []
+    while let current = pending.popLast() {
+        guard visited.insert(current).inserted else { continue }
+        if symbols.symbol(current)?.kind == .interface {
+            interfaceSupertypes.append(current)
+        }
+        pending.append(contentsOf: symbols.directSupertypes(for: current))
+    }
+    guard !interfaceSupertypes.isEmpty else { return }
+
+    let intType = types.make(.primitive(.int, .nonNull))
+    for interfaceSymbol in interfaceSupertypes.sorted(by: { $0.rawValue < $1.rawValue }) {
+        guard let ifaceSlot = objectLayout.itableSlots[interfaceSymbol] else { continue }
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: interfaceSymbol, symbols: symbols, interner: interner
+        )
+        let interfaceTypeExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: intType)
+        instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
+        let ifaceSlotExpr = arena.appendExpr(.intLiteral(Int64(ifaceSlot)), type: intType)
+        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(Int64(ifaceSlot))))
+        let registerResult = arena.appendTemporary(type: intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_register_itable_iface"),
+            arguments: [boxedValue, interfaceTypeExpr, ifaceSlotExpr],
+            result: registerResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    // The interface->slot mapping above is enough for a method-shaped
+    // interface member (registered per-object like any other class via
+    // `appendObjectItableMethodRegistrations`, which this box never runs).
+    // A *property* member (`Named.label`) additionally needs its getter
+    // registered as the itable method pointer at the property's slot --
+    // `appendObjectItablePropertyGetterRegistrations` needs the full
+    // `SemaModule` (nominal layouts, member lookup), which not every caller
+    // of this boxing helper has threaded through yet; skip it there rather
+    // than widen every call site's signature.
+    if let sema {
+        appendObjectItablePropertyGetterRegistrations(
+            objectValue: boxedValue,
+            nominalSymbol: classSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
 }

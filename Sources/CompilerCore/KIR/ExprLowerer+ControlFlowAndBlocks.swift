@@ -155,6 +155,97 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // BUG-B/BUG-C: an enum value has no stored-field object layout
+            // (its KIR representation is a raw ordinal Int, only boxed for
+            // Any-erased contexts), so an implicit-receiver read of its
+            // built-in `name`/`ordinal` properties or of a constructor
+            // property falls through every `.class`/`.interface`-owner
+            // branch below and lands on the generic symbol-reference
+            // fallback near the end of this case -- silently wrong (reads an
+            // unwritten slot as 0) for an Int-typed property, and a SIGSEGV
+            // once codegen treats the bogus "pointer" as a String for a
+            // String-typed one. Mirror the explicit-receiver handling
+            // (`tryLowerEnumEntryPropertyRead` / the enum branch of
+            // `lowerStoredMemberPropertyReadValue` in
+            // CallLowerer+MemberPropertyReads.swift) here, before any of
+            // those generic branches can intercept the read.
+            if let symbol = sema.bindings.identifierSymbols[exprID]
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+               let symInfo = sema.symbols.symbol(symbol),
+               symInfo.kind == .property,
+               symInfo.name == interner.intern("name") || symInfo.name == interner.intern("ordinal"),
+               let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+               let receiverType = arena.exprType(receiverExprID),
+               let (_, receiverClassSym) = resolveClassTypeSymbol(
+                   sema.types.makeNonNullable(receiverType), sema: sema
+               ),
+               receiverClassSym.kind == .enumClass
+            {
+                let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                if symInfo.name == interner.intern("ordinal") {
+                    return emitNonThrowingCall(
+                        callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                        arg: receiverExprID,
+                        resultType: resultType,
+                        arena: arena,
+                        into: &instructions
+                    )
+                }
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: symInfo.name,
+                    arguments: [receiverExprID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if let symbol = sema.bindings.identifierSymbols[exprID]
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+               let symInfo = sema.symbols.symbol(symbol),
+               // `.field` is deliberately excluded: a bare reference to an
+               // enum *entry* itself (e.g. `NORTH` inside the companion
+               // object's `when (direction) { NORTH -> SOUTH; ... }`) also
+               // resolves to a `.field` symbol parented by the enum class,
+               // but it names a global entry constant, not an instance
+               // property -- routing it through the constructor-property
+               // placeholder below produced an unresolved
+               // `$enumConstructorProperty$<id>$NORTH` call.
+               symInfo.kind == .property,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+               sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+               let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+            {
+                let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                let result = arena.appendTemporary(type: resultType)
+                if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                let helperName = interner.intern(
+                    "$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(symInfo.name))"
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: helperName,
+                    arguments: [receiverExprID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // STDLIB-004: Implicit receiver member access (e.g. `length` inside
             // `run { length }` resolves as `this.length`).
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],

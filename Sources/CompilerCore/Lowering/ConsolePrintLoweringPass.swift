@@ -530,22 +530,36 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             return KIRExprWithInstructions(value: expr, instructions: instructions)
         }
 
-        // Enum classes use the synthesized $enumOrdinalToName$ helper.
-        if classSymbol.kind == .enumClass,
-           let helperSymbol = enumNameHelperSymbol(for: classSymbol, sema: sema, interner: interner)
-        {
-            let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSymbol, interner: interner)
-            let result = arena.appendTemporary(type: stringType)
-            instructions.append(.call(
-                symbol: helperSymbol,
-                callee: helperName,
-                arguments: [argument],
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
-            return KIRExprWithInstructions(value: result, instructions: instructions)
+        // Enum classes default to the synthesized $enumOrdinalToName$ helper,
+        // but BUG-A/BUG-Planet: a user `toString()` override (class-level or
+        // reached through the entry-dispatch helper) must take precedence --
+        // otherwise `println(Op.MUL)` prints "MUL" instead of "times".
+        if classSymbol.kind == .enumClass {
+            let helperName: InternedString
+            let helperSymbol: SymbolID?
+            if let override = enumToStringOverrideHelper(for: classSymbol, symbols: sema.symbols, interner: interner) {
+                helperName = override.name
+                helperSymbol = override.symbol
+            } else if let fallbackSymbol = enumNameHelperSymbol(for: classSymbol, sema: sema, interner: interner) {
+                helperName = NameMangler.enumOrdinalToNameHelperName(for: classSymbol, interner: interner)
+                helperSymbol = fallbackSymbol
+            } else {
+                helperName = interner.intern("")
+                helperSymbol = nil
+            }
+            if let helperSymbol {
+                let result = arena.appendTemporary(type: stringType)
+                instructions.append(.call(
+                    symbol: helperSymbol,
+                    callee: helperName,
+                    arguments: [argument],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: false
+                ))
+                return KIRExprWithInstructions(value: result, instructions: instructions)
+            }
         }
 
         // Data classes and classes with an overriding toString() have a symbol
