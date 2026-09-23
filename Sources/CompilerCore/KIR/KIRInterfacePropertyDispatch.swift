@@ -207,6 +207,129 @@ private func kirFindOverridePropertyGetter(
     return nil
 }
 
+/// The interface's own instance `var` properties that participate in itable
+/// dispatch, paired with the itable slot each setter occupies. Setter slots
+/// are laid out *after* every getter slot (`[vtableSize + getterCount, ...)`)
+/// so a setter registration can never collide with a getter registration for
+/// the same or a different property on the same interface.
+///
+/// Reuses `kirInterfacePropertyGetterSlots`'s eligibility filtering (stdlib
+/// runtime bridges, non-Kotlin-declared synthetic members) so a property
+/// only gets a setter slot when it already has a getter slot — every `var`
+/// is also a `val`-shaped read, so this is not an additional restriction.
+private struct KIRInterfacePropertySetterSlot {
+    let propertySymbol: SymbolID
+    let propertyName: InternedString
+    let slot: Int
+}
+
+private func kirInterfacePropertySetterSlots(
+    interfaceSymbol: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> [KIRInterfacePropertySetterSlot] {
+    let getterSlots = kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
+    guard !getterSlots.isEmpty else {
+        return []
+    }
+    let base = (getterSlots.map(\.slot).max() ?? -1) + 1
+    let mutableProperties = getterSlots.compactMap { getterSlot -> (symbol: SymbolID, name: InternedString)? in
+        guard let propertySymbol = getterSlot.propertySymbol,
+              sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+        else {
+            return nil
+        }
+        return (symbol: propertySymbol, name: getterSlot.propertyName)
+    }
+    return mutableProperties.enumerated().map { index, property in
+        KIRInterfacePropertySetterSlot(propertySymbol: property.symbol, propertyName: property.name, slot: base + index)
+    }
+}
+
+/// The itable slot the setter for `interfaceProperty` occupies, or nil when
+/// the property does not participate in itable dispatch (not mutable, or
+/// excluded by `kirInterfacePropertyGetterSlots`'s eligibility rules).
+func kirInterfacePropertySetterSlot(
+    interfaceProperty: SymbolID,
+    interfaceSymbol: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> Int? {
+    kirInterfacePropertySetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
+        .first { $0.propertySymbol == interfaceProperty }?
+        .slot
+}
+
+/// The implementing setter accessor symbol for `interfaceProperty` in
+/// `nominalSymbol`, or nil when the type does not declare an override for
+/// it. The setter counterpart of `kirFindOverridePropertyGetter` above.
+func kirFindOverridePropertySetter(
+    for interfaceProperty: SymbolID,
+    in nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> SymbolID? {
+    guard let propertySym = sema.symbols.symbol(interfaceProperty) else {
+        return nil
+    }
+
+    var visited: Set<SymbolID> = []
+    var current: SymbolID? = nominalSymbol
+    while let nominal = current, visited.insert(nominal).inserted {
+        guard let ownerSym = sema.symbols.symbol(nominal) else { break }
+        let overrideFQName = ownerSym.fqName + [propertySym.name]
+        for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+            guard let candidateSym = sema.symbols.symbol(candidate),
+                  candidateSym.kind == .property,
+                  sema.symbols.parentSymbol(for: candidate) == nominal
+            else {
+                continue
+            }
+            return sema.symbols.extensionPropertySetterAccessor(for: candidate)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: candidate)
+        }
+        current = kirSuperclass(of: nominal, sema: sema)
+    }
+
+    // If no class override was found, check implemented interfaces in BFS order (most derived first)
+    // for an override or default implementation.
+    var queue: [SymbolID] = []
+    var visitedNominals: Set<SymbolID> = []
+    var currentNominal: SymbolID? = nominalSymbol
+    while let nominal = currentNominal, visitedNominals.insert(nominal).inserted {
+        for supertype in sema.symbols.directSupertypes(for: nominal) {
+            if sema.symbols.symbol(supertype)?.kind == .interface {
+                queue.append(supertype)
+            }
+        }
+        currentNominal = kirSuperclass(of: nominal, sema: sema)
+    }
+
+    var visitedInterfaces: Set<SymbolID> = []
+    while !queue.isEmpty {
+        let iface = queue.removeFirst()
+        guard visitedInterfaces.insert(iface).inserted else { continue }
+        for supertype in sema.symbols.directSupertypes(for: iface) {
+            if sema.symbols.symbol(supertype)?.kind == .interface {
+                queue.append(supertype)
+            }
+        }
+        guard let ifaceSym = sema.symbols.symbol(iface) else { continue }
+        let ifacePropertyFQName = ifaceSym.fqName + [propertySym.name]
+        for candidate in sema.symbols.lookupAll(fqName: ifacePropertyFQName) {
+            guard let candidateSym = sema.symbols.symbol(candidate),
+                  candidateSym.kind == .property,
+                  sema.symbols.parentSymbol(for: candidate) == iface
+            else {
+                continue
+            }
+            return sema.symbols.extensionPropertySetterAccessor(for: candidate)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: candidate)
+        }
+    }
+
+    return nil
+}
+
 /// Registers each implemented interface property getter into the object's
 /// itable, alongside the method registrations emitted for the same interfaces.
 /// The interface itself is already registered by the method-registration pass
@@ -266,6 +389,75 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
 
             let methodFnExpr = arena.appendExpr(.symbolRef(implGetter), type: intType)
             instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implGetter)))
+
+            let registerResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: registerCallee,
+                arguments: [objectValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+}
+
+/// Registers each implemented interface property setter into the object's
+/// itable, alongside the getter registrations above. The setter counterpart
+/// of `appendObjectItablePropertyGetterRegistrations` — without it, writing a
+/// `var` through an interface-typed receiver has no dispatch target to find
+/// at the write site (`tryLowerInterfaceItablePropertySetterWrite` in
+/// `CallLowerer+MemberAssignment.swift`), even though every concrete
+/// overriding class already has a real setter accessor function registered
+/// (BUG-227's `synthesizeStoredPropertySetterAccessor` emits one
+/// unconditionally for any `override var`).
+func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection>(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    cache: KIRNominalDispatchCache,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout C
+) where C.Element == KIRInstruction {
+    guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let registerCallee = interner.intern("kk_object_register_itable_method")
+    let interfaceSupertypes = cache.transitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+
+    for interfaceSymbol in interfaceSupertypes {
+        let setterSlots = kirInterfacePropertySetterSlots(
+            interfaceSymbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        guard !setterSlots.isEmpty else {
+            continue
+        }
+
+        let ifaceSlot = Int64(objectLayout.itableSlots[interfaceSymbol] ?? 0)
+        let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
+        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
+
+        for setterSlot in setterSlots {
+            guard let implSetter = kirFindOverridePropertySetter(
+                for: setterSlot.propertySymbol,
+                in: nominalSymbol,
+                sema: sema
+            ) else {
+                continue
+            }
+
+            let methodSlot = Int64(setterSlot.slot)
+            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
+            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
+
+            let methodFnExpr = arena.appendExpr(.symbolRef(implSetter), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implSetter)))
 
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
