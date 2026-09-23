@@ -728,7 +728,7 @@ extension CallTypeChecker {
     /// signature, the leading `classTypeParameterCount` type parameters are taken
     /// to be the class type parameters and are substituted from the call-site
     /// receiver's concrete class arguments.
-    private func applyReceiverClassTypeArgs(
+    func applyReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         candidate: SymbolID,
@@ -1160,7 +1160,7 @@ extension CallTypeChecker {
     /// implicit-`it` ambiguity detection scoped to genuinely concrete, conflicting
     /// parameter types rather than misreading distinct type-parameter symbols that
     /// happen to represent the same generic slot as a real conflict.
-    private func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
+    func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .typeParam:
             return true
