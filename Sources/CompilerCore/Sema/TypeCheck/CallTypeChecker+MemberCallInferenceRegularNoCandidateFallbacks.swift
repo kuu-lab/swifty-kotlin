@@ -1118,7 +1118,16 @@ extension CallTypeChecker {
             }
 
             // Property value call with function type (`receiver.f(...)`).
-            if let callableType = inferFunctionTypeOrError(from: propResult.type, sema: sema) {
+            // Kotlin requires `?.`/`!!` to call a nullable function value,
+            // so a `f: ((Int) -> Int)?` property must not take this arm — a
+            // null function object would reach kk_function_invoke (KUU-644).
+            let isNullableFunctionValue = if case let .functionType(propFunctionType) = sema.types.kind(of: propResult.type) {
+                propFunctionType.nullability == .nullable
+            } else {
+                false
+            }
+            if !isNullableFunctionValue,
+               let callableType = inferFunctionTypeOrError(from: propResult.type, sema: sema) {
                 if let callableResult = inferCallableValueInvocation(
                     id,
                     calleeType: callableType,
@@ -1184,9 +1193,13 @@ extension CallTypeChecker {
         // reaches `FunctionN.invoke` — bind the callable-value invocation
         // directly. `callableTarget` stays nil so KIR lowering uses the
         // lowered receiver expression itself as the function object.
+        // A non-safe `x.invoke` on a nullable function value is rejected
+        // like `x(args)` — `x?.invoke` unwraps the receiver first, so the
+        // check only excludes the unsafe form (KUU-644).
         if !isClassNameReceiver,
            calleeStr == "invoke",
-           case let .functionType(invokeFunctionType) = sema.types.kind(of: memberLookupType)
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: memberLookupType),
+           invokeFunctionType.nullability != .nullable
         {
             var invokeCalleeType = memberLookupType
             if let receiver = invokeFunctionType.receiver,
