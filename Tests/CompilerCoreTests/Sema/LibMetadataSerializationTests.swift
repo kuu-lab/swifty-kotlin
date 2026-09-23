@@ -506,6 +506,151 @@ struct LibMetadataSerializationTests {
         }
     }
 
+    @Test func testMetadataEncoderDecoderRoundTripPreservesCallableTypeParameters() {
+        let record = MetadataRecord(
+            kind: .function,
+            mangledName: "_kk_ext_pair",
+            fqName: "ext.pair",
+            arity: 1,
+            typeSignature: "F1<T11,T11>",
+            callableTypeParameterSignatures: ["T10", "T11"],
+            reifiedTypeParameterIndices: [0]
+        )
+        let encoder = MetadataEncoder()
+        let serialized = encoder.serialize([record])
+        #expect(serialized.contains("callTParams=T10,T11"))
+
+        let decoded = MetadataDecoder().decode(serialized)
+        #expect(decoded.count == 1)
+        #expect(decoded[0].callableTypeParameterSignatures == ["T10", "T11"])
+    }
+
+    // KUU-546: a "phantom" type parameter declared *before* a structural one
+    // (e.g. `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`,
+    // where only C appears in the signature) cannot be positioned by the
+    // structural scan or by the KSP-1217 count-only fallback. `callTParams`
+    // records the declaration order per callable: index 0 restores R's
+    // placeholder -- the same placeholder the bound `MutableCollection<in R>`
+    // (`N<T10>` below) and `reified=0` reference.
+    @Test func testMetadataImportRestoresInterspersedPhantomTypeParameterOrder() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtInterspersedTypeParam",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=4
+        interface _kk_ext_MC fq=ext.MC schema=v1
+        function _kk_ext_filterTo fq=ext.filterTo schema=v1 arity=1 suspend=0 inline=0 operator=0 reified=0 sig=F1<T11,T11> callTParams=T10,T11 typeBounds=|TGV4dC5NQzxOPFQxMD4+Ow==
+        typeParameter _kk_ext_filterTo_R fq=ext.filterTo.$1.R schema=v1
+        typeParameter _kk_ext_filterTo_C fq=ext.filterTo.$1.C schema=v1
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "InterspersedTypeParamImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let filterToSymbol = sema.symbols.allSymbols().first { symbol in
+                ctx.interner.resolve(symbol.name) == "filterTo" && symbol.kind == .function
+            }
+            let filterToSymbolID = try #require(filterToSymbol?.id)
+            let signature = try #require(sema.symbols.functionSignature(for: filterToSymbolID))
+            #expect(signature.typeParameterSymbols.count == 2)
+            #expect(signature.reifiedTypeParameterIndices == [0])
+            // The structural parameter C (`T11`) must sit at index 1, leaving
+            // index 0 for the phantom R (`T10`).
+            guard case let .typeParam(paramTypeParam) = sema.types.kind(of: signature.parameterTypes[0]) else {
+                Issue.record("expected the value parameter to be a type parameter reference")
+                return
+            }
+            #expect(paramTypeParam.symbol == signature.typeParameterSymbols[1])
+            // C's bound `MC<in R>` (self-contained stand-in for
+            // `MutableCollection<in R>`) references the phantom R placeholder,
+            // which is typeParameterSymbols[0].
+            let bounds = signature.typeParameterUpperBoundsList[1]
+            #expect(bounds.count == 1)
+            guard case let .classType(boundClass) = sema.types.kind(of: bounds[0]),
+                  case let .in(boundArg) = boundClass.args.first,
+                  case let .typeParam(boundTypeParam) = sema.types.kind(of: boundArg)
+            else {
+                Issue.record("expected C's bound to be a class type over a type parameter")
+                return
+            }
+            #expect(boundTypeParam.symbol == signature.typeParameterSymbols[0])
+        }
+    }
+
+    // KUU-546: `.typeParameter` records are grouped by owner FQ name, so the
+    // KSP-1217 fallback cannot disambiguate type parameters across overloads
+    // that share one FQ name. `callTParams` lives on each function record, so
+    // every overload restores its own declared list: here a fully-phantom
+    // zero-arity overload declares 2 parameters while its sibling declares 1.
+    @Test func testMetadataImportRestoresTypeParametersForOverloadedOwner() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtOverloadedTypeParam",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=5
+        function _kk_ext_ov_a fq=ext.ov schema=v1 arity=0 suspend=0 inline=0 operator=0 sig=F0<U> callTParams=T20,T30
+        function _kk_ext_ov_b fq=ext.ov schema=v1 arity=1 suspend=0 inline=0 operator=0 sig=F1<I,T21> callTParams=T21
+        typeParameter _kk_ext_ov_a_T fq=ext.ov.$1.T schema=v1
+        typeParameter _kk_ext_ov_a_U fq=ext.ov.$1.U schema=v1
+        typeParameter _kk_ext_ov_b_T fq=ext.ov.$2.T schema=v1
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "OverloadedTypeParamImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let overloads = sema.symbols.allSymbols().filter { symbol in
+                ctx.interner.resolve(symbol.name) == "ov" && symbol.kind == .function
+            }
+            #expect(overloads.count == 2)
+            let signatures = try overloads.map { try #require(sema.symbols.functionSignature(for: $0.id)) }
+            let phantomOverload = try #require(signatures.first { $0.parameterTypes.isEmpty })
+            #expect(phantomOverload.typeParameterSymbols.count == 2)
+            let structuralOverload = try #require(signatures.first { $0.parameterTypes.count == 1 })
+            #expect(structuralOverload.typeParameterSymbols.count == 1)
+            guard case let .typeParam(returnTypeParam) = sema.types.kind(of: structuralOverload.returnType) else {
+                Issue.record("expected the return type to be a type parameter reference")
+                return
+            }
+            #expect(returnTypeParam.symbol == structuralOverload.typeParameterSymbols[0])
+        }
+    }
+
     // MARK: - MetadataDecoder.symbolKindFromMetadata Unit Tests
 
     @Test func testSymbolKindFromMetadataReturnsCorrectKindForAllTokens() {
