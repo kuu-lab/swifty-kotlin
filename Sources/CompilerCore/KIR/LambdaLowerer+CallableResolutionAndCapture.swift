@@ -563,6 +563,17 @@ extension LambdaLowerer {
                     instructions: &instructions
                 )
             }
+            // KSP-491: a delegated local (`var value by IntProp()`) also has no
+            // `localValue` -- its storage is the delegate instance, tracked
+            // separately below -- but it must NOT fall into the deferred-init
+            // seed path just below: that would fabricate a bogus zero-valued
+            // capture cell that shadows the real delegate storage, so reads
+            // inside the closure silently see 0/null instead of calling
+            // getValue (this regressed delegate_local_lambda_capture.kt when
+            // first introduced -- caught by CI, not by any local test run).
+            if let delegateStorage = driver.ctx.localDelegateStorage(for: symbol) {
+                return delegateStorage
+            }
             // STDLIB-592 definite assignment: a `var` declared without an
             // initializer has no `localValue` yet if this closure's own body is
             // that local's first-ever write (e.g. `var r: Int; once { r = 3 }`
@@ -572,23 +583,36 @@ extension LambdaLowerer {
             // it and the read after the call both silently fall through to an
             // unboxed, never-set slot -- seed it with a placeholder the same way
             // `deferredLocalCaptureCellSeedValue`'s doc comment explains.
-            let declaredType = driver.ctx.localDeclaredType(for: symbol)
-                ?? typeForSymbolReference(symbol, sema: sema)
-            let seedValue = deferredLocalCaptureCellSeedValue(
-                for: declaredType,
-                sema: sema,
-                arena: arena,
-                instructions: &instructions
-            )
-            return emitMutableCaptureCellInitialization(
-                driver: driver,
-                symbol: symbol,
-                currentValue: seedValue,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
+            //
+            // Scoped to `isContractCallsInPlaceInitializedSymbol` on purpose: a
+            // `localValue` can also read as nil transiently for reasons that have
+            // nothing to do with deferred init (e.g. a same-lambda local mutated
+            // across while-loop iterations reached this same fallback and, before
+            // this guard existed, got a bogus zero-seeded cell that silently
+            // shadowed its real value -- regressed
+            // stdlib_kotlin_time_Duration_Duration_n.kt's `.let { }` fraction
+            // formatting, caught by CI). Only apply the seed when Sema itself
+            // recorded this exact symbol as guaranteed-initialized by some
+            // callsInPlace lambda.
+            if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol) {
+                let declaredType = driver.ctx.localDeclaredType(for: symbol)
+                    ?? typeForSymbolReference(symbol, sema: sema)
+                let seedValue = deferredLocalCaptureCellSeedValue(
+                    for: declaredType,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions
+                )
+                return emitMutableCaptureCellInitialization(
+                    driver: driver,
+                    symbol: symbol,
+                    currentValue: seedValue,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
         }
         if let localValue = driver.ctx.localValue(for: symbol) {
             return boxRawSuspendFunctionValue(localValue)

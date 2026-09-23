@@ -1322,6 +1322,12 @@ public final class BindingTable {
     /// when the enclosing call's callee has a `callsInPlace(param, EXACTLY_ONCE/AT_LEAST_ONCE)`
     /// contract on that lambda parameter.
     public private(set) var contractCallsInPlaceInitializedSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// Cached union of `contractCallsInPlaceInitializedSymbolsByExpr`'s values,
+    /// computed once Sema has finished (mirrors `ExprLowerer.lambdaCapturedSymbols`).
+    /// Lets KIR lowering ask "is this symbol EVER guaranteed-initialized by some
+    /// callsInPlace lambda" without conflating it with any *other* reason a
+    /// mutable local's `localValue` might transiently read as unset.
+    private var cachedContractCallsInPlaceInitializedSymbolsUnion: Set<SymbolID>?
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
@@ -1506,6 +1512,13 @@ public final class BindingTable {
 
     public func contractCallsInPlaceInitializedSymbols(for expr: ExprID) -> [SymbolID] {
         contractCallsInPlaceInitializedSymbolsByExpr[expr] ?? []
+    }
+
+    public func isContractCallsInPlaceInitializedSymbol(_ symbol: SymbolID) -> Bool {
+        if cachedContractCallsInPlaceInitializedSymbolsUnion == nil {
+            cachedContractCallsInPlaceInitializedSymbolsUnion = Set(contractCallsInPlaceInitializedSymbolsByExpr.values.joined())
+        }
+        return cachedContractCallsInPlaceInitializedSymbolsUnion?.contains(symbol) == true
     }
 
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {
