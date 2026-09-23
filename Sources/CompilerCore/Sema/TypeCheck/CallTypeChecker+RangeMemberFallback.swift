@@ -4,6 +4,51 @@ import Foundation
 extension CallTypeChecker {
     // MARK: - Range member fallback (STDLIB-090/091/092/093)
 
+    /// IntRange/IntProgression members with bundled Kotlin source
+    /// implementations (KSP-453) — see `isIntRangeSourceBackedHOF`.
+    private static let intRangeSourceBackedHOFNames: Set<String> = [
+        "toList", "average", "sorted",
+        "forEach", "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast",
+        "firstOrNull", "lastOrNull",
+        "any", "all", "none",
+        "chunked", "windowed",
+        "take", "drop",
+        "random", "randomOrNull",
+    ]
+
+    /// UIntRange/ULongRange members with bundled Kotlin source
+    /// implementations — see `isUnsignedRangeSourceBackedHOF`.
+    private static let unsignedRangeSourceBackedHOFNames: Set<String> = [
+        "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "forEach",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast",
+        "firstOrNull", "lastOrNull",
+        "any", "all", "none",
+        "chunked", "windowed", "take", "drop",
+        "isEmpty", "toList", "count", "sum", "reversed",
+        "sorted",
+    ]
+
+    /// Members the legacy range fallback binds a result type for — see
+    /// `isSupportedRangeMember`.
+    private static let supportedRangeMemberNames: Set<String> = [
+        "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
+        "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
+        "any", "all", "none",
+        "chunked", "windowed",
+        "reversed", "step", "sum",
+        "random",
+        "take", "drop", "sorted",
+    ]
+
     func tryRangeMemberFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -411,19 +456,7 @@ extension CallTypeChecker {
         if memberName == "first" || memberName == "last" {
             return argCount == 0 || argCount == 1
         }
-        let sourceBacked: Set<String> = [
-            "toList", "average", "sorted",
-            "forEach", "map", "mapIndexed", "mapNotNull",
-            "filter", "filterIndexed", "filterNot",
-            "reduce", "reduceIndexed", "fold", "foldIndexed",
-            "find", "findLast",
-            "firstOrNull", "lastOrNull",
-            "any", "all", "none",
-            "chunked", "windowed",
-            "take", "drop",
-            "random", "randomOrNull",
-        ]
-        return sourceBacked.contains(memberName)
+        return Self.intRangeSourceBackedHOFNames.contains(memberName)
     }
 
     private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
@@ -505,19 +538,7 @@ extension CallTypeChecker {
                 ? argCount > 0
                 : argCount == 0 || argCount == 1
         }
-        let sourceBacked: Set<String> = [
-            "map", "mapIndexed", "mapNotNull",
-            "filter", "filterIndexed", "filterNot",
-            "forEach",
-            "reduce", "reduceIndexed", "fold", "foldIndexed",
-            "find", "findLast",
-            "firstOrNull", "lastOrNull",
-            "any", "all", "none",
-            "chunked", "windowed", "take", "drop",
-            "isEmpty", "toList", "count", "sum", "reversed",
-            "sorted",
-        ]
-        if sourceBacked.contains(memberName) {
+        if Self.unsignedRangeSourceBackedHOFNames.contains(memberName) {
             if ["isEmpty", "toList", "count", "sum", "reversed", "sorted"].contains(memberName) {
                 return argCount == 0
             }
@@ -1248,19 +1269,7 @@ extension CallTypeChecker {
         // and neither are `toIntArray`/`toLongArray`/`toULongArray` for their
         // signed/ULong counterparts (BUG-259/KSP-1524) -- none of the four
         // belong in this allowlist.
-        let rangeMembers: Set = [
-            "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
-            "toList", "forEach", "map", "mapIndexed", "mapNotNull",
-            "filter", "filterIndexed", "filterNot",
-            "reduce", "reduceIndexed", "fold", "foldIndexed",
-            "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
-            "any", "all", "none",
-            "chunked", "windowed",
-            "reversed", "step", "sum",
-            "random",
-            "take", "drop", "sorted",
-        ]
-        return rangeMembers.contains(memberName)
+        return Self.supportedRangeMemberNames.contains(memberName)
     }
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {

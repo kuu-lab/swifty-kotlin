@@ -73,6 +73,9 @@ extension CallLowerer {
         if info.flags.contains(.constValue),
            let constant = sema.symbols.constValueExprKind(for: valueSym)
         {
+            // A `const val` is a compile-time constant inlined at the use
+            // site -- Kotlin never runs clinit for reading one, so this
+            // deliberately returns before the BUG-274 lazy-init guard below.
             let propType = sema.bindings.exprTypes[exprID]
                 ?? sema.symbols.propertyType(for: valueSym)
                 ?? sema.types.anyType
@@ -80,6 +83,14 @@ extension CallLowerer {
             instructions.append(.constValue(result: id, value: constant))
             return id
         }
+        // BUG-274: reading any other object-member property is a real
+        // access to the object's state, so it must trigger the object's
+        // lazy clinit-equivalent first. Imported-library objects restore the
+        // guard through metadata; compiler pseudo-objects such as
+        // `Dispatchers`/`Charsets` below remain no-ops.
+        driver.emitObjectLazyInitGuardIfNeeded(
+            objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
+        )
         let knownNames = KnownCompilerNames(interner: interner)
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.dispatchers
@@ -1069,6 +1080,23 @@ extension CallLowerer {
             // `.call` using the qualifier's bare short name expecting a 0-arg
             // instance accessor that was never synthesized, leaving an
             // undefined symbol at link time.
+            //
+            // BUG-274: when the qualifier resolves to a real `object` (e.g.
+            // the `N` in `Outer.N.v`), this is the *only* place its bare
+            // value is ever materialized for an external, further-qualified
+            // access -- neither `tryLowerObjectMemberPropertyRead` nor
+            // `ExprLowerer`'s bare-object-reference fallback ever runs for a
+            // receiver this deep in a qualifier chain, since this whole
+            // function only exists because Sema left no ordinary expression
+            // binding for it. Without the guard here, a nested named
+            // object's superclass constructor (and its own property
+            // initializers) never ran, silently keeping every inherited
+            // property at its zeroed default.
+            if valueSymbol.kind == .object {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
+                )
+            }
             let valueType = sema.bindings.exprTypes[exprID] ?? sema.types.make(.classType(ClassType(
                 classSymbol: valueSymbolID,
                 args: [],

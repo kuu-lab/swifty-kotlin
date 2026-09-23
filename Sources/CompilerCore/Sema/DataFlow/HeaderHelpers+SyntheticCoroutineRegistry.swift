@@ -1236,6 +1236,26 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // STDLIB-CORO-001: async(start: CoroutineStart, block:) overload.
+        // Mirrors the launch(start:, block:) registration above. Lowering reads
+        // the CoroutineStart value and routes the call to the async runtime
+        // entry point implementing that mode (see rewriteStartModeLauncherCall).
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "async",
+            packageFQName: coroutinesPkg,
+            parameters: [
+                (name: "start", type: coroutineStartType),
+                (name: "block", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))),
+            ],
+            returnType: deferredType,
+            symbols: symbols,
+            interner: interner
+        )
         // STDLIB-CORO-075: `produce { ... }` returns a `Channel<T>` and runs the
         // block with a `Channel<T>` receiver so channel sends resolve correctly.
         let functionName = interner.intern("produce")

@@ -507,6 +507,7 @@ public final class CodegenPhase: CompilerPhase {
         )
         var objectInitializerLinkNames: [SymbolID: String] = [:]
         var companionInitializerLinkNames: [SymbolID: String] = [:]
+        var objectLazyInitializerLinkNames: [SymbolID: String] = [:]
         var enumStaticInitLinkNames: [SymbolID: String] = [:]
         for decl in module.arena.declarations {
             guard case let .function(function) = decl,
@@ -519,6 +520,8 @@ public final class CodegenPhase: CompilerPhase {
                 objectInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
             } else if let ownerID = Self.companionInitializerOwnerSymbolID(from: functionName) {
                 companionInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            } else if let objectID = Self.objectLazyInitializerOwnerSymbolID(from: functionName) {
+                objectLazyInitializerLinkNames[SymbolID(rawValue: objectID)] = linkName
             } else if let ownerID = Self.enumStaticInitOwnerSymbolID(
                 from: functionName,
                 symbol: function.symbol,
@@ -543,6 +546,7 @@ public final class CodegenPhase: CompilerPhase {
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,
             companionInitializerLinkNames: companionInitializerLinkNames,
+            objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
         return encoder.serialize(records)
@@ -593,6 +597,16 @@ public final class CodegenPhase: CompilerPhase {
         let parts = suffix.split(separator: "_").map(String.init)
         guard parts.count >= 2, let ownerID = parts.first else { return nil }
         return Int32(ownerID)
+    }
+
+    /// Parses the object/companion symbol ID embedded in a guarded lazy
+    /// initializer (`__object_lazy_init_<objectID>` or
+    /// `__companion_lazy_init_<companionID>`).
+    private static func objectLazyInitializerOwnerSymbolID(from name: String) -> Int32? {
+        for prefix in ["__object_lazy_init_", "__companion_lazy_init_"] where name.hasPrefix(prefix) {
+            return Int32(name.dropFirst(prefix.count))
+        }
+        return nil
     }
     /// Returns the owner enum class symbol for a synthetic enum static
     /// initializer (`__enum_static_init_<ClassName>`) by looking up the

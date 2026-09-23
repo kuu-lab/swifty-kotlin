@@ -540,13 +540,15 @@ struct NativeEmitter {
                 referencedSymbols.insert(symbol)
             }
         }
-        for symbol in referencedSymbols.sorted(by: { stableGlobalSlotName(for: $0) < stableGlobalSlotName(for: $1) }) {
+        let sortedReferencedSymbols = referencedSymbols
+            .map { (slotName: stableGlobalSlotName(for: $0), symbol: $0) }
+            .sorted { $0.slotName < $1.slotName }
+        for (slotName, symbol) in sortedReferencedSymbols {
             guard globalVariables[symbol] == nil,
                   shouldEmitImportedGlobalReference(for: symbol) || shouldUseWeakImportedGlobalReference(for: symbol)
             else {
                 continue
             }
-            let slotName = stableGlobalSlotName(for: symbol)
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if shouldUseWeakImportedGlobalReference(for: symbol) {
                     bindings.setWeakAnyLinkage(llvmGlobal)
@@ -601,17 +603,14 @@ struct NativeEmitter {
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
-        let globalDecls = module.arena.declarations.compactMap { decl -> KIRGlobal? in
+        let globalDecls = module.arena.declarations.compactMap { decl -> (slotName: String, global: KIRGlobal)? in
             guard case let .global(global) = decl else { return nil }
-            return global
+            return (stableGlobalSlotName(for: global.symbol), global)
         }.sorted { lhs, rhs in
-            let lhsName = stableGlobalSlotName(for: lhs.symbol)
-            let rhsName = stableGlobalSlotName(for: rhs.symbol)
-            if lhsName != rhsName { return lhsName < rhsName }
-            return lhs.symbol.rawValue < rhs.symbol.rawValue
+            if lhs.slotName != rhs.slotName { return lhs.slotName < rhs.slotName }
+            return lhs.global.symbol.rawValue < rhs.global.symbol.rawValue
         }
-        for global in globalDecls {
-            let slotName = stableGlobalSlotName(for: global.symbol)
+        for (slotName, global) in globalDecls {
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
@@ -884,35 +883,23 @@ struct NativeEmitter {
         internalFunctions: [SymbolID: LLVMFunction]
     ) -> [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] {
         var subprograms: [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] = [:]
-        let functions = module.arena.declarations.compactMap { decl -> KIRFunction? in
+        let functions = module.arena.declarations.compactMap { decl -> (name: String, function: KIRFunction)? in
             guard case let .function(function) = decl,
                   internalFunctions[function.symbol] != nil
             else { return nil }
-            return function
-        }.sorted { lhs, rhs in
-            let lhsName = CodegenSymbolSupport.cFunctionSymbol(
-                for: lhs,
-                interner: interner,
-                symbols: symbols,
-                fileFacadeNamesByFileID: fileFacadeNamesByFileID
-            )
-            let rhsName = CodegenSymbolSupport.cFunctionSymbol(
-                for: rhs,
-                interner: interner,
-                symbols: symbols,
-                fileFacadeNamesByFileID: fileFacadeNamesByFileID
-            )
-            if lhsName != rhsName { return lhsName < rhsName }
-            return lhs.symbol.rawValue < rhs.symbol.rawValue
-        }
-        for function in functions {
-            guard let llvmFunction = internalFunctions[function.symbol] else { continue }
-            let functionName = CodegenSymbolSupport.cFunctionSymbol(
+            let name = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
+            return (name, function)
+        }.sorted { lhs, rhs in
+            if lhs.name != rhs.name { return lhs.name < rhs.name }
+            return lhs.function.symbol.rawValue < rhs.function.symbol.rawValue
+        }
+        for (functionName, function) in functions {
+            guard let llvmFunction = internalFunctions[function.symbol] else { continue }
             var lineNo: UInt32 = 0
             var funcDIFile = diFile
             if let sourceRange = function.sourceRange, let sourceManager {

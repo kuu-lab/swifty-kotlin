@@ -15,6 +15,34 @@ extension KIRLoweringDriver {
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
+
+        // BUG-274: synthesize the companion's initializer -- which registers
+        // its lazy "ensure initialized" entry -- *before* lowering this
+        // class's own member function bodies below. Those bodies can
+        // reference the companion (`Companion.member`, or a bare `member`
+        // treated as implicit companion access) and need the registry entry
+        // already populated for the lazy-init guard to actually fire;
+        // lowering member functions first left the registry empty for
+        // their own enclosing companion.
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: symbol),
+           sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
+        {
+            let companionType = sema.types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            declIDs.append(arena.appendDecl(.global(KIRGlobal(
+                symbol: companionSymbol,
+                type: companionType
+            ))))
+        }
+        declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
+            companionDeclID: classDecl.companionObject,
+            ownerSymbol: symbol,
+            shared: shared
+        ))
+
         let (directMembers, memberDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: classDecl.memberFunctions,
             memberProperties: classDecl.memberProperties,
@@ -42,24 +70,6 @@ extension KIRLoweringDriver {
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDeclIDs)
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: symbol),
-           sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
-        {
-            let companionType = sema.types.make(.classType(ClassType(
-                classSymbol: companionSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            declIDs.append(arena.appendDecl(.global(KIRGlobal(
-                symbol: companionSymbol,
-                type: companionType
-            ))))
-        }
-        declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
-            companionDeclID: classDecl.companionObject,
-            ownerSymbol: symbol,
-            shared: shared
-        ))
         declIDs.append(contentsOf: synthesizeConstructorReflectionInitializer(
             classDecl: classDecl,
             ownerSymbol: symbol,

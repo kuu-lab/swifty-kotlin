@@ -318,6 +318,71 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // CoroutineStart.UNDISPATCHED launch
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_undispatched",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_undispatched_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        // CoroutineStart.LAZY / UNDISPATCHED async (STDLIB-CORO-001).
+        // The launch family above returns a Job handle; these return a Deferred
+        // one carrying the block's result, so each start mode needs its own
+        // entry point rather than sharing launch's.
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_lazy",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_lazy_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_undispatched",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_undispatched_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         // CoroutineExceptionHandler (STDLIB-CORO-072)
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_new",

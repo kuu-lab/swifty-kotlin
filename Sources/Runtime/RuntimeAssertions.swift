@@ -266,6 +266,24 @@ final class RuntimeExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeIOExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.io.IOException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.io.IOException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("IOException", message)
+    }
+}
+
 final class RuntimeCharacterCodingExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.text.CharacterCodingException"
@@ -617,6 +635,16 @@ func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// Allocates a `java.io.IOException` with the given message and cause.
+func runtimeAllocateIOException(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeIOExceptionBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 /// Allocates a `CharacterCodingException` with the given message.
 func runtimeAllocateCharacterCodingException(message: String?) -> Int {
     let throwable = RuntimeCharacterCodingExceptionBox(message: message)
@@ -951,6 +979,18 @@ public func kk_illegal_state_exception_new() -> Int {
     runtimeAllocateIllegalStateException(message: nil)
 }
 
+/// BUG-B: allocates a message-less `NullPointerException`. Used by the
+/// backend when a String-struct field accessor (currently `.length`)
+/// observes an actually-null value at runtime -- e.g. an overridden
+/// non-null `String` property read during superclass construction, before
+/// the subclass has run its own initializer -- so the call throws exactly
+/// like calling any method on a null reference, regardless of the
+/// statically-declared non-null type.
+@_cdecl("__kk_null_pointer_exception_new")
+public func kk_null_pointer_exception_new() -> Int {
+    runtimeAllocateNullPointerException(message: nil)
+}
+
 @_cdecl("__kk_illegal_state_exception_new_message")
 public func kk_illegal_state_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateIllegalStateException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
@@ -1106,6 +1146,32 @@ public func kk_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -
 @_cdecl("__kk_exception_new_cause")
 public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateException(
+        message: runtimeCauseToString(from: causeRaw),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_io_exception_new")
+public func kk_io_exception_new() -> Int {
+    runtimeAllocateIOException(message: nil)
+}
+
+@_cdecl("__kk_io_exception_new_message")
+public func kk_io_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateIOException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_io_exception_new_message_cause")
+public func kk_io_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateIOException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_io_exception_new_cause")
+public func kk_io_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateIOException(
         message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
