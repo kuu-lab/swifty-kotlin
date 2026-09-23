@@ -433,7 +433,13 @@ final class AtomicRefBox {
 }
 
 private func atomicRefBox(from raw: Int) -> AtomicRefBox? {
-    guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+    guard raw != 0, raw != runtimeNullSentinelInt, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
         return nil
     }
     return tryCast(ptr, to: AtomicRefBox.self)
@@ -838,7 +844,13 @@ final class AtomicRefArrayBox {
 }
 
 private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
-    guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+    guard raw != 0, raw != runtimeNullSentinelInt, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
         return nil
     }
     return tryCast(ptr, to: AtomicRefArrayBox.self)
@@ -856,9 +868,27 @@ private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
     }
+    let lhsIsNull = (lhs == 0 || lhs == runtimeNullSentinelInt)
+    let rhsIsNull = (rhs == 0 || rhs == runtimeNullSentinelInt)
+    if lhsIsNull || rhsIsNull {
+        return lhsIsNull && rhsIsNull
+    }
     guard
         let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
-        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs),
+        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs)
+    else {
+        return false
+    }
+    let (lhsRegistered, rhsRegistered) = runtimeStorage.withGCLock { state in
+        (
+            state.objectPointers.contains(UInt(bitPattern: lhsPointer)),
+            state.objectPointers.contains(UInt(bitPattern: rhsPointer))
+        )
+    }
+    guard lhsRegistered, rhsRegistered else {
+        return false
+    }
+    guard
         let lhsString = tryCast(lhsPointer, to: RuntimeStringBox.self),
         let rhsString = tryCast(rhsPointer, to: RuntimeStringBox.self)
     else {
