@@ -31,7 +31,7 @@ extension DataFlowSemaPhase {
         // Bound the number of KIR parameters that can be requested by an
         // untrusted inline KIR artifact.  This prevents a tiny `params=<huge>`
         // line from driving a billion-iteration allocation loop.
-        let maxAllowedParameterCount = 100_000
+        let maxAllowedParameterCount = ImportedLibraryLimits.maxCallableArity
 
         for rawLine in content.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)

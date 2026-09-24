@@ -410,6 +410,78 @@ struct LibMetadataImportIntegrationTests {
         }
     }
 
+    @Test func testImportedCallableAndFunctionTypeAritiesAreBounded() throws {
+        let callableContext = try compileWithImportedMetadata(
+            """
+            symbols=4
+            function AtLimit fq=lib.AtLimit schema=v1 arity=1024
+            function HugeRecord fq=lib.HugeRecord schema=v1 arity=2000000000
+            function NegativeRecord fq=lib.NegativeRecord schema=v1 arity=-1
+            function OverflowRecord fq=lib.OverflowRecord schema=v1 arity=999999999999999999999999999
+            """,
+            moduleName: "BoundedCallableArityApp"
+        )
+        assertArityDiagnosticCount(3, in: callableContext)
+
+        let functionContext = try compileWithImportedMetadata(
+            """
+            symbols=1
+            function HugeFunctionType fq=lib.HugeFunctionType schema=v1 arity=0 sig=F2000000000<I,U>
+            """,
+            moduleName: "BoundedFunctionTypeArityApp"
+        )
+        assertArityDiagnosticCount(1, in: functionContext)
+
+        let contextReceiverContext = try compileWithImportedMetadata(
+            """
+            symbols=1
+            function HugeContextType fq=lib.HugeContextType schema=v1 arity=0 sig=F0<C2000000000<I>,I>
+            """,
+            moduleName: "BoundedContextArityApp"
+        )
+        assertArityDiagnosticCount(1, in: contextReceiverContext)
+    }
+
+    private func compileWithImportedMetadata(_ metadata: String, moduleName: String) throws -> CompilationContext {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "\(moduleName)",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin"
+        }
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: moduleName,
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            result = ctx
+        }
+        return try #require(result)
+    }
+
+    private func assertArityDiagnosticCount(_ expectedCount: Int, in ctx: CompilationContext) {
+        assertHasDiagnostic("KSWIFTK-LIB-0024", in: ctx)
+        let arityDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0024" }
+        #expect(arityDiagnostics.count == expectedCount)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0003" })
+    }
+
     /// KSP-461: an unparsable instruction used to be dropped silently, leaving the
     /// following instructions reading registers that were never defined (the call
     /// site then produced garbage). The whole body must be rejected instead.
