@@ -2,9 +2,9 @@
 
 /// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {
-    /// ULongProgression instances are runtime range boxes, not Kotlin objects
-    /// with vtables. Keep source-backed Any overrides and iterator calls on
-    /// their runtime-aware ABI paths.
+    /// ULongRange and ULongProgression instances are runtime range boxes, not
+    /// Kotlin objects with vtables. Keep source-backed Any overrides and
+    /// iterator calls on their runtime-aware ABI paths.
     func runtimeBackedULongProgressionMemberCallee(
         memberName: String,
         receiverType: TypeID,
@@ -13,7 +13,12 @@ extension CallLowerer {
     ) -> InternedString? {
         guard let (_, symbol) = resolveClassTypeSymbol(
             sema.types.makeNonNullable(receiverType), sema: sema
-        ), symbol.fqName.map(interner.resolve) == ["kotlin", "ranges", "ULongProgression"]
+        ) else {
+            return nil
+        }
+        let className = symbol.fqName.map(interner.resolve)
+        guard className == ["kotlin", "ranges", "ULongRange"]
+                || className == ["kotlin", "ranges", "ULongProgression"]
         else {
             return nil
         }

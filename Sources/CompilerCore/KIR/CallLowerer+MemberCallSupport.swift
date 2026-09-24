@@ -212,18 +212,20 @@ func resolveClassOwnToStringCallee(
         guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
         }
-        // HashSet and ULongProgression are source-backed for their nominal
-        // APIs, but their runtime representations do not carry Kotlin
-        // vtables. Fall back to the generic Any path, whose runtime formatter
-        // understands these boxes.
+        // HashSet, ULongRange, and ULongProgression are source-backed for
+        // their nominal APIs, but their runtime representations do not carry
+        // Kotlin vtables. Fall back to the generic Any path, whose runtime
+        // formatter understands these boxes.
         let knownNames = KnownCompilerNames(interner: interner)
-        let isRuntimeBackedULongProgression = classSymbol.fqName == [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-            interner.intern("ULongProgression"),
-        ]
+        let isRuntimeBackedULongRange = ["ULongRange", "ULongProgression"].contains { name in
+            classSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern(name),
+            ]
+        }
         guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName,
-              !isRuntimeBackedULongProgression
+              !isRuntimeBackedULongRange
         else {
             return nil
         }
