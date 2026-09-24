@@ -1136,9 +1136,9 @@ extension CallTypeChecker {
                 // Any.equals/hashCode/toString win before extension fallback.
                 standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
-                // Source-backed bundled extensions are the live implementation
-                // for migrated atomic APIs, including overrides of inherited
-                // synthetic Any members such as AtomicInt.toString().
+                // Source-backed bundled declarations are the live implementation
+                // for migrated atomic APIs and should win over residual synthetic
+                // candidates such as inherited Any members.
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
