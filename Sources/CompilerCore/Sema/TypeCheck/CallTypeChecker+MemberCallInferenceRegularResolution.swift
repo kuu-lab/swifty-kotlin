@@ -1907,15 +1907,12 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // Regex keeps a String-specific runtime bridge for the historical
-        // `(MatchResult) -> String` overload alongside the source-backed
-        // CharSequence overload whose transform returns CharSequence. Lambda
+        // Older imported stdlib artifacts may still expose a String callback
+        // bridge alongside the bundled CharSequence declaration. Lambda
         // preparation intentionally erases return types while finding a shared
-        // input shape, which would otherwise leave these two overloads
-        // ambiguous even after the lambda body has produced a String. Once the
-        // body type is known, prefer the bridge only when its String callback is
-        // actually applicable; custom CharSequence callbacks continue through
-        // the source declaration.
+        // input shape, so prefer that compatibility bridge only when it is
+        // actually present and applicable; bundled source continues through
+        // the CharSequence declaration.
         if memberNameText == "replace",
            args.count == 2,
            sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,
