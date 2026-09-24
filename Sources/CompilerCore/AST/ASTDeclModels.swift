@@ -307,11 +307,14 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
-    /// Names of `context(name: Type)` parameters, parallel to the parsed context
-    /// receiver list. Entries are nil for unnamed or `_:` parameters; the array is
-    /// empty when the declaration has no context clause or an explicit receiver
-    /// took precedence.
-    public let contextReceiverNames: [InternedString?]
+    /// Declaration-level `context(...)` receivers. Names are nil for unnamed
+    /// or `_:` parameters. These stay independent of `receiverType` so a
+    /// member function's class `this` is not overwritten by a context type.
+    public let contextReceivers: [ContextReceiverDecl]
+    /// Names of `context(name: Type)` parameters, parallel to `contextReceivers`.
+    public var contextReceiverNames: [InternedString?] {
+        contextReceivers.map(\.name)
+    }
     public let valueParams: [ValueParamDecl]
     public let returnType: TypeRefID?
     public let body: FunctionBody
@@ -326,7 +329,7 @@ public struct FunDecl: Codable {
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
         receiverType: TypeRefID? = nil,
-        contextReceiverNames: [InternedString?] = [],
+        contextReceivers: [ContextReceiverDecl] = [],
         valueParams: [ValueParamDecl] = [],
         returnType: TypeRefID? = nil,
         body: FunctionBody = .unit,
@@ -340,7 +343,7 @@ public struct FunDecl: Codable {
         self.annotations = annotations
         self.typeParams = typeParams
         self.receiverType = receiverType
-        self.contextReceiverNames = contextReceiverNames
+        self.contextReceivers = contextReceivers
         self.valueParams = valueParams
         self.returnType = returnType
         self.body = body
@@ -357,13 +360,23 @@ public struct FunDecl: Codable {
         annotations = try container.decode([AnnotationNode].self, forKey: .annotations)
         typeParams = try container.decode([TypeParamDecl].self, forKey: .typeParams)
         receiverType = try container.decodeIfPresent(TypeRefID.self, forKey: .receiverType)
-        contextReceiverNames = try container.decodeIfPresent([InternedString?].self, forKey: .contextReceiverNames) ?? []
+        contextReceivers = try container.decodeIfPresent([ContextReceiverDecl].self, forKey: .contextReceivers) ?? []
         valueParams = try container.decode([ValueParamDecl].self, forKey: .valueParams)
         returnType = try container.decodeIfPresent(TypeRefID.self, forKey: .returnType)
         body = try container.decode(FunctionBody.self, forKey: .body)
         isSuspend = try container.decode(Bool.self, forKey: .isSuspend)
         isInline = try container.decode(Bool.self, forKey: .isInline)
         isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
+    }
+}
+
+public struct ContextReceiverDecl: Codable {
+    public let name: InternedString?
+    public let type: TypeRefID
+
+    public init(name: InternedString? = nil, type: TypeRefID) {
+        self.name = name
+        self.type = type
     }
 }
 
