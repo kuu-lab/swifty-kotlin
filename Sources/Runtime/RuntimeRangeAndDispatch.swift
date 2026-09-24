@@ -1153,12 +1153,24 @@ public func kk_range_sum(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_sum")
     }
-    var sum = 0
-    _ = runtimeSignedRangeTraverse(range) { current, _ in
-        sum &+= current
-        return true
+    switch range.kind {
+    case .intRange, .intProgression, .charRange, .charProgression,
+         .uintRange, .uintProgression:
+        // Int/UInt sums wrap at 32 bits, matching Kotlin's Int return type.
+        var sum32: Int32 = 0
+        _ = runtimeSignedRangeTraverse(range) { current, _ in
+            sum32 = sum32 &+ Int32(truncatingIfNeeded: current)
+            return true
+        }
+        return Int(sum32)
+    case .longRange, .longProgression, .ulongRange, .ulongProgression:
+        var sum = 0
+        _ = runtimeSignedRangeTraverse(range) { current, _ in
+            sum &+= current
+            return true
+        }
+        return sum
     }
-    return sum
 }
 
 @_cdecl("__kk_range_contains")

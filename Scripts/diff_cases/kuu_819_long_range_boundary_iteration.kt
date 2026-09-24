@@ -22,14 +22,26 @@ fun main() {
     // for-in over a boundary-ending range.
     for (v in Long.MAX_VALUE - 2L..Long.MAX_VALUE) println(v)
 
-    // contains on full-span stepped progressions (distance overflows Int64).
-    // NOTE: descending `in` is intentionally omitted — reference kotlinc
-    // falls back to a linear scan for downTo progressions and times out.
-    println(Int.MAX_VALUE in (Int.MIN_VALUE..Int.MAX_VALUE step 3))
-    println(Int.MAX_VALUE in (Int.MIN_VALUE..Int.MAX_VALUE step 2))
+    // contains on stepped progressions. NOTE: real kotlinc linear-scans `in`
+    // on progressions, so spans are kept small enough to verify — the
+    // full-span (>2^63 distance) variants are covered by unit tests and by
+    // the ULong cases below.
+    println(Int.MAX_VALUE in (Int.MIN_VALUE + 2..Int.MAX_VALUE))
+    println(1 in (10 downTo 1 step 3))
+    println(0 in (10 downTo 1 step 3))
+    println(7 in (1..10 step 3))
 
     // take/drop/sum on boundary-ending IntRanges.
     println((Int.MAX_VALUE - 1..Int.MAX_VALUE).take(5))
     println((Int.MAX_VALUE - 1..Int.MAX_VALUE).drop(1))
     println((Int.MIN_VALUE..Int.MIN_VALUE).sum())
+
+    // Int sums wrap at 32 bits (Int.MIN + (MIN+1) + (MIN+2) mod 2^32).
+    println((Int.MIN_VALUE..Int.MIN_VALUE + 2).sum())
+
+    // Descending ULong contains: the Kotlin-side path keeps ULong
+    // comparisons exact; negative step must not sign-extend.
+    println((9uL downTo 0uL step 3).contains(0uL))
+    println((9uL downTo 0uL step 3).contains(4uL))
+    println((9uL downTo 3uL step 3).contains(0uL))
 }

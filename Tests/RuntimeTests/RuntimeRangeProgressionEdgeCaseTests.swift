@@ -770,7 +770,8 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         let range = kk_op_rangeTo(Int.max, Int.max)
         let list = kk_range_toList(range)
         #expect(kk_list_size(list) == 1)
-        #expect(kk_range_sum(range) == Int.max)
+        let longRange = kk_long_rangeTo(Int.max, Int.max)
+        #expect(kk_range_sum(longRange) == Int.max)
     }
 
     @Test func boundaryEndingProgression_longToListTerminates() {
@@ -862,16 +863,24 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_list_size(kk_range_drop(range, 1, nil)) == 1)
         #expect(kk_list_size(kk_range_sorted(range)) == 2)
 
-        let sumRange = kk_op_rangeTo(Int.max - 2, Int.max)
+        // Int-domain sums wrap at 32 bits: (Int32.max-2 + max-1 + max) mod 2^32.
+        let sumRange = kk_op_rangeTo(2_147_483_645, 2_147_483_647)
+        #expect(kk_range_sum(sumRange) == 2_147_483_642)
+        // Long-domain sums keep the full 64-bit accumulator.
+        let longSumRange = kk_long_rangeTo(Int.max - 2, Int.max)
         let expectedSum = ((Int.max - 2) &+ (Int.max - 1)) &+ Int.max
-        #expect(kk_range_sum(sumRange) == expectedSum)
+        #expect(kk_range_sum(longSumRange) == expectedSum)
     }
 
     @Test func boundaryAggregates_int_descendingToMin() {
         let range = __kk_op_downTo(Int.min + 1, Int.min)
-        #expect(kk_range_sum(range) == (Int.min + 1) &+ Int.min)
+        // intProgression sums truncate to 32 bits: elements min+1 -> 1, min -> 0.
+        #expect(kk_range_sum(range) == 1)
         #expect(kk_list_size(kk_range_take(range, 5, nil)) == 2)
         #expect(kk_list_size(kk_range_sorted(range)) == 2)
+
+        let longRange = __kk_long_progression_fromClosedRange(0, Int.min + 1, Int.min, -1, nil)
+        #expect(kk_range_sum(longRange) == (Int.min + 1) &+ Int.min)
     }
 
     @Test func boundaryCharProgression_largeStepTerminates() {
@@ -906,6 +915,15 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_op_contains(range, Int.min) == 1)
         #expect(kk_range_contains(range, Int.min) == 1)
         #expect(kk_op_contains(range, Int.min + 1) == 0)
+    }
+
+    @Test func boundarySum_intKindWrapsTo32Bits() {
+        // (Int.MIN..Int.MIN+2).sum() wraps in Int32 arithmetic -> -2147483645
+        let range = kk_op_rangeTo(-2_147_483_648, -2_147_483_646)
+        #expect(kk_range_sum(range) == -2_147_483_645)
+        // Long sums wrap at the full 64-bit boundary instead.
+        let longRange = kk_long_rangeTo(Int.min, Int.min + 2)
+        #expect(kk_range_sum(longRange) == -9_223_372_036_854_775_805)
     }
 
     @Test func boundaryStep_fullSpanAlignsLastToBoundary() {
