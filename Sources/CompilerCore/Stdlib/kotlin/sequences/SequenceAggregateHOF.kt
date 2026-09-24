@@ -169,46 +169,34 @@ public fun <K, V, M : MutableMap<in K, in V>> Sequence<Pair<K, V>>.toMap(destina
     return destination
 }
 
-// Sema exposes the public call result as Map<K, V>; the source body returns the
-// mutable implementation type to avoid current MutableMap-to-Map coercion noise.
-public fun <T, K, V> Sequence<T>.associate(transform: (T) -> Pair<K, V>): MutableMap<K, V> {
-    val elements = this.toList()
+// KSP-1340: Sequence associate-family decls carry the Kotlin 2.3.10 signatures —
+// Map<…> results and generic `M : MutableMap<in …>` destinations — matching the
+// Iterable counterparts in Iterables.kt.
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K, V> Sequence<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val pair = transform(elem)
+    for (element in this) {
+        val pair = transform(element)
         result[pair.first] = pair.second
-        i += 1
     }
-    return result
+    return result as Map<K, V>
 }
 
-public fun <T, K> Sequence<T>.associateBy(keySelector: (T) -> K): MutableMap<K, T> {
-    val elements = this.toList()
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K> Sequence<T>.associateBy(keySelector: (T) -> K): Map<K, T> {
     val result = mutableMapOf<K, T>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        result[keySelector(elem)] = elem
-        i += 1
-    }
-    return result
+    for (element in this) result[keySelector(element)] = element
+    return result as Map<K, T>
 }
 
-public fun <T, K, V> Sequence<T>.associateBy(
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K, V> Sequence<T>.associateBy(
     keySelector: (T) -> K,
     valueTransform: (T) -> V
-): MutableMap<K, V> {
-    val elements = this.toList()
+): Map<K, V> {
     val result = mutableMapOf<K, V>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        result[keySelector(elem)] = valueTransform(elem)
-        i += 1
-    }
-    return result
+    for (element in this) result[keySelector(element)] = valueTransform(element)
+    return result as Map<K, V>
 }
 
 // KSP-1348: Sequence group-family decls carry the Kotlin 2.3.10 signatures —
@@ -655,63 +643,52 @@ public fun <T> Sequence<T>.sumOf(selector: (T) -> Double): Double {
     return sum
 }
 
-public fun <T, K, V> Sequence<T>.associateTo(destination: MutableMap<K, V>, transform: (T) -> Pair<K, V>): MutableMap<K, V> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val pair = transform(elements[i])
-        destination[pair.first] = pair.second
-        i += 1
+@IgnorableReturnValue
+public inline fun <T, K, V, M : MutableMap<in K, in V>> Sequence<T>.associateTo(
+    destination: M,
+    transform: (T) -> Pair<K, V>
+): M {
+    for (element in this) {
+        val pair = transform(element)
+        destination.put(pair.first, pair.second)
     }
     return destination
 }
 
-public fun <T, K> Sequence<T>.associateByTo(destination: MutableMap<K, T>, keySelector: (T) -> K): MutableMap<K, T> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        destination[keySelector(elem)] = elem
-        i += 1
-    }
+@IgnorableReturnValue
+public inline fun <T, K, M : MutableMap<in K, in T>> Sequence<T>.associateByTo(
+    destination: M,
+    keySelector: (T) -> K
+): M {
+    for (element in this) destination.put(keySelector(element), element)
     return destination
 }
 
-public fun <T, K, V> Sequence<T>.associateByTo(
-    destination: MutableMap<K, V>,
+@IgnorableReturnValue
+public inline fun <T, K, V, M : MutableMap<in K, in V>> Sequence<T>.associateByTo(
+    destination: M,
     keySelector: (T) -> K,
     valueTransform: (T) -> V
-): MutableMap<K, V> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        destination[keySelector(elem)] = valueTransform(elem)
-        i += 1
-    }
+): M {
+    for (element in this) destination.put(keySelector(element), valueTransform(element))
     return destination
 }
 
-public fun <T, V> Sequence<T>.associateWith(valueTransform: (T) -> V): MutableMap<T, V> {
-    val elements = this.toList()
+@SinceKotlin("1.3")
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, V> Sequence<T>.associateWith(valueTransform: (T) -> V): Map<T, V> {
     val result = mutableMapOf<T, V>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        result[elem] = valueTransform(elem)
-        i += 1
-    }
-    return result
+    for (element in this) result[element] = valueTransform(element)
+    return result as Map<T, V>
 }
 
-public fun <T, V> Sequence<T>.associateWithTo(destination: MutableMap<T, V>, valueTransform: (T) -> V): MutableMap<T, V> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        destination[elem] = valueTransform(elem)
-        i += 1
-    }
+@SinceKotlin("1.3")
+@IgnorableReturnValue
+public inline fun <T, V, M : MutableMap<in T, in V>> Sequence<T>.associateWithTo(
+    destination: M,
+    valueTransform: (T) -> V
+): M {
+    for (element in this) destination.put(element, valueTransform(element))
     return destination
 }
 
