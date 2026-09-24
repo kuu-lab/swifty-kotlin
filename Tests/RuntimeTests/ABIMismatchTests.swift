@@ -352,8 +352,8 @@ struct ABIMismatchTests {
     }
 
     // KSP-621: Iterable.joinTo/joinToString and Sequence.joinTo/joinToString share
-    // one bundled Kotlin implementation (Iterables.kt's appendJoinToPlain/
-    // appendJoinToTransform, called via iterator()), so the runtime bridges these
+    // one bundled Kotlin implementation (Iterables.kt's appendJoinToAppendable*
+    // helpers, called via iterator()), so the runtime bridges these
     // names used to route through when Sema left the callee unresolved are gone.
     @Test
     func iterableJoinToABIsAreSourceBacked() throws {
