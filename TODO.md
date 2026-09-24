@@ -3021,7 +3021,8 @@
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_last.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_last.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_last.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceAggregateHOF.kt:712-743`（KSP-442、commit `c965a08f8` #5723）に4シンボル全て実装済み。`kk_sequence_last`/`lastOrNull`（`RuntimeSequence.swift`）は runtime bridge として保持。専用 golden/diff は本同期では追加しない。
+  - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceAggregateHOF.kt:712-743`（KSP-442、commit `c965a08f8` #5723）に4シンボル全て実装済み。`kk_sequence_last`/`lastOrNull`（`RuntimeSequence.swift`）は runtime bridge として保持。
+  - 完了根拠（2026-09-23、KUU-713）: 4シンボルを `SequenceConversionsAndSetOps.kt` へ移し、Kotlin 2.3.10 の lazy traversal 契約に更新（iterator 直走査、predicate overloads は遭遇順に全要素評価の `public inline`）。専用 golden `stdlib_kotlin_sequences_Sequence_last.kt` / 専用 diff `stdlib_kotlin_sequences_Sequence_last.kt` を追加し、`kotlin.sequences.*` の Kotlin source 宣言への束縛・kotlinc 出力一致を確認。`kk_sequence_last`/`lastOrNull` の runtime bridge・RuntimeABISpec・CallLowerer fallback は Iterable/List 残存 dispatch と共有のため保持。
   - 実装シンボル一覧:
     - `kotlin.sequences.last` — fun Sequence.last(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/last(): #A`
     - `kotlin.sequences.last` — fun Sequence.last(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/last(kotlin/Function1<#A, kotlin/Boolean>): #A`
