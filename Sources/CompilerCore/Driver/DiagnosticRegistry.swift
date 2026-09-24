@@ -358,6 +358,12 @@ enum DiagnosticRegistry {
             summary: "Invalid operator application."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0044",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot access internal member of the bundled stdlib."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0050",
             pass: "SEMA",
             defaultSeverity: .error,

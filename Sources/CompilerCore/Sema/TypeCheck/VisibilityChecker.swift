@@ -1,6 +1,12 @@
 
 struct VisibilityChecker {
     let symbols: SymbolTable
+    let sourceManager: SourceManager?
+
+    init(symbols: SymbolTable, sourceManager: SourceManager? = nil) {
+        self.symbols = symbols
+        self.sourceManager = sourceManager
+    }
 
     func isAccessible(
         _ symbol: SemanticSymbol,
@@ -8,8 +14,16 @@ struct VisibilityChecker {
         enclosingClass: SymbolID?
     ) -> Bool {
         switch symbol.visibility {
-        case .public, .internal:
+        case .public:
             return true
+        case .internal:
+            guard let sourceManager,
+                  let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
+                  sourceManager.origin(of: declarationFileID)?.isBundledStdlib == true
+            else {
+                return true
+            }
+            return sourceManager.origin(of: accessFileID)?.isBundledStdlib == true
         case .private:
             if isLocalOrParameter(symbol.kind) {
                 return true

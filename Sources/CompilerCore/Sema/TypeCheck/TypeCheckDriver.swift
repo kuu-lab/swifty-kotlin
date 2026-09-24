@@ -11,6 +11,7 @@ final class TypeCheckDriver {
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
+    let sourceManager: SourceManager?
     let solver: ConstraintSolver
     let resolver: OverloadResolver
     let dataFlow: DataFlowAnalyzer
@@ -42,6 +43,7 @@ final class TypeCheckDriver {
         ast: ASTModule,
         sema: SemaModule,
         semaCtx: SemaModule,
+        sourceManager: SourceManager? = nil,
         solver: ConstraintSolver,
         resolver: OverloadResolver,
         dataFlow: DataFlowAnalyzer,
@@ -56,6 +58,7 @@ final class TypeCheckDriver {
         self.ast = ast
         self.sema = sema
         self.semaCtx = semaCtx
+        self.sourceManager = sourceManager
         self.solver = solver
         self.resolver = resolver
         self.dataFlow = dataFlow
@@ -83,7 +86,7 @@ final class TypeCheckDriver {
     // MARK: - Module-Level Type Checking
 
     func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile]) {
-        let checker = VisibilityChecker(symbols: sema.symbols)
+        let checker = VisibilityChecker(symbols: sema.symbols, sourceManager: sourceManager)
 
         for file in files {
             guard let fileScope = fileScopes[file.fileID.rawValue] else {

@@ -65,8 +65,21 @@ struct TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let visLabel = symbol.visibility == .protected ? "protected" : "private"
-        let code = symbol.visibility == .protected ? "KSWIFTK-SEMA-0041" : "KSWIFTK-SEMA-0040"
+        let visLabel: String
+        let code: String
+        switch symbol.visibility {
+        case .private:
+            visLabel = "private"
+            code = "KSWIFTK-SEMA-0040"
+        case .protected:
+            visLabel = "protected"
+            code = "KSWIFTK-SEMA-0041"
+        case .internal:
+            visLabel = "internal in the bundled stdlib module"
+            code = "KSWIFTK-SEMA-0044"
+        case .public:
+            return
+        }
         diagnostics.error(code, "Cannot access '\(name)': it is \(visLabel).", range: range)
     }
 
