@@ -159,8 +159,8 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers only the package-level class identity required by KSP-1216.
-    /// Constructors and receiver members remain owned by KSP-1219 onward.
+    /// Registers only the package-level class identities that still lack
+    /// bundled Kotlin declarations.
     private func registerNativeConcurrentTopLevelNominalAnchors(
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
@@ -168,25 +168,12 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // AtomicLong is intentionally excluded: it is already source-backed
-        // by KSP-1222 (Stdlib/kotlin/native/concurrent/Atomics.kt).
+        // AtomicInt now owns its source-backed constructor (KSP-1220) and
+        // AtomicLong is source-backed by KSP-1222 in Atomics.kt.
+        // AtomicInt receiver members reuse the source-backed class through
+        // KSP-1221 extensions.
         // AtomicNativePtr is intentionally excluded: it is already
         // source-backed by KSP-1224 (same file).
-        registerNativeConcurrentNominalAnchor(
-            named: "AtomicInt",
-            packageFQName: packageFQName,
-            pkgSymbol: pkgSymbol,
-            annotations: [
-                nativeConcurrentDeprecatedErrorAnnotation(
-                    message: "Use kotlin.concurrent.atomics.AtomicInt instead.",
-                    replaceWith: "kotlin.concurrent.atomics.AtomicInt"
-                ),
-            ],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         // FreezableAtomicReference is intentionally excluded: it is already
         // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
         // Atomics.kt). AtomicReference is intentionally excluded: it is

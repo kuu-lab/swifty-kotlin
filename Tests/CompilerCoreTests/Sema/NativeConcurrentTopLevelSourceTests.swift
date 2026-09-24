@@ -31,48 +31,48 @@ struct NativeConcurrentTopLevelSourceTests {
     }
 
     @Test
-    func ksp1216NominalEntriesAreClassOnlyAnchors() throws {
+    func ksp1220AtomicIntConstructorIsSourceBacked() throws {
         let context = try sharedContext()
         let sema = try #require(context.sema)
         let package = ["kotlin", "native", "concurrent"]
-        // FreezableAtomicReference (KSP-1236), AtomicLong (KSP-1222),
+        // AtomicInt is source-backed by KSP-1220 (its receiver members remain
+        // extensions in Atomics.kt under KSP-1221). FreezableAtomicReference
+        // (KSP-1236), AtomicLong (KSP-1222),
         // AtomicNativePtr (KSP-1224) and AtomicReference (KSP-1226) are all
         // already source-backed by Stdlib/kotlin/native/concurrent/Atomics.kt,
         // MutableData is already source-backed by KSP-1243
         // (Stdlib/kotlin/native/concurrent/MutableData.kt), and
         // WorkerBoundReference's constructor is already source-backed by
         // KSP-1252 (Stdlib/kotlin/native/concurrent/WorkerBoundReference.kt).
-        // Those migrated declarations, together with DetachedObjectGraph
-        // (KSP-1235), are intentionally absent from this synthetic-anchor
-        // inventory.
-        let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [:]
-
-        for name in ["AtomicInt"] {
-            let path = package + [name]
-            let classSymbol = try symbol(path, in: context)
-            let info = try #require(sema.symbols.symbol(classSymbol))
-            #expect(info.kind == .class)
-            #expect(info.visibility == .public)
-            #expect(info.flags.contains(.synthetic))
-            #expect(sema.symbols.sourceFileID(for: classSymbol) == nil)
-            #expect(
-                sema.symbols.lookupAll(
-                    fqName: (path + ["<init>"]).map(context.interner.intern)
-                ).isEmpty,
-                "KSP-1216 must not absorb the constructor task for \(name)"
-            )
-
-            if let (variance, upperBound) = expectedGenericShapes[name] {
-                #expect(sema.types.nominalTypeParameterVariances(for: classSymbol) == [variance])
-                let parameters = sema.types.nominalTypeParameterSymbols(for: classSymbol)
-                #expect(parameters.count == 1)
-                if let parameter = parameters.first {
-                    #expect(sema.symbols.typeParameterUpperBounds(for: parameter) == [upperBound])
-                }
-            } else {
-                #expect(sema.types.nominalTypeParameterSymbols(for: classSymbol).isEmpty)
-            }
-        }
+        let atomicIntPath = package + ["AtomicInt"]
+        let atomicInt = try symbol(atomicIntPath, in: context)
+        let atomicIntInfo = try #require(sema.symbols.symbol(atomicInt))
+        #expect(atomicIntInfo.kind == .class)
+        #expect(atomicIntInfo.visibility == .public)
+        #expect(!atomicIntInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(atomicInt))
+        #expect(
+            context.sourceManager.path(of: try #require(sema.symbols.sourceFileID(for: atomicInt)))
+                == "__bundled_kotlin/native/concurrent/Atomics.kt"
+        )
+        let atomicIntConstructor = try #require(
+            sema.symbols.lookupAll(
+                fqName: (atomicIntPath + ["<init>"]).map(context.interner.intern)
+            ).first {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes == [sema.types.intType]
+            },
+            "Expected the source-backed AtomicInt(Int) constructor"
+        )
+        #expect(!sema.symbols.symbol(atomicIntConstructor)!.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(atomicIntConstructor))
+        #expect(sema.symbols.externalLinkName(for: atomicIntConstructor) == "kk_atomic_int_create")
+        let atomicIntToString = try #require(
+            sema.symbols.lookupAll(
+                fqName: (atomicIntPath + ["toString"]).map(context.interner.intern)
+            ).first,
+            "Expected AtomicInt's source-backed toString override"
+        )
+        #expect(sema.symbols.isSourceBackedSymbol(atomicIntToString))
 
         // DetachedObjectGraph is source-backed by KSP-1235. Its public
         // constructors remain KSP-1234's separate top-level task, so only the

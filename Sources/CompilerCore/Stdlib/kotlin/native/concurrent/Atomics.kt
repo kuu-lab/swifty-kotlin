@@ -15,10 +15,28 @@ import kotlin.internal.KsSymbolName
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.NativePtr
 
+/**
+ * A deprecated atomic wrapper around an integer.
+ *
+ * This declaration owns the top-level constructor only. Its storage and
+ * receiver operations reuse the shared atomic runtime box.
+ */
+@Deprecated(
+    "Use kotlin.concurrent.atomics.AtomicInt instead.",
+    ReplaceWith("kotlin.concurrent.atomics.AtomicInt"),
+    DeprecationLevel.ERROR
+)
+public class AtomicInt {
+    @KsSymbolName("kk_atomic_int_create")
+    public constructor(value: Int)
+
+    public override fun toString(): String = __kkAtomicIntLoad().toString()
+}
+
 // KSP-1221: The legacy native AtomicInt receiver surface is source-backed
 // while its storage remains owned by the shared runtime atomic box. Keep the
 // ABI-only operations private and expose the Kotlin/Native API as extensions
-// on the KSP-1220 synthetic nominal anchor.
+// on the source-backed nominal class.
 @KsSymbolName("__kk_atomic_int_load")
 private external fun AtomicInt.__kkAtomicIntLoad(): Int
 
@@ -85,9 +103,6 @@ public fun AtomicInt.increment(): Unit {
 public fun AtomicInt.decrement(): Unit {
     __kkAtomicIntDecrementAndFetch()
 }
-
-/** Returns the string representation of the current atomic value. */
-public fun AtomicInt.toString(): String = value.toString()
 
 @KsSymbolName("__kk_atomic_long_load")
 private external fun AtomicLong.__kkLoad(): Long

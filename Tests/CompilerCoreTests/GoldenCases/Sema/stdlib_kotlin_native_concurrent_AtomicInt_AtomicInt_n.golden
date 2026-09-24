@@ -36,5 +36,5 @@ expr e@20:5 name(atomic) type=kotlin.native.concurrent.AtomicInt ref=golden.sema
 expr e@20:20 name(newValue) type=Int ref=golden.sema.atomicIntReceiverSurface.$0.newValue[kind=vparam]
 expr e@20:5#1 memberAssign recv=e@20:5 callee=value value=e@20:20 type=Unit
 expr e@21:12 name(atomic) type=kotlin.native.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
-expr e@21:12#1 memberCall recv=e@21:12 callee=toString args=[] type=String call=kotlin.native.concurrent.toString[kind=fun;recv=kotlin.native.concurrent.AtomicInt;params=]
+expr e@21:12#1 memberCall recv=e@21:12 callee=toString args=[] type=String call=kotlin.native.concurrent.AtomicInt.toString[kind=fun;recv=kotlin.native.concurrent.AtomicInt;params=]
 expr e@21:5 return value=e@21:12#1 type=Nothing

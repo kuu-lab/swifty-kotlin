@@ -1,0 +1,6 @@
+symbol fq=golden.sema.constructExplicit.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.constructExplicit[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.native.concurrent.AtomicInt
+file fstdlib_kotlin_native_concurrent_AtomicInt_n_n package=golden.sema
+  decl golden.sema.constructExplicit[kind=fun;params=Int] fun constructExplicit sym=golden.sema.constructExplicit[kind=fun;params=Int]
+expr e@5:40 name(value) type=Int ref=golden.sema.constructExplicit.$0.value[kind=vparam]
+expr e@5:5 memberCall recv=e@5:5#1 callee=AtomicInt args=[_:e@5:40] type=kotlin.native.concurrent.AtomicInt call=kotlin.native.concurrent.AtomicInt.<init>[kind=ctor;recv=kotlin.native.concurrent.AtomicInt;params=Int]
