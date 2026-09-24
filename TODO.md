@@ -2865,14 +2865,15 @@
     - `kotlin.reflect.KVariance` — enumClass kotlin.reflect.KVariance  -- `final enum class kotlin.reflect/KVariance : kotlin/Enum<kotlin.reflect/KVariance> {`
     - `kotlin.reflect.typeOf` — fun typeOf(): KType  -- `final inline fun <#A: reified kotlin/Any?> kotlin.reflect/typeOf(): kotlin.reflect/KType`
 
-- [ ] KSP-1324: kotlin.reflect.KClass の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1324: kotlin.reflect.KClass の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.reflect` / receiver `KClass`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KClass_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KClass_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KClass_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-09-24、KUU-703）: `cast`/`safeCast` は監査時点で `KClasses.kt:110-118` に bundled Kotlin source 実装済み（`__kk_kclass_cast`/`__kk_kclass_safeCast` bridge 経由）で既存実装の TODO 同期。`findAssociatedObject` は `AssociatedObjects.kt` に upstream シグネチャの bundled source 宣言を追加（`@ExperimentalAssociatedObjects` + `public inline fun <reified T : Annotation> KClass<*>.findAssociatedObject(): Any?`、enumValues 同様の reified intrinsic で body は未実行、呼び出しは `CallLowerer+KClassReflectMemberCalls.swift` が `__kk_kclass_find_associated_object` へ展開）。synthetic stub `registerFindAssociatedObjectFunction` は bundledIndex ガードで stdlib 同梱時のみ抑止し、`--no-stdlib` コンパイル向け fallback として保持。`bindKClassFindAssociatedObjectCall` と `KSWIFTK-SEMA-OPT-IN` チェックは source decl で変わらず動作。`__kk_kclass_*` Runtime 関数・`RuntimeABISpec` エントリは保持。専用 golden `stdlib_kotlin_reflect_KClass_n.kt`（3 シンボル解決）・`ReflectFindAssociatedObjectTests`（source-backed 解決 + opt-in + fallback stub）を追加。`findAssociatedObject`/`ExperimentalAssociatedObjects`/`AssociatedObjectKey` は Kotlin/Native 専用 API（JVM stdlib 2.3.10 に非存在）のため diff は cast/safeCast のみカバー。
+  - 実装シンボル一覧:
     - `kotlin.reflect.cast` — fun KClass.cast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/cast(kotlin/Any?): #A`
     - `kotlin.reflect.findAssociatedObject` — fun KClass.findAssociatedObject(): Any  -- `final inline fun <#A: reified kotlin/Annotation> (kotlin.reflect/KClass<*>).kotlin.reflect/findAssociatedObject(): kotlin/Any?`
     - `kotlin.reflect.safeCast` — fun KClass.safeCast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/safeCast(kotlin/Any?): #A?`

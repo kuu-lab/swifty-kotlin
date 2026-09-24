@@ -1,9 +1,17 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
+/// KSP-1324: `kotlin.reflect.findAssociatedObject` is a bundled Kotlin
+/// source declaration (`Stdlib/kotlin/reflect/AssociatedObjects.kt`); the
+/// compiler expands supported call sites to `__kk_kclass_find_associated_object`
+/// via CallLowerer+KClassReflectMemberCalls.swift, so the decl carries no
+/// external link name (mirroring the enumValues intrinsic). The synthetic stub
+/// registered by `registerSyntheticPropertyInterfaceStubs` remains only as a
+/// fallback for compilations without the stdlib.
 @Suite
-struct ReflectFindAssociatedObjectSyntheticTests {
+struct ReflectFindAssociatedObjectTests {
     @Test func testFindAssociatedObject() throws {
         let sources = [
             """
@@ -44,15 +52,20 @@ struct ReflectFindAssociatedObjectSyntheticTests {
 
         let sema = try #require(ctx.sema)
         let fqName = ["kotlin", "reflect", "findAssociatedObject"].map { ctx.interner.intern($0) }
+        #expect(
+            sema.symbols.lookupAll(fqName: fqName).count == 1,
+            Comment(rawValue: "Expected exactly one findAssociatedObject symbol, got: \(sema.symbols.lookupAll(fqName: fqName))")
+        )
         let symbolID = try #require(sema.symbols.lookupAll(fqName: fqName).first)
         let symbol = try #require(sema.symbols.symbol(symbolID))
         let signature = try #require(sema.symbols.functionSignature(for: symbolID))
 
         #expect(symbol.kind == .function)
         #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(symbolID))
+        #expect(!symbol.flags.contains(.synthetic))
         #expect(symbol.flags.contains(.inlineFunction))
-        #expect(sema.symbols.externalLinkName(for: symbolID) == "__kk_kclass_find_associated_object")
+        #expect(sema.symbols.externalLinkName(for: symbolID) == nil)
         #expect(signature.parameterTypes.count == 0)
         #expect(signature.typeParameterSymbols.count == 1)
         #expect(signature.reifiedTypeParameterIndices == [0])
@@ -62,7 +75,8 @@ struct ReflectFindAssociatedObjectSyntheticTests {
             Issue.record("findAssociatedObject must be a KClass extension function")
             return
         }
-        if case .kClassType = sema.types.kind(of: receiverType) {
+        if case .classType(let classType) = sema.types.kind(of: receiverType),
+           sema.symbols.symbol(classType.classSymbol)?.fqName == ["kotlin", "reflect", "KClass"].map({ ctx.interner.intern($0) }) {
             // Expected receiver shape.
         } else {
             Issue.record(Comment(rawValue: "Expected KClass receiver, got \(sema.types.renderType(receiverType))"))
@@ -70,7 +84,7 @@ struct ReflectFindAssociatedObjectSyntheticTests {
 
         let annotations = sema.symbols.annotations(for: symbolID)
         #expect(
-            annotations.contains { $0.annotationFQName == "kotlin.reflect.ExperimentalAssociatedObjects" },
+            annotations.contains { $0.annotationFQName.hasSuffix("ExperimentalAssociatedObjects") },
             Comment(rawValue: "Expected findAssociatedObject to require ExperimentalAssociatedObjects opt-in, got: \(annotations)")
         )
 
@@ -85,6 +99,35 @@ struct ReflectFindAssociatedObjectSyntheticTests {
 
         #expect(sample1OptInDiagnostics.count == 1, Comment(rawValue: "Expected findAssociatedObject usage to require opt-in, got: \(ctx.diagnostics.diagnostics)"))
         #expect(sample2OptInDiagnostics.isEmpty, Comment(rawValue: "Expected @OptIn to satisfy findAssociatedObject usage, got: \(ctx.diagnostics.diagnostics)"))
+    }
+
+    @Test func testFindAssociatedObjectSyntheticFallbackWithoutStdlib() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let path = tempDir.appendingPathComponent("input0.kt").path
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(
+            path: path,
+            contents: Data("""
+            package sample0
+
+            annotation class Smoke
+            """.utf8)
+        )
+        do {
+            try runSema(ctx)
+        } catch {
+            // Error diagnostics are asserted by each test.
+        }
+
+        let sema = try #require(ctx.sema)
+        let fqName = ["kotlin", "reflect", "findAssociatedObject"].map { ctx.interner.intern($0) }
+        let symbolID = try #require(sema.symbols.lookupAll(fqName: fqName).first)
+        let symbol = try #require(sema.symbols.symbol(symbolID))
+
+        #expect(symbol.kind == .function)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: symbolID) == "__kk_kclass_find_associated_object")
     }
 }
 #endif
