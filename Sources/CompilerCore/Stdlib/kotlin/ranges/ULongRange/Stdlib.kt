@@ -15,5 +15,8 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
     start: ULong,
     endInclusive: ULong,
 ) : ULongProgression(start, endInclusive, 1L), ClosedRange<ULong>, OpenEndRange<ULong> {
-    public companion object {}
+    public companion object {
+        public val EMPTY: ULongRange
+            get() = ULongRange(1uL, 0uL)
+    }
 }
