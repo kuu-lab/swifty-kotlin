@@ -570,11 +570,26 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
+    private var sourceHandleByDataPointer: [UInt: Int] = [:]
 
     func append(_ entry: RuntimeFlatStringStorage) {
         lock.lock()
         storageByDataPointer[UInt(bitPattern: entry.data)] = entry
         lock.unlock()
+    }
+
+    func associateSourceHandle(_ raw: Int, with data: UnsafePointer<UInt8>?) {
+        guard let data else { return }
+        lock.lock()
+        sourceHandleByDataPointer[UInt(bitPattern: data)] = raw
+        lock.unlock()
+    }
+
+    func sourceHandle(for data: UnsafePointer<UInt8>?) -> Int? {
+        guard let data else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return sourceHandleByDataPointer[UInt(bitPattern: data)]
     }
 
     /// Storage whose `data` pointer is `data`, when the flat string was
@@ -638,6 +653,11 @@ public func kk_string_from_flat(
     guard data != nil else {
         return 0
     }
+    // Preserve object identity when a flat value came directly from an existing
+    // runtime String box (for example, through a generic AtomicReference<T> ABI).
+    if let sourceHandle = runtimeFlatStringStorageRegistry.sourceHandle(for: data) {
+        return sourceHandle
+    }
     let string = runtimeStringFromFlatFields(
         data: data,
         length: length,
@@ -663,12 +683,14 @@ public func kk_string_to_flat(
         outHash?.pointee = 0
         return nil
     }
-    return runtimeRegisterFlatString(
+    let data = runtimeRegisterFlatString(
         string,
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
     )
+    runtimeFlatStringStorageRegistry.associateSourceHandle(raw, with: data)
+    return data
 }
 
 @_cdecl("kk_string_from_utf8")
