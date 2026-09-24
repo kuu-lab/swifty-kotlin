@@ -187,6 +187,40 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testUIntProgressionCompanionIsSourceBacked() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let uintProgressionFQName = ["kotlin", "ranges", "UIntProgression"].map(interner.intern)
+        let uintProgressionSymbol = try #require(sema.symbols.lookup(fqName: uintProgressionFQName))
+        let uintProgressionInfo = try #require(sema.symbols.symbol(uintProgressionSymbol))
+        #expect(!uintProgressionInfo.flags.contains(.synthetic))
+        #expect(uintProgressionInfo.flags.contains(.openType))
+        #expect(uintProgressionInfo.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(uintProgressionSymbol))
+        let sourceFileID = try #require(sema.symbols.sourceFileID(for: uintProgressionSymbol))
+        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/ranges/UIntProgression/Stdlib.kt")
+
+        let companionFQName = uintProgressionFQName + [interner.intern("Companion")]
+        #expect(sema.symbols.lookupAll(fqName: companionFQName).count == 1)
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: uintProgressionSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        #expect(!companionInfo.flags.contains(.synthetic))
+        #expect(companionInfo.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(companionSymbol))
+
+        // KSP-1312 migrates only the UIntProgression nominal and Companion.
+        for memberName in ["first", "last", "step"] {
+            let memberFQName = uintProgressionFQName + [interner.intern(memberName)]
+            let memberSymbols = sema.symbols.lookupAll(fqName: memberFQName)
+            #expect(
+                memberSymbols.contains { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true },
+                "UIntProgression.\(memberName) remains synthetic"
+            )
+        }
+    }
+
     @Test func testTypedRangeClassShellsAreSourceBacked() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)

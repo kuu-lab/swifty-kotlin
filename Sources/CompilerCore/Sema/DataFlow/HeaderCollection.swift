@@ -2073,6 +2073,8 @@ extension DataFlowSemaPhase {
             // KSP-1305: mirror the IntProgression staged source-shell treatment
             // for LongProgression's nominal and Companion.
             || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
+            // KSP-1312: source-back UIntProgression's nominal and Companion.
+            || resolvedFQName == ["kotlin", "ranges", "UIntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
