@@ -216,7 +216,7 @@ extension DataFlowSemaPhase {
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
-            stepType: types.intType,
+            stepType: types.longType,
             externalLinkName: "__kk_ulong_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,

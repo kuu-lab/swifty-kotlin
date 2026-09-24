@@ -106,7 +106,7 @@ internal class UIntProgressionIterator(first: UInt, last: UInt, private val step
     }
 }
 
-internal class ULongProgressionIterator(first: ULong, last: ULong, private val step: Int) : Iterator<ULong> {
+internal class ULongProgressionIterator(first: ULong, last: ULong, private val step: Long) : Iterator<ULong> {
     private val finalElement: ULong = last
     private var nextValue: ULong = first
     private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
@@ -126,4 +126,3 @@ internal class ULongProgressionIterator(first: ULong, last: ULong, private val s
 public operator fun UIntRange.iterator(): Iterator<UInt> = UIntProgressionIterator(this.first, this.last, this.step)
 public operator fun UIntProgression.iterator(): Iterator<UInt> = UIntProgressionIterator(this.first, this.last, this.step)
 public operator fun ULongRange.iterator(): Iterator<ULong> = ULongProgressionIterator(this.first, this.last, this.step)
-public operator fun ULongProgression.iterator(): Iterator<ULong> = ULongProgressionIterator(this.first, this.last, this.step)

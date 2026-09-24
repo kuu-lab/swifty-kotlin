@@ -2,6 +2,30 @@
 
 /// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {
+    /// ULongProgression instances are runtime range boxes, not Kotlin objects
+    /// with vtables. Keep source-backed Any overrides and iterator calls on
+    /// their runtime-aware ABI paths.
+    func runtimeBackedULongProgressionMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let (_, symbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(receiverType), sema: sema
+        ), symbol.fqName.map(interner.resolve) == ["kotlin", "ranges", "ULongProgression"]
+        else {
+            return nil
+        }
+        switch memberName {
+        case "equals": return interner.intern("kk_any_member_equals")
+        case "hashCode": return interner.intern("kk_any_member_hashCode")
+        case "toString": return interner.intern("kk_any_member_to_string")
+        case "iterator": return interner.intern("__kk_ulong_range_iterator")
+        default: return nil
+        }
+    }
+
     /// Returns true only for the source-backed HashSet declaration. Other set
     /// types may provide their own source implementation and must retain the
     /// resolved symbol for ABI return-type handling.

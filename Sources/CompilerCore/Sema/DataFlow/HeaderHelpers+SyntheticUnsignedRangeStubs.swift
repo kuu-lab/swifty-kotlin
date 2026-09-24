@@ -224,7 +224,7 @@ extension DataFlowSemaPhase {
         registerProgressionProperty(
             named: "step",
             ownerSymbol: classSymbol,
-            propertyType: types.intType,
+            propertyType: types.longType,
             externalLinkName: "kk_ulong_range_step",
             symbols: symbols,
             interner: interner
