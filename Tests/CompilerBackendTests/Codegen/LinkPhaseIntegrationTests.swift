@@ -6,6 +6,27 @@ import Testing
 @Suite(.serialized)
 struct LinkPhaseIntegrationTests {
     @Test
+    func testLinkPhaseDoesNotCollectObjectSymlinkOutsideLibrary() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libraryDir = baseDir.appendingPathExtension("kklib")
+        let objectsDir = libraryDir.appendingPathComponent("objects")
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: objectsDir, withIntermediateDirectories: true)
+        let outsideObject = baseDir.appendingPathComponent("external.o")
+        try Data().write(to: outsideObject)
+        try fm.createSymbolicLink(
+            at: objectsDir.appendingPathComponent("external.o"),
+            withDestinationURL: outsideObject
+        )
+        let manifest = #"{"formatVersion":1,"moduleName":"ExternalObject","objects":["objects/external.o"]}"#
+        try manifest.write(to: libraryDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let linkedObjects = LinkPhase().discoverLibraryObjects(searchPaths: [libraryDir.path])
+        #expect(linkedObjects.isEmpty)
+    }
+
+    @Test
     func testImportedObjectAndCompanionLazyInitializersRunThroughKklib() throws {
         let librarySource = """
         package extdemo

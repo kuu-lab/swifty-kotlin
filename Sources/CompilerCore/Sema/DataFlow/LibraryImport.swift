@@ -1558,15 +1558,26 @@ extension DataFlowSemaPhase {
         }
 
         let fileName = MetadataEncoder.inlineKIRFileName(for: record.mangledName)
-        let inlinePath = URL(fileURLWithPath: inlineDir)
+        let inlineDirURL = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
+        let inlinePathURL = inlineDirURL
             .appendingPathComponent(fileName)
-            .standardized
-            .path
-        let inlineDirResolved = URL(fileURLWithPath: inlineDir).standardized.path
-        guard inlinePath.hasPrefix(inlineDirResolved + "/") else {
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        let inlinePath = inlinePathURL.path
+        let inlineDirResolved = inlineDirURL.path
+        guard inlinePath.hasPrefix(inlineDirResolved.hasSuffix("/") ? inlineDirResolved : inlineDirResolved + "/") else {
             diagnostics.error(
                 "KSWIFTK-LIB-0019",
                 "Inline KIR path for '\(record.mangledName)' escapes inline directory",
+                range: nil
+            )
+            return
+        }
+        let inlineAttributes = try? FileManager.default.attributesOfItem(atPath: inlinePath)
+        guard inlineAttributes?[.type] as? FileAttributeType == .typeRegular else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0019",
+                "Inline KIR path for '\(record.mangledName)' is missing or is not a regular file",
                 range: nil
             )
             return
