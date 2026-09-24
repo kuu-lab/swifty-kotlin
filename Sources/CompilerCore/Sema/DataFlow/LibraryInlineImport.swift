@@ -280,6 +280,13 @@ extension DataFlowSemaPhase {
         return [instruction]
     }
 
+    private func parseImportedLabelID(_ raw: String?) -> Int32? {
+        guard let raw, let id = Int32(raw), id >= 0, id <= InlineLabelAllocator.maxSupportedLabel else {
+            return nil
+        }
+        return id
+    }
+
     private func parseImportedInlineInstruction(
         line _: String,
         pairs: [String: String],
@@ -297,15 +304,15 @@ extension DataFlowSemaPhase {
         case "endBlock":
             return .endBlock
         case "label":
-            guard let raw = pairs["id"], let id = Int32(raw) else { return nil }
+            guard let id = parseImportedLabelID(pairs["id"]) else { return nil }
             return .label(id)
         case "jump":
-            guard let raw = pairs["target"], let target = Int32(raw) else { return nil }
+            guard let target = parseImportedLabelID(pairs["target"]) else { return nil }
             return .jump(target)
         case "jumpIfEqual":
             guard let lhsRaw = pairs["lhs"], let lhs = Int32(lhsRaw),
                   let rhsRaw = pairs["rhs"], let rhs = Int32(rhsRaw),
-                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+                  let target = parseImportedLabelID(pairs["target"])
             else {
                 return nil
             }
@@ -375,7 +382,7 @@ extension DataFlowSemaPhase {
             )
         case "jumpIfNotNull":
             guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
-                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+                  let target = parseImportedLabelID(pairs["target"])
             else {
                 return nil
             }

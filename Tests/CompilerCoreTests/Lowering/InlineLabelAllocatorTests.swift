@@ -96,5 +96,33 @@ struct InlineLabelAllocatorTests {
         #expect(Set(defined).count == defined.count)
         #expect(Set(all).isSubset(of: Set(defined)))
     }
+
+    @Test
+    func testInitialisationWithInt32MaxDefinedLabelDetectsOverflowWithoutTrapping() {
+        var allocator = InlineLabelAllocator(callerBody: [KIRInstruction.label(Int32.max)])
+        #expect(allocator.hasOverflowed)
+        #expect(allocator.allocateScratchLabel() == Int32.max)
+        #expect(allocator.allocateCallerLabel() == Int32.max)
+    }
+
+    @Test
+    func testInitialisationWithInt32MaxReferencedLabelDetectsOverflowWithoutTrapping() {
+        var allocator = InlineLabelAllocator(callerBody: [KIRInstruction.jump(Int32.max)])
+        #expect(allocator.hasOverflowed)
+        #expect(allocator.allocateScratchLabel() == Int32.max)
+        #expect(allocator.allocateCallerLabel() == Int32.max)
+    }
+
+    @Test
+    func testInitialisationWithMaxSupportedLabelSucceedsWithoutOverflow() {
+        var allocator = InlineLabelAllocator(callerBody: [
+            .label(InlineLabelAllocator.maxSupportedLabel),
+            .jump(InlineLabelAllocator.maxSupportedLabel),
+        ])
+        #expect(!allocator.hasOverflowed)
+        #expect(allocator.allocateScratchLabel() == InlineLabelAllocator.maxSupportedLabel + 1)
+        #expect(allocator.allocateCallerLabel() == InlineLabelAllocator.maxSupportedLabel + 1)
+        #expect(!allocator.hasOverflowed)
+    }
 }
 #endif

@@ -228,6 +228,14 @@ final class InlineLoweringPass: LoweringPass {
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
+        if labels.hasOverflowed {
+            ctx.diagnostics.error(
+                "KSWIFTK-KIR-0003",
+                "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                range: function.sourceRange
+            )
+            return (callerBody, callerLocations, false)
+        }
 
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(callerBody.count)
@@ -311,6 +319,14 @@ final class InlineLoweringPass: LoweringPass {
                             let unitExpr = module.arena.appendExpr(.unit, type: nil)
                             loweredBody.append(.copy(from: unitExpr, to: result))
                         }
+                    }
+                    if labels.hasOverflowed {
+                        ctx.diagnostics.error(
+                            "KSWIFTK-KIR-0003",
+                            "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                            range: function.sourceRange
+                        )
+                        return (callerBody, callerLocations, false)
                     }
                     continue
                 }
@@ -498,6 +514,23 @@ final class InlineLoweringPass: LoweringPass {
                     loweredBody.append(.copy(from: unitExpr, to: result))
                 }
             }
+            if labels.hasOverflowed {
+                ctx.diagnostics.error(
+                    "KSWIFTK-KIR-0003",
+                    "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                    range: function.sourceRange
+                )
+                return (callerBody, callerLocations, false)
+            }
+        }
+
+        if labels.hasOverflowed {
+            ctx.diagnostics.error(
+                "KSWIFTK-KIR-0003",
+                "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                range: function.sourceRange
+            )
+            return (callerBody, callerLocations, false)
         }
 
         return (loweredBody.instructions, loweredBody.instructionLocations, didExpand)
