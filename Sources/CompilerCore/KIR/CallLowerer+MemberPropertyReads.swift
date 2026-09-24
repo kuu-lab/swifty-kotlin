@@ -73,6 +73,9 @@ extension CallLowerer {
         if info.flags.contains(.constValue),
            let constant = sema.symbols.constValueExprKind(for: valueSym)
         {
+            // A `const val` is a compile-time constant inlined at the use
+            // site -- Kotlin never runs clinit for reading one, so this
+            // deliberately returns before the BUG-274 lazy-init guard below.
             let propType = sema.bindings.exprTypes[exprID]
                 ?? sema.symbols.propertyType(for: valueSym)
                 ?? sema.types.anyType
@@ -80,6 +83,14 @@ extension CallLowerer {
             instructions.append(.constValue(result: id, value: constant))
             return id
         }
+        // BUG-274: reading any other object-member property is a real
+        // access to the object's state, so it must trigger the object's
+        // lazy clinit-equivalent first. Imported-library objects restore the
+        // guard through metadata; compiler pseudo-objects such as
+        // `Dispatchers`/`Charsets` below remain no-ops.
+        driver.emitObjectLazyInitGuardIfNeeded(
+            objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
+        )
         let knownNames = KnownCompilerNames(interner: interner)
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.dispatchers
@@ -280,8 +291,44 @@ extension CallLowerer {
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
                   ?? sema.bindings.callBindings[exprID]?.chosenCallee,
-              sema.symbols.symbol(propertySymbol)?.kind == .property,
-              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(propertySymbol)?.kind == .property
+        else {
+            return nil
+        }
+        let readResultType = sema.bindings.exprTypes[exprID]
+            ?? sema.symbols.propertyType(for: propertySymbol)
+            ?? sema.types.anyType
+        return lowerStoredMemberPropertyReadValue(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            resultType: readResultType,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Property-read core shared by `tryLowerStoredMemberPropertyRead` (which
+    /// derives the symbol and result type from a zero-argument member-access
+    /// expression) and the callable-property invocation path in
+    /// `lowerMemberCallExpr`, which reads `receiver.prop` to obtain the
+    /// function value before invoking it (KUU-482/BUG-250). The caller
+    /// supplies the property symbol and the desired result type explicitly.
+    func lowerStoredMemberPropertyReadValue(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID,
+        resultType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .class || ownerInfo.kind == .interface
                   || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
@@ -337,10 +384,6 @@ extension CallLowerer {
         {
             return nil
         }
-
-        let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.symbols.propertyType(for: propertySymbol)
-            ?? sema.types.anyType
 
         // Runtime-backed Set instances are opaque set boxes. Their
         // source-backed `size` getter must use the set bridge directly; an
@@ -890,11 +933,10 @@ extension CallLowerer {
     /// implicit path used to always take the field load).
     ///
     /// The `getter.body != .unit` test matches that emitter's own condition
-    /// exactly. Delegated properties are included even though the emitter skips
-    /// them: object-literal property delegation is unimplemented end to end
-    /// (the delegate expression is never stored either), and failing loudly at
-    /// link time is preferable to silently reading an unwritten slot. See the
-    /// KSP-CAP-018 ledger entry.
+    /// exactly. Delegated properties are included because the same emitter
+    /// synthesizes their getValue/setValue-forwarding accessors via
+    /// `MemberLowerer.lowerDelegateAccessor` (BUG-267) — keeping them in this
+    /// predicate is what makes explicit and implicit reads agree.
     func objectLiteralPropertyUsesAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,
@@ -1038,6 +1080,23 @@ extension CallLowerer {
             // `.call` using the qualifier's bare short name expecting a 0-arg
             // instance accessor that was never synthesized, leaving an
             // undefined symbol at link time.
+            //
+            // BUG-274: when the qualifier resolves to a real `object` (e.g.
+            // the `N` in `Outer.N.v`), this is the *only* place its bare
+            // value is ever materialized for an external, further-qualified
+            // access -- neither `tryLowerObjectMemberPropertyRead` nor
+            // `ExprLowerer`'s bare-object-reference fallback ever runs for a
+            // receiver this deep in a qualifier chain, since this whole
+            // function only exists because Sema left no ordinary expression
+            // binding for it. Without the guard here, a nested named
+            // object's superclass constructor (and its own property
+            // initializers) never ran, silently keeping every inherited
+            // property at its zeroed default.
+            if valueSymbol.kind == .object {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
+                )
+            }
             let valueType = sema.bindings.exprTypes[exprID] ?? sema.types.make(.classType(ClassType(
                 classSymbol: valueSymbolID,
                 args: [],

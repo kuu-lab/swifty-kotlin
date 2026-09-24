@@ -18,9 +18,10 @@ extension CallLowerer {
             return nil
         }
 
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let callee = ast.arena.expr(calleeExpr),
               case let .nameRef(name, _) = callee,
-              interner.resolve(name) == "typeOf"
+              name == knownNames.typeOf
         else {
             return nil
         }

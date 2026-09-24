@@ -18,17 +18,30 @@ enum KIRLabelRelocation {
         of instructions: [KIRInstruction],
         toAvoidCollisionsWith existing: some Sequence<KIRInstruction>
     ) -> [KIRInstruction] {
+        relocatingLabels(of: instructions, existingMaxLabelID: maxLabelID(in: existing))
+    }
+
+    /// Same relocation as ``relocatingLabels(of:toAvoidCollisionsWith:)``,
+    /// but takes the highest label ID the destination stream already uses
+    /// (`nil` when it carries none). Callers that accumulate a stream
+    /// incrementally — `KIRLoweringEmitContext` tracks ``maxLabelID`` — pass
+    /// the tracked value here so each append costs O(instructions) instead
+    /// of rescanning the whole accumulated buffer.
+    static func relocatingLabels(
+        of instructions: [KIRInstruction],
+        existingMaxLabelID: Int32?
+    ) -> [KIRInstruction] {
         var labelIDs: Set<Int32> = []
         for instruction in instructions {
             labelIDs.formUnion(Self.labelIDs(of: instruction))
         }
         guard let lowestLabelID = labelIDs.min(),
-              let highestExistingLabelID = maxLabelID(in: existing),
-              lowestLabelID <= highestExistingLabelID
+              let existingMaxLabelID,
+              lowestLabelID <= existingMaxLabelID
         else { return instructions }
 
         var mapping: [Int32: Int32] = [:]
-        var nextLabelID = highestExistingLabelID + 1
+        var nextLabelID = existingMaxLabelID + 1
         for labelID in labelIDs.sorted() {
             mapping[labelID] = nextLabelID
             nextLabelID += 1
@@ -36,7 +49,7 @@ enum KIRLabelRelocation {
         return instructions.map { rewriteLabels(of: $0, mapping: mapping) }
     }
 
-    private static func maxLabelID(in instructions: some Sequence<KIRInstruction>) -> Int32? {
+    static func maxLabelID(in instructions: some Sequence<KIRInstruction>) -> Int32? {
         var highest: Int32?
         for instruction in instructions {
             for labelID in labelIDs(of: instruction) where labelID > (highest ?? Int32.min) {
@@ -91,7 +104,7 @@ extension KIRLoweringEmitContext {
     mutating func appendRelocatingLabels(contentsOf other: KIRLoweringEmitContext) {
         append(contentsOf: KIRLabelRelocation.relocatingLabels(
             of: other.instructions,
-            toAvoidCollisionsWith: instructions
+            existingMaxLabelID: maxLabelID
         ))
     }
 }

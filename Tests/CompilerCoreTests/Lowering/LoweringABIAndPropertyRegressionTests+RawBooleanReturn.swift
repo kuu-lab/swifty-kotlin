@@ -61,8 +61,8 @@ extension LoweringABIAndPropertyRegressionTests {
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
         #expect(
-            !callees.contains("kk_unbox_bool"),
-            "Expected no kk_unbox_bool for raw-Boolean callee __kk_set_contains, got: \(callees)"
+            !callees.contains("kk_unbox_bool") && !callees.contains("kk_unbox_bool_static"),
+            "Expected no Boolean unbox for raw-Boolean callee __kk_set_contains, got: \(callees)"
         )
     }
 
@@ -121,8 +121,8 @@ extension LoweringABIAndPropertyRegressionTests {
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
         #expect(
-            callees.contains("kk_unbox_bool"),
-            "Expected kk_unbox_bool for Boolean-returning callee outside the raw-Boolean spec set, got: \(callees)"
+            callees.contains("kk_unbox_bool_static"),
+            "Expected kk_unbox_bool_static for Boolean-returning callee outside the raw-Boolean spec set, got: \(callees)"
         )
     }
 }

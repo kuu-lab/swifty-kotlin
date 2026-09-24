@@ -11,6 +11,7 @@
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
+| `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
@@ -221,6 +222,15 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+Pass additional arguments to each candidate `kswiftc` invocation with
+`DIFF_KSWIFTC_FLAGS`. The per-shard stdlib artifact remains at the default
+optimization level, while the case under test receives these flags; CI uses
+this to keep the baseline and optimized lanes separate:
+
+```bash
+DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:
@@ -351,3 +361,19 @@ bash Scripts/dead_code_audit.sh --verbose
 The `Quarterly Audits` workflow runs this audit with the fiction audit on the
 first day of January, April, July, and October. Its summary and the intermediate
 audit files are retained as a 90-day GitHub Actions artifact.
+
+## Ktor build probe
+
+`ktor_build.sh` sparse-clones pinned snapshots of Ktor's core `common` source
+sets (`ktor-io`, `ktor-utils`, `ktor-http`) and their kotlinx-io dependency
+into a cache dir outside the repo, compiles each with `kswiftc --emit
+library`, and writes a per-module TSV of diagnostic-code counts (see
+`docs/ktor-build-status.md` for the current gap inventory). It is a
+diagnostic probe, not a CI-wired regression test — a module failing to
+compile is expected until the remaining gaps close.
+
+```bash
+bash Scripts/ktor_build.sh                  # fetch + compile all modules
+bash Scripts/ktor_build.sh --no-fetch        # reuse an existing checkout
+bash Scripts/ktor_build.sh --module ktor_io  # compile a single module
+```

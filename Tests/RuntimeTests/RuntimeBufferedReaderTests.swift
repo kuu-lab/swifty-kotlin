@@ -5,9 +5,11 @@ import Testing
 
 // MARK: - STDLIB-IO-FN-040 lambda thunks for useLines
 //
-// Block receives the materialised lines as a boxed Int (RuntimeListBox raw pointer).
-// We unbox the list, read its size, and box the count back as an Int — matching the
-// collection HOF lambda ABI consumed by `runtimeInvokeCollectionLambda1`.
+// Block receives the remaining lines as a boxed Int — a `RuntimeSequenceBox`
+// raw pointer whose pull-source drains the reader lazily. We materialise it
+// through the sequence source path, read its size, and box the count back as
+// an Int — matching the collection HOF lambda ABI consumed by
+// `runtimeInvokeCollectionLambda1`.
 
 // MARK: - STDLIB-IO-FN-017 lambda thunks for forEachLine
 //
@@ -32,12 +34,10 @@ private let forEachLineAlwaysThrows: @convention(c) (Int, Int, UnsafeMutablePoin
 
 private let useLinesCountsLines: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
     outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
-          let list = tryCast(ptr, to: RuntimeListBox.self)
-    else {
+    guard let elements = runtimeSequenceSourceElements(from: value) else {
         return kk_box_int(-1)
     }
-    return kk_box_int(list.elements.count)
+    return kk_box_int(elements.count)
 }
 
 private let useLinesAlwaysThrows: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
@@ -93,7 +93,7 @@ struct RuntimeBufferedReaderTests {
 
         let iterRaw = __kk_buffered_reader_iterator(readerRaw)
         #expect(iterRaw != 0)
-        #expect(runtimeListIteratorBox(from: iterRaw) != nil)
+        #expect(runtimeBufferedLineIteratorBox(from: iterRaw) != nil)
 
         #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
         #expect(readString(kk_iterator_next(iterRaw, nil)) == "alpha")

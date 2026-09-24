@@ -12,5 +12,5 @@ fun arrayOfStrings() {
 
 fun arrayOfMixed() {
     val mixed = arrayOf(1, "two", 3.0)
-    val checked: Array<Any> = mixed
+    val checked: Array<Comparable<*>> = mixed
 }
