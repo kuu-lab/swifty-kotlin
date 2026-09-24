@@ -1160,6 +1160,15 @@ extension CallTypeChecker {
                 guard memberName == "toString" || memberName == "replace" else {
                     return []
                 }
+                if memberName == "toString" {
+                    guard !args.isEmpty else { return [] }
+                } else {
+                    guard args.count == 2,
+                          ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
+                    else {
+                        return []
+                    }
+                }
                 let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
                 return sema.symbols.lookupByShortName(calleeName).filter { candidate in
                     guard sema.symbols.isSourceBackedSymbol(candidate),
@@ -1179,7 +1188,7 @@ extension CallTypeChecker {
                         return false
                     }
                     if memberName == "toString" {
-                        return !args.isEmpty
+                        return true
                     }
 
                     // String has a legacy member-shaped `replace(Regex, String)`
