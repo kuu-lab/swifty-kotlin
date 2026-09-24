@@ -53,5 +53,21 @@ public class KTypeProjection {
         }
     }
 
-    public companion object {}
+    public companion object {
+        // provided for compiler access
+        @PublishedApi
+        internal val star: KTypeProjection = KTypeProjection(null, null)
+
+        public val STAR: KTypeProjection
+            get() = star
+
+        public fun invariant(type: KType): KTypeProjection =
+            KTypeProjection(KVariance.INVARIANT, type)
+
+        public fun contravariant(type: KType): KTypeProjection =
+            KTypeProjection(KVariance.IN, type)
+
+        public fun covariant(type: KType): KTypeProjection =
+            KTypeProjection(KVariance.OUT, type)
+    }
 }
