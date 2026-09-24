@@ -975,12 +975,24 @@ final class CallTypeChecker {
            calleeName == knownNames.typeOf,
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
-            // Resolve the KType return type from the stub.
+            // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
+            // intrinsic owner. A same-named non-synthetic user declaration
+            // still shadows the special-call path, but the bundled intrinsic
+            // itself no longer counts as shadowing.
+            let hasNonSyntheticUserCandidate = ctx.cachedScopeLookup(calleeName).contains { candidate in
+                guard let sym = ctx.cachedSymbol(candidate),
+                      !sym.flags.contains(.synthetic)
+                else { return false }
+                return sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == nil
+            }
             let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-            if let stubSymbol = candidates.first(where: { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-                return signature.reifiedTypeParameterIndices.contains(0)
-            }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
+            if !hasNonSyntheticUserCandidate,
+               let stubSymbol = candidates.first(where: { candidate in
+                   sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == .typeOf
+               }) ?? candidates.first(where: { candidate in
+                   guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                   return signature.reifiedTypeParameterIndices.contains(0)
+               }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
                 let typeArg = explicitTypeArgs.first ?? sema.types.anyType
                 sema.bindings.bindCall(
                     id,

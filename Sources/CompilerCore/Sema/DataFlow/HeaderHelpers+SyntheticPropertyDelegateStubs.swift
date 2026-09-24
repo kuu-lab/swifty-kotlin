@@ -37,7 +37,7 @@ extension DataFlowSemaPhase {
         // STDLIB-REFLECT-066: Register kotlin.reflect.KType and typeOf<T>() stubs
         registerSyntheticKTypeStubs(
             symbols: symbols, types: types, interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg, kotlinPkg: kotlinPkg
+            kotlinReflectPkg: kotlinReflectPkg, bundledIndex: bundledIndex
         )
         registerSyntheticKParameterStub(
             symbols: symbols,
@@ -1084,7 +1084,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinReflectPkg: [InternedString],
-        kotlinPkg: [InternedString]
+        bundledIndex: BundledDeclarationIndex
     ) {
         let kTypeSymbol = ensureInterfaceSymbol(
             named: "KType", in: kotlinReflectPkg, symbols: symbols, interner: interner
@@ -1117,39 +1117,14 @@ extension DataFlowSemaPhase {
             kotlinReflectPkg: kotlinReflectPkg
         )
 
+        // KSP-1323: kotlin.reflect.typeOf<T>() is bundled Kotlin source
+        // (Stdlib/kotlin/reflect/Stdlib.kt); the `kotlin.typeOf` alias is not
+        // part of the official surface, so only the reflect FQName keeps a
+        // synthetic fallback for compilations without the bundled stdlib.
         let typeOfName = interner.intern("typeOf")
-        let typeOfFQName = kotlinPkg + [typeOfName]
-        if symbols.lookupAll(fqName: typeOfFQName).isEmpty {
-            let tParamName = interner.intern("T")
-            let tParamFQName = typeOfFQName + [tParamName]
-            let tParamSymbol = symbols.define(
-                kind: .typeParameter, name: tParamName, fqName: tParamFQName,
-                declSite: nil, visibility: .private, flags: [.reifiedTypeParameter]
-            )
-
-            let funcSymbol = symbols.define(
-                kind: .function, name: typeOfName, fqName: typeOfFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic, .inlineFunction]
-            )
-            if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
-                symbols.setParentSymbol(pkg, for: funcSymbol)
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    parameterTypes: [],
-                    returnType: kTypeType,
-                    isSuspend: false,
-                    typeParameterSymbols: [tParamSymbol],
-                    reifiedTypeParameterIndices: [0],
-                    typeParameterUpperBoundsList: [[]],
-                    classTypeParameterCount: 0
-                ),
-                for: funcSymbol
-            )
-        }
-
         let typeOfReflectFQName = kotlinReflectPkg + [typeOfName]
-        if symbols.lookupAll(fqName: typeOfReflectFQName).isEmpty {
+        if !bundledIndex.contains(ownerFQName: kotlinReflectPkg, name: typeOfName, arity: 0),
+           symbols.lookupAll(fqName: typeOfReflectFQName).isEmpty {
             let tParamName2 = interner.intern("T")
             let tParamFQName2 = typeOfReflectFQName + [tParamName2]
             let tParamSymbol2 = symbols.define(
@@ -1358,7 +1333,8 @@ extension DataFlowSemaPhase {
         let annotationFQName = symbols.symbol(symbol)?.fqName
             ?? (kotlinReflectPkg + [interner.intern("AssociatedObjectKey")])
         let constructorFQName = annotationFQName + [constructorName]
-        if symbols.lookupAll(fqName: constructorFQName).isEmpty {
+        if symbols.lookupAll(fqName: constructorFQName).isEmpty,
+           !symbols.isSourceBackedSymbol(symbol) {
             let constructor = symbols.define(
                 kind: .constructor,
                 name: constructorName,

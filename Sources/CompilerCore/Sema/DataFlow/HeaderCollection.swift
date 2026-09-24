@@ -1027,6 +1027,54 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1323: forward-declares the source-backed kotlin.reflect nominal
+    /// types (AssociatedObjectKey and the marker interfaces) before the
+    /// reflection synthetic stubs attach their residual members. Annotation
+    /// classes cannot claim synthetic shells, so AssociatedObjectKey must be
+    /// predeclared; the interfaces take the same path for a single owner.
+    func predeclareBundledReflectTopLevelHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("reflect")]
+        let targetNames: Set<InternedString> = [
+            interner.intern("AssociatedObjectKey"),
+            interner.intern("KAnnotatedElement"),
+            interner.intern("KClassifier"),
+            interner.intern("KDeclarationContainer"),
+            interner.intern("KFunction"),
+            interner.intern("KMutableProperty"),
+            interner.intern("KProperty"),
+            interner.intern("KTypeParameter"),
+        ]
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    guard let name = topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name
+                    else { return false }
+                    return targetNames.contains(name)
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1264: forward-declares the source-backed Native GCInfo class
     /// before synthetic runtime properties are registered against its owner.
     func predeclareBundledGCInfoHeaders(

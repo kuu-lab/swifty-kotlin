@@ -1,0 +1,118 @@
+symbol fq=__local_0.property[kind=local] kind=local vis=private flags=_ type=kotlin.reflect.KProperty<*>
+symbol fq=__local_1.mutableProperty[kind=local] kind=local vis=private flags=_ type=kotlin.reflect.KMutableProperty<*>
+symbol fq=__local_2.function[kind=local] kind=local vis=private flags=_ type=kotlin.reflect.KFunction<*>
+symbol fq=__local_3.type[kind=local] kind=local vis=private flags=_ type=kotlin.reflect.KType
+symbol fq=golden.sema.AssociatedKey[kind=anno] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.Sample.label[kind=prop] kind=property vis=public flags=mutable type=String
+symbol fq=golden.sema.Sample.value[kind=prop] kind=property vis=public flags=_ type=Int
+symbol fq=golden.sema.Sample[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.acceptAnnotatedElement.$0.element[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptAnnotatedElement[kind=fun;params=kotlin.reflect.KAnnotatedElement] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KAnnotatedElement] ret=kotlin.reflect.KAnnotatedElement
+symbol fq=golden.sema.acceptClass.$1.klass[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptClass[kind=fun;params=kotlin.reflect.KClass<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KClass<*>] ret=kotlin.reflect.KClass<*>
+symbol fq=golden.sema.acceptClassifier.$2.classifier[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptClassifier[kind=fun;params=kotlin.reflect.KClassifier] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KClassifier] ret=kotlin.reflect.KClassifier
+symbol fq=golden.sema.acceptContainer.$3.container[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptContainer[kind=fun;params=kotlin.reflect.KDeclarationContainer] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KDeclarationContainer] ret=kotlin.reflect.KDeclarationContainer
+symbol fq=golden.sema.acceptProjection.$4.projection[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptProjection[kind=fun;params=kotlin.reflect.KTypeProjection] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeProjection] ret=kotlin.reflect.KType?
+symbol fq=golden.sema.acceptType.$5.type[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptTypeParameter.$6.parameter[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptTypeParameter[kind=fun;params=kotlin.reflect.KTypeParameter] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeParameter] ret=kotlin.reflect.KTypeParameter
+symbol fq=golden.sema.acceptType[kind=fun;params=kotlin.reflect.KType] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KType] ret=kotlin.reflect.KClassifier?
+symbol fq=golden.sema.acceptVariance.$7.variance[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptVariance[kind=fun;params=kotlin.reflect.KVariance] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KVariance] ret=kotlin.reflect.KVariance
+symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.readCallable.$8.callable[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readCallable[kind=fun;params=kotlin.reflect.KCallable<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KCallable<*>] ret=String
+symbol fq=golden.sema.readFunction.$9.function[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readFunction[kind=fun;params=kotlin.reflect.KFunction<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KFunction<*>] ret=kotlin.reflect.KType
+symbol fq=golden.sema.readMutableProperty.$10.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readMutableProperty[kind=fun;params=kotlin.reflect.KMutableProperty<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty<*>] ret=String
+symbol fq=golden.sema.readProperty.$11.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readProperty[kind=fun;params=kotlin.reflect.KProperty<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KProperty<*>] ret=String
+file fstdlib_kotlin_reflect_n_n package=golden.sema
+  decl golden.sema.Sample[kind=class] class Sample sym=golden.sema.Sample[kind=class]
+  decl golden.sema.readCallable[kind=fun;params=kotlin.reflect.KCallable<*>] fun readCallable sym=golden.sema.readCallable[kind=fun;params=kotlin.reflect.KCallable<*>]
+  decl golden.sema.readFunction[kind=fun;params=kotlin.reflect.KFunction<*>] fun readFunction sym=golden.sema.readFunction[kind=fun;params=kotlin.reflect.KFunction<*>]
+  decl golden.sema.readProperty[kind=fun;params=kotlin.reflect.KProperty<*>] fun readProperty sym=golden.sema.readProperty[kind=fun;params=kotlin.reflect.KProperty<*>]
+  decl golden.sema.readMutableProperty[kind=fun;params=kotlin.reflect.KMutableProperty<*>] fun readMutableProperty sym=golden.sema.readMutableProperty[kind=fun;params=kotlin.reflect.KMutableProperty<*>]
+  decl golden.sema.acceptAnnotatedElement[kind=fun;params=kotlin.reflect.KAnnotatedElement] fun acceptAnnotatedElement sym=golden.sema.acceptAnnotatedElement[kind=fun;params=kotlin.reflect.KAnnotatedElement]
+  decl golden.sema.acceptClassifier[kind=fun;params=kotlin.reflect.KClassifier] fun acceptClassifier sym=golden.sema.acceptClassifier[kind=fun;params=kotlin.reflect.KClassifier]
+  decl golden.sema.acceptContainer[kind=fun;params=kotlin.reflect.KDeclarationContainer] fun acceptContainer sym=golden.sema.acceptContainer[kind=fun;params=kotlin.reflect.KDeclarationContainer]
+  decl golden.sema.acceptClass[kind=fun;params=kotlin.reflect.KClass<*>] fun acceptClass sym=golden.sema.acceptClass[kind=fun;params=kotlin.reflect.KClass<*>]
+  decl golden.sema.acceptTypeParameter[kind=fun;params=kotlin.reflect.KTypeParameter] fun acceptTypeParameter sym=golden.sema.acceptTypeParameter[kind=fun;params=kotlin.reflect.KTypeParameter]
+  decl golden.sema.acceptType[kind=fun;params=kotlin.reflect.KType] fun acceptType sym=golden.sema.acceptType[kind=fun;params=kotlin.reflect.KType]
+  decl golden.sema.acceptProjection[kind=fun;params=kotlin.reflect.KTypeProjection] fun acceptProjection sym=golden.sema.acceptProjection[kind=fun;params=kotlin.reflect.KTypeProjection]
+  decl golden.sema.acceptVariance[kind=fun;params=kotlin.reflect.KVariance] fun acceptVariance sym=golden.sema.acceptVariance[kind=fun;params=kotlin.reflect.KVariance]
+  decl golden.sema.AssociatedKey[kind=anno] class AssociatedKey sym=golden.sema.AssociatedKey[kind=anno]
+  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
+expr e@21:52 name(callable) type=kotlin.reflect.KCallable<*> ref=golden.sema.readCallable.$8.callable[kind=vparam]
+expr e@21:52#1 memberCall recv=e@21:52 callee=name args=[] type=String ref=kotlin.reflect.KCallable.name[kind=prop]
+expr e@23:51 name(function) type=kotlin.reflect.KFunction<*> ref=golden.sema.readFunction.$9.function[kind=vparam]
+expr e@23:51#1 memberCall recv=e@23:51 callee=returnType args=[] type=kotlin.reflect.KType ref=kotlin.reflect.KCallable.returnType[kind=prop]
+expr e@25:52 name(property) type=kotlin.reflect.KProperty<*> ref=golden.sema.readProperty.$11.property[kind=vparam]
+expr e@25:52#1 memberCall recv=e@25:52 callee=name args=[] type=String ref=kotlin.reflect.KProperty.name[kind=prop]
+expr e@27:66 name(property) type=kotlin.reflect.KMutableProperty<*> ref=golden.sema.readMutableProperty.$10.property[kind=vparam]
+expr e@27:66#1 memberCall recv=e@27:66 callee=name args=[] type=String ref=kotlin.reflect.KProperty.name[kind=prop]
+expr e@29:77 name(element) type=kotlin.reflect.KAnnotatedElement ref=golden.sema.acceptAnnotatedElement.$0.element[kind=vparam]
+expr e@31:62 name(classifier) type=kotlin.reflect.KClassifier ref=golden.sema.acceptClassifier.$2.classifier[kind=vparam]
+expr e@33:80 name(container) type=kotlin.reflect.KDeclarationContainer ref=golden.sema.acceptContainer.$3.container[kind=vparam]
+expr e@35:48 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.acceptClass.$1.klass[kind=vparam]
+expr e@37:70 name(parameter) type=kotlin.reflect.KTypeParameter ref=golden.sema.acceptTypeParameter.$6.parameter[kind=vparam]
+expr e@39:45 name(type) type=kotlin.reflect.KType ref=golden.sema.acceptType.$5.type[kind=vparam]
+expr e@39:45#1 memberCall recv=e@39:45 callee=classifier args=[] type=kotlin.reflect.KClassifier? ref=kotlin.reflect.KType.classifier[kind=prop]
+expr e@41:61 name(projection) type=kotlin.reflect.KTypeProjection ref=golden.sema.acceptProjection.$4.projection[kind=vparam]
+expr e@41:61#1 memberCall recv=e@41:61 callee=type args=[] type=kotlin.reflect.KType? ref=kotlin.reflect.KTypeProjection.type[kind=prop]
+expr e@43:54 name(variance) type=kotlin.reflect.KVariance ref=golden.sema.acceptVariance.$7.variance[kind=vparam]
+expr e@50:34 name(Sample) type=Any ref=golden.sema.Sample[kind=class]
+expr e@50:34#1 callableRef recv=e@50:34 member=value type=kotlin.reflect.KProperty1<golden.sema.Sample, Int> ref=golden.sema.Sample.value[kind=prop]
+expr e@50:5 localDecl property mutable=0 type=KProperty<*> init=e@50:34#1 type=Unit ref=__local_0.property[kind=local]
+expr e@51:48 name(Sample) type=Any ref=golden.sema.Sample[kind=class]
+expr e@51:48#1 callableRef recv=e@51:48 member=label type=kotlin.reflect.KMutableProperty1<golden.sema.Sample, String> ref=golden.sema.Sample.label[kind=prop]
+expr e@51:5 localDecl mutableProperty mutable=0 type=KMutableProperty<*> init=e@51:48#1 type=Unit ref=__local_1.mutableProperty[kind=local]
+expr e@52:34 callableRef recv=_ member=readCallable type=(kotlin.reflect.KCallable<*>) -> String ref=golden.sema.readCallable[kind=fun;params=kotlin.reflect.KCallable<*>]
+expr e@52:5 localDecl function mutable=0 type=KFunction<*> init=e@52:34 type=Unit ref=__local_2.function[kind=local]
+expr e@53:16 call callee=e@53:16#1 args=[] type=kotlin.reflect.KType call=kotlin.reflect.typeOf[kind=fun;params=;gen=1] targs=[kotlin.collections.Map<String, kotlin.reflect.KMutableProperty<*>>]
+expr e@53:5 localDecl type mutable=0 type=_ init=e@53:16 type=Unit ref=__local_3.type[kind=local]
+expr e@54:26 name(property) type=kotlin.reflect.KProperty<*> ref=__local_0.property[kind=local]
+expr e@54:13 call callee=e@54:13#1 args=[_:e@54:26] type=String call=golden.sema.readCallable[kind=fun;params=kotlin.reflect.KCallable<*>]
+expr e@54:5 call callee=e@54:5#1 args=[_:e@54:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@55:26 name(function) type=kotlin.reflect.KFunction<*> ref=__local_2.function[kind=local]
+expr e@55:13 call callee=e@55:13#1 args=[_:e@55:26] type=kotlin.reflect.KType call=golden.sema.readFunction[kind=fun;params=kotlin.reflect.KFunction<*>]
+expr e@55:5 call callee=e@55:5#1 args=[_:e@55:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@56:33 name(mutableProperty) type=kotlin.reflect.KMutableProperty<*> ref=__local_1.mutableProperty[kind=local]
+expr e@56:13 call callee=e@56:13#1 args=[_:e@56:33] type=String call=golden.sema.readMutableProperty[kind=fun;params=kotlin.reflect.KMutableProperty<*>]
+expr e@56:5 call callee=e@56:5#1 args=[_:e@56:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@57:36 name(property) type=kotlin.reflect.KProperty<*> ref=__local_0.property[kind=local]
+expr e@57:13 call callee=e@57:13#1 args=[_:e@57:36] type=kotlin.reflect.KAnnotatedElement call=golden.sema.acceptAnnotatedElement[kind=fun;params=kotlin.reflect.KAnnotatedElement]
+expr e@57:5 call callee=e@57:5#1 args=[_:e@57:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@58:30 name(Sample) type=Any ref=golden.sema.Sample[kind=class]
+expr e@58:30#1 callableRef recv=e@58:30 member=class type=KClass<golden.sema.Sample>
+expr e@58:13 call callee=e@58:13#1 args=[_:e@58:30#1] type=kotlin.reflect.KClassifier call=golden.sema.acceptClassifier[kind=fun;params=kotlin.reflect.KClassifier]
+expr e@58:5 call callee=e@58:5#1 args=[_:e@58:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@59:29 name(Sample) type=Any ref=golden.sema.Sample[kind=class]
+expr e@59:29#1 callableRef recv=e@59:29 member=class type=KClass<golden.sema.Sample>
+expr e@59:13 call callee=e@59:13#1 args=[_:e@59:29#1] type=kotlin.reflect.KDeclarationContainer call=golden.sema.acceptContainer[kind=fun;params=kotlin.reflect.KDeclarationContainer]
+expr e@59:5 call callee=e@59:5#1 args=[_:e@59:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@60:25 name(Sample) type=Any ref=golden.sema.Sample[kind=class]
+expr e@60:25#1 callableRef recv=e@60:25 member=class type=KClass<golden.sema.Sample>
+expr e@60:13 call callee=e@60:13#1 args=[_:e@60:25#1] type=kotlin.reflect.KClass<*> call=golden.sema.acceptClass[kind=fun;params=kotlin.reflect.KClass<*>]
+expr e@60:5 call callee=e@60:5#1 args=[_:e@60:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@61:24 name(type) type=kotlin.reflect.KType ref=__local_3.type[kind=local]
+expr e@61:13 call callee=e@61:13#1 args=[_:e@61:24] type=kotlin.reflect.KClassifier? call=golden.sema.acceptType[kind=fun;params=kotlin.reflect.KType]
+expr e@61:5 call callee=e@61:5#1 args=[_:e@61:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@62:46 name(KVariance) type=kotlin.reflect.KVariance ref=kotlin.reflect.KVariance[kind=enum]
+expr e@62:46#1 memberCall recv=e@62:46 callee=OUT args=[] type=kotlin.reflect.KVariance ref=kotlin.reflect.KVariance.OUT[kind=field]
+expr e@62:61 name(type) type=kotlin.reflect.KType ref=__local_3.type[kind=local]
+expr e@62:30 call callee=e@62:30#1 args=[_:e@62:46#1,_:e@62:61] type=kotlin.reflect.KTypeProjection call=kotlin.reflect.KTypeProjection.<init>[kind=ctor;recv=kotlin.reflect.KTypeProjection;params=kotlin.reflect.KVariance?,kotlin.reflect.KType?]
+expr e@62:13 call callee=e@62:13#1 args=[_:e@62:30] type=kotlin.reflect.KType? call=golden.sema.acceptProjection[kind=fun;params=kotlin.reflect.KTypeProjection]
+expr e@62:5 call callee=e@62:5#1 args=[_:e@62:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@63:28 name(KVariance) type=kotlin.reflect.KVariance ref=kotlin.reflect.KVariance[kind=enum]
+expr e@63:28#1 memberCall recv=e@63:28 callee=IN args=[] type=kotlin.reflect.KVariance ref=kotlin.reflect.KVariance.IN[kind=field]
+expr e@63:13 call callee=e@63:13#1 args=[_:e@63:28#1] type=kotlin.reflect.KVariance call=golden.sema.acceptVariance[kind=fun;params=kotlin.reflect.KVariance]
+expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@64:13 name(type) type=kotlin.reflect.KType ref=__local_3.type[kind=local]
+expr e@64:13#1 memberCall recv=e@64:13 callee=arguments args=[] type=kotlin.collections.List<out kotlin.reflect.KTypeProjection> ref=kotlin.reflect.KType.arguments[kind=prop]
+expr e@64:13#2 memberCall recv=e@64:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@64:5 call callee=e@64:5#1 args=[_:e@64:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
