@@ -3811,7 +3811,8 @@
     - `kotlin.text.HexFormat.Companion` — object kotlin.text.HexFormat.Companion  -- `final object Companion {`
     - `kotlin.text.HexFormat.NumberHexFormat` — class kotlin.text.HexFormat.NumberHexFormat  -- `final class NumberHexFormat {`
 
-- [~] KSP-1420: kotlin.text.HexFormat.HexFormat の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1420: kotlin.text.HexFormat.HexFormat の未実装 stdlib API を実装する（4 件）
+  - 監査・完了 (2026-09-24): 4 シンボルは既存の `kotlin.text.HexFormat` source-backed 実装（KSP-719 / `kotlin/io/encoding/HexFormat.kt`）に実装済みと確認。重複実装を避け、4 API と `toString()` の実行時回帰を追加。対象バックエンドテスト・単一 kotlinc diff・Runtime ABI link・TODO ID 検査 PASS。Sema golden source/output も既存で4シンボルを網羅。Golden suite の再実行は共有 worktree 内の同時 Swift テスト待機が解消せず未完了。
   - 対象: `kotlin.text.HexFormat` / receiver `HexFormat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/HexFormat.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
