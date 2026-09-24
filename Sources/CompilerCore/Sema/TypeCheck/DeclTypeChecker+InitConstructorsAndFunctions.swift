@@ -517,6 +517,25 @@ extension DeclTypeChecker {
             enclosingFunctionReturnType: signature.returnType,
             currentDeclSymbol: symbol
         )
+        if !signature.contextReceiverTypes.isEmpty {
+            functionCtx = functionCtx.with(
+                contextReceiverTypes: ctx.contextReceiverTypes + signature.contextReceiverTypes
+            )
+            let syntheticContextSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            for (index, contextReceiver) in function.contextReceivers.enumerated() {
+                guard let name = contextReceiver.name,
+                      index < signature.contextReceiverTypes.count
+                else {
+                    continue
+                }
+                locals[name] = (
+                    signature.contextReceiverTypes[index],
+                    syntheticContextSymbol,
+                    false,
+                    true
+                )
+            }
+        }
         // An extension function's name doubles as the label of its receiver:
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.

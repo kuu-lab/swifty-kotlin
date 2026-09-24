@@ -218,6 +218,21 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 fallbackType: anyType
             )
+            let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: mergedLocalTypeParameters,
+                    relativeOwnerFQName: ownerFQName,
+                    currentPackageFQName: sourcePackageFQName,
+                    imports: sourceImports,
+                    diagnostics: diagnostics,
+                    usageRange: funDecl.range
+                )
+            }
 
             let returnType: TypeID = if let explicit = resolveTypeRef(
                 funDecl.returnType,
@@ -260,6 +275,7 @@ extension DataFlowSemaPhase {
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: ownerType,
+                    contextReceiverTypes: contextReceiverTypes,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,

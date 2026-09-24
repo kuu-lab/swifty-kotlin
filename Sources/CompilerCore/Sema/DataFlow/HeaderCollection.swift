@@ -1723,6 +1723,21 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: funDecl.range
             )
+            let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: typeParamResult.localTypeParameters,
+                    relativeOwnerFQName: package,
+                    currentPackageFQName: package,
+                    imports: file.imports,
+                    diagnostics: diagnostics,
+                    usageRange: funDecl.range
+                )
+            }
             let params = collectValueParameters(
                 funDecl.valueParams,
                 localNamespaceFQName: localNamespaceFQName,
@@ -1764,6 +1779,7 @@ extension DataFlowSemaPhase {
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,
+                    contextReceiverTypes: contextReceiverTypes,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,

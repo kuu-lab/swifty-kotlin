@@ -121,6 +121,7 @@ func isCompatibleExpectActualPair(
 
 public struct FunctionSignature: Hashable, Sendable {
     public let receiverType: TypeID?
+    public let contextReceiverTypes: [TypeID]
     public let parameterTypes: [TypeID]
     public let returnType: TypeID
     public let isSuspend: Bool
@@ -143,6 +144,7 @@ public struct FunctionSignature: Hashable, Sendable {
 
     public init(
         receiverType: TypeID? = nil,
+        contextReceiverTypes: [TypeID] = [],
         parameterTypes: [TypeID],
         returnType: TypeID,
         isSuspend: Bool = false,
@@ -158,6 +160,7 @@ public struct FunctionSignature: Hashable, Sendable {
         classTypeParameterCount: Int = 0
     ) {
         self.receiverType = receiverType
+        self.contextReceiverTypes = contextReceiverTypes
         self.parameterTypes = parameterTypes
         self.returnType = returnType
         self.isSuspend = isSuspend

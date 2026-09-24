@@ -307,6 +307,7 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
+    public let contextReceivers: [ContextReceiverDecl]
     public let valueParams: [ValueParamDecl]
     public let returnType: TypeRefID?
     public let body: FunctionBody
@@ -321,6 +322,7 @@ public struct FunDecl: Codable {
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
         receiverType: TypeRefID? = nil,
+        contextReceivers: [ContextReceiverDecl] = [],
         valueParams: [ValueParamDecl] = [],
         returnType: TypeRefID? = nil,
         body: FunctionBody = .unit,
@@ -334,12 +336,23 @@ public struct FunDecl: Codable {
         self.annotations = annotations
         self.typeParams = typeParams
         self.receiverType = receiverType
+        self.contextReceivers = contextReceivers
         self.valueParams = valueParams
         self.returnType = returnType
         self.body = body
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isTailrec = isTailrec
+    }
+}
+
+public struct ContextReceiverDecl: Codable {
+    public let name: InternedString?
+    public let type: TypeRefID
+
+    public init(name: InternedString? = nil, type: TypeRefID) {
+        self.name = name
+        self.type = type
     }
 }
 
