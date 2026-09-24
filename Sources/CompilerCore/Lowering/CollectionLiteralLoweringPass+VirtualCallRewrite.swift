@@ -758,14 +758,13 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         let types = sema.types
         let symbols = sema.symbols
-        let interner = context.interner
 
         let kind = types.kind(of: typeID)
         guard case let .classType(classType) = kind else { return }
         let classSymbol = classType.classSymbol
         guard let symInfo = symbols.symbol(classSymbol) else { return }
 
-        switch trackedStaticTypeKind(of: symInfo, interner: interner) {
+        switch trackedStaticTypeKind(of: symInfo, lookup: context.lookup) {
         case .list:
             state.listExprIDs.insert(raw)
         case .set:

@@ -19,6 +19,14 @@ struct RuntimeStringSplitJoinTests {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
+    private func stringListElements(from listRaw: Int) -> [String]? {
+        runtimeListBox(from: listRaw)?.elements.map(runtimeStringFromRaw)
+    }
+
+    private func stringSequenceElements(from sequenceRaw: Int) -> [String]? {
+        runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringFromRaw)
+    }
+
     private func runtimeMakeListRaw(_ elements: [Int]) -> Int {
         registerRuntimeObject(RuntimeListBox(elements: elements))
     }
@@ -86,6 +94,7 @@ struct RuntimeStringSplitJoinTests {
     func testSplitToSequenceEmptyDelimiter() {
         let result = splitToSequence("abc", delimiter: "")
         #expect((result as Int?) != nil)
+        #expect(stringSequenceElements(from: result) == ["", "a", "b", "c", ""])
     }
 
     // MARK: - split tests (existing bridge functions)
@@ -99,6 +108,12 @@ struct RuntimeStringSplitJoinTests {
     }
 
     @Test
+    func testSplitEmptyDelimiter() {
+        let result = split("abc", delimiter: "")
+        #expect(stringListElements(from: result) == ["", "a", "b", "c", ""])
+    }
+
+    @Test
     func testSplitWithLimit() {
         let result = splitLimit("a,b,c,d", delimiter: ",", ignoreCase: 0, limit: 2)
         let list = runtimeListBox(from: result)
@@ -107,11 +122,23 @@ struct RuntimeStringSplitJoinTests {
     }
 
     @Test
+    func testSplitEmptyDelimiterWithLimit() {
+        let result = splitLimit("abc", delimiter: "", ignoreCase: 0, limit: 2)
+        #expect(stringListElements(from: result) == ["", "abc"])
+    }
+
+    @Test
     func testSplitWithIgnoreCase() {
         let result = splitLimit("A,B,C", delimiter: ",", ignoreCase: 1, limit: 0)
         let list = runtimeListBox(from: result)
         #expect(list != nil)
         #expect(list?.elements.count == 3)
+    }
+
+    @Test
+    func testSplitEmptyDelimiterWithIgnoreCase() {
+        let result = splitLimit("abc", delimiter: "", ignoreCase: 1, limit: 0)
+        #expect(stringListElements(from: result) == ["", "a", "b", "c", ""])
     }
 }
 #endif

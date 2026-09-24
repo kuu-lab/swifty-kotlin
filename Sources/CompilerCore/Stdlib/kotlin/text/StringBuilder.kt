@@ -18,7 +18,7 @@ public class StringBuilder : Appendable, CharSequence {
 
     override operator fun get(index: Int): Char {
         checkElementIndex(index)
-        return toString()[index]
+        return __kk_string_builder_get(index)
     }
 
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
@@ -509,6 +509,9 @@ public class StringBuilder : Appendable, CharSequence {
 
     @KsSymbolName("__kk_string_builder_toString")
     private external fun __kk_string_builder_toString(): String
+
+    @KsSymbolName("__kk_string_builder_get")
+    private external fun __kk_string_builder_get(index: Int): Char
 
     @KsSymbolName("__kk_string_builder_length_prop")
     private external fun __kk_string_builder_length(): Int

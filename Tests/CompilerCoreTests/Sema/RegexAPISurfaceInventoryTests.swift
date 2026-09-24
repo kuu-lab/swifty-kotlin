@@ -351,6 +351,22 @@ struct RegexAPISurfaceInventoryTests {
         )
     }
 
+    @Test func testRegexToStringIsSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let symbols = sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("Regex"),
+            interner.intern("toString"),
+        ])
+        #expect(!(symbols.isEmpty), "Regex.toString must be registered")
+        let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+        #expect(
+            links.isEmpty,
+            Comment(rawValue: "Regex.toString must be Kotlin source, not a runtime bridge; found: \(links)")
+        )
+    }
+
     // MARK: - 5. Companion methods (fromLiteral)
 
     @Test func testRegexFromLiteralCompanionMethodIsRegistered() throws {

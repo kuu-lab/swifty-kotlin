@@ -1,6 +1,63 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Collection/Flow higher-order-function names deferred for contextual
+    /// lambda typing in `tryInferMemberCallCollectionFlowSpecials`.
+    private static let collectionHOFNames: Set<String> = [
+        "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
+        "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
+        "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
+        "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
+        "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
+        "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
+        "mapKeysTo", "mapValuesTo",
+        "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
+        "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
+        "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
+        "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
+        "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
+        "maxOf", "minOf",
+        "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+        "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+        "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
+        "max",
+        "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
+        "sort", "sortBy", "sortByDescending", "sortWith",
+    ]
+
+    private static let flowHOFNames: Set<String> = ["map", "filter", "collect"]
+    private static let mapOnlyCollectionHOFNames: Set<String> = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
+    private static let mutableListOnlyCollectionHOFNames: Set<String> = ["sort", "sortBy", "sortByDescending", "sortWith"]
+
+    private static let iterableMaxFamilyNames: Set<String> = [
+        "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
+        "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+    ]
+
+    private static let destinationCollectionHOFs: Set<String> = [
+        "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
+        "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
+        "filterIndexedTo", "mapKeysTo", "mapValuesTo",
+    ]
+
+    private static let sourceBackedListFilterNames: Set<String> = ["filter", "filterNot", "filterIndexed"]
+
+    private static let iterableSourceHOFNames: Set<String> = [
+        "filter",
+        "partition",
+        "single",
+        "singleOrNull",
+        "reduce",
+        "reduceIndexed",
+        "reduceRight",
+        "reduceRightIndexed",
+        "reduceRightOrNull",
+        "reduceRightIndexedOrNull",
+        "sumBy",
+        "sumByDouble",
+    ]
+
     func tryInferMemberCallCollectionFlowSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -31,7 +88,7 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
-        if !collectArraySourceConversionCandidates(
+        if !collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: receiverType,
             sema: sema,
@@ -41,31 +98,6 @@ extension CallTypeChecker {
         }
         // Defer inference of lambda arguments for collection HOFs so that the
         // contextual function type (and thus implicit `it`) is available.
-        let collectionHOFNames: Set = [
-            "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
-            "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
-            "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
-            "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
-            "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
-            "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
-            "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
-            "mapKeysTo", "mapValuesTo",
-            "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
-            "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
-            "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
-            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
-            "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
-            "maxOf", "minOf",
-            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
-            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-            "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
-            "max",
-            "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
-            "sort", "sortBy", "sortByDescending", "sortWith",
-        ]
-        let flowHOFNames: Set = ["map", "filter", "collect"]
-        let mapOnlyCollectionHOFNames: Set = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
-        let mutableListOnlyCollectionHOFNames: Set = ["sort", "sortBy", "sortByDescending", "sortWith"]
         // Fallback for receivers that were never routed through a `flow { }`/operator
         // call (e.g. a user function declared `fun f(): Flow<Int>`), so the
         // `isFlowExpr`/`isFlowSymbol` bindings above were never marked. Recover the
@@ -111,7 +143,7 @@ extension CallTypeChecker {
         } else {
             sema.types.anyType
         }
-        let isFlowHOF = isFlowReceiver && flowHOFNames.contains(interner.resolve(calleeName))
+        let isFlowHOF = isFlowReceiver && Self.flowHOFNames.contains(interner.resolve(calleeName))
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let receiverClassification = receiverClassifier.classify(
             receiverID: receiverID,
@@ -166,9 +198,9 @@ extension CallTypeChecker {
         ) == .ulongProgression
             && args.isEmpty
             && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
-        var activeCollectionHOFNames = collectionHOFNames
+        var activeCollectionHOFNames = Self.collectionHOFNames
         if !isMutableListReceiver {
-            activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
+            activeCollectionHOFNames.subtract(Self.mutableListOnlyCollectionHOFNames)
         }
         if !isSequenceReceiver {
             if !isIterableReceiver
@@ -208,7 +240,7 @@ extension CallTypeChecker {
             activeCollectionHOFNames.remove("minOfWithOrNull")
         }
         if isMapReceiver {
-            activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
+            activeCollectionHOFNames.formUnion(Self.mapOnlyCollectionHOFNames)
             // Map.flatMapTo has Iterable- and Sequence-return overloads. Let
             // the source-backed declarations reach regular overload
             // resolution instead of the collection fast path, which assumes
@@ -221,11 +253,7 @@ extension CallTypeChecker {
         // Iterable max-family declarations. Let regular overload resolution
         // select the Comparable/Float/Double and lambda-return overloads;
         // concrete List/Set/Map/Sequence paths remain under their own owners.
-        let iterableMaxFamilyNames: Set = [
-            "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
-            "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
-        ]
-        if iterableMaxFamilyNames.contains(calleeStr),
+        if Self.iterableMaxFamilyNames.contains(calleeStr),
            (isCollectionReceiver || isIterableReceiver),
            !isSequenceReceiver,
            !isSetReceiver,
@@ -850,6 +878,11 @@ extension CallTypeChecker {
                 interner.intern("collections"),
                 calleeName,
             ]
+            let iterableFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]
             let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -857,7 +890,12 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == 1,
                       let signatureReceiver = signature.receiverType,
-                      receiverClassifier.isIterableLikeType(signatureReceiver),
+                      // This helper is specifically for the generic
+                      // Iterable<T>.sumOf overloads. A List<T> receiver is
+                      // Iterable-like too, but its indexed List.sumOf body
+                      // is not valid for Set/Collection receivers.
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
+                      receiverSymbol.fqName == iterableFQName,
                       !signature.typeParameterSymbols.isEmpty
                 else {
                     return false
@@ -2198,9 +2236,7 @@ extension CallTypeChecker {
                 ]
                 var chosenCallee: SymbolID?
                 for packageFQName in sourcePackages {
-                    let candidates = sema.symbols.lookupAll(fqName: packageFQName + [calleeName])
-
-                    if let candidate = candidates.first(where: { candidate in
+                    let candidates = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).filter { candidate in
                         guard let symbol = sema.symbols.symbol(candidate),
                               symbol.kind == .function,
                               sema.symbols.isSourceBackedSymbol(candidate),
@@ -2215,8 +2251,49 @@ extension CallTypeChecker {
                                 signature,
                                 actualElementType: collectionElementType
                             )
-                    }) {
-                        chosenCallee = candidate
+                    }
+
+                    // `Sequence<Sequence<T>>.flatten()` and
+                    // `Sequence<Iterable<T>>.flatten()` are both generic
+                    // source declarations. Prefer the candidate whose inner
+                    // receiver owner matches the actual element type. Calls
+                    // whose element type satisfies neither (or both)
+                    // constraints were already rejected in `case "flatten"`
+                    // (KUU-461), so the first-candidate fallback is only a
+                    // safety net here.
+                    var bestCandidate: SymbolID?
+                    var bestScore = Int.min
+                    for candidate in candidates {
+                        var score = 0
+                        if calleeName == interner.intern("flatten"),
+                           let actualElementClassType = resolveClassTypeSymbol(
+                               collectionElementType,
+                               sema: sema
+                           )?.0,
+                           let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                           let candidateElementClassType = resolveClassTypeSymbol(
+                               getCollectionElementType(signatureReceiver, sema: sema, interner: interner),
+                               sema: sema
+                           )?.0
+                        {
+                            let actualElementSymbol = actualElementClassType.classSymbol
+                            let candidateElementSymbol = candidateElementClassType.classSymbol
+                            if candidateElementSymbol == actualElementSymbol {
+                                score = 2
+                            } else if sema.types.isNominalSubtypeSymbol(
+                                actualElementSymbol,
+                                of: candidateElementSymbol
+                            ) {
+                                score = 1
+                            }
+                        }
+                        if score > bestScore {
+                            bestCandidate = candidate
+                            bestScore = score
+                        }
+                    }
+                    if let bestCandidate {
+                        chosenCallee = bestCandidate
                         break
                     }
                 }
@@ -2266,13 +2343,34 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
-            let destinationCollectionHOFs: Set = [
-                "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
-                "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
-                "filterIndexedTo", "mapKeysTo", "mapValuesTo",
-            ]
-            if destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
-                let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            if Self.destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
+                // A destination factory such as `mutableListOf()` has no
+                // argument from which to infer its element type.  When the
+                // enclosing destination HOF is itself target-typed, propagate
+                // an exact MutableList target into that argument so the
+                // factory contributes `MutableList<R>` rather than
+                // `MutableList<Nothing>`/`Any?` to the generic `C` constraint.
+                let destinationExpectedType: TypeID? = if let expectedType,
+                                                            case let .classType(expectedClassType) = sema.types.kind(
+                                                                of: sema.types.makeNonNullable(expectedType)
+                                                            ),
+                                                            let expectedClassSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                            expectedClassSymbol.fqName == [
+                                                                interner.intern("kotlin"),
+                                                                interner.intern("collections"),
+                                                                interner.intern("MutableList"),
+                                                            ]
+                {
+                    expectedType
+                } else {
+                    nil
+                }
+                let destinationType = driver.inferExpr(
+                    args[0].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: destinationExpectedType
+                )
                 let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
                 let destinationElementType: TypeID = if case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
                                                         destClassType.args.count >= 1
@@ -2909,7 +3007,20 @@ extension CallTypeChecker {
                     default: resultType = sema.types.anyType
                     }
                     if ["any", "none", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
-                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        let didBindListSource = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType]
+                        )
+                        if !didBindListSource,
+                           ["first", "last"].contains(calleeStr),
+                           !(calleeStr == "first" && isSetReceiver)
+                        {
+                            // Collection<T> and map.values use the generic
+                            // Iterable<T> source implementation when no more
+                            // specific List/Set overload is applicable.
+                            _ = bindBundledIterableSourceFunction(
+                                typeArguments: [collectionElementType]
+                            )
+                        }
                     }
                     if isMapReceiver, calleeStr == "none" {
                         // KSP-1016: bind the zero-argument Map overload to its
@@ -3434,7 +3545,15 @@ extension CallTypeChecker {
                     }
 
                     if ["any", "none", "all", "count", "find", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
-                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                        let didBindListSource = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType]
+                        )
+                        let didBindIterableSource = !didBindListSource
+                            && ["first", "last"].contains(calleeStr)
+                            && bindBundledIterableSourceFunction(
+                                typeArguments: [collectionElementType]
+                            )
+                        if didBindListSource || didBindIterableSource {
                             if args.count == 1, let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                             }
@@ -4482,6 +4601,59 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
+                // KUU-461 / BUG-237: on a Sequence receiver, flatten() only
+                // exists as Sequence<Iterable<T>>.flatten() or
+                // Sequence<Sequence<T>>.flatten(). Accept the call only when
+                // the element type satisfies exactly one of those
+                // constraints: Sequence<Any>, Sequence<Int>, or an
+                // unbounded type parameter satisfies neither (kotlinc:
+                // cannot infer the type parameter), while Sequence<Nothing>
+                // or a type implementing both Iterable and Sequence
+                // satisfies both (kotlinc: overload ambiguity). errorType
+                // stays lenient — the element failure was already diagnosed
+                // upstream.
+                if isSequenceReceiver, collectionElementType != sema.types.errorType {
+                    let flattenSourcePackages: [[InternedString]] = [
+                        [interner.intern("kotlin"), interner.intern("sequences")],
+                        [interner.intern("kotlin"), interner.intern("collections")],
+                    ]
+                    var satisfiedConstraintCount = 0
+                    for packageFQName in flattenSourcePackages {
+                        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [calleeName]) {
+                            guard let symbol = sema.symbols.symbol(candidate),
+                                  symbol.kind == .function,
+                                  sema.symbols.isSourceBackedSymbol(candidate),
+                                  let signature = sema.symbols.functionSignature(for: candidate),
+                                  signature.parameterTypes.isEmpty,
+                                  let signatureReceiver = signature.receiverType,
+                                  receiverClassifier.isSequenceLikeType(signatureReceiver),
+                                  let (elementOwnerClassType, _) = resolveClassTypeSymbol(
+                                      getCollectionElementType(signatureReceiver, sema: sema, interner: interner),
+                                      sema: sema
+                                  )
+                            else {
+                                continue
+                            }
+                            let constraint = sema.types.make(.classType(ClassType(
+                                classSymbol: elementOwnerClassType.classSymbol,
+                                args: [.star],
+                                nullability: .nonNull
+                            )))
+                            if sema.types.isSubtype(collectionElementType, constraint) {
+                                satisfiedConstraintCount += 1
+                            }
+                        }
+                    }
+                    if satisfiedConstraintCount != 1 {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-0024",
+                            "Unresolved member function 'flatten'.",
+                            range: range
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
                 let flattenedElementType = extractedInner != sema.types.anyType
                     ? extractedInner
                     : collectionElementType
@@ -5377,8 +5549,7 @@ extension CallTypeChecker {
                 resultType = sema.types.anyType
             }
 
-            let sourceBackedListFilterNames: Set = ["filter", "filterNot", "filterIndexed"]
-            let didBindListFilterSource = sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
+            let didBindListFilterSource = Self.sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
                 ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 : false
             if didBindListFilterSource {
@@ -5395,7 +5566,7 @@ extension CallTypeChecker {
                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
             }
 
-            let didBindIterableFilterSource = sourceBackedListFilterNames.contains(calleeStr)
+            let didBindIterableFilterSource = Self.sourceBackedListFilterNames.contains(calleeStr)
                 && args.count == 1
                 && !didBindListFilterSource
                 && isIterableReceiver
@@ -5558,24 +5729,10 @@ extension CallTypeChecker {
             // concrete collection receivers without a more specific source
             // overload) so the call never falls through to a Sequence-shaped
             // declaration or a removed synthetic runtime bridge.
-            let iterableSourceHOFNames: Set = [
-                "filter",
-                "partition",
-                "single",
-                "singleOrNull",
-                "reduce",
-                "reduceIndexed",
-                "reduceRight",
-                "reduceRightIndexed",
-                "reduceRightOrNull",
-                "reduceRightIndexedOrNull",
-                "sumBy",
-                "sumByDouble",
-            ]
             if sema.bindings.callBindings[id] == nil,
                !isSequenceReceiver,
                isCollectionReceiver,
-               iterableSourceHOFNames.contains(calleeStr),
+               Self.iterableSourceHOFNames.contains(calleeStr),
                bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             {
                 for argument in args

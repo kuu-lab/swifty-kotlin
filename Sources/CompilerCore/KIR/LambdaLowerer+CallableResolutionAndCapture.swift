@@ -65,12 +65,28 @@ extension LambdaLowerer {
             return propertyType
         }
         if let valueParameterType = typeForValueParameterSymbol(symbol, sema: sema) {
+            driver.ctx.setLocalDeclaredType(valueParameterType, for: symbol)
             return valueParameterType
         }
         return sema.types.anyType
     }
 
     private func typeForValueParameterSymbol(_ symbol: SymbolID, sema: SemaModule) -> TypeID? {
+        // `valueParameterOwner` maps a parameter symbol to the callable whose
+        // signature listed it, so the owner lookup is O(1) rather than a scan
+        // of every function/constructor signature in the module.
+        guard let ownerSymbol = sema.symbols.valueParameterOwner(for: symbol) else {
+            return nil
+        }
+        if let signature = sema.symbols.functionSignature(for: ownerSymbol),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           index < signature.parameterTypes.count
+        {
+            return signature.parameterTypes[index]
+        }
+        // The recorded owner's stored signature no longer lists the parameter
+        // (it was rewritten after the index entry was made), so another
+        // signature may still claim it — fall back to the module-wide scan.
         let kinds: [SymbolKind] = [.function, .constructor]
         for kind in kinds {
             for candidateID in sema.symbols.symbols(ofKind: kind) {
@@ -269,9 +285,11 @@ extension LambdaLowerer {
                 )
             }
             // A receiver-bearing lambda receives its own receiver explicitly;
-            // do not also forward the enclosing receiver as a closure capture.
+            // do not also forward the enclosing receiver unless the body has
+            // an explicit qualified-this binding to that outer receiver.
             if hasExplicitReceiver,
-               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+               !boundCaptures.contains(receiverSymbol)
             {
                 captures.removeAll { $0 == receiverSymbol }
             }
@@ -590,6 +608,36 @@ extension LambdaLowerer {
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
             return receiverExprID
+        }
+        // KSP-CAP-001: object-literal member functions may capture an
+        // immutable stored property of their enclosing class. The enclosing
+        // receiver is still active while the object is constructed, so copy
+        // the property's value into the literal's capture field before the
+        // receiver switches to the literal itself.
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .property,
+           !semanticSymbol.flags.contains(.mutable),
+           !sema.symbols.propertyHasCustomGetter(for: symbol),
+           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+           sema.symbols.symbol(ownerSymbol)?.kind == .class,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+           ]
+        {
+            let symbolType = typeForSymbolReference(symbol, sema: sema)
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let valueExpr = arena.appendTemporary(type: symbolType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExprID, offsetExpr],
+                result: valueExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return boxRawSuspendFunctionValue(valueExpr)
         }
         guard let semanticSymbol = sema.symbols.symbol(symbol),
               semanticSymbol.kind == .valueParameter

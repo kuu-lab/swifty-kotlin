@@ -215,6 +215,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
@@ -225,7 +226,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
 
     let intType = sema.types.intType
     let registerCallee = interner.intern("kk_object_register_itable_method")
-    let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+    let interfaceSupertypes = cache.transitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
 
     for interfaceSymbol in interfaceSupertypes {
         let getterSlots = kirInterfacePropertyGetterSlots(

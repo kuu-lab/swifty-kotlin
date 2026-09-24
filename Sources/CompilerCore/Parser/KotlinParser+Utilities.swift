@@ -333,7 +333,231 @@ extension KotlinParser {
             }
             return isDeclarationStart(token.kind)
         }
+        // `context` only introduces a declaration as a context-parameter
+        // prefix (`context(x: T) fun f()`). A parameter or property named
+        // `context` at the start of a line inside a multiline group
+        // (`fun f(\n    context: T,\n ...)`) must not terminate that group.
+        if case .softKeyword(.context) = token.kind {
+            return stream.peek(1).kind == .symbol(.lParen)
+        }
         return isDeclarationStart(token.kind)
+    }
+
+    /// Whether the tokens consumed so far end in an infix function name, so a
+    /// newline after it continues the expression (`a or\n    (b)`). Kotlin's
+    /// grammar allows `{NL}` after an infix identifier, and an identifier that
+    /// directly follows an operand can only be an infix call name.
+    func endsWithPendingInfixOperator(_ children: [SyntaxChild]) -> Bool {
+        let trailing = trailingTokens(of: children, limit: 64)
+        return Self.endsWithPendingInfixOperator(trailing[...])
+    }
+
+    /// An infix chain alternates operands and operator names
+    /// (`a or b shl c`), so the tail of a statement is a *pending* infix
+    /// operator exactly when the trailing run of operand / identifier tokens
+    /// has even length and ends in an identifier: `x = a or` (2) is pending,
+    /// `x = a or b` (3) is complete. Parenthesized / indexed groups count as
+    /// one operand together with a directly preceding call name; a group that
+    /// is an `if (...)` / `when (...)` condition ends the run, so
+    /// `if (c) foo` is a branch body rather than a pending `foo` operator.
+    static func endsWithPendingInfixOperator<C: BidirectionalCollection>(_ tokens: C) -> Bool
+        where C.Element == Token
+    {
+        guard let last = tokens.last, case .identifier = last.kind else {
+            return false
+        }
+        var runLength = 0
+        var index = tokens.endIndex
+        while index > tokens.startIndex {
+            let current = tokens.index(before: index)
+            let token = tokens[current]
+            switch token.kind {
+            case .identifier, .backtickedIdentifier,
+                 .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+                 .floatLiteral, .doubleLiteral, .charLiteral,
+                 .keyword(.this), .keyword(.true), .keyword(.false), .keyword(.null):
+                runLength += 1
+                index = current
+            case .symbol(.rParen), .symbol(.rBracket):
+                let open: TokenKind = token.kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
+                guard let openIndex = matchingOpenIndex(in: tokens, closingAt: current, open: open, close: token.kind) else {
+                    return false
+                }
+                if token.kind == .symbol(.rParen), endsWithControlFlowCondition(tokens[tokens.startIndex ... current]) {
+                    return runLength >= 2 && runLength.isMultiple(of: 2)
+                }
+                runLength += 1
+                index = openIndex
+                // Deliberately does not also fold a directly preceding identifier
+                // into this run (as it would for a call target in `f(x)`): the
+                // token immediately before a parenthesized operand here is at
+                // least as likely to be a preceding infix name (`a or (b)`) as a
+                // call target, and those are indistinguishable by shape alone.
+                // Counting the group as its own run element keeps the
+                // alternating operand/operator parity correct either way.
+            default:
+                return runLength >= 2 && runLength.isMultiple(of: 2)
+            }
+        }
+        return runLength >= 2 && runLength.isMultiple(of: 2)
+    }
+
+    private static func matchingOpenIndex<C: BidirectionalCollection>(
+        in tokens: C, closingAt closeIndex: C.Index, open: TokenKind, close: TokenKind
+    ) -> C.Index? where C.Element == Token {
+        var depth = 0
+        var index = closeIndex
+        while true {
+            let kind = tokens[index].kind
+            if kind == close {
+                depth += 1
+            } else if kind == open {
+                depth -= 1
+                if depth == 0 {
+                    return index
+                }
+            }
+            guard index > tokens.startIndex else { return nil }
+            index = tokens.index(before: index)
+        }
+    }
+
+    /// Whether the tokens consumed so far end with the closing `)` of an
+    /// `if (...)` / `when (...)` condition, whose body may start on the next
+    /// line (`if (a)\n    if (b) 1\n    else 2\nelse 3`).
+    func endsWithControlFlowCondition(_ children: [SyntaxChild]) -> Bool {
+        let trailing = trailingTokens(of: children, limit: 64)
+        guard Self.endsWithControlFlowCondition(trailing[...]) else {
+            return false
+        }
+        // A labeled braced do-while is parsed by the generic statement path:
+        // `label@ do`, the body block node, then `while (...)`. `trailingTokens`
+        // deliberately stops at that block node, so the static token-only check
+        // cannot see the earlier `do` and would treat the closing condition as a
+        // standalone while whose body continues on the next line.
+        if let opener = Self.trailingControlFlowConditionOpener(trailing[...]),
+           opener.kind == .keyword(.while),
+           containsDirectDoKeyword(children)
+        {
+            return false
+        }
+        return true
+    }
+
+    private func containsDirectDoKeyword(_ children: [SyntaxChild]) -> Bool {
+        children.contains { child in
+            guard case let .token(tokenID) = child,
+                  let token = arena.token(tokenID)
+            else {
+                return false
+            }
+            return token.kind == .keyword(.do)
+        }
+    }
+
+    static func endsWithControlFlowCondition<C: BidirectionalCollection>(_ tokens: C) -> Bool
+        where C.Element == Token
+    {
+        guard let opener = trailingControlFlowConditionOpener(tokens) else {
+            return false
+        }
+        switch opener.kind {
+        case .keyword(.if), .keyword(.when), .keyword(.for), .keyword(.catch):
+            return true
+        case .keyword(.while):
+            // A standalone `while (condition)` may continue with its body on
+            // the next line. The trailing condition of a completed
+            // `do { ... } while (condition)` must not consume the following
+            // statement, however.
+            return !hasTopLevelDoKeyword(in: tokens, before: opener.index)
+        default:
+            return false
+        }
+    }
+
+    private static func trailingControlFlowConditionOpener<C: BidirectionalCollection>(
+        _ tokens: C
+    ) -> (kind: TokenKind, index: C.Index)? where C.Element == Token {
+        guard let last = tokens.last, last.kind == .symbol(.rParen) else {
+            return nil
+        }
+        var depth = 0
+        var index = tokens.index(before: tokens.endIndex)
+        while true {
+            let token = tokens[index]
+            if token.kind == .symbol(.rParen) {
+                depth += 1
+            } else if token.kind == .symbol(.lParen) {
+                depth -= 1
+                if depth == 0 {
+                    guard index > tokens.startIndex else { return nil }
+                    let openerIndex = tokens.index(before: index)
+                    return (tokens[openerIndex].kind, openerIndex)
+                }
+            }
+            guard index > tokens.startIndex else { return nil }
+            index = tokens.index(before: index)
+        }
+    }
+
+    private static func hasTopLevelDoKeyword<C: BidirectionalCollection>(
+        in tokens: C,
+        before endIndex: C.Index
+    ) -> Bool where C.Element == Token {
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var index = tokens.startIndex
+        while index != endIndex {
+            let kind = tokens[index].kind
+            let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            if isTopLevel, kind == .keyword(.do) {
+                return true
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            default: break
+            }
+            index = tokens.index(after: index)
+        }
+        return false
+    }
+
+    /// Tokens that can end an operand: an identifier that follows one of these
+    /// is an infix operator name rather than the start of a new statement.
+    static func isOperandEndToken(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .identifier, .backtickedIdentifier,
+             .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral,
+             .stringQuote, .rawStringQuote,
+             .symbol(.rBracket), .symbol(.rParen),
+             .keyword(.this), .keyword(.true), .keyword(.false), .keyword(.null):
+            true
+        default:
+            false
+        }
+    }
+
+    /// The last `limit` tokens of `children` (in source order), stopping at the
+    /// most recent nested node so only the flat tail of the statement is seen.
+    private func trailingTokens(of children: [SyntaxChild], limit: Int) -> [Token] {
+        var collected: [Token] = []
+        for child in children.reversed() {
+            guard case let .token(tokenID) = child, let token = arena.token(tokenID) else {
+                break
+            }
+            collected.append(token)
+            if collected.count == limit {
+                break
+            }
+        }
+        return collected.reversed()
     }
 
     /// A modifier keyword at the start of a new line is only a declaration
@@ -452,6 +676,26 @@ enum ParserBoundaryPolicy {
             return danglingContinuationSymbols.contains(symbol)
         }
         return false
+    }
+
+    /// Tokens that can only continue an expression when they begin a line:
+    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, and the `else` /
+    /// `catch` / `finally` continuation keywords never start a statement, so a
+    /// newline before one of them keeps the current declaration going
+    /// (`fun f() =\n    xs\n        .map { ... }`).
+    private static let leadingContinuationSymbols: Set<Symbol> = [
+        .dot, .questionDot, .questionColon, .ampAmp, .barBar,
+    ]
+
+    static func continuesExpressionBeforeNewline(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case let .symbol(symbol):
+            return leadingContinuationSymbols.contains(symbol)
+        case .keyword(.else), .keyword(.catch), .keyword(.finally):
+            return true
+        default:
+            return false
+        }
     }
 
     static func shouldSplitStatementOnNewline(_ kind: TokenKind) -> Bool {

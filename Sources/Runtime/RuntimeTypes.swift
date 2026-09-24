@@ -59,9 +59,33 @@ typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMu
 
 final class RuntimeStringBox {
     let value: String
+    /// Kotlin UTF-16 code units materialized on first positional access.
+    /// `value` is immutable, so the cache never invalidates.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         self.value = value
+    }
+
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let units = runtimeKotlinStringUTF16CodeUnits(value)
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
+    /// UTF-16 length without allocating the code-unit array when nothing has
+    /// indexed this string yet.
+    var utf16Length: Int {
+        utf16CodeUnitsLock.lock()
+        let cached = cachedUTF16CodeUnits
+        utf16CodeUnitsLock.unlock()
+        return cached?.count ?? runtimeKotlinStringUTF16Length(value)
     }
 }
 
@@ -130,6 +154,17 @@ struct RuntimeValue {
     }
 }
 
+@inline(__always)
+private func runtimeValuePreservingAnyFallbackTag(
+    _ value: RuntimeValue,
+    existing: RuntimeValue
+) -> RuntimeValue {
+    guard value.anyFallbackTag == 0 else { return value }
+    var value = value
+    value.anyFallbackTag = existing.anyFallbackTag
+    return value
+}
+
 class RuntimeThrowableBox {
     let message: String?
     var cause: Int
@@ -184,7 +219,13 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
 /// Distinct type used to identify CancellationException at runtime.
 /// The runtime checks `is RuntimeCancellationBox` to distinguish cancellation from
 /// regular throwables (CORO-002 / spec.md J17).
-final class RuntimeCancellationBox: RuntimeThrowableBox {
+///
+/// Non-final so `RuntimeTimeoutCancellationBox` can subclass it: every existing
+/// `is RuntimeCancellationBox` / `tryCast(_:to: RuntimeCancellationBox.self)` site
+/// (notably `kk_is_cancellation_exception`, which backs the
+/// `catch (e: CancellationException)` fast path) then accepts the timeout flavour
+/// without further wiring, matching kotlinx.coroutines' subclass relationship.
+class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.CancellationException"
     }
@@ -207,6 +248,34 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
 
     override init(message: String?, cause: Int = 0) {
         super.init(message: message, cause: cause)
+    }
+}
+
+/// `kotlinx.coroutines.TimeoutCancellationException` -- thrown when a
+/// `withTimeout` deadline expires (CORO-002 / spec.md J17).
+///
+/// A *subclass* of `RuntimeCancellationBox`, mirroring kotlinx.coroutines, so
+/// `catch (e: CancellationException)` catches a timeout while
+/// `catch (e: TimeoutCancellationException)` stays narrow: the latter is matched
+/// nominally by `kk_op_is` against `exceptionHierarchyFQNames`, which a plain
+/// `job.cancel()` cancellation does not carry.
+final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
+    override var exceptionFQName: String {
+        "kotlinx.coroutines.TimeoutCancellationException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        // The unqualified spelling is required because a `catch` clause resolves
+        // its type by short name, so the Sema symbol's fqName may be either the
+        // packaged or the bare form (see `resolveCatchClauseParameterType`).
+        [
+            "kotlinx.coroutines.TimeoutCancellationException",
+            "TimeoutCancellationException",
+        ] + super.exceptionHierarchyFQNames
+    }
+
+    override var renderedMessage: String {
+        message ?? "TimeoutCancellationException"
     }
 }
 
@@ -248,6 +317,10 @@ class RuntimeArrayBox {
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
         storage[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
+    }
+
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        storage[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage[index])
     }
 
     var count: Int {
@@ -438,27 +511,36 @@ final class RuntimeFunctionValueBox {
 /// Runtime box for `listOf(...)` / `mutableListOf(...)`.
 /// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
+    private final class DirectStorage {
+        var values: [RuntimeValue]
+
+        init(values: [RuntimeValue]) {
+            self.values = values
+        }
+    }
+
     private enum Storage {
-        case direct([RuntimeValue])
+        case direct(DirectStorage)
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
+        case subList(RuntimeListSlice)
     }
 
     private var storage: Storage
     private(set) var isReadOnly = false
 
     init(elements: [Int]) {
-        storage = .direct(elements.map { RuntimeValue(raw: $0) })
+        storage = .direct(DirectStorage(values: elements.map { RuntimeValue(raw: $0) }))
     }
 
     init(values: [RuntimeValue]) {
-        storage = .direct(values)
+        storage = .direct(DirectStorage(values: values))
     }
 
     init(capacity: Int) {
         var values: [RuntimeValue] = []
         values.reserveCapacity(max(0, capacity))
-        storage = .direct(values)
+        storage = .direct(DirectStorage(values: values))
     }
 
     init(reversedViewOf base: RuntimeListBox) {
@@ -469,32 +551,136 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
+    init(subListOf base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
+    }
+
     var values: [RuntimeValue] {
         get {
             switch storage {
-            case .direct(let values):
-                return values
+            case .direct(let direct):
+                return direct.values
             case .reversedViewOf(let base):
                 return Array(base.values.reversed())
             case .arrayViewOf(let base):
                 return base.values
+            case .subList(let slice):
+                return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
             }
         }
         set {
             guard !isReadOnly else { return }
             switch storage {
-            case .direct:
-                storage = .direct(newValue)
+            case .direct(let direct):
+                direct.values = newValue
             case .reversedViewOf(let base):
                 base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
                 base.values = newValue
+            case .subList(let slice):
+                var baseValues = slice.base.values
+                baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
+                slice.toIndex = slice.fromIndex + newValue.count
+                slice.base.values = baseValues
             }
         }
     }
 
     func freeze() {
         isReadOnly = true
+    }
+
+    var count: Int {
+        switch storage {
+        case .direct(let direct):
+            return direct.values.count
+        case .reversedViewOf(let base):
+            return base.count
+        case .arrayViewOf(let base):
+            return base.count
+        case .subList(let slice):
+            return slice.toIndex - slice.fromIndex
+        }
+    }
+
+    var indices: Range<Int> {
+        0..<count
+    }
+
+    /// O(1) single-element access. Prefer this over `elements[index]` because
+    /// `elements` materializes the whole list on every get/set.
+    subscript(index: Int) -> Int {
+        get {
+            switch storage {
+            case .direct(let direct):
+                return runtimeCollectionABIValue(direct.values[index])
+            case .reversedViewOf(let base):
+                return base[base.count - 1 - index]
+            case .arrayViewOf(let base):
+                return runtimeCollectionABIValue(base.values[index])
+            case .subList(let slice):
+                return slice.base[slice.fromIndex + index]
+            }
+        }
+        set {
+            guard !isReadOnly else { return }
+            switch storage {
+            case .direct(let direct):
+                direct.values[index] = RuntimeValue(
+                    raw: newValue,
+                    anyFallbackTag: direct.values[index].anyFallbackTag
+                )
+            case .reversedViewOf(let base):
+                base[base.count - 1 - index] = newValue
+            case .arrayViewOf(let base):
+                base[index] = newValue
+            case .subList(let slice):
+                slice.base[slice.fromIndex + index] = newValue
+            }
+        }
+    }
+
+    /// Stores an already-tagged value without materializing the surrounding collection.
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        guard !isReadOnly else { return }
+        switch storage {
+        case .direct(let direct):
+            direct.values[index] = runtimeValuePreservingAnyFallbackTag(
+                value,
+                existing: direct.values[index]
+            )
+        case .reversedViewOf(let base):
+            base.setValue(value, at: base.count - 1 - index)
+        case .arrayViewOf(let base):
+            base.setValue(value, at: index)
+        case .subList(let slice):
+            slice.base.setValue(value, at: slice.fromIndex + index)
+        }
+    }
+
+    /// Runs `body` on the backing array and returns its result. For `.direct`
+    /// storage the mutation goes through `direct.values`, so the buffer is
+    /// appended/removed in place when uniquely referenced instead of being
+    /// copied on every call; a buffer still shared with a snapshot (e.g. an
+    /// iterator's captured `values`) copy-on-writes inside `body` as usual.
+    /// View-backed storage keeps the materialize–mutate–write-back
+    /// semantics of the `values` setter, and a read-only list still drops
+    /// the write-back.
+    @discardableResult
+    func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
+        guard !isReadOnly else {
+            var values = values
+            return body(&values)
+        }
+        switch storage {
+        case .direct(let direct):
+            return body(&direct.values)
+        case .reversedViewOf, .arrayViewOf, .subList:
+            var values = self.values
+            let result = body(&values)
+            self.values = values
+            return result
+        }
     }
 
     var elements: [Int] {
@@ -504,6 +690,18 @@ final class RuntimeListBox {
         set {
             values = newValue.map { RuntimeValue(raw: $0) }
         }
+    }
+}
+
+private final class RuntimeListSlice {
+    let base: RuntimeListBox
+    let fromIndex: Int
+    var toIndex: Int
+
+    init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        self.base = base
+        self.fromIndex = fromIndex
+        self.toIndex = toIndex
     }
 }
 
@@ -586,6 +784,38 @@ final class RuntimeSetBox {
         return storage.isEmpty
     }
 
+    var indices: Range<Int> {
+        0..<count
+    }
+
+    /// O(1) indexed access for the insertion-ordered set storage.
+    subscript(index: Int) -> Int {
+        guard let value = rawValue(at: index) else {
+            preconditionFailure("RuntimeSetBox index out of bounds: \(index)")
+        }
+        return value
+    }
+
+    /// Returns an element in insertion order without materializing the set.
+    /// Map-entry views retain their existing materialized entry representation.
+    func rawValue(at index: Int) -> Int? {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            guard map.keys.indices.contains(index), map.values.indices.contains(index) else {
+                return nil
+            }
+            return runtimeMutableMapEntryNew(
+                mapRaw: backingMapRaw,
+                key: map.keys[index],
+                value: map.values[index]
+            )
+        }
+        guard storage.indices.contains(index) else {
+            return nil
+        }
+        return storage[index].legacyRawValue
+    }
+
     func contains(rawValue: Int) -> Bool {
         if let backingMapRaw {
             guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
@@ -602,6 +832,14 @@ final class RuntimeSetBox {
         return index[RuntimeElementKey(value: rawValue)] != nil
     }
 
+    var isEffectivelyReadOnly: Bool {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.isEffectivelyReadOnly
+        }
+        return isReadOnly
+    }
+
     @discardableResult
     func insert(rawValue: Int) -> Bool {
         insert(value: RuntimeValue(raw: rawValue))
@@ -609,7 +847,7 @@ final class RuntimeSetBox {
 
     @discardableResult
     func insert(value: RuntimeValue) -> Bool {
-        guard backingMapRaw == nil else { return false }
+        guard backingMapRaw == nil, !isReadOnly else { return false }
         let key = RuntimeElementKey(value: value.legacyRawValue)
         guard index[key] == nil else {
             return false
@@ -623,7 +861,8 @@ final class RuntimeSetBox {
     @discardableResult
     func remove(rawValue: Int) -> Bool {
         if let backingMapRaw {
-            guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+            guard !isEffectivelyReadOnly,
+                  let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
                   let entry = tryCast(pointer, to: RuntimePairBox.self),
                   entry.mutableMapRaw == backingMapRaw,
                   let map = runtimeMapBox(from: backingMapRaw),
@@ -634,7 +873,7 @@ final class RuntimeSetBox {
             _ = map.remove(key: entry.mutableMapKey)
             return true
         }
-        guard let index = index[RuntimeElementKey(value: rawValue)] else {
+        guard !isReadOnly, let index = index[RuntimeElementKey(value: rawValue)] else {
             return false
         }
         storage.remove(at: index)
@@ -646,11 +885,14 @@ final class RuntimeSetBox {
     func removeAll(keepingCapacity: Bool = false) -> Bool {
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
+            guard !map.isEffectivelyReadOnly else {
+                return false
+            }
             let hadElements = !map.isEmpty
             map.removeAll()
             return hadElements
         }
-        guard !storage.isEmpty else {
+        guard !isReadOnly, !storage.isEmpty else {
             return false
         }
         storage.removeAll(keepingCapacity: keepingCapacity)
@@ -660,6 +902,9 @@ final class RuntimeSetBox {
 
     @discardableResult
     func removeAll(where shouldRemove: (RuntimeValue) throws -> Bool) rethrows -> Bool {
+        guard !isEffectivelyReadOnly else {
+            return false
+        }
         if backingMapRaw != nil {
             var removed = false
             for entry in values where try shouldRemove(entry) {
@@ -712,6 +957,10 @@ final class RuntimeMapBox {
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
     private(set) var isReadOnly = false
+
+    var isEffectivelyReadOnly: Bool {
+        backingMap?.isEffectivelyReadOnly ?? isReadOnly
+    }
 
     var keyValues: [RuntimeValue] {
         get {
@@ -820,6 +1069,7 @@ final class RuntimeMapBox {
             backingMap.updateValue(at: index, value: value)
             return
         }
+        guard !isReadOnly else { return }
         guard valueStorage.indices.contains(index) else {
             valueStorage.append(value)
             return
@@ -836,6 +1086,7 @@ final class RuntimeMapBox {
             backingMap.appendEntry(key: key, value: value)
             return
         }
+        guard !isReadOnly else { return }
         let newIndex = keyStorage.count
         keyStorage.append(key)
         valueStorage.append(value)
@@ -855,6 +1106,7 @@ final class RuntimeMapBox {
         if let backingMap {
             return backingMap.put(key: key, value: value)
         }
+        guard !isReadOnly else { return nil }
         let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
@@ -870,7 +1122,7 @@ final class RuntimeMapBox {
         if let backingMap {
             return backingMap.remove(key: key)
         }
-        guard let index = index(ofRawKey: key) else {
+        guard !isReadOnly, let index = index(ofRawKey: key) else {
             return nil
         }
         keyStorage.remove(at: index)
@@ -884,6 +1136,7 @@ final class RuntimeMapBox {
             backingMap.removeAll()
             return
         }
+        guard !isReadOnly else { return }
         keyStorage.removeAll()
         valueStorage.removeAll()
         keyIndex.removeAll()
@@ -1208,6 +1461,9 @@ enum SequenceStepKind {
     /// returning COROUTINE_SUSPENDED; legacy callbacks keep the thread-backed
     /// producer path.
     case lazyBuilder(coroutine: RuntimeSequenceCoroutine)
+    /// STDLIB-IO-FN-040: Lazily pulls elements from a stateful producer until
+    /// it returns nil — e.g. `useLines` streaming lines out of a live reader.
+    case pullSource(produce: () -> Int?)
 }
 
 /// Runtime box for `Sequence<T>`.
@@ -2316,13 +2572,30 @@ final class RuntimeAnnotationBox {
 final class RuntimeBufferedReaderBox {
     private var fileHandle: FileHandle?
     private var pendingData: Data
+    /// Offset (from `pendingData.startIndex`) of the first unconsumed byte.
+    /// `read()`/`readLine()` advance this cursor instead of removing bytes
+    /// from the front of `pendingData` — each front removal would shift every
+    /// remaining byte (O(buffer)), turning a full drain quadratic. Consumed
+    /// bytes are dropped once per refill, so consumption is amortized O(1).
+    private var readOffset: Int
     private var closed: Bool
     private var reachedEOF: Bool
     private let chunkSize: Int
 
+    /// Index of the first unconsumed byte in `pendingData`.
+    private var pendingStartIndex: Data.Index {
+        pendingData.index(pendingData.startIndex, offsetBy: readOffset)
+    }
+
+    /// Bytes buffered but not yet consumed.
+    private var pendingByteCount: Int {
+        pendingData.count - readOffset
+    }
+
     init(fileHandle: FileHandle, chunkSize: Int = 4096) {
         self.fileHandle = fileHandle
         self.pendingData = Data()
+        self.readOffset = 0
         self.closed = false
         self.reachedEOF = false
         self.chunkSize = max(1, chunkSize)
@@ -2335,6 +2608,7 @@ final class RuntimeBufferedReaderBox {
     init(data: Data, chunkSize: Int = 4096) {
         self.fileHandle = nil
         self.pendingData = data
+        self.readOffset = 0
         self.closed = false
         self.reachedEOF = true
         self.chunkSize = max(1, chunkSize)
@@ -2346,15 +2620,17 @@ final class RuntimeBufferedReaderBox {
 
         while true {
             if let (lineLength, terminatorLength) = locateLineTerminator() {
-                let lineData = pendingData.prefix(lineLength)
-                pendingData.removeFirst(lineLength + terminatorLength)
-                return String(decoding: lineData, as: UTF8.self)
+                let lineStart = pendingStartIndex
+                let lineEnd = pendingData.index(lineStart, offsetBy: lineLength)
+                readOffset += lineLength + terminatorLength
+                return String(decoding: pendingData[lineStart ..< lineEnd], as: UTF8.self)
             }
 
             if reachedEOF {
-                guard !pendingData.isEmpty else { return nil }
-                let line = String(decoding: pendingData, as: UTF8.self)
+                guard pendingByteCount > 0 else { return nil }
+                let line = String(decoding: pendingData[pendingStartIndex...], as: UTF8.self)
                 pendingData.removeAll(keepingCapacity: false)
+                readOffset = 0
                 return line
             }
 
@@ -2383,8 +2659,9 @@ final class RuntimeBufferedReaderBox {
     /// to release the underlying file handle).
     func readText() -> String {
         guard !closed else { return "" }
-        var data = pendingData
+        var data = pendingData.suffix(from: pendingStartIndex)
         pendingData.removeAll(keepingCapacity: false)
+        readOffset = 0
         while !reachedEOF {
             if !readNextChunk() {
                 reachedEOF = true
@@ -2401,8 +2678,9 @@ final class RuntimeBufferedReaderBox {
         guard !closed else { return -1 }
 
         while true {
-            if !pendingData.isEmpty {
-                let byte = pendingData.removeFirst()
+            if pendingByteCount > 0 {
+                let byte = pendingData[pendingStartIndex]
+                readOffset += 1
                 // Fast path: ASCII byte
                 if byte & 0x80 == 0 {
                     return Int(byte)
@@ -2424,13 +2702,14 @@ final class RuntimeBufferedReaderBox {
                     return Int(byte)
                 }
                 // Ensure we have enough continuation bytes
-                while pendingData.count < totalBytes - 1 {
+                while pendingByteCount < totalBytes - 1 {
                     if reachedEOF { return Int(byte) }
                     if !readNextChunk() { reachedEOF = true }
                 }
-                if pendingData.count < totalBytes - 1 { return Int(byte) }
+                if pendingByteCount < totalBytes - 1 { return Int(byte) }
                 for _ in 1 ..< totalBytes {
-                    let cont = pendingData.removeFirst()
+                    let cont = pendingData[pendingStartIndex]
+                    readOffset += 1
                     codePoint = (codePoint << 6) | UInt32(cont & 0x3F)
                 }
                 return Int(codePoint)
@@ -2444,7 +2723,7 @@ final class RuntimeBufferedReaderBox {
     /// Returns true if data is available to be read without blocking (buffered bytes exist or not EOF).
     func ready() -> Bool {
         guard !closed else { return false }
-        return !pendingData.isEmpty || !reachedEOF
+        return pendingByteCount > 0 || !reachedEOF
     }
 
     func close() {
@@ -2452,6 +2731,7 @@ final class RuntimeBufferedReaderBox {
         try? fileHandle?.close()
         fileHandle = nil
         pendingData.removeAll(keepingCapacity: false)
+        readOffset = 0
         closed = true
     }
 
@@ -2464,25 +2744,36 @@ final class RuntimeBufferedReaderBox {
         guard let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty else {
             return false
         }
+        dropConsumedPrefix()
         pendingData.append(chunk)
         return true
     }
 
+    /// Drops already-consumed bytes from the front of `pendingData`, keeping
+    /// the buffer bounded to roughly one unread chunk instead of accumulating
+    /// every byte the reader has ever seen.
+    private func dropConsumedPrefix() {
+        guard readOffset > 0 else { return }
+        pendingData.removeFirst(readOffset)
+        readOffset = 0
+    }
+
     private func locateLineTerminator() -> (lineLength: Int, terminatorLength: Int)? {
-        var index = pendingData.startIndex
+        let startIndex = pendingStartIndex
+        var index = startIndex
         while index < pendingData.endIndex {
             let byte = pendingData[index]
             if byte == 0x0A {
-                return (pendingData.distance(from: pendingData.startIndex, to: index), 1)
+                return (pendingData.distance(from: startIndex, to: index), 1)
             }
             if byte == 0x0D {
                 let nextIndex = pendingData.index(after: index)
                 if nextIndex < pendingData.endIndex {
-                    let lineLength = pendingData.distance(from: pendingData.startIndex, to: index)
+                    let lineLength = pendingData.distance(from: startIndex, to: index)
                     return (lineLength, pendingData[nextIndex] == 0x0A ? 2 : 1)
                 }
                 if reachedEOF {
-                    return (pendingData.distance(from: pendingData.startIndex, to: index), 1)
+                    return (pendingData.distance(from: startIndex, to: index), 1)
                 }
                 return nil
             }
@@ -2526,13 +2817,11 @@ final class RuntimeInputStreamBox {
 
     func read(into list: RuntimeListBox) -> Int {
         guard !closed else { return -1 }
-        let writableCount = min(list.elements.count, available())
+        let writableCount = min(list.count, available())
         guard writableCount > 0 else { return -1 }
-        var newElements = list.elements
         for index in 0 ..< writableCount {
-            newElements[index] = Int(Int8(bitPattern: data[offset + index]))
+            list[index] = Int(Int8(bitPattern: data[offset + index]))
         }
-        list.elements = newElements
         offset += writableCount
         return writableCount
     }

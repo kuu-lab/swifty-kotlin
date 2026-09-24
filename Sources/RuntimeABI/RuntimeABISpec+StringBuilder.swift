@@ -205,6 +205,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_string_builder_get",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_string_builder_length_prop",
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),

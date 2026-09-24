@@ -124,6 +124,7 @@ extension DataFlowSemaPhase {
                 itableSlots: itableSlots,
                 objectInitializerLinkName: metadataRecord.objectInitializerLinkName,
                 companionInitializerLinkName: metadataRecord.companionInitializerLinkName,
+                objectLazyInitializerLinkName: metadataRecord.objectLazyInitializerLinkName,
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isOpenClass: metadataRecord.isOpenClass,

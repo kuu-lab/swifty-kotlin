@@ -26,65 +26,20 @@ private external fun kk_max_double(a: Double, b: Double): Double
 //   Sources/Runtime/RuntimeSequenceAssociation.swift
 //   Sources/Runtime/RuntimeSequenceFoldScan.swift
 //
-// Migrated: reduce, reduceOrNull, reduceIndexed, reduceIndexedOrNull,
-//           reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
+// Migrated: reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
 //           scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
 //           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy,
 //           groupBy, Sequence.toMap
+//
+// reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull moved to
+// SequenceConversionsAndSetOps.kt (package kotlin.sequences) with the canonical
+// <S, T : S> signature in KSP-1355.
 //
 // Sorting variants are in SequenceSortingHOF.kt (package kotlin.sequences) to avoid
 // FQ-name collisions with List sorting extensions.
 //
 // Implementations materialize through toList() before looping so they reuse the
 // stable list indexing path instead of the still-limited Sequence for-loop path.
-
-public fun <T> Sequence<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceOrNull(operation: (T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceIndexedOrNull(operation: (Int, T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
-    }
-    return accumulator
-}
 
 public fun <T> Sequence<T>.reduceRight(operation: (T, T) -> T): T {
     val elements = this.toList()
@@ -256,48 +211,44 @@ public fun <T, K, V> Sequence<T>.associateBy(
     return result
 }
 
-public fun <T, K> Sequence<T>.groupBy(keySelector: (T) -> K): MutableMap<K, MutableList<T>> {
-    val elements = this.toList()
+// KSP-1348: Sequence group-family decls carry the Kotlin 2.3.10 signatures —
+// Map<K, List<…>> results and generic `M : MutableMap<in K, …>` destinations —
+// matching the Iterable counterparts in Iterables.kt.
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K> Sequence<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
     val result = mutableMapOf<K, MutableList<T>>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
+    for (element in this) {
+        val key = keySelector(element)
         val existing = result[key]
         if (existing == null) {
             val bucket = mutableListOf<T>()
-            bucket.add(elem)
+            bucket.add(element)
             result[key] = bucket
         } else {
-            existing.add(elem)
+            existing.add(element)
         }
-        i += 1
     }
-    return result
+    return result as Map<K, List<T>>
 }
 
-public fun <T, K, V> Sequence<T>.groupBy(
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K, V> Sequence<T>.groupBy(
     keySelector: (T) -> K,
     valueTransform: (T) -> V
-): MutableMap<K, MutableList<V>> {
-    val elements = this.toList()
+): Map<K, List<V>> {
     val result = mutableMapOf<K, MutableList<V>>()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
-        val value = valueTransform(elem)
+    for (element in this) {
+        val key = keySelector(element)
         val existing = result[key]
         if (existing == null) {
             val bucket = mutableListOf<V>()
-            bucket.add(value)
+            bucket.add(valueTransform(element))
             result[key] = bucket
         } else {
-            existing.add(value)
+            existing.add(valueTransform(element))
         }
-        i += 1
     }
-    return result
+    return result as Map<K, List<V>>
 }
 
 public fun <T> Sequence<T>.sumOf(selector: (T) -> Int): Int {
@@ -764,45 +715,41 @@ public fun <T, V> Sequence<T>.associateWithTo(destination: MutableMap<T, V>, val
     return destination
 }
 
-public fun <T, K> Sequence<T>.groupByTo(destination: MutableMap<K, MutableList<T>>, keySelector: (T) -> K): MutableMap<K, MutableList<T>> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
+@IgnorableReturnValue
+public inline fun <T, K, M : MutableMap<in K, MutableList<T>>> Sequence<T>.groupByTo(
+    destination: M,
+    keySelector: (T) -> K
+): M {
+    for (element in this) {
+        val key = keySelector(element)
         val existing = destination[key]
         if (existing == null) {
             val bucket = mutableListOf<T>()
-            bucket.add(elem)
+            bucket.add(element)
             destination[key] = bucket
         } else {
-            existing.add(elem)
+            existing.add(element)
         }
-        i += 1
     }
     return destination
 }
 
-public fun <T, K, V> Sequence<T>.groupByTo(
-    destination: MutableMap<K, MutableList<V>>,
+@IgnorableReturnValue
+public inline fun <T, K, V, M : MutableMap<in K, MutableList<V>>> Sequence<T>.groupByTo(
+    destination: M,
     keySelector: (T) -> K,
     valueTransform: (T) -> V
-): MutableMap<K, MutableList<V>> {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val elem = elements[i]
-        val key = keySelector(elem)
-        val value = valueTransform(elem)
+): M {
+    for (element in this) {
+        val key = keySelector(element)
         val existing = destination[key]
         if (existing == null) {
             val bucket = mutableListOf<V>()
-            bucket.add(value)
+            bucket.add(valueTransform(element))
             destination[key] = bucket
         } else {
-            existing.add(value)
+            existing.add(valueTransform(element))
         }
-        i += 1
     }
     return destination
 }
@@ -967,55 +914,6 @@ public fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> Sequence<T>.single(): T {
-    val elements = this.toList()
-    val sz = elements.size
-    if (sz == 1) return elements[0]
-    if (sz == 0) throw NoSuchElementException("Sequence is empty.")
-    throw IllegalArgumentException("Sequence has more than one element.")
-}
-
-public fun <T> Sequence<T>.single(predicate: (T) -> Boolean): T {
-    val elements = this.toList()
-    var matchIndex = -1
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        if (predicate(elements[i])) {
-            if (matchIndex >= 0) {
-                throw IllegalArgumentException("Sequence contains more than one matching element.")
-            }
-            matchIndex = i
-        }
-        i += 1
-    }
-    if (matchIndex >= 0) return elements[matchIndex]
-    throw NoSuchElementException("Sequence contains no element matching the predicate.")
-}
-
-public fun <T> Sequence<T>.singleOrNull(): T? {
-    val elements = this.toList()
-    val sz = elements.size
-    if (sz == 1) return elements[0]
-    return null
-}
-
-public fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
-    val elements = this.toList()
-    var matchIndex = -1
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        if (predicate(elements[i])) {
-            if (matchIndex >= 0) return null
-            matchIndex = i
-        }
-        i += 1
-    }
-    if (matchIndex >= 0) return elements[matchIndex]
-    return null
-}
-
 public fun <T> Sequence<T>.elementAt(index: Int): T {
     val elements = this.toList()
     if (index < 0 || index >= elements.size) {
@@ -1144,6 +1042,53 @@ public fun <T> Sequence<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
+// KSP-1353: Double/Float-specialized maxOrNull()/max() overloads, mirroring
+// Iterables.kt's own specializations. Pairwise kk_max_double/kk_max_float
+// keeps NaN propagation and signed-zero ordering on Kotlin's IEEE-754
+// semantics instead of the Comparable.compareTo total ordering used by the
+// generic <T : Comparable<T>> overloads below. These declarations sit ahead
+// of the generic ones so the Sequence aggregate fast path's first-match
+// lookup prefers them for concrete Double/Float receivers; other element
+// types still resolve to the generic overloads through the receiver
+// element-type filter.
+@SinceKotlin("1.4")
+public fun Sequence<Double>.maxOrNull(): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var max = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        max = kk_max_double(max, elements[i])
+        i += 1
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun Sequence<Float>.maxOrNull(): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var max = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        max = kk_max_float(max, elements[i])
+        i += 1
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Double>.max(): Double = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Float>.max(): Float = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
 public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
     val elements = this.toList()
     var best: T? = null
@@ -1159,6 +1104,52 @@ public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
 }
 
 public fun <T : Comparable<T>> Sequence<T>.max(): T = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+// KSP-1354: Double/Float-specialized minOrNull()/min() overloads, mirroring
+// Iterables.kt's own specializations. Pairwise comparisonMinOf keeps NaN
+// propagation and signed-zero ordering on Kotlin's IEEE-754 semantics instead
+// of the Comparable.compareTo total ordering used by the generic
+// <T : Comparable<T>> overloads below. These declarations sit ahead of the
+// generic ones so the Sequence aggregate fast path's first-match lookup
+// prefers them for concrete Double/Float receivers; other element types still
+// resolve to the generic overloads through the receiver element-type filter.
+@SinceKotlin("1.4")
+public fun Sequence<Double>.minOrNull(): Double? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var min = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        min = comparisonMinOf(min, elements[i])
+        i += 1
+    }
+    return min
+}
+
+@SinceKotlin("1.4")
+public fun Sequence<Float>.minOrNull(): Float? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var min = elements[0]
+    var i = 1
+    val sz = elements.size
+    while (i < sz) {
+        min = comparisonMinOf(min, elements[i])
+        i += 1
+    }
+    return min
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Double>.min(): Double = minOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Sequence<Float>.min(): Float = minOrNull() ?: throw NoSuchElementException("Sequence is empty.")
 
 public fun <T : Comparable<T>> Sequence<T>.minOrNull(): T? {
     val elements = this.toList()

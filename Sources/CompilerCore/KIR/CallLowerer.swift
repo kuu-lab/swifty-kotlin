@@ -214,7 +214,7 @@ final class CallLowerer {
         guard let externalLinkName = sema.symbols.externalLinkName(for: symbolID),
               !externalLinkName.isEmpty,
               let signature = sema.symbols.functionSignature(for: symbolID),
-              let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == externalLinkName })
+              let spec = RuntimeABISpec.byName[externalLinkName]
         else {
             return false
         }
@@ -686,7 +686,6 @@ final class CallLowerer {
             return loweredToList
         }
         if let loweredCollectionFactory = tryLowerCollectionFactoryCall(
-            sourceCalleeName: sourceCalleeName,
             args: args,
             loweredArgIDs: loweredArgIDs,
             chosenCallee: chosen,
@@ -712,6 +711,7 @@ final class CallLowerer {
                     objectValue: loweredCollectionFactory,
                     nominalSymbol: factoryResultClass,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
@@ -983,6 +983,7 @@ final class CallLowerer {
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
@@ -1182,10 +1183,15 @@ final class CallLowerer {
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
+        // KUU-655: an override that inherits its defaults never has its own
+        // stub; resolve to the base declaration's stub instead (see
+        // `defaultStubOwnerSymbol`).
+        let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema) }
         if callNormalized.defaultMask != 0,
            let chosen,
+           let defaultStubOwner,
            (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
-            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosen)) != nil)
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: defaultStubOwner)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
@@ -1204,7 +1210,7 @@ final class CallLowerer {
                 arguments: &finalArgIDs
             )
             let stubName = interner.intern(interner.resolve(sourceCalleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosen)
+            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: defaultStubOwner)
             instructions.append(.call(
                 symbol: stubSym,
                 callee: stubName,
@@ -1223,29 +1229,8 @@ final class CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArgIDs
             )
-            let shouldUseULongRangeContainsRuntime: Bool = {
-                guard sourceCalleeName == interner.intern("contains"),
-                      let chosen,
-                      let signature = sema.symbols.functionSignature(for: chosen),
-                      signature.parameterTypes.count == 1,
-                      sema.types.makeNonNullable(signature.parameterTypes[0]) == sema.types.ulongType,
-                      let declaredReceiver = signature.receiverType,
-                      let (_, receiverSymbol) = resolveClassTypeSymbol(
-                          sema.types.makeNonNullable(declaredReceiver), sema: sema
-                      )
-                else {
-                    return false
-                }
-                return interner.resolve(receiverSymbol.name) == "ULongRange"
-            }()
             let loweredCalleeName: InternedString = if let callableInvokeCallee {
                 callableInvokeCallee
-            } else if shouldUseULongRangeContainsRuntime {
-                // KSP-1292: source-backed ULongRange.contains(UByte/UInt/UShort)
-                // widens into the existing ULong overload. That overload's
-                // source declaration has a generic __kk_range_contains link,
-                // so keep the widened call on the unsigned runtime ABI.
-                interner.intern("kk_ulong_range_contains")
             } else if let chosen,
                       let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
                           chosenCallee: chosen,
@@ -1320,12 +1305,20 @@ final class CallLowerer {
                 ? arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 : nil
+            let arrayResultTypeID = runtimeArrayNominalTypeID(
+                boundType ?? arena.exprType(result),
+                sema: sema,
+                interner: interner
+            )
+            let callResult: KIRExprID = if arrayResultTypeID != nil {
+                arena.appendTemporary(type: boundType ?? arena.exprType(result))
+            } else {
+                result
+            }
             // When calling a callable value (function-type local/parameter),
             // use its symbol so InlineLoweringPass can match it against lambda
             // parameter symbols and expand the lambda body in place.
-            let callSymbol: SymbolID? = shouldUseULongRangeContainsRuntime
-                ? nil
-                : (chosen ?? loweredCallable?.symbol ?? {
+            let callSymbol: SymbolID? = (chosen ?? loweredCallable?.symbol ?? {
                 if let binding = callableValueCallBinding,
                    case let .localValue(sym) = binding.target
                 {
@@ -1339,7 +1332,7 @@ final class CallLowerer {
                     callee: loweredCalleeName,
                     receiver: implicitReceiverDispatch.receiver,
                     arguments: Array(finalArgIDs.dropFirst()),
-                    result: result,
+                    result: callResult,
                     canThrow: callCanThrow,
                     thrownResult: thrownResult,
                     dispatch: implicitReceiverDispatch.kind
@@ -1349,10 +1342,30 @@ final class CallLowerer {
                     symbol: callSymbol,
                     callee: loweredCalleeName,
                     arguments: finalArgIDs,
-                    result: result,
+                    result: callResult,
                     canThrow: callCanThrow,
                     thrownResult: thrownResult
                 ))
+            }
+            if let arrayResultTypeID {
+                let typeIDExpr = arena.appendExpr(
+                    .intLiteral(arrayResultTypeID),
+                    type: sema.types.intType
+                )
+                instructions.append(.constValue(
+                    result: typeIDExpr,
+                    value: .intLiteral(arrayResultTypeID)
+                ))
+                let taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_tag_type"),
+                    arguments: [callResult, typeIDExpr],
+                    result: taggedResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                instructions.append(.copy(from: taggedResult, to: result))
             }
             if let thrownResult,
                shouldRethrowThrownChannelResult(calleeName: loweredCalleeName, interner: interner)
@@ -1433,12 +1446,56 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
+            "__kk_mutable_list_removeAt",
+            "__kk_list_get",
             "__kk_mutable_set_add",
+            "__kk_mutable_set_remove",
+            "__kk_mutable_set_clear",
             "__kk_mutable_map_put",
+            "__kk_mutable_map_remove",
+            "__kk_mutable_map_clear",
+            "__kk_mutable_map_putAll",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
+            "kk_sequence_elementAt",
             "kk_iterable_iterator",
+            "__kk_file_readText",
+            "__kk_buffered_reader_useLines",
+            "__kk_buffered_reader_forEachLine",
+            "__kk_buffered_writer_write",
+            "__kk_buffered_writer_new_line",
+            "__kk_buffered_writer_flush",
+            "__kk_writer_buffered_default",
+            "__kk_writer_buffered",
+            "__kk_bytearrayinputstream_new",
+            "__kk_bytearray_inputStream",
+            "__kk_bytearray_inputStream_range",
+            "__kk_input_stream_read",
+            "__kk_input_stream_skip",
+            "__kk_input_stream_read_bytes",
+            "__kk_input_stream_readAllBytes",
+            "__kk_input_stream_reset",
+            "__kk_input_stream_buffered_default",
+            "__kk_input_stream_buffered",
+            "__kk_input_stream_copyTo",
+            "__kk_input_stream_bufferedReader",
+            "__kk_output_stream_write_byte",
+            "__kk_output_stream_write_bytes",
+            "__kk_output_stream_flush",
+            "__kk_reader_copyTo",
+            "__kk_reader_copyTo_default",
+            "kk_iterator_next",
+            "kk_list_iterator_next",
         ].contains(name)
+    }
+
+    func isIteratorNextName(_ name: String) -> Bool {
+        switch name {
+        case "next", "kk_iterator_next", "kk_list_iterator_next":
+            true
+        default:
+            false
+        }
     }
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
@@ -1453,8 +1510,44 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
+            "__kk_mutable_list_removeAt",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_file_readText",
+            "__kk_buffered_reader_useLines",
+            "__kk_buffered_reader_forEachLine",
+            "__kk_buffered_writer_write",
+            "__kk_buffered_writer_new_line",
+            "__kk_buffered_writer_flush",
+            "__kk_writer_buffered_default",
+            "__kk_writer_buffered",
+            "__kk_bytearrayinputstream_new",
+            "__kk_bytearray_inputStream",
+            "__kk_bytearray_inputStream_range",
+            "__kk_input_stream_read",
+            "__kk_input_stream_skip",
+            "__kk_input_stream_read_bytes",
+            "__kk_input_stream_readAllBytes",
+            "__kk_input_stream_reset",
+            "__kk_input_stream_buffered_default",
+            "__kk_input_stream_buffered",
+            "__kk_input_stream_copyTo",
+            "__kk_input_stream_bufferedReader",
+            "__kk_output_stream_write_byte",
+            "__kk_output_stream_write_bytes",
+            "__kk_output_stream_flush",
+            "__kk_reader_copyTo",
+            "__kk_reader_copyTo_default",
+            "__kk_mutable_set_remove",
+            "__kk_mutable_set_clear",
+            "__kk_mutable_map_put",
+            "__kk_mutable_map_remove",
+            "__kk_mutable_map_clear",
+            "__kk_mutable_map_putAll",
+            "__kk_list_get",
+            "kk_sequence_elementAt",
+            "kk_iterator_next",
+            "kk_list_iterator_next",
         ].contains(interner.resolve(calleeName))
     }
 
@@ -1488,7 +1581,9 @@ final class CallLowerer {
             case interner.intern("LongRange"):
                 interner.intern("__kk_long_range_toList")
             case interner.intern("ULongRange"):
-                interner.intern("kk_ulong_range_toList")
+                // KSP-1524: ULongRange.toList() is bundled source; preserve
+                // the selected Kotlin declaration instead of a removed bridge.
+                nil
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("__kk_char_range_toList")
             default:

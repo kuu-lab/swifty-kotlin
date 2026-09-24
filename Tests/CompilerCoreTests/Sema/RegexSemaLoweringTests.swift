@@ -528,7 +528,7 @@ struct RegexSemaLoweringTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase5", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("find$default"), Comment(rawValue: "KIR must call bundled Regex.find default overload; found: \(callees)"))
+        #expect(callees.contains("find"), Comment(rawValue: "KIR must call bundled Regex.find overload; found: \(callees)"))
     }
 
     @Test func testRegexFindAllLowersToBundledSource() throws {
@@ -536,7 +536,7 @@ struct RegexSemaLoweringTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase6", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("findAll$default"), Comment(rawValue: "KIR must call bundled Regex.findAll default overload; found: \(callees)"))
+        #expect(callees.contains("findAll"), Comment(rawValue: "KIR must call bundled Regex.findAll overload; found: \(callees)"))
     }
 
     @Test func testRegexMatchEntireLowersToBundledSource() throws {

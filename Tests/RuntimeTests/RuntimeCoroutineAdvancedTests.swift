@@ -406,6 +406,87 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(result == 42, "withTimeoutOrNull should return the block value when it completes in time")
     }
 
+    // MARK: - withTimeout reports expiry as a catchable TimeoutCancellationException
+
+    /// An expired `withTimeout` deadline used to `runtimeStructuredPanic`, making the
+    /// timeout an uncatchable trap. It must instead publish a
+    /// `TimeoutCancellationException` through the `outThrown` ABI channel so an
+    /// enclosing Kotlin `try`/`catch` can observe it.
+    @Test func testWithTimeoutThrowsTimeoutCancellationExceptionOnExpiry() {
+        let entryRaw = unsafeBitCast(
+            advcoro_long_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let continuation = kk_coroutine_continuation_new(advCoroLongDelayFunctionID)
+        var thrown = 0
+        let result = kk_with_timeout(1, entryRaw, continuation, &thrown)
+        #expect(result == 0, "A timed-out withTimeout must not report a block result")
+        #expect(thrown != 0, "withTimeout must publish a throwable on expiry instead of trapping")
+        // A timeout is a CancellationException, so the `catch (e: CancellationException)`
+        // fast path (kk_throwable_is_cancellation) has to accept it.
+        #expect(kk_is_cancellation_exception(thrown) == 1)
+        let box = UnsafeMutableRawPointer(bitPattern: thrown).flatMap {
+            tryCast($0, to: RuntimeTimeoutCancellationBox.self)
+        }
+        #expect(box != nil, "The thrown value must be the TimeoutCancellationException subclass")
+        #expect(box?.message == "Timed out waiting for 1 ms")
+    }
+
+    /// The hierarchy must be asymmetric, exactly as in kotlinx.coroutines:
+    /// `catch (e: CancellationException)` catches a timeout, but
+    /// `catch (e: TimeoutCancellationException)` must not catch a plain
+    /// `job.cancel()`. Both directions are decided by the nominal type-ID check
+    /// that backs `kk_op_is`, so assert on that directly.
+    @Test func testTimeoutCancellationExceptionHierarchyIsAsymmetric() {
+        let timeoutRaw = runtimeAllocateTimeoutCancellationException(timeoutMillis: 10)
+        let plainRaw = runtimeAllocateCancellationException(message: "cancelled")
+        let timeoutBox = UnsafeMutableRawPointer(bitPattern: timeoutRaw).flatMap {
+            tryCast($0, to: RuntimeThrowableBox.self)
+        }
+        let plainBox = UnsafeMutableRawPointer(bitPattern: plainRaw).flatMap {
+            tryCast($0, to: RuntimeThrowableBox.self)
+        }
+        #expect(timeoutBox != nil)
+        #expect(plainBox != nil)
+        guard let timeoutBox, let plainBox else { return }
+
+        let timeoutTypeID = runtimeStableNominalTypeID(
+            fqName: "kotlinx.coroutines.TimeoutCancellationException"
+        )
+        let cancellationTypeID = runtimeStableNominalTypeID(fqName: "kotlin.CancellationException")
+        let matchesTimeoutAsCancellation = runtimeThrowableMatchesNominalTypeID(
+            timeoutBox, targetTypeID: cancellationTypeID
+        )
+        let matchesTimeoutAsTimeout = runtimeThrowableMatchesNominalTypeID(
+            timeoutBox, targetTypeID: timeoutTypeID
+        )
+        let matchesPlainAsTimeout = runtimeThrowableMatchesNominalTypeID(
+            plainBox, targetTypeID: timeoutTypeID
+        )
+        #expect(matchesTimeoutAsTimeout, "catch (e: TimeoutCancellationException) must catch a timeout")
+        #expect(matchesTimeoutAsCancellation, "catch (e: CancellationException) must catch a timeout")
+        #expect(
+            !matchesPlainAsTimeout,
+            "catch (e: TimeoutCancellationException) must not catch a plain cancellation"
+        )
+        // A plain job.cancel() must still be seen as a cancellation.
+        #expect(kk_is_cancellation_exception(plainRaw) == 1)
+    }
+
+    /// A block that finishes inside the deadline must leave the thrown channel clear,
+    /// so the enclosing try/catch does not spuriously enter a catch clause.
+    @Test func testWithTimeoutLeavesThrownChannelClearWhenBlockCompletes() {
+        let entryRaw = unsafeBitCast(
+            advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let continuation = kk_coroutine_continuation_new(8831)
+        var thrown = -1
+        let result = kk_with_timeout(5000, entryRaw, continuation, &thrown)
+        #expect(result == 42, "withTimeout should return the block value when it completes in time")
+        #expect(thrown == 0, "withTimeout must clear the thrown channel when no timeout occurs")
+    }
+
     // MARK: - Test 12: Multiple spill slots are independent
 
     /// Setting two distinct spill slots and reading them back after a suspension

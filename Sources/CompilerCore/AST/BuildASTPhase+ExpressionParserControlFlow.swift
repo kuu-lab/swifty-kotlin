@@ -179,6 +179,29 @@ extension BuildASTPhase.ExpressionParser {
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
                 return astArena.appendExpr(.isCheck(expr: subject, type: typeRef, negated: true, range: conditionRange))
             }
+            // Range / collection membership conditions: `in a..b ->`, `!in xs ->`.
+            let negatedIn: Bool? = if token.kind == .keyword(.in) {
+                false
+            } else if token.kind == .symbol(.bang), let inToken = peek(1), inToken.kind == .keyword(.in) {
+                true
+            } else {
+                nil
+            }
+            if let negatedIn {
+                _ = consume() // `in` or `!`
+                if negatedIn { _ = consume() } // `in`
+                guard let rangeExpr = parseExpression(minPrecedence: 0) else {
+                    return nil
+                }
+                let conditionRange = mergeRanges(
+                    astArena.exprRange(subject), astArena.exprRange(rangeExpr), fallback: token.range
+                )
+                return astArena.appendExpr(
+                    negatedIn
+                        ? .notInExpr(lhs: subject, rhs: rangeExpr, range: conditionRange)
+                        : .inExpr(lhs: subject, rhs: rangeExpr, range: conditionRange)
+                )
+            }
         }
         return parseExpression(minPrecedence: 0)
     }
@@ -198,23 +221,55 @@ extension BuildASTPhase.ExpressionParser {
         let parser = BuildASTPhase.ExpressionParser(
             tokens: branchTokens,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
-        let body: ExprID?
+        var body: ExprID?
         if branchTokens.first?.kind == .symbol(.lBrace) {
             body = parser.parseBlockExpression()
         } else {
             body = parser.parse()
         }
+        var consumedCount = parser.index - parser.tokens.startIndex
+        // A bare (non-block) branch body may be an assignment
+        // (`1 -> x = 10`, `1 -> counter += 1`, `1 -> arr[i] = v`), which is a
+        // statement form the generic expression parser above doesn't know —
+        // it only consumes the assignment's target and stops at `=`. Retry as
+        // a local assignment when the generic parse left tokens unconsumed.
+        if body == nil || consumedCount < branchTokens.count {
+            if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
+                body = assignBody
+                consumedCount = branchTokens.count
+            }
+        }
         guard let body else {
             return nil
         }
 
-        let consumedCount = parser.index - parser.tokens.startIndex
         if consumedCount > 0 {
             index = startIndex + consumedCount
         }
         return body
+    }
+
+    /// Attempts to parse `branchTokens` as a local assignment statement
+    /// (`.localAssign`, `.memberAssign`, `.indexedAssign`, or a compound-assign
+    /// form), succeeding only if the whole span is consumed.
+    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> ExprID? {
+        let context = BuildASTPhase.LocalStatementCoreContext(
+            interner: interner,
+            astArena: astArena,
+            parseExpression: { subTokens in
+                BuildASTPhase.ExpressionParser(tokens: subTokens, interner: self.interner, astArena: self.astArena).parse()
+            },
+            parseTypeReference: { _ in nil },
+            resolveDeclarationName: { _, _ in nil }
+        )
+        return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
+            from: branchTokens,
+            context: context,
+            options: .blockExpression
+        )
     }
 
     private func findWhenBranchBodyEnd(startIndex: Int) -> Int {
@@ -545,7 +600,8 @@ extension BuildASTPhase.ExpressionParser {
         // are preserved for intra-block statement splitting.
         if let first = bodyTokens.first, first.kind == .symbol(.lBrace) {
             return BuildASTPhase.ExpressionParser(
-                tokens: bodyTokens, interner: interner, astArena: astArena
+                tokens: bodyTokens, interner: interner, astArena: astArena,
+                diagnostics: diagnostics
             ).parseBlockExpression()
         }
         let sanitized = bodyTokens.filter { $0.kind != .symbol(.semicolon) }
@@ -558,7 +614,10 @@ extension BuildASTPhase.ExpressionParser {
         if let localAssign = parseLocalAssignFromSlice(sanitized[...]) {
             return localAssign
         }
-        return BuildASTPhase.ExpressionParser(tokens: sanitized[...], interner: interner, astArena: astArena).parse()
+        return BuildASTPhase.ExpressionParser(
+            tokens: sanitized[...], interner: interner, astArena: astArena,
+            diagnostics: diagnostics
+        ).parse()
     }
 
     /// Finds the top-level `while` keyword that starts the condition part of
