@@ -1156,7 +1156,8 @@ extension CallTypeChecker {
             // call would stop at the zero-argument member and never reach the
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
-                guard calleeName == knownNames.toString, !args.isEmpty else {
+                let memberName = interner.resolve(calleeName)
+                guard memberName == "toString" || memberName == "replace" else {
                     return []
                 }
                 let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
@@ -1170,11 +1171,44 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    return extensionSyntheticFallbackReceiverMatches(
+                    guard extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
                         sema: sema
-                    )
+                    ) else {
+                        return false
+                    }
+                    if memberName == "toString" {
+                        return !args.isEmpty
+                    }
+
+                    // String has a legacy member-shaped `replace(Regex, String)`
+                    // candidate. Keep the bundled CharSequence transform overload
+                    // beside it so its function parameter supplies the lambda's
+                    // implicit `it` type before overload resolution rejects the
+                    // String replacement candidate.
+                    func isNominalType(_ type: TypeID, fqName: [String]) -> Bool {
+                        guard let nominal = driver.helpers.nominalSymbol(of: type, types: sema.types),
+                              let symbol = sema.symbols.symbol(nominal)
+                        else {
+                            return false
+                        }
+                        return symbol.fqName.map(interner.resolve) == fqName
+                    }
+                    guard args.count == 2,
+                          signature.parameterTypes.count == 2,
+                          isNominalType(declaredReceiver, fqName: ["kotlin", "CharSequence"]),
+                          isNominalType(signature.parameterTypes[0], fqName: ["kotlin", "text", "Regex"]),
+                          case let .functionType(transformType) = sema.types.kind(
+                              of: sema.types.makeNonNullable(signature.parameterTypes[1])
+                          ),
+                          transformType.params.count == 1,
+                          isNominalType(transformType.params[0], fqName: ["kotlin", "text", "MatchResult"]),
+                          isNominalType(transformType.returnType, fqName: ["kotlin", "CharSequence"])
+                    else {
+                        return false
+                    }
+                    return true
                 }
             }()
             let memberCandidates = sourceBackedOverloads + standardMemberCandidates
