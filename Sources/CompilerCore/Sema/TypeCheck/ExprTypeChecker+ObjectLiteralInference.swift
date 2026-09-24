@@ -112,9 +112,15 @@ extension ExprTypeChecker {
         // nested literal can capture them again through the same chain even
         // though the enclosing member's `this` binding shadows them in
         // `outerLocalsSnapshot`.
-        let captureOuterSymbols = outerSymbols
+        var captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+        // An unqualified call to an enclosing class member still needs that
+        // receiver after the object literal's own receiver becomes active.
+        // Capture the enclosing receiver symbol as a value just like a local.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            captureOuterSymbols.insert(enclosingClassSymbol)
+        }
 
         let objectSymbol = sema.symbols.define(
             kind: .class,

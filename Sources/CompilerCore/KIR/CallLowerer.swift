@@ -1070,7 +1070,19 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
-                ?? driver.ctx.activeImplicitReceiverExprID()
+            if implicitReceiver == nil {
+                implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                // A bare call inside an object literal can resolve to a member of
+                // its enclosing class. The literal is the active receiver while
+                // lowering its member body, so use the captured enclosing receiver
+                // when the callee's owner is available as a captured local value.
+                if let owner = sema.symbols.parentSymbol(for: chosen),
+                   owner != driver.ctx.activeImplicitReceiverSymbol(),
+                   let capturedReceiver = driver.ctx.localValue(for: owner)
+                {
+                    implicitReceiver = capturedReceiver
+                }
+            }
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
             {
