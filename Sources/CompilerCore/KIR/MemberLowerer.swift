@@ -160,6 +160,19 @@ final class MemberLowerer {
                     )
                 }
             }
+            if isInterfaceContext, !hasCustomSetterBody, !hasDelegate,
+               propFlags?.contains(.mutable) == true,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
+            {
+                synthesizeInterfacePropertySetterStub(
+                    propertySymbol: symbol,
+                    ownerSymbol: ownerSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
+            }
             // BUG-227: symmetric default setter accessor for a `var` in the
             // same situation — a write through a base-typed reference must
             // dispatch to the actual runtime type's setter the same way a

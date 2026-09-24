@@ -3,6 +3,44 @@
 import Testing
 
 extension BuildKIRRegressionTests {
+    @Test func testInterfaceVarPropertyWriteUsesDynamicItableSetter() throws {
+        let source = """
+        interface V { var name: String }
+        class C : V { override var name: String = "w" }
+        fun write(value: V) { value.name = "w2" }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let interfaceSymbol = try #require(sema.symbols.lookup(fqName: ["V"].map(ctx.interner.intern)))
+        let propertySymbol = try #require(sema.symbols.lookup(fqName: ["V", "name"].map(ctx.interner.intern)))
+        let expectedSlot = try #require(kirInterfacePropertySetterSlot(
+            interfaceProperty: propertySymbol,
+            interfaceSymbol: interfaceSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ))
+
+        let body = try findKIRFunctionBody(named: "write", in: module, interner: ctx.interner)
+        let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
+            guard case let .virtualCall(_, callee, _, arguments, _, _, _, dispatch) = instruction,
+                  ctx.interner.resolve(callee) == "set",
+                  arguments.count == 1
+            else {
+                return nil
+            }
+            return dispatch
+        }
+
+        #expect(dispatches.contains { dispatch in
+            if case let .itableDynamic(_, slot) = dispatch { return slot == expectedSlot }
+            return false
+        })
+    }
+
     // BUG-211: an interface property read must remain an itable dispatch in
     // KIR. The backend then boxes the receiver before doing the dynamic lookup.
     // CharSequence.length is the property getter after `get` (slot 0) and

@@ -78,6 +78,37 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+           sema.symbols.symbol(ownerSymbol)?.kind == .interface,
+           sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true,
+           let setterSlot = kirInterfacePropertySetterSlot(
+                interfaceProperty: propertySymbol,
+                interfaceSymbol: ownerSymbol,
+                sema: sema,
+                interner: interner
+           )
+        {
+            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: ownerSymbol, sema: sema, interner: interner
+            )
+            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            instructions.append(.virtualCall(
+                symbol: setterSymbol,
+                callee: interner.intern("set"),
+                receiver: receiverID,
+                arguments: [valueID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: setterSlot)
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
         // Custom setters and delegated properties must run before direct
         // storage paths so their bodies (or the delegate's `setValue`) observe
         // explicit-receiver assignments as Kotlin does.

@@ -755,4 +755,52 @@ extension MemberLowerer {
         allDecls.append(kirID)
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
+
+    /// Emits a setter accessor stub for an abstract interface `var` property.
+    /// The stub is only the statically typed target of dynamic itable calls;
+    /// concrete implementations register their own setter accessors.
+    func synthesizeInterfacePropertySetterStub(
+        propertySymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        allDecls: inout [KIRDeclID]
+    ) {
+        guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
+        let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+        let ownerType = sema.types.make(
+            .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+        let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: propertySymbol)
+        let params = [
+            KIRParameter(symbol: receiverSymbol, type: ownerType),
+            KIRParameter(symbol: valueParamSymbol, type: propType),
+        ]
+        var body: [KIRInstruction] = [.beginBlock]
+        for param in params {
+            let expr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
+        }
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        let kirID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: setterSymbol,
+                    name: interner.intern("set"),
+                    params: params,
+                    returnType: sema.types.unitType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        allDecls.append(kirID)
+        allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
+    }
 }

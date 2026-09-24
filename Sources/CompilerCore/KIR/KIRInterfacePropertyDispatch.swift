@@ -14,6 +14,7 @@ private struct KIRInterfacePropertyGetterSlot {
     let propertySymbol: SymbolID?
     let propertyName: InternedString
     let slot: Int
+    let setterSlot: Int?
 }
 
 /// The interface's own instance properties that participate in itable dispatch,
@@ -94,10 +95,16 @@ private func kirInterfacePropertyGetterSlots(
     }
 
     return properties.enumerated().map { index, propertySymbol in
-        KIRInterfacePropertyGetterSlot(
+        let setterSlot = propertySymbol.symbol.flatMap { symbol in
+            sema.symbols.symbol(symbol)?.flags.contains(.mutable) == true
+                ? base + properties.count + index
+                : nil
+        }
+        return KIRInterfacePropertyGetterSlot(
             propertySymbol: propertySymbol.symbol,
             propertyName: propertySymbol.name,
-            slot: base + index
+            slot: base + index,
+            setterSlot: setterSlot
         )
     }
 }
@@ -113,6 +120,18 @@ func kirInterfacePropertyGetterSlot(
     kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
         .first { $0.propertySymbol == interfaceProperty }?
         .slot
+}
+
+/// The itable method slot occupied by the setter for `interfaceProperty`.
+func kirInterfacePropertySetterSlot(
+    interfaceProperty: SymbolID,
+    interfaceSymbol: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> Int? {
+    kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
+        .first { $0.propertySymbol == interfaceProperty }?
+        .setterSlot
 }
 
 /// The implementing getter accessor symbol for `interfaceProperty` in
@@ -276,6 +295,86 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                 canThrow: false,
                 thrownResult: nil
             ))
+
+            if let propertySymbol = getterSlot.propertySymbol,
+               let setterSlot = getterSlot.setterSlot,
+               let propertyInfo = sema.symbols.symbol(propertySymbol),
+               propertyInfo.flags.contains(.mutable),
+               let implSetterProperty = kirFindOverrideProperty(
+                    named: getterSlot.propertyName,
+                    in: nominalSymbol,
+                    sema: sema
+               )
+            {
+                let implSetter = sema.symbols.extensionPropertySetterAccessor(for: implSetterProperty)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: implSetterProperty)
+                let setterSlotExpr = arena.appendExpr(.intLiteral(Int64(setterSlot)), type: intType)
+                instructions.append(.constValue(result: setterSlotExpr, value: .intLiteral(Int64(setterSlot))))
+                let setterFnExpr = arena.appendExpr(.symbolRef(implSetter), type: intType)
+                instructions.append(.constValue(result: setterFnExpr, value: .symbolRef(implSetter)))
+                let registerSetterResult = arena.appendTemporary(type: intType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: registerCallee,
+                    arguments: [objectValue, ifaceSlotExpr, setterSlotExpr, setterFnExpr],
+                    result: registerSetterResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
         }
     }
+}
+
+private func kirFindOverrideProperty(
+    named propertyName: InternedString,
+    in nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> SymbolID? {
+    var visitedClasses: Set<SymbolID> = []
+    var currentClass: SymbolID? = nominalSymbol
+    while let current = currentClass, visitedClasses.insert(current).inserted {
+        if let ownerSym = sema.symbols.symbol(current),
+           let property = sema.symbols.lookupAll(fqName: ownerSym.fqName + [propertyName]).first(where: { candidate in
+               guard let candidateSym = sema.symbols.symbol(candidate), candidateSym.kind == .property else {
+                   return false
+               }
+               return sema.symbols.parentSymbol(for: candidate) == current
+           })
+        {
+            return property
+        }
+        currentClass = kirSuperclass(of: current, sema: sema)
+    }
+
+    var queue: [SymbolID] = []
+    currentClass = nominalSymbol
+    visitedClasses.removeAll(keepingCapacity: true)
+    while let current = currentClass, visitedClasses.insert(current).inserted {
+        queue.append(contentsOf: sema.symbols.directSupertypes(for: current).filter {
+            sema.symbols.symbol($0)?.kind == .interface
+        })
+        currentClass = kirSuperclass(of: current, sema: sema)
+    }
+    var visitedInterfaces: Set<SymbolID> = []
+    while !queue.isEmpty {
+        let interface = queue.removeFirst()
+        guard visitedInterfaces.insert(interface).inserted,
+              let ownerSym = sema.symbols.symbol(interface)
+        else {
+            continue
+        }
+        queue.append(contentsOf: sema.symbols.directSupertypes(for: interface).filter {
+            sema.symbols.symbol($0)?.kind == .interface
+        })
+        if let property = sema.symbols.lookupAll(fqName: ownerSym.fqName + [propertyName]).first(where: { candidate in
+            guard let candidateSym = sema.symbols.symbol(candidate), candidateSym.kind == .property else {
+                return false
+            }
+            return sema.symbols.parentSymbol(for: candidate) == interface
+        }) {
+            return property
+        }
+    }
+    return nil
 }
