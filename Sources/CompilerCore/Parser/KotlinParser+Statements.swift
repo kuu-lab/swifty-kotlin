@@ -1,5 +1,10 @@
 extension KotlinParser {
     func parseBlock() -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: true, kind: .block)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         guard consumeIfSymbol(.lBrace, into: &children, range: &range) else {
@@ -55,6 +60,11 @@ extension KotlinParser {
     }
 
     func parseStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         if isLoopStart(stream.peek().kind) {
             return parseLoopStatement(inBlock: inBlock)
         }
@@ -170,6 +180,11 @@ extension KotlinParser {
 
     /// Parse a structured `if` expression: `if (condition) then-branch [else else-branch]`
     func parseIfStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -193,6 +208,11 @@ extension KotlinParser {
 
     /// Parse a structured `when` expression: `when [(subject)] { branches }`
     func parseWhenStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -216,6 +236,11 @@ extension KotlinParser {
 
     /// Parse a structured `try` expression: `try body [catch (params) body]* [finally body]`
     func parseTryStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -575,6 +600,11 @@ extension KotlinParser {
     // MARK: - Loop Parsing
 
     func parseLoopStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         _ = inBlock
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()

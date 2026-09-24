@@ -1,15 +1,61 @@
 final class KotlinParser {
+    /// Caps active recursive parser productions across blocks, statements, and
+    /// declarations. The budget is shared because those productions call one
+    /// another to parse nested control flow and declaration bodies.
+    static let maxNestingDepth = 128
+
     let stream: TokenStream
     let interner: StringInterner
     let diagnostics: DiagnosticEngine
     let arena: SyntaxArena
     var lastConsumedToken: Token?
+    private var nestingDepth = 0
+    private var nestingLimitReported = false
 
     init(tokens: [Token], interner: StringInterner, diagnostics: DiagnosticEngine) {
         stream = TokenStream(tokens)
         self.interner = interner
         self.diagnostics = diagnostics
         arena = SyntaxArena()
+    }
+
+    /// Enters one recursive grammar production. The caller must pair success
+    /// with `leaveNesting()` using `defer`.
+    func enterNesting() -> Bool {
+        nestingDepth += 1
+        guard nestingDepth <= Self.maxNestingDepth else {
+            nestingDepth -= 1
+            return false
+        }
+        return true
+    }
+
+    func leaveNesting() {
+        nestingDepth -= 1
+    }
+
+    /// Produces a partial node and iteratively skips to the next parser
+    /// synchronization point after the shared nesting budget is exhausted.
+    func recoverFromNestingLimit(inBlock: Bool, kind: SyntaxKind = .statement) -> NodeID {
+        let start = stream.peek().range
+        if !nestingLimitReported {
+            nestingLimitReported = true
+            diagnostics.error(
+                "KSWIFTK-PARSE-0013",
+                "Structured syntax nesting exceeds the maximum supported depth of \(Self.maxNestingDepth).",
+                range: start
+            )
+        }
+
+        var children: [SyntaxChild] = []
+        var range = RangeAccumulator()
+        while !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
+            _ = consumeToken(into: &children, range: &range)
+        }
+        if children.isEmpty, !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
+            _ = consumeToken(into: &children, range: &range)
+        }
+        return arena.appendNode(kind: kind, range: range.value ?? start, children)
     }
 
     func parseFile() -> (arena: SyntaxArena, root: NodeID) {
