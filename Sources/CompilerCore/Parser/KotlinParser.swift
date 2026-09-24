@@ -11,6 +11,8 @@ final class KotlinParser {
     var lastConsumedToken: Token?
     private var nestingDepth = 0
     private var nestingLimitReported = false
+    var genuineDeclarationLookahead: [Int: Bool] = [:]
+    var modifierDeclarationLookahead: [Int: Bool] = [:]
 
     init(tokens: [Token], interner: StringInterner, diagnostics: DiagnosticEngine) {
         stream = TokenStream(tokens)
