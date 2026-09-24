@@ -1739,6 +1739,51 @@ struct RuntimeStringArrayTests {
         #expect(formatted == "3.5")
     }
 
+    @Test
+    func testStringFormatRejectsIntMaxPrecisionWithoutTrap() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([boxDouble(1.5)])
+        let formattedMax = flatStringReturnValueNoThrow("%.9223372036854775807f", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedMax.contains("%"))
+
+        let formattedOverflowDigits = flatStringReturnValueNoThrow("%.99999999999999999999f", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedOverflowDigits.contains("%"))
+    }
+
+    @Test
+    func testStringFormatRejectsLargeWidthWithoutAllocationFailure() {
+        let args = makeRuntimeArray([42])
+        let formattedMax = flatStringReturnValueNoThrow("%9223372036854775807d", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedMax.contains("%"))
+
+        let formattedExceeded = flatStringReturnValueNoThrow("%100001d", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedExceeded.contains("%"))
+    }
+
+    @Test
+    func testStringFormatEnforcesCumulativeBudgetAcrossMultipleSpecifiers() {
+        let str = rawFromRuntimeString("x")
+        let args = makeRuntimeArray([str, str])
+        let formatted = flatStringReturnValueNoThrow("%60000s%60000s", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted.count <= 100_000)
+        #expect(formatted.count == 60_000)
+    }
+
+    @Test
+    func testStringFormatExactBoundaryHandling() {
+        let str = rawFromRuntimeString("x")
+        let args1 = makeRuntimeArray([str])
+        let formattedWidthBoundary = flatStringReturnValueNoThrow("%100000s", intArg: args1, using: __kk_string_format_flat)
+        #expect(formattedWidthBoundary.count == 100_000)
+        #expect(formattedWidthBoundary.hasSuffix("x"))
+
+        let args2 = makeRuntimeArray([str, str])
+        let formattedBudgetBoundary = flatStringReturnValueNoThrow("%50000s%50000s", intArg: args2, using: __kk_string_format_flat)
+        #expect(formattedBudgetBoundary.count == 100_000)
+    }
+
     // MARK: - __kk_throwable_new
 
     @Test

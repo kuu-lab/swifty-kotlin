@@ -55,6 +55,13 @@ private enum RuntimeParsedFormatToken {
     case invalid
 }
 
+// MARK: - Resource limits for String.format (KUU-804)
+// Prevents memory exhaustion and arithmetic traps on maliciously large width/precision.
+internal let runtimeFormatMaxWidth = 100_000
+internal let runtimeFormatMaxPrecision = 100_000
+internal let runtimeFormatMaxArgumentIndex = 100_000
+internal let runtimeFormatMaxOutputBudget = 100_000
+
 private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "("]
 private let runtimeFormatLengthCharacters: Set<Character> = ["h", "l", "L", "z", "j", "t"]
 private let runtimeSupportedFormatConversions: Set<Character> = [
@@ -66,20 +73,31 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
     var cursor = 0
     var implicitArgumentIndex = 0
     var result = ""
+    var remainingBudget = runtimeFormatMaxOutputBudget
 
     while cursor < characters.count {
         guard characters[cursor] == "%" else {
-            result.append(characters[cursor])
+            let ch = characters[cursor]
+            let byteCount = ch.utf8.count
+            guard byteCount <= remainingBudget else {
+                break
+            }
+            result.append(ch)
+            remainingBudget -= byteCount
             cursor += 1
             continue
         }
 
         switch runtimeParseFormatToken(characters, start: cursor) {
         case let .escapedPercent(next):
+            guard 1 <= remainingBudget else { break }
             result.append("%")
+            remainingBudget -= 1
             cursor = next
         case let .newline(next):
+            guard 1 <= remainingBudget else { break }
             result.append("\n")
+            remainingBudget -= 1
             cursor = next
         case let .specifier(specifier, next):
             let argumentIndex = specifier.explicitArgumentIndex ?? implicitArgumentIndex
@@ -89,10 +107,19 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
             let argument = arguments.indices.contains(argumentIndex)
                 ? arguments[argumentIndex]
                 : RuntimeValue(raw: runtimeNullSentinelInt)
-            result += runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
+            let rendered = runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
+            let renderedBytes = rendered.utf8.count
+            guard renderedBytes <= remainingBudget else {
+                cursor = next
+                break
+            }
+            result += rendered
+            remainingBudget -= renderedBytes
             cursor = next
         case .invalid:
+            guard 1 <= remainingBudget else { break }
             result.append("%")
+            remainingBudget -= 1
             cursor += 1
         }
     }
@@ -118,7 +145,11 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
     }
     var explicitArgumentIndex: Int?
     if cursor < characters.count, characters[cursor] == "$", initialDigitsStart < cursor {
-        explicitArgumentIndex = Int(String(characters[initialDigitsStart ..< cursor])).map { $0 - 1 }
+        let indexString = String(characters[initialDigitsStart ..< cursor])
+        guard let index = Int(indexString), index > 0, index <= runtimeFormatMaxArgumentIndex else {
+            return .invalid
+        }
+        explicitArgumentIndex = index - 1
         cursor += 1
     } else {
         cursor = initialDigitsStart
@@ -134,7 +165,14 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
     while cursor < characters.count, characters[cursor].isNumber {
         cursor += 1
     }
-    let width = widthStart < cursor ? Int(String(characters[widthStart ..< cursor])) : nil
+    var width: Int?
+    if widthStart < cursor {
+        let widthString = String(characters[widthStart ..< cursor])
+        guard let parsedWidth = Int(widthString), parsedWidth >= 0, parsedWidth <= runtimeFormatMaxWidth else {
+            return .invalid
+        }
+        width = parsedWidth
+    }
 
     var precision: Int?
     if cursor < characters.count, characters[cursor] == "." {
@@ -143,8 +181,17 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
         while cursor < characters.count, characters[cursor].isNumber {
             cursor += 1
         }
-        let precisionDigits = String(characters[precisionStart ..< cursor])
-        precision = Int(precisionDigits) ?? 0
+        if precisionStart < cursor {
+            let precisionDigits = String(characters[precisionStart ..< cursor])
+            guard let parsedPrecision = Int(precisionDigits),
+                  parsedPrecision >= 0,
+                  parsedPrecision <= runtimeFormatMaxPrecision else {
+                return .invalid
+            }
+            precision = parsedPrecision
+        } else {
+            precision = 0
+        }
     }
 
     while cursor < characters.count, runtimeFormatLengthCharacters.contains(characters[cursor]) {
@@ -530,7 +577,9 @@ private func runtimeRenderFormattedFloatingPoint(
         )
     case "e":
         let precision = specifier.precision ?? 6
-        let rounded = runtimeRoundedSignificantDigits(decimal, count: precision + 1)
+        let (count, overflow) = precision.addingReportingOverflow(1)
+        let safeCount = overflow ? precision : count
+        let rounded = runtimeRoundedSignificantDigits(decimal, count: safeCount)
         let firstDigit = String(rounded.digits.prefix(1))
         let fractionalDigits = String(rounded.digits.dropFirst())
         let mantissa: String
