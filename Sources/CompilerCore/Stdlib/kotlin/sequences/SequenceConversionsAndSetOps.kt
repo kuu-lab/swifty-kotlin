@@ -617,3 +617,81 @@ public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> 
         override fun keyOf(element: T): K = keySelector(element)
     }
 }
+
+// KSP-1359: Sequence sum-family migrated to bundled Kotlin source with the
+// Kotlin 2.3.10 signatures. The monomorphic sum() overloads iterate lazily;
+// sumOf resolves on the selector's concrete return type. The sibling Int and
+// Double sumOf overloads already live in SequenceAggregateHOF.kt
+// (kotlin.collections), and Sequence<Int>.sum() lives there too.
+public fun Sequence<Double>.sum(): Double {
+    var sum = 0.0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Sequence<Float>.sum(): Float {
+    var sum = 0.0f
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Sequence<Long>.sum(): Long {
+    var sum = 0L
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<UByte>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<UInt>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<ULong>.sum(): ULong {
+    var sum = 0uL
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<UShort>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Sequence<T>.sumOf(selector: (T) -> Long): Long {
+    var sum = 0L
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Sequence<T>.sumOf(selector: (T) -> UInt): UInt {
+    var sum = 0u
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Sequence<T>.sumOf(selector: (T) -> ULong): ULong {
+    var sum = 0uL
+    for (element in this) sum += selector(element)
+    return sum
+}

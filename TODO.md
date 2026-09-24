@@ -3133,14 +3133,17 @@
     - `kotlin.sequences.singleOrNull` — fun Sequence.singleOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/singleOrNull(): #A?`
     - `kotlin.sequences.singleOrNull` — fun Sequence.singleOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/singleOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
 
-- [ ] KSP-1359: kotlin.sequences.Sequence.sum-family の未実装 stdlib API を実装する（10 件）
+- [x] KSP-1359: kotlin.sequences.Sequence.sum-family の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `sum`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_sum.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_sum.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_sum.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-09-23）: `SequenceConversionsAndSetOps.kt` に monomorphic `sum()` 7 overload（lazy iterator 累積）と `sumOf` の Long/UInt/ULong selector overload（`@OverloadResolutionByLambdaReturnType` 付き `public inline`）を upstream 2.3.10 シグネチャで追加した。Int/Double `sumOf`・`Sequence<Int>.sum()` は `SequenceAggregateHOF.kt`（`kotlin.collections`）の既存実装をそのまま利用する。Sema 側は `bindBundledSequenceSumSource`（`CallTypeChecker+MemberCallInferenceCollectionFlow.swift`、要素型で monomorphic overload を選択し declared return type を返す）と `bindSequenceSumOfSourceForSelectorType`（`T` を代入して selector の具体返り値型で overload を選択）を追加し、Sequence receiver の `sumOf` は selector を `(T) -> Any` 期待で推論してから Long/UInt/ULong/Int/Double に dispatch、未対応 selector（Byte/Short 要素や非数値返り値）は従来どおり `KSWIFTK-SEMA-0024` とした。`kk_sequence_sum`（Int 専用、`RuntimeSequence.swift`）・RuntimeABISpec エントリ・`CallLowerer` の未解決 fallback name-string 特例は Iterable/List 残余 dispatch が共用するため保持。synthetic stub / `StdlibSurfaceSpec` 登録は存在しないことを確認。
+  - 回帰: `SequenceAggregateReceiverTypeTests` に全 10 overload の source-backed binding と declared return type を固定するテストを追加し、非対応ケース（Byte/Short `sum`・非 Int `average`・非数値 `sumOf` selector）が `KSWIFTK-SEMA-0024` のままであることを固定。Sema Golden (`stdlib_kotlin_sequences_Sequence_sum`) と `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_sum.kt`（empty/overflow/unsigned wrap・float 加算順・nullable 要素・selector 逐次評価/例外順・`generateSequence`+`map` の lazy 評価）を追加した。
+  - 検証: `swift build` OK / `SequenceAggregateReceiverTypeTests`（3 件）pass / Sema Golden suite 全件 pass（新規 golden は `KSWIFTK_GOLDEN_STDLIB_LIBRARY` を artifact-based `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` に設定して生成）/ `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_sum.kt` PASS（実 kotlinc 2.3.10 比較）/ `check_todo_ids.sh` pass / `validate_runtime_abi_links.sh` pass。全 Golden スイート・全 diff ケース一括は未実施（CI 確認）。
+  - 実装シンボル一覧:
     - `kotlin.sequences.sum` — fun Sequence.sum(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/sum(): kotlin/Double`
     - `kotlin.sequences.sum` — fun Sequence.sum(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/sum(): kotlin/Float`
     - `kotlin.sequences.sum` — fun Sequence.sum(): Long  -- `final fun (kotlin.sequences/Sequence<kotlin/Long>).kotlin.sequences/sum(): kotlin/Long`
