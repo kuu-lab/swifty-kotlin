@@ -66,10 +66,17 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
         finalDirectMembers.append(contentsOf: forwardingDeclIDs)
+        let forwardingPropertyGetterDeclIDs = synthesizeClassDelegationForwardingPropertyGetters(
+            classSymbol: symbol,
+            shared: shared,
+            compilationCtx: compilationCtx
+        )
+        finalDirectMembers.append(contentsOf: forwardingPropertyGetterDeclIDs)
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: finalDirectMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDeclIDs)
+        declIDs.append(contentsOf: forwardingPropertyGetterDeclIDs)
         declIDs.append(contentsOf: synthesizeConstructorReflectionInitializer(
             classDecl: classDecl,
             ownerSymbol: symbol,
@@ -107,6 +114,111 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         ))
 
+        return declIDs
+    }
+
+    /// CLASS-008: Emit property getter bodies for delegated interface
+    /// properties. Runtime-backed Map properties still receive a concrete
+    /// class getter so an erased `Map` receiver can dispatch through its
+    /// itable instead of passing the delegating object to a box-only bridge.
+    private func synthesizeClassDelegationForwardingPropertyGetters(
+        classSymbol: SymbolID,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
+    ) -> [KIRDeclID] {
+        let sema = shared.sema
+        let arena = shared.arena
+        var declIDs: [KIRDeclID] = []
+        let classType = sema.types.make(.classType(ClassType(
+            classSymbol: classSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        for forwardingSymbol in sema.symbols.classDelegationForwardingPropertySymbols(forClass: classSymbol) {
+            guard let info = sema.symbols.classDelegationForwardingPropertyInfo(for: forwardingSymbol),
+                  let propertyType = sema.symbols.propertyType(for: forwardingSymbol),
+                  let fieldOffset = sema.symbols.nominalLayout(for: classSymbol)?.fieldOffsets[info.fieldSymbol]
+            else {
+                continue
+            }
+
+            let receiverSymbol = callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: forwardingSymbol)
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: classType)
+            let delegateType = sema.symbols.propertyType(for: info.fieldSymbol) ?? sema.types.anyType
+            let delegateResult = arena.appendTemporary(type: delegateType)
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            var body: KIRLoweringEmitContext = [.beginBlock]
+            body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            body.append(.call(
+                symbol: nil,
+                callee: compilationCtx.interner.intern("kk_array_get"),
+                arguments: [receiverExpr, offsetExpr],
+                result: delegateResult,
+                canThrow: true,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+
+            let getterResult = arena.appendTemporary(type: propertyType)
+            if let externalLinkName = sema.symbols.externalLinkName(for: info.interfacePropertySymbol),
+               !externalLinkName.isEmpty
+            {
+                body.append(.call(
+                    symbol: nil,
+                    callee: compilationCtx.interner.intern(externalLinkName),
+                    arguments: [delegateResult],
+                    result: getterResult,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: false
+                ))
+            } else if let methodSlot = kirInterfacePropertyGetterSlot(
+                interfaceProperty: info.interfacePropertySymbol,
+                interfaceSymbol: info.interfaceSymbol,
+                sema: sema,
+                interner: compilationCtx.interner
+            ) {
+                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: info.interfaceSymbol,
+                    sema: sema,
+                    interner: compilationCtx.interner
+                )
+                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(
+                    for: info.interfacePropertySymbol
+                )
+                body.append(.virtualCall(
+                    symbol: getterSymbol,
+                    callee: compilationCtx.interner.intern("get"),
+                    receiver: delegateResult,
+                    arguments: [],
+                    result: getterResult,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: .itableDynamic(
+                        interfaceTypeID: interfaceTypeID,
+                        methodSlot: methodSlot
+                    )
+                ))
+            } else {
+                body.append(.constValue(result: getterResult, value: delegationDefaultValue(for: propertyType, sema: sema)))
+            }
+
+            body.append(.returnValue(getterResult))
+            body.append(.endBlock)
+            let getterDeclID = arena.appendDecl(.function(KIRFunction(
+                symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: forwardingSymbol),
+                name: compilationCtx.interner.intern("get"),
+                params: [KIRParameter(symbol: receiverSymbol, type: classType)],
+                returnType: propertyType,
+                body: body,
+                isSuspend: false,
+                isInline: false
+            )))
+            declIDs.append(getterDeclID)
+            declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
+        }
         return declIDs
     }
 

@@ -964,6 +964,34 @@ public final class SymbolTable {
         classDelegationForwardingMethodInfo[forwardingSymbol]
     }
 
+    /// CLASS-008: Synthetic forwarding property symbols created for class
+    /// delegation. Maps a class property to the delegated interface property
+    /// and the storage field holding the delegate instance.
+    private var classDelegationForwardingPropertyInfo: [SymbolID: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
+
+    private var classDelegationForwardingPropertiesByClass: [SymbolID: [SymbolID]] = [:]
+
+    public func addClassDelegationForwardingProperty(
+        _ forwardingSymbol: SymbolID,
+        forClass classSymbol: SymbolID,
+        interface interfaceSymbol: SymbolID,
+        interfaceProperty interfacePropertySymbol: SymbolID,
+        field fieldSymbol: SymbolID
+    ) {
+        classDelegationForwardingPropertyInfo[forwardingSymbol] = (
+            interfaceSymbol, interfacePropertySymbol, fieldSymbol
+        )
+        classDelegationForwardingPropertiesByClass[classSymbol, default: []].append(forwardingSymbol)
+    }
+
+    public func classDelegationForwardingPropertySymbols(forClass classSymbol: SymbolID) -> [SymbolID] {
+        classDelegationForwardingPropertiesByClass[classSymbol] ?? []
+    }
+
+    public func classDelegationForwardingPropertyInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)? {
+        classDelegationForwardingPropertyInfo[forwardingSymbol]
+    }
+
     public func setNominalLayout(_ layout: NominalLayout, for symbol: SymbolID) {
         nominalLayouts[symbol] = layout
     }
