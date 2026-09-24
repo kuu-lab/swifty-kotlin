@@ -133,7 +133,6 @@ public operator fun CharProgression.contains(value: Char): Boolean = containsCha
 
 public fun UIntRange.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
 public fun UIntProgression.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
-public fun ULongRange.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 public fun ULongProgression.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 
 @KsSymbolName("__kk_range_contains")

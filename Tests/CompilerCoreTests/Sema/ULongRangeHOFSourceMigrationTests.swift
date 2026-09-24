@@ -14,6 +14,53 @@ struct ULongRangeHOFSourceMigrationTests {
     ]
 
     @Test
+    func valueSemanticsAreDeclaredOnULongRangeInBundledSource() throws {
+        let source = """
+        import kotlin.ranges.ULongRange
+        fun probe(range: ULongRange) {
+            range.endInclusive
+            range.endExclusive
+            range.isEmpty()
+            range.equals(ULongRange(1uL, 3uL))
+            range.hashCode()
+            range.toString()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "ULongRange value members should type-check: \(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let owner = ["kotlin", "ranges", "ULongRange"].map(ctx.interner.intern)
+            let sourcePath = "__bundled_kotlin/ranges/ULongRange/Stdlib.kt"
+
+            for name in ["endInclusive", "endExclusive"] {
+                let symbols = sema.symbols.lookupAll(fqName: owner + [ctx.interner.intern(name)]).filter { id in
+                    guard let symbol = sema.symbols.symbol(id),
+                          symbol.kind == .property,
+                          sema.symbols.isSourceBackedSymbol(id),
+                          let fileID = sema.symbols.sourceFileID(for: id)
+                    else { return false }
+                    return ctx.sourceManager.path(of: fileID) == sourcePath
+                }
+                #expect(symbols.count == 1, "Expected source-backed ULongRange.\(name)")
+            }
+
+            for name in ["equals", "hashCode", "isEmpty", "toString"] {
+                let symbols = sema.symbols.lookupAll(fqName: owner + [ctx.interner.intern(name)]).filter { id in
+                    guard let symbol = sema.symbols.symbol(id),
+                          symbol.kind == .function,
+                          sema.symbols.isSourceBackedSymbol(id),
+                          let fileID = sema.symbols.sourceFileID(for: id)
+                    else { return false }
+                    return ctx.sourceManager.path(of: fileID) == sourcePath
+                }
+                #expect(symbols.count == 1, "Expected source-backed ULongRange.\(name)")
+            }
+        }
+    }
+
+    @Test
     func migratedMembersAreULongRangeSourceDefinitions() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -102,27 +149,22 @@ struct ULongRangeHOFSourceMigrationTests {
             let isEmptySymbols = sema.symbols.lookupAll(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("ranges"),
+                ctx.interner.intern("ULongRange"),
                 ctx.interner.intern("isEmpty"),
             ]).filter { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID),
                       symbol.kind == .function,
                       sema.symbols.isSourceBackedSymbol(symbolID),
                       let sourceFileID = sema.symbols.sourceFileID(for: symbolID),
-                      ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/ranges/RangeMembership.kt",
+                      ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/ranges/ULongRange/Stdlib.kt",
                       let signature = sema.symbols.functionSignature(for: symbolID),
-                      signature.parameterTypes.isEmpty,
-                      let receiverType = signature.receiverType,
-                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                      signature.parameterTypes.isEmpty
                 else { return false }
-                return receiverSymbol.fqName == [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("ranges"),
-                    ctx.interner.intern("ULongRange"),
-                ]
+                return true
             }
-            #expect(isEmptySymbols.count == 1, "Expected one ULongRange.isEmpty() source declaration, got \(isEmptySymbols.count)")
+            #expect(isEmptySymbols.count == 1, "Expected one ULongRange.isEmpty() member declaration, got \(isEmptySymbols.count)")
             let expected = Set([
-                "contains", "isEmpty", "firstOrNull", "lastOrNull", "count",
+                "contains", "firstOrNull", "lastOrNull", "count",
                 "sum", "reversed", "sorted", "toList",
             ])
             var seen = Set<String>()

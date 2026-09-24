@@ -207,10 +207,8 @@ extension DataFlowSemaPhase {
         )
         for property in [
             ("start", "__kk_range_first"),
-            ("endInclusive", "__kk_range_last"),
             ("first", "__kk_range_first"),
             ("last", "__kk_range_last"),
-            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
