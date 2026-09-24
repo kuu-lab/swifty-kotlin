@@ -324,7 +324,7 @@ public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int) -> Int {
     var chunks: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
         let chunk = Array(elements[i ..< end])
         chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
         i = end
@@ -338,12 +338,12 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         invalidContainerPanic(#function, "collection")
     }
     let clampedSize = max(1, size)
-    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + clampedSize - 1) / clampedSize
+    let estimatedChunks = elements.isEmpty ? 0 : (elements.count / clampedSize + (elements.count % clampedSize == 0 ? 0 : 1))
     var result: [Int] = []
     result.reserveCapacity(estimatedChunks)
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0
@@ -366,11 +366,13 @@ public func kk_list_bridge_windowed(_ listRaw: Int, _ size: Int, _ step: Int, _ 
     var windows: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
         if !partial && end - i < clampedSize { break }
         let window = Array(elements[i ..< end])
         windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        i += clampedStep
+        let (next, overflow) = i.addingReportingOverflow(clampedStep)
+        if overflow { break }
+        i = next
     }
     return registerRuntimeObject(RuntimeListBox(elements: windows))
 }
@@ -394,7 +396,7 @@ public func kk_list_bridge_windowed_transform(
     var result: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
+        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
         if !partial && end - i < clampedSize { break }
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
@@ -407,7 +409,9 @@ public func kk_list_bridge_windowed_transform(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
-        i += clampedStep
+        let (next, overflow) = i.addingReportingOverflow(clampedStep)
+        if overflow { break }
+        i = next
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }

@@ -641,7 +641,7 @@ public func __kk_bytearray_inputStream_range(
     }
     let offset = offsetRaw
     let length = lengthRaw
-    guard offset >= 0, length >= 0, offset + length <= bytes.count else {
+    guard offset >= 0, length >= 0, offset <= bytes.count, length <= bytes.count - offset else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "offset=\(offset) length=\(length) size=\(bytes.count)"
         )

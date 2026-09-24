@@ -1249,12 +1249,12 @@ private func applyChunkedTransformStep(
     guard !elements.isEmpty else { return [] }
 
     let chunkSize = max(1, size)
-    let expectedChunkCount = (elements.count + chunkSize - 1) / chunkSize
+    let expectedChunkCount = elements.count / chunkSize + (elements.count % chunkSize == 0 ? 0 : 1)
     var result: [Int] = []
     result.reserveCapacity(expectedChunkCount)
 
     var buffer: [Int] = []
-    buffer.reserveCapacity(chunkSize)
+    buffer.reserveCapacity(min(chunkSize, elements.count))
 
     for element in elements {
         buffer.append(element)
@@ -3277,11 +3277,12 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
             buffer.append(elem)
             elementIndex += 1
             // Emit windows whose start position we've passed
-            while nextWindowStart + clampedSize <= elementIndex {
+            while nextWindowStart < elementIndex && elementIndex - nextWindowStart >= clampedSize {
                 let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
                 let windowList = RuntimeListBox(elements: window)
                 windows.append(registerRuntimeObject(windowList))
-                nextWindowStart += clampedStep
+                let (next, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+                nextWindowStart = overflow ? Int.max : next
             }
             return true
         }
@@ -3289,21 +3290,23 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
         let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
         buffer = elements
         elementIndex = elements.count
-        while nextWindowStart + clampedSize <= elementIndex {
+        while nextWindowStart < elementIndex && elementIndex - nextWindowStart >= clampedSize {
             let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
             let windowList = RuntimeListBox(elements: window)
             windows.append(registerRuntimeObject(windowList))
-            nextWindowStart += clampedStep
+            let (next, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+            nextWindowStart = overflow ? Int.max : next
         }
     }
     // Handle partial windows at the end
     if includePartial {
         while nextWindowStart < elementIndex {
-            let end = min(nextWindowStart + clampedSize, elementIndex)
+            let end = (elementIndex - nextWindowStart <= clampedSize) ? elementIndex : (nextWindowStart + clampedSize)
             let window = Array(buffer[nextWindowStart..<end])
             let windowList = RuntimeListBox(elements: window)
             windows.append(registerRuntimeObject(windowList))
-            nextWindowStart += clampedStep
+            let (next, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+            nextWindowStart = overflow ? Int.max : next
         }
     }
     let resultSeq = RuntimeSequenceBox(steps: [.source(elements: windows)])

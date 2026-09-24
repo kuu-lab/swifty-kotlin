@@ -448,12 +448,14 @@ private func runtimeRangeWindowed<Kind: RuntimeRangeHOFKind>(
     var windows: [Int] = []
     var start = 0
     while start < values.count {
-        let end = Swift.min(start + size, values.count)
+        let end = (values.count - start <= size) ? values.count : (start + size)
         let window = Array(values[start..<end])
         if window.count == size || (partialWindows != 0 && !window.isEmpty) {
             windows.append(runtimeRangeList(window))
         }
-        start += step
+        let (next, overflow) = start.addingReportingOverflow(step)
+        if overflow { break }
+        start = next
     }
     return runtimeRangeList(windows)
 }
