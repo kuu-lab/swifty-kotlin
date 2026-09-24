@@ -1,6 +1,7 @@
 
-/// Synthetic stdlib stubs split from the KSP-697 collection residual registry:
-/// MutableList<E> interface, mutation members, and the synthetic List extension function helper.
+/// Synthetic residuals split from the KSP-697 collection registry:
+/// MutableList<E> collection extensions, addAll overloads, and compatibility
+/// shell registration for source-backed MutableList declarations.
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.
@@ -188,8 +189,8 @@ extension DataFlowSemaPhase {
 
     /// Restore the shared MutableIterable residual edge after a bundled
     /// MutableList source declaration is bound. The source declaration owns
-    /// List/MutableCollection, while the compiler shell still owns the
-    /// residual iterator/mutation surface and its direct compatibility edge.
+    /// List/MutableCollection, while the compiler shell still supplies the
+    /// residual MutableIterable compatibility edge.
     func patchSourceBackedMutableListSupertypes(
         symbols: SymbolTable,
         types: TypeSystem,

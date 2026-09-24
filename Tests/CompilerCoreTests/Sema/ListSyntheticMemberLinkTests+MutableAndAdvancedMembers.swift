@@ -557,6 +557,7 @@ extension ListSyntheticMemberLinkTests {
     func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
+            values[0] = 9
             values.add(1)
             values.add(1, 0)
             values.addAll(listOf(2, 3))
@@ -568,6 +569,10 @@ extension ListSyntheticMemberLinkTests {
             values.removeLast()
             values.removeLastOrNull()
             values.clear()
+            values += 6
+            values += listOf(7)
+            values -= 6
+            values -= listOf(7)
         }
         """
 

@@ -2,30 +2,76 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-944: source-backed MutableList nominal declaration and initializer
-// factory.
+@KsSymbolName("__kk_mutable_list_set")
+private external fun <E> __kkMutableListSet(list: MutableList<E>, index: Int, element: E): E
+
+@KsSymbolName("__kk_mutable_list_add")
+private external fun <E> __kkMutableListAdd(list: MutableList<E>, element: E): Boolean
+
+@KsSymbolName("__kk_mutable_list_add_at")
+private external fun <E> __kkMutableListAddAt(list: MutableList<E>, index: Int, element: E)
+
+@KsSymbolName("__kk_mutable_list_addAll")
+private external fun <E> __kkMutableListAddAll(
+    list: MutableList<E>,
+    elements: Collection<out E>
+): Boolean
+
+@KsSymbolName("__kk_mutable_list_removeAt")
+private external fun <E> __kkMutableListRemoveAt(list: MutableList<E>, index: Int): E
+
+@KsSymbolName("__kk_mutable_list_remove")
+private external fun <E> __kkMutableListRemove(list: MutableList<E>, element: E): Boolean
+
+@KsSymbolName("__kk_mutable_list_clear")
+private external fun <E> __kkMutableListClear(list: MutableList<E>)
+
+@KsSymbolName("__kk_mutable_list_removeAll")
+private external fun <E> __kkMutableListRemoveAll(
+    list: MutableList<E>,
+    elements: Collection<out E>
+): Boolean
+
+@KsSymbolName("__kk_mutable_list_retainAll")
+private external fun <E> __kkMutableListRetainAll(
+    list: MutableList<E>,
+    elements: Collection<out E>
+): Boolean
+
+// KSP-1503: the MutableList mutation surface is source-backed. The private
+// externals above are the demoted runtime bridges; keeping the bridge calls in
+// default interface bodies preserves the runtime-backed behavior for erased
+// MutableList receivers without synthetic member declarations.
 // KSP-700: list-iterator overrides are source-backed to keep the covariant
 // return type visible to inherited abstract-member checks.
-// KSP-1503: element add/remove members carry default bodies that forward to
-// the demoted `__kk_mutable_list_*` runtime bridges, mirroring MutableSet.kt.
 public interface MutableList<E> : List<E>, MutableCollection<E> {
-    public fun add(element: E): Boolean = __kkMutableListAdd(this, element)
+    @IgnorableReturnValue
+    public operator fun set(index: Int, element: E): E =
+        __kkMutableListSet(this, index, element)
+
+    @IgnorableReturnValue
+    public fun add(element: E): Boolean =
+        __kkMutableListAdd(this, element)
 
     public fun add(index: Int, element: E) {
         __kkMutableListAddAt(this, index, element)
     }
 
-    public fun removeAt(index: Int): E = __kkMutableListRemoveAt(this, index)
-
-    public operator fun set(index: Int, element: E): E = __kkMutableListSet(this, index, element)
+    @IgnorableReturnValue
+    public fun removeAt(index: Int): E =
+        __kkMutableListRemoveAt(this, index)
 
     public fun clear() {
         __kkMutableListClear(this)
     }
 
-    public fun removeAll(elements: Collection<out E>): Boolean = __kkMutableListRemoveAll(this, elements)
+    @IgnorableReturnValue
+    public fun removeAll(elements: Collection<out E>): Boolean =
+        __kkMutableListRemoveAll(this, elements)
 
-    public fun retainAll(elements: Collection<out E>): Boolean = __kkMutableListRetainAll(this, elements)
+    @IgnorableReturnValue
+    public fun retainAll(elements: Collection<out E>): Boolean =
+        __kkMutableListRetainAll(this, elements)
 
     public operator fun plusAssign(element: E) {
         __kkMutableListAdd(this, element)
@@ -49,33 +95,6 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     @KsSymbolName("kk_list_iterator_at")
     public override fun listIterator(index: Int): MutableListIterator<E>
 }
-
-@KsSymbolName("__kk_mutable_list_set")
-private external fun <E> __kkMutableListSet(list: MutableList<E>, index: Int, element: E): E
-
-@KsSymbolName("__kk_mutable_list_add")
-private external fun <E> __kkMutableListAdd(list: MutableList<E>, element: E): Boolean
-
-@KsSymbolName("__kk_mutable_list_add_at")
-private external fun <E> __kkMutableListAddAt(list: MutableList<E>, index: Int, element: E)
-
-@KsSymbolName("__kk_mutable_list_removeAt")
-private external fun <E> __kkMutableListRemoveAt(list: MutableList<E>, index: Int): E
-
-@KsSymbolName("__kk_mutable_list_clear")
-private external fun <E> __kkMutableListClear(list: MutableList<E>)
-
-@KsSymbolName("__kk_mutable_list_remove")
-private external fun <E> __kkMutableListRemove(list: MutableList<E>, element: E): Boolean
-
-@KsSymbolName("__kk_mutable_list_addAll")
-private external fun <E> __kkMutableListAddAll(list: MutableList<E>, elements: Collection<out E>): Boolean
-
-@KsSymbolName("__kk_mutable_list_removeAll")
-private external fun <E> __kkMutableListRemoveAll(list: MutableList<E>, elements: Collection<out E>): Boolean
-
-@KsSymbolName("__kk_mutable_list_retainAll")
-private external fun <E> __kkMutableListRetainAll(list: MutableList<E>, elements: Collection<out E>): Boolean
 
 /**
  * Creates a mutable list whose elements are produced in ascending index order.
