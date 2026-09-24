@@ -278,8 +278,6 @@ extension CallLowerer {
             // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
-            case "addAll":
-                return interner.intern("__kk_mutable_list_addAll")
             case "removeAll":
                 return interner.intern("__kk_mutable_list_removeAll")
             case "retainAll":

@@ -254,9 +254,9 @@ extension CallTypeChecker {
         // KSP-1019: MutableCollection's Iterable/Sequence/Array overloads are
         // top-level Kotlin extensions, not interface members. Bind the exact
         // source declaration before the generic collection fallback can select
-        // the unrelated Collection member or a runtime bridge. This is limited
-        // to a nominal MutableCollection receiver so MutableList/MutableSet
-        // member and synthetic paths retain their own dispatch.
+        // the unrelated Collection member or a runtime bridge. MutableList
+        // shares these migrated extensions, while MutableSet retains its
+        // residual member and synthetic paths.
         if let sourceType = bindMutableCollectionSourceExtension(
             exprID: id,
             memberName: calleeName,
@@ -937,18 +937,32 @@ extension CallTypeChecker {
         guard let (_, receiverSymbol) = resolveClassTypeSymbol(
             sema.types.makeNonNullable(receiverType),
             sema: sema
-        ),
-        receiverSymbol.fqName == [
+        ) else {
+            return nil
+        }
+        let receiverFQName = receiverSymbol.fqName
+        guard receiverFQName == [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("MutableCollection"),
-        ]
-        else {
+        ] || receiverFQName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ] else {
             return nil
         }
 
         let name = interner.resolve(memberName)
         guard name == "addAll" || name == "removeAll" || name == "retainAll" else {
+            return nil
+        }
+        let isMutableListReceiver = receiverFQName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+        guard !isMutableListReceiver || name == "addAll" else {
             return nil
         }
 
@@ -1026,7 +1040,11 @@ extension CallTypeChecker {
                       sema.types.makeNonNullable(signatureReceiver),
                       sema: sema
                   ),
-                  signatureReceiverSymbol.fqName == receiverSymbol.fqName,
+                  signatureReceiverSymbol.fqName == [
+                      interner.intern("kotlin"),
+                      interner.intern("collections"),
+                      interner.intern("MutableCollection"),
+                  ],
                   let parameterType = signature.parameterTypes.first,
                   let (_, parameterSymbol) = resolveClassTypeSymbol(
                       sema.types.makeNonNullable(parameterType),

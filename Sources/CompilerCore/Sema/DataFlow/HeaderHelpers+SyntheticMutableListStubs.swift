@@ -223,22 +223,6 @@ extension DataFlowSemaPhase {
             mlTypeParamSymbol: mlTypeParamSymbol,
             mlTypeParamType: mlTypeParamType
         )
-        registerMutableListAddAllMember(
-            symbols: symbols, types: types, interner: interner,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
-        registerMutableListAddAllAtIndexMember(
-            symbols: symbols, types: types, interner: interner,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
         registerMutableListPlusAssignMembers(
             symbols: symbols, types: types, interner: interner,
             mutableListFQName: mutableListFQName,
@@ -1277,100 +1261,6 @@ extension DataFlowSemaPhase {
                 returnType: types.unitType,
                 typeParameterSymbols: [mlTypeParamSymbol],
                 typeParameterUpperBoundsList: [[]],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerMutableListAddAllMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let memberName = interner.intern("addAll")
-        let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let paramType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("__kk_mutable_list_addAll", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [paramType],
-                returnType: types.booleanType,
-                typeParameterSymbols: [mlTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// Register `MutableList<E>.addAll(index: Int, elements: Collection<E>): Boolean`
-    /// (bulk insert-at-index, distinct overload from the append-only `addAll` above).
-    private func registerMutableListAddAllAtIndexMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let memberName = interner.intern("addAll")
-        let memberFQName = mutableListFQName + [memberName]
-        let paramType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.functionSignature(for: symbolID)?.parameterTypes == [types.intType, paramType]
-        }) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("__kk_mutable_list_addAll_at", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [types.intType, paramType],
-                returnType: types.booleanType,
-                typeParameterSymbols: [mlTypeParamSymbol],
                 classTypeParameterCount: 1
             ),
             for: memberSymbol
