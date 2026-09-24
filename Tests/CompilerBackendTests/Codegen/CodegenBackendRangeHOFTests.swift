@@ -271,6 +271,29 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testLongMinValueSurvivesErasedIteratorReturn() throws {
+        let source = """
+        fun main() {
+            val boundary = Long.MIN_VALUE + 1L downTo Long.MIN_VALUE
+            println(boundary.toList())
+            println(boundary.filter { true })
+            println(boundary.find { true })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LongMinErasedIteratorReturn",
+            expected:
+                """
+                [-9223372036854775808]
+                [-9223372036854775808]
+                -9223372036854775808
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenLongRangeHOFExecution() throws {
         let source = """
         fun main() {

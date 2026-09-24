@@ -672,6 +672,17 @@ func itableBridgeSymbolForMethod(
     if isStringAggregate(implementationFn.returnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
+    let needsErasedPrimitiveReturnBoxing: Bool = {
+        guard case .typeParam = sema.types.kind(of: interfaceSig.returnType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: implementationFn.returnType)
+        else {
+            return false
+        }
+        return true
+    }()
+    if needsErasedPrimitiveReturnBoxing {
+        needsBridge = true
+    }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
             if isStringAggregate(implType) != isStringAggregate(ifaceType) {
@@ -738,7 +749,23 @@ func itableBridgeSymbolForMethod(
         body.append(.label(continueLabel))
     }
 
-    body.append(.returnValue(callResult))
+    let bridgeResult: KIRExprID
+    if needsErasedPrimitiveReturnBoxing {
+        bridgeResult = boxValueForAnySlot(
+            callResult,
+            sourceType: implementationFn.returnType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: interfaceSig.returnType,
+            requireNonNull: true,
+            into: &body
+        )
+    } else {
+        bridgeResult = callResult
+    }
+    body.append(.returnValue(bridgeResult))
     body.append(.endBlock)
 
     let bridgeDecl = arena.appendDecl(
