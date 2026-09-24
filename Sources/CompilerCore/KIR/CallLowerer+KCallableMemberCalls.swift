@@ -46,6 +46,11 @@ extension CallLowerer {
         guard calleeStr == "name" || calleeStr == "returnType" else { return nil }
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         guard isKCallableReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
+        guard let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+              !sema.symbols.isSourceBackedSymbol(propertySymbol)
+        else {
+            return nil
+        }
 
         // Lower the receiver expression.
         let receiverID = driver.exprLowerer.lowerExpr(
@@ -71,6 +76,7 @@ extension CallLowerer {
     /// Emits a KCallable metadata property after the safe-call null check has
     /// already passed.
     func tryLowerKCallableNameAccess(
+        propertySymbol: SymbolID?,
         receiverType: TypeID,
         receiverID: KIRExprID,
         result: KIRExprID,
@@ -81,6 +87,8 @@ extension CallLowerer {
     ) -> Bool {
         let memberName = interner.resolve(calleeName)
         guard (memberName == "name" || memberName == "returnType"),
+              let propertySymbol,
+              !sema.symbols.isSourceBackedSymbol(propertySymbol),
               isKCallableReceiverType(receiverType, sema: sema, interner: interner)
         else {
             return false
@@ -143,6 +151,12 @@ extension CallLowerer {
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
         guard let runtimeFunc = Self.kFunctionMemberMap[calleeStr] else { return nil }
+        if (calleeStr == "name" || calleeStr == "returnType"),
+           let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           sema.symbols.isSourceBackedSymbol(propertySymbol)
+        {
+            return nil
+        }
 
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         guard isKFunctionReceiverType(receiverType, sema: sema, interner: interner) else { return nil }

@@ -27,6 +27,53 @@ let kTypeParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.ref
 let kTypeProjectionRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KTypeProjection")
 let kParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KParameter")
 
+private let runtimeKCallableNameGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return __kk_kcallable_get_name(raw)
+}
+
+private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return __kk_kcallable_get_return_type(raw)
+}
+
+/// Registers runtime reflection values for KCallable's source-backed property
+/// getters. User implementations and these runtime values then share interface
+/// dispatch, while the bridge getters preserve the metadata-backed behavior.
+func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
+    let callableTypeIDs: Set<Int64> = [
+        kCallableRuntimeTypeID,
+        kFunctionRuntimeTypeID,
+        kConstructorRuntimeTypeID,
+        kPropertyRuntimeTypeID,
+        kMutablePropertyRuntimeTypeID,
+        kProperty0RuntimeTypeID,
+        kProperty1RuntimeTypeID,
+        kProperty2RuntimeTypeID,
+        kMutableProperty0RuntimeTypeID,
+        kMutableProperty1RuntimeTypeID,
+        kMutableProperty2RuntimeTypeID,
+        kFunction0RuntimeTypeID,
+        kFunction1RuntimeTypeID,
+        kFunction2RuntimeTypeID,
+        kFunction3RuntimeTypeID,
+    ]
+    guard callableTypeIDs.contains(typeID) else { return }
+
+    let interfaceSlot = 0
+    _ = kk_object_register_itable_iface(rawValue, Int(kCallableRuntimeTypeID), interfaceSlot)
+    _ = kk_object_register_itable_method(
+        rawValue, interfaceSlot, 0, unsafeBitCast(runtimeKCallableNameGetter, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        rawValue, interfaceSlot, 1, unsafeBitCast(runtimeKCallableReturnTypeGetter, to: Int.self)
+    )
+}
+
 private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
     (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
     (kConstructorRuntimeTypeID, kFunctionRuntimeTypeID),
