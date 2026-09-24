@@ -14,6 +14,7 @@ extension DataFlowSemaPhase {
                     currentPackage: file.packageFQName,
                     imports: file.imports,
                     enclosingTypeParameters: [:],
+                    enclosingClassScopes: [],
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
@@ -29,6 +30,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
@@ -76,6 +78,7 @@ extension DataFlowSemaPhase {
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: mergedEnclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -147,12 +150,20 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes(uniqueSuperSymbols, for: symbol)
         types.setNominalDirectSupertypes(uniqueSuperSymbols, for: symbol)
 
+        // The current nominal's fqName joins the scope chain so nested
+        // declarations resolve sibling classifiers (e.g. `Inner` inside
+        // `Container` -> `Container.Inner`) per Kotlin's scope nesting.
+        var nestedScopes = enclosingClassScopes
+        if let ownerFQName = symbols.symbol(symbol)?.fqName {
+            nestedScopes.append(ownerFQName)
+        }
         for nestedDeclID in nestedDecls {
             bindInheritanceEdges(
                 declID: nestedDeclID,
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: mergedEnclosingTypeParameters,
+                enclosingClassScopes: nestedScopes,
                 ast: ast,
                 symbols: symbols,
                 bindings: bindings,
@@ -188,6 +199,7 @@ extension DataFlowSemaPhase {
         for path: [InternedString],
         currentPackage: [InternedString],
         imports: [ImportDecl],
+        enclosingClassScopes: [[InternedString]] = [],
         symbols: SymbolTable
     ) -> [[InternedString]] {
         guard !path.isEmpty else {
@@ -201,6 +213,13 @@ extension DataFlowSemaPhase {
                 return
             }
             candidates.append(candidate)
+        }
+
+        // Enclosing class scopes resolve sibling nested classifiers before
+        // package-level lookups, matching Kotlin's scope nesting (innermost
+        // scope first).
+        for scope in enclosingClassScopes.reversed() {
+            append(scope + path)
         }
 
         if path.count == 1 {
@@ -255,6 +274,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]] = [],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -326,6 +346,7 @@ extension DataFlowSemaPhase {
             for: path,
             currentPackage: currentPackage,
             imports: imports,
+            enclosingClassScopes: enclosingClassScopes,
             symbols: symbols
         )
 

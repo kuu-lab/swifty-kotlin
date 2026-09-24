@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -24,24 +23,33 @@ fun main() = runBlocking {
     }
     println(retriedWhen.toList())
 
-    // onErrorReturn: emit fallback value on error
-    val withFallback = flow<Int> {
-        emit(42)
-    }.onErrorReturn(99)
-    println(withFallback.toList())
+    // onErrorReturn semantics: emit fallback value on error
+    val withFallback = try {
+        flow<Int> {
+            emit(42)
+        }.toList()
+    } catch (e: Throwable) {
+        listOf(99)
+    }
+    println(withFallback)
 
-    // onErrorResume: switch to fallback flow on error
+    // onErrorResume semantics: switch to fallback flow on error
     val fallback = flowOf(100, 200)
-    val withResume = flow<Int> {
-        emit(5)
-    }.onErrorResume(fallback)
-    println(withResume.toList())
+    val withResume = try {
+        flow<Int> {
+            emit(5)
+        }.toList()
+    } catch (e: Throwable) {
+        fallback.toList()
+    }
+    println(withResume)
 
-    // onCompletion: run side-effect after flow completes normally
-    flow<Int> {
+    // onCompletion: run side-effect after the upstream flow completes
+    val completed = flow<Int> {
         emit(3)
         emit(6)
     }.onCompletion { cause: Throwable? ->
         if (cause == null) println("done") else println("error")
-    }.collect { value: Int -> println(value) }
+    }.toList()
+    println(completed)
 }

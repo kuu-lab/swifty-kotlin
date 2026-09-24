@@ -190,6 +190,27 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
+        // When an enum entry body overrides `toString`, the call must reach
+        // the ordinal dispatcher instead of the name helper: entries with an
+        // override run their own implementation, others fall back to the
+        // `Enum.toString` base which renders the entry name.
+        if let dispatchSymbol = sema.symbols.enumEntryToStringDispatchSymbol(
+            for: classSymbol,
+            interner: interner
+        ),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol)
+        {
+            return [.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: [arguments[0]],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            )]
+        }
+
         let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
         let fqName = classSym.fqName + [helperName]
         guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in

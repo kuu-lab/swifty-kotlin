@@ -207,7 +207,8 @@ extension CallLowerer {
            let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
            let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
            let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
-           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.typeParameterSymbols.count
+               == dispatchSignature.classTypeParameterCount,
            dispatchSignature.reifiedTypeParameterIndices.isEmpty,
            !dispatchSignature.isSuspend,
            finalArguments.first == receiver.loweredID

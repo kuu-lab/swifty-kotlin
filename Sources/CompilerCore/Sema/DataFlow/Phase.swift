@@ -543,6 +543,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
         )
+        validateTypeAliasCycles(
+            symbols: symbols, types: types, diagnostics: ctx.diagnostics
+        )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner

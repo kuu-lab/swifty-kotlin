@@ -223,17 +223,25 @@ extension DataFlowSemaPhase {
                 else {
                     continue
                 }
-
                 let candidates = baseFunctions.filter { candidate in
                     guard let candidateSignature = symbols.functionSignature(for: candidate),
                           let candidateReceiverType = candidateSignature.receiverType,
-                          (candidateReceiverType == enumType
-                              || types.isSubtype(enumType, candidateReceiverType)),
+                          receiverMatchesEnum(
+                              candidateReceiverType,
+                              enumType: enumType,
+                              enumSymbol: ownerSymbol,
+                              types: types
+                          ),
                           bodySignature.receiverType == enumType,
-                          candidateSignature.typeParameterSymbols.isEmpty,
+                          // Function-level type parameters cannot be forwarded
+                          // through the erased dispatch, but class-level ones
+                          // (e.g. kotlin.Enum<T>) are bound by the supertype edge.
+                          candidateSignature.typeParameterSymbols.count
+                              == candidateSignature.classTypeParameterCount,
                           candidateSignature.reifiedTypeParameterIndices.isEmpty,
                           !candidateSignature.isSuspend,
-                          bodySignature.typeParameterSymbols.isEmpty,
+                          bodySignature.typeParameterSymbols.count
+                              == bodySignature.classTypeParameterCount,
                           bodySignature.reifiedTypeParameterIndices.isEmpty,
                           !bodySignature.isSuspend,
                           candidateSignature.parameterTypes == bodySignature.parameterTypes
@@ -298,6 +306,29 @@ extension DataFlowSemaPhase {
             )
             symbols.setEnumEntryDispatchSymbol(helperSymbol, for: baseSymbol)
             symbols.setEnumEntryDispatchTargets(targets, for: helperSymbol)
+            symbols.setEnumEntryDispatchBaseSymbol(baseSymbol, for: helperSymbol)
         }
+    }
+
+    /// Whether calls on an enum-typed receiver can resolve to a member whose
+    /// declared receiver is `candidateReceiverType`. An inherited member
+    /// (e.g. `kotlin.Enum<T>.toString`) keeps the declaring class's generic
+    /// receiver, which `isSubtype` rejects against the concrete enum, so the
+    /// erased nominal ancestry is the right granularity for dispatch.
+    private func receiverMatchesEnum(
+        _ candidateReceiverType: TypeID,
+        enumType: TypeID,
+        enumSymbol: SymbolID,
+        types: TypeSystem
+    ) -> Bool {
+        if candidateReceiverType == enumType
+            || types.isSubtype(enumType, candidateReceiverType)
+        {
+            return true
+        }
+        guard case let .classType(classType) = types.kind(of: candidateReceiverType) else {
+            return false
+        }
+        return types.isNominalSubtypeSymbol(enumSymbol, of: classType.classSymbol)
     }
 }

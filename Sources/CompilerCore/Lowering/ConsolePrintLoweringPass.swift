@@ -530,7 +530,28 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             return KIRExprWithInstructions(value: expr, instructions: instructions)
         }
 
-        // Enum classes use the synthesized $enumOrdinalToName$ helper.
+        // Enum classes use the synthesized $enumOrdinalToName$ helper, unless
+        // an entry body overrides `toString` — then the ordinal dispatcher
+        // decides per entry.
+        if classSymbol.kind == .enumClass,
+           let dispatchSymbol = sema.symbols.enumEntryToStringDispatchSymbol(
+               for: classSymbol.id,
+               interner: interner
+           ),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol)
+        {
+            let result = arena.appendTemporary(type: stringType)
+            instructions.append(.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: [argument],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+            return KIRExprWithInstructions(value: result, instructions: instructions)
+        }
         if classSymbol.kind == .enumClass,
            let helperSymbol = enumNameHelperSymbol(for: classSymbol, sema: sema, interner: interner)
         {

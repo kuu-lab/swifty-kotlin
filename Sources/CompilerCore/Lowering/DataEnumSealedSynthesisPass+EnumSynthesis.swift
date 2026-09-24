@@ -478,30 +478,83 @@ extension DataEnumSealedSynthesisPass {
                 body.append(.label(fallthroughLabel))
             }
 
-            // An abstract enum member should be implemented by every entry.
-            // Keep malformed or incomplete metadata from producing an undefined
-            // call; the normal abstract-member validation reports the source
-            // error before this fallback could be reached.
-            let unreachableResult: KIRExprID? = signature.returnType == sema.types.unitType
-                ? nil
-                : module.arena.appendTemporary(type: signature.returnType)
-            let nullOutThrown = module.arena.appendExpr(
-                .null,
-                type: sema.types.nullableAnyType
-            )
-            body.append(.constValue(result: nullOutThrown, value: .null))
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_abort_unreachable"),
-                arguments: [nullOutThrown],
-                result: unreachableResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let unreachableResult {
-                body.append(.returnValue(unreachableResult))
+            // Entries without their own override fall back to the inherited
+            // base implementation (e.g. an `open` member overridden by only
+            // some entries, or `kotlin.Enum.toString` which renders the entry
+            // name). An abstract enum member should be implemented by every
+            // entry, so the abstract case stays unreachable; the normal
+            // abstract-member validation reports the source error before this
+            // fallback could be reached anyway.
+            let baseSymbol = sema.symbols.enumEntryDispatchBaseSymbol(for: dispatch.id)
+            let baseInfo = baseSymbol.flatMap { sema.symbols.symbol($0) }
+            if let baseSymbol,
+               let baseInfo,
+               !baseInfo.flags.contains(.abstractType)
+            {
+                let baseResult: KIRExprID? = signature.returnType == sema.types.unitType
+                    ? nil
+                    : module.arena.appendTemporary(type: signature.returnType)
+                if sema.symbols.externalLinkName(for: baseSymbol) == "kk_any_member_to_string" {
+                    // `Enum.toString` renders the entry name; the external
+                    // shim expects a boxed pointer while the dispatch receiver
+                    // is a raw ordinal, so call the per-enum name helper
+                    // directly instead.
+                    let nameHelper = NameMangler.enumOrdinalToNameHelperName(
+                        for: owner,
+                        interner: interner
+                    )
+                    body.append(.call(
+                        symbol: nil,
+                        callee: nameHelper,
+                        arguments: [receiverRef],
+                        result: baseResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else {
+                    let baseCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: baseSymbol),
+                                                        !linkName.isEmpty
+                    {
+                        interner.intern(linkName)
+                    } else {
+                        baseInfo.name
+                    }
+                    body.append(.call(
+                        symbol: baseSymbol,
+                        callee: baseCallee,
+                        arguments: [receiverRef] + argumentRefs,
+                        result: baseResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+                if let baseResult {
+                    body.append(.returnValue(baseResult))
+                } else {
+                    body.append(.returnUnit)
+                }
             } else {
-                body.append(.returnUnit)
+                let unreachableResult: KIRExprID? = signature.returnType == sema.types.unitType
+                    ? nil
+                    : module.arena.appendTemporary(type: signature.returnType)
+                let nullOutThrown = module.arena.appendExpr(
+                    .null,
+                    type: sema.types.nullableAnyType
+                )
+                body.append(.constValue(result: nullOutThrown, value: .null))
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_abort_unreachable"),
+                    arguments: [nullOutThrown],
+                    result: unreachableResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                if let unreachableResult {
+                    body.append(.returnValue(unreachableResult))
+                } else {
+                    body.append(.returnUnit)
+                }
             }
 
             appendSyntheticFunctionWithSymbol(
