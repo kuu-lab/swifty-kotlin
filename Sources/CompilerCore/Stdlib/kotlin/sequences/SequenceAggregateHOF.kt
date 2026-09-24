@@ -914,30 +914,6 @@ public fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> Sequence<T>.elementAt(index: Int): T {
-    val elements = this.toList()
-    if (index < 0 || index >= elements.size) {
-        throw IndexOutOfBoundsException("Index $index out of bounds for length ${elements.size}")
-    }
-    return elements[index]
-}
-
-public fun <T> Sequence<T>.elementAtOrNull(index: Int): T? {
-    val elements = this.toList()
-    if (index >= 0 && index < elements.size) {
-        return elements[index]
-    }
-    return null
-}
-
-public fun <T> Sequence<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
-    val elements = this.toList()
-    if (index >= 0 && index < elements.size) {
-        return elements[index]
-    }
-    return defaultValue(index)
-}
-
 public fun <T> Sequence<T>.indexOf(element: T): Int {
     val elements = this.toList()
     var i = 0
