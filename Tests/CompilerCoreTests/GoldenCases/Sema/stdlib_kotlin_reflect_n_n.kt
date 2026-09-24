@@ -51,6 +51,11 @@ fun main() {
     val mutableProperty: KMutableProperty<*> = Sample::label
     val function: KFunction<*> = ::readCallable
     val type = typeOf<Map<String, KMutableProperty<*>>>()
+    val qualifiedType: KType = kotlin.reflect.typeOf<List<KTypeParameter>>()
+    val classIsAnnotated: Boolean = Sample::class is KAnnotatedElement
+    val classIsContainer: Boolean = Sample::class is KDeclarationContainer
+    val classIsNotMutableProperty: Boolean = Sample::class is KMutableProperty<*>
+    val propertyIsCallable: Boolean = mutableProperty is KCallable<*>
     println(readCallable(property))
     println(readFunction(function))
     println(readMutableProperty(mutableProperty))

@@ -19,10 +19,16 @@ extension CallLowerer {
         }
 
         let knownNames = KnownCompilerNames(interner: interner)
-        guard let callee = ast.arena.expr(calleeExpr),
-              case let .nameRef(name, _) = callee,
-              name == knownNames.typeOf
-        else {
+        guard let callee = ast.arena.expr(calleeExpr) else {
+            return nil
+        }
+        switch callee {
+        case let .nameRef(name, _):
+            guard name == knownNames.typeOf else { return nil }
+        case let .memberCall(_, member, _, _, _):
+            // Fully-qualified `kotlin.reflect.typeOf<T>()` (KSP-1323).
+            guard member == knownNames.typeOf else { return nil }
+        default:
             return nil
         }
 

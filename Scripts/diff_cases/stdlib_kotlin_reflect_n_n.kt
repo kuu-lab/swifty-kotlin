@@ -46,4 +46,11 @@ fun main() {
     println(nested)
     println(nested.arguments.size)
     println(nested.classifier == Map::class)
+
+    println(kotlin.reflect.typeOf<Long>())
+    println(Sample::class is KAnnotatedElement)
+    println(Sample::class is KDeclarationContainer)
+    println(Sample::class is KMutableProperty<*>)
+    println(Sample::label is KAnnotatedElement)
+    println(mutableProperty is KCallable<*>)
 }
