@@ -33,15 +33,12 @@ fun main() {
     println(list.subList(2, 2).isEmpty())
     println(list.subList(1, 3).isEmpty())
 
-    // MutableList.subList(...) must be assignable to MutableList (covariant
-    // override) and support mutation of the returned sublist itself. KSwiftK
-    // returns an independent snapshot copy rather than a live view backed by
-    // the parent (a documented deviation from real Kotlin), so this
-    // deliberately does not assert anything about `mutable` after the
-    // sublist is mutated.
+    // MutableList.subList(...) is a live view backed by the parent list.
     val mutable = mutableListOf(10, 20, 30, 40, 50)
     val mutableSub: MutableList<Int> = mutable.subList(1, 4)
     println(mutableSub)
-    mutableSub.add(99)
-    println(mutableSub)
+    mutableSub[0] = 99
+    println(mutable)
+    mutableSub.clear()
+    println(mutable)
 }

@@ -43,6 +43,9 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     @KsSymbolName("kk_list_iterator")
     override external fun iterator(): Iterator<E>
 
+    @KsSymbolName("kk_list_subList")
+    override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
+
     @KsSymbolName("__kk_mutable_list_add")
     override external fun add(element: E): Boolean
 

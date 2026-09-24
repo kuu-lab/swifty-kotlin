@@ -13,6 +13,9 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
 
     @KsSymbolName("kk_list_iterator_at")
     public override fun listIterator(index: Int): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_subList")
+    public override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
 }
 
 /**
