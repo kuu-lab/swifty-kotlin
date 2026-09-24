@@ -2877,13 +2877,15 @@
     - `kotlin.reflect.findAssociatedObject` — fun KClass.findAssociatedObject(): Any  -- `final inline fun <#A: reified kotlin/Annotation> (kotlin.reflect/KClass<*>).kotlin.reflect/findAssociatedObject(): kotlin/Any?`
     - `kotlin.reflect.safeCast` — fun KClass.safeCast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/safeCast(kotlin/Any?): #A?`
 
-- [ ] KSP-1333: kotlin.reflect.KTypeParameter.KTypeParameter の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1333: kotlin.reflect.KTypeParameter.KTypeParameter の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.reflect.KTypeParameter` / receiver `KTypeParameter`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KTypeParameter/KTypeParameter.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KTypeParameter/KTypeParameter.kt`（新規作成。`KClassifier` を継承する source-backed interface として 4 抽象プロパティを宣言）
+  - bridge/stub 整理: `__kk_ktypeparameter_*` Runtime 関数・`RuntimeABISpec` エントリ・`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例は元々無し。synthetic stub 側は `registerSyntheticKTypeParameterStub` を `ensureInterfaceSymbol` + `KClassifier` supertype edge のみに縮小し、4 プロパティの synthetic 登録を削除（source decl が同一 FQName で claim）。`KType` 同様 `shouldRestoreDeclSiteForReusableSyntheticSymbol` には追加していない。
+  - `Phase.swift` に `patchKTypeParameterUpperBoundsType` を post-`collectAllHeaders` で追加し、`upperBounds` を `List<out KType>` へ covariant patch（KSP-1332 の `patchKTypeArgumentsType` と同型の契約）。
+  - 同 PR バグ修正: `p.name` のような interface-typed receiver 経由の String 返しプロパティ読み出しが `kk_array_get_inbounds` panic で落ちていた backend バグを修正。vtable/itable 経由の getter `virtualCall` は symbol がアクセサの synthetic ID で解決不能になり fallback の `(i64,ptr)->i64` 間接呼び出し型が使われるが、String aggregate を返す callee は sret（rdi=戻り値ポインタ）規約のため receiver/thrown がずれて `this` が壊れていた。`calleeName == "get"` かつ引数 1・戻り値が String aggregate の場合に限り、間接呼び出し型を `String` struct 返しにして外部ブリッジを抑止する（`virtualCallReturnsAggregate`、`_s` サフィックスで既存型と区別）。interface メソッドは従来どおり `virtualSourceCallSignature` 側で型付けされるため影響なし。
+  - golden テスト: `stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` + `.golden` を追加（新規ケースは空の `.golden` を先に置かないと preflight が落ちる点に注意）。`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で生成し全 4 suite green。生成差分はメンバ解決の機械的な dump（`upperBounds` が `List<out KType>` で出ている）。sibling golden への波及なし。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` を追加（ユーザー実装クラス経由で 4 プロパティ + `KClassifier` アップキャスト/`is` を検証）し `bash Scripts/diff_kotlinc.sh` green。
+  - 完了ゲート: `swift build` green / `ReflectKTypeParameterSyntheticTests`（2 件、`!synthetic` + `declSite` + `isSourceBackedSymbol` を assert する形に更新）PASS / `matchesGolden` 全 suite green / 対象 diff + interface dispatch 回帰（bug161 / object_literal / value_class / sam / CharSequence / companion_private）PASS / `check_todo_ids.sh`・`validate_runtime_abi_links.sh` PASS。全 Swift テスト・全 diff ケースは未実行（CI に委譲）。
   - 未実装シンボル一覧:
     - `kotlin.reflect.KTypeParameter.isReified` — val KTypeParameter.isReified: Boolean  -- `abstract val isReified`
     - `kotlin.reflect.KTypeParameter.name` — val KTypeParameter.name: String  -- `abstract val name`

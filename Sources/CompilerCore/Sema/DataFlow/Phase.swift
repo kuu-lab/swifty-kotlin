@@ -311,6 +311,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // KSP-1333: same covariant List contract for KTypeParameter.upperBounds.
+        patchKTypeParameterUpperBoundsType(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         initializeSourceBackedCloseableTypes(
             symbols: symbols,
             types: types,

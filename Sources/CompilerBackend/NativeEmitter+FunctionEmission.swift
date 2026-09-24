@@ -2730,6 +2730,16 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
+                // Property getter reads dispatched through a vtable/itable slot
+                // target a generated Kotlin accessor. A String-typed property
+                // returns its string aggregate (the source ABI's indirect
+                // result convention), not the raw pointer the generic fallback
+                // declaration assumes — without this the receiver lands in the
+                // callee's hidden result parameter and `this` reads garbage.
+                let virtualCallReturnsAggregate = calleeName == "get"
+                    && argumentValues.count == 1
+                    && typeLowering != nil
+                    && isStringAggregateType(result.flatMap { module.arena.exprType($0) })
                 let isThrowableToStringVirtualCall: Bool = {
                     guard case .vtable = dispatch,
                           let symbols
@@ -2865,13 +2875,21 @@ extension NativeEmitter {
                     // the indirect-call type. Fold arity into the name: a property getter
                     // and an unrelated same-named method (e.g. "get") can share
                     // `externalCalleeName` in one body, and the plain-name cache would
-                    // size both to the larger arity.
+                    // size both to the larger arity. The `_s` suffix marks a
+                    // source-ABI aggregate return (see `virtualCallReturnsAggregate`)
+                    // so it cannot alias the raw `Int`-returning shape.
                     declareExternalFunction(
-                        named: "\(externalCalleeName)__v\(argumentValues.count)",
+                        named: "\(externalCalleeName)__v\(argumentValues.count)\(virtualCallReturnsAggregate ? "_s" : "")",
                         parameterTypes: Array<LLVMCAPIBindings.LLVMTypeRef?>(
                             repeating: int64Type, count: argumentValues.count
                         ) + (shouldAppendThrownChannel ? [outThrownPointerType] : []),
-                        returnType: int64Type
+                        returnType: virtualCallReturnsAggregate
+                            ? loweredLLVMType(
+                                for: result.flatMap { module.arena.exprType($0) },
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                            : int64Type
                     )
                 }
 
@@ -2886,6 +2904,7 @@ extension NativeEmitter {
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall
                     && typeLowering != nil
                     && (virtualSourceCallSignature == nil || isThrowableToStringVirtualCall)
+                    && !virtualCallReturnsAggregate
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
