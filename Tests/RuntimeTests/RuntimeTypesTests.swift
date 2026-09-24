@@ -132,6 +132,112 @@ struct RuntimeTypesTests {
     }
 
     @Test
+    func runtimeListBoxSubscriptPreservesAnyFallbackTag() {
+        let list = RuntimeListBox(values: [RuntimeValue(raw: 7, anyFallbackTag: 10)])
+
+        list[0] = 9
+
+        #expect(list[0] == 9)
+        #expect(list.values[0].anyFallbackTag == 10)
+    }
+
+    @Test
+    func runtimeListBoxSubscriptMapsThroughViews() {
+        let base = RuntimeListBox(values: [
+            RuntimeValue(raw: 10, anyFallbackTag: 9),
+            RuntimeValue(raw: 20, anyFallbackTag: 10),
+        ])
+        let reversed = RuntimeListBox(reversedViewOf: base)
+        let array = RuntimeArrayBox(length: 2)
+        array.values = [
+            RuntimeValue(raw: 30, anyFallbackTag: 11),
+            RuntimeValue(raw: 40, anyFallbackTag: 12),
+        ]
+        let arrayView = RuntimeListBox(arrayViewOf: array)
+
+        #expect(reversed.count == 2)
+        #expect(reversed[0] == 20)
+        reversed[0] = 21
+        arrayView[1] = 41
+
+        #expect(base[1] == 21)
+        #expect(base.values[1].anyFallbackTag == 10)
+        #expect(array[1] == 41)
+        #expect(array.values[1].anyFallbackTag == 12)
+    }
+
+    @Test
+    func runtimeListBoxSubscriptMapsThroughSubList() {
+        let base = RuntimeListBox(values: [
+            RuntimeValue(raw: 10, anyFallbackTag: 9),
+            RuntimeValue(raw: 20, anyFallbackTag: 10),
+            RuntimeValue(raw: 30, anyFallbackTag: 11),
+            RuntimeValue(raw: 40, anyFallbackTag: 12),
+        ])
+        let subList = RuntimeListBox(subListOf: base, fromIndex: 1, toIndex: 3)
+
+        #expect(subList.count == 2)
+        #expect(subList[0] == 20)
+        #expect(subList[1] == 30)
+
+        subList[0] = 21
+        subList.setValue(RuntimeValue(raw: 31), at: 1)
+
+        #expect(base.elements == [10, 21, 31, 40])
+        #expect(base.values[1].anyFallbackTag == 10)
+        #expect(base.values[2].anyFallbackTag == 11)
+    }
+
+    @Test
+    func runtimeListIteratorSetPreservesAnyFallbackTags() {
+        let list = RuntimeListBox(values: [
+            RuntimeValue(raw: 1, anyFallbackTag: 9),
+            RuntimeValue(raw: 2, anyFallbackTag: 10),
+            RuntimeValue(raw: 3, anyFallbackTag: 11),
+        ])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iteratorRaw = kk_list_iterator(listRaw)
+
+        while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+            _ = kk_list_iterator_next(iteratorRaw)
+            _ = runtimeListIteratorSet(iteratorRaw, 99)
+        }
+
+        #expect(list.elements == [99, 99, 99])
+        #expect(list.values.map(\.anyFallbackTag) == [9, 10, 11])
+    }
+
+    @Test
+    func runtimeListIteratorSetScalesWithElementCount() {
+        let count = 100_000
+        let list = RuntimeListBox(values: (0..<count).map {
+            RuntimeValue(raw: $0, anyFallbackTag: 10)
+        })
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iteratorRaw = kk_list_iterator(listRaw)
+
+        while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+            _ = kk_list_iterator_next(iteratorRaw)
+            _ = runtimeListIteratorSet(iteratorRaw, 99)
+        }
+
+        #expect(list[0] == 99)
+        #expect(list[count - 1] == 99)
+        #expect(list.values[0].anyFallbackTag == 10)
+        #expect(list.values[count - 1].anyFallbackTag == 10)
+    }
+
+    @Test
+    func runtimeSetBoxRawValueUsesInsertionOrder() {
+        let set = RuntimeSetBox(elements: [10, 20, 30])
+
+        #expect(set.count == 3)
+        #expect(set[0] == 10)
+        #expect(set[2] == 30)
+        #expect(set.rawValue(at: 3) == nil)
+    }
+
+    @Test
     func runtimeListBoxReversedViewReflectsBaseMutations() {
         let base = RuntimeListBox(elements: [10, 20, 30])
         let baseRaw = registerRuntimeObject(base, typeID: listRuntimeTypeID)

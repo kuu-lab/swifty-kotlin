@@ -79,6 +79,35 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
     }
 
     @Test
+    func testCodegenObjectLiteralMemberFunctionCapturesOuterPrimaryConstructorProperty() throws {
+        let source = """
+        interface Probe {
+            fun value(): Int
+        }
+
+        class Counter(private val limit: Int) {
+            fun probe(): Probe {
+                return object : Probe {
+                    override fun value(): Int {
+                        return limit
+                    }
+                }
+            }
+        }
+
+        fun main() {
+            println(Counter(3).probe().value())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralCaptureOuterPrimaryConstructorPropertyExecution",
+            expected: "3\n"
+        )
+    }
+
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesAndMutatesVarAcrossCalls() throws {
         let source = """
         interface Counter {

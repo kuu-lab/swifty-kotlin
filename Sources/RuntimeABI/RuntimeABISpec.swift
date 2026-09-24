@@ -140,6 +140,7 @@ public enum RuntimeABISpec {
         resultFunctions,
         runtimeOnlyBridgeFunctions,
         sequenceFunctions,
+        staticPrimitiveBoxingFunctions,
         stringBridgeFunctions,
         stringBuilderFunctions,
         stringFunctions,
@@ -150,4 +151,11 @@ public enum RuntimeABISpec {
         timeAndPathBridgeFunctions,
         uuidFunctions,
     ] as [[RuntimeABIFunctionSpec]]).flatMap { $0 }
+
+    /// `allFunctions` indexed by ABI link name; keeps the first spec per name,
+    /// matching `allFunctions.first(where: { $0.name == ... })` semantics.
+    public static let byName: [String: RuntimeABIFunctionSpec] = Dictionary(
+        allFunctions.map { ($0.name, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
 }

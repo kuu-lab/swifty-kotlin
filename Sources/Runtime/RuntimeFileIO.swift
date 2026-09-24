@@ -302,13 +302,13 @@ public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePo
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
     }
     guard let url = existingResourceURL(named: name) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Resource not found: \(name)")
+        outThrown?.pointee = runtimeAllocateIOException(message: "Resource not found: \(name)")
         return fileMakeStringRaw("")
     }
     do {
         return fileMakeStringRaw(try String(contentsOf: url, encoding: .utf8))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
         return fileMakeStringRaw("")
     }
 }
@@ -400,29 +400,87 @@ public func __kk_buffered_reader_ready(_ readerRaw: Int) -> Int {
 // Kotlin's `kotlin.io.BufferedReader.iterator()` operator extension returns an
 // `Iterator<String>` that yields successive lines from the receiver. The
 // underlying line buffering and termination semantics are inherited from
-// `BufferedReader.readLine()`. Our implementation materialises all remaining
-// lines eagerly into a list iterator so it can plug into the existing
-// `RuntimeListIteratorBox` dispatch in `kk_iterator_hasNext` / `kk_iterator_next`.
-// The observable behaviour (iteration order, blank line handling, EOF) matches
-// `readLine()` because we delegate to it.
+// `BufferedReader.readLine()`. The iterator prefetches at most one line per
+// `hasNext()`/`next()` pair, so iterating a large file holds only the current
+// line instead of draining the whole reader into a list first. The observable
+// behaviour (iteration order, blank line handling, EOF) matches `readLine()`
+// because we delegate to it.
+
+/// Streaming `Iterator<String>` box for `BufferedReader.iterator()`: pulls
+/// lines out of a live `RuntimeBufferedReaderBox` on demand.
+final class RuntimeBufferedLineIteratorBox {
+    private let reader: RuntimeBufferedReaderBox
+    private var prefetchedLine: String?
+    private var finished = false
+
+    init(reader: RuntimeBufferedReaderBox) {
+        self.reader = reader
+    }
+
+    func hasNext() -> Bool {
+        if prefetchedLine == nil, !finished {
+            if let line = reader.readLine() {
+                prefetchedLine = line
+            } else {
+                finished = true
+            }
+        }
+        return prefetchedLine != nil
+    }
+
+    func next() -> String? {
+        guard hasNext() else { return nil }
+        defer { prefetchedLine = nil }
+        return prefetchedLine
+    }
+}
+
+func runtimeBufferedLineIteratorBox(from raw: Int) -> RuntimeBufferedLineIteratorBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeBufferedLineIteratorBox.self)
+}
+
+/// `hasNext`/`next` for the streaming line iterator. These return nil when
+/// `iterRaw` holds a different iterator box so the generic `kk_iterator_*` and
+/// `kk_range_*` dispatchers can fall through to the other shapes.
+func runtimeBufferedLineIteratorHasNext(_ iterRaw: Int) -> Int? {
+    guard let iter = runtimeBufferedLineIteratorBox(from: iterRaw) else { return nil }
+    return iter.hasNext() ? 1 : 0
+}
+
+func runtimeBufferedLineIteratorNext(
+    _ iterRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    guard let iter = runtimeBufferedLineIteratorBox(from: iterRaw) else { return nil }
+    guard let line = iter.next() else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateNoSuchElementException(message: "BufferedReader line iterator has no next element.")
+        )
+        return 0
+    }
+    return fileMakeStringRaw(line)
+}
+
 @_cdecl("__kk_buffered_reader_iterator")
 public func __kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_iterator received invalid BufferedReader handle")
     }
-    let lineRaws = reader.readLines().map { fileMakeStringRaw($0) }
-    return registerRuntimeObject(RuntimeListIteratorBox(elements: lineRaws))
+    return registerRuntimeObject(RuntimeBufferedLineIteratorBox(reader: reader))
 }
 
 // MARK: - STDLIB-IO-FN-040: Reader.useLines {}
 //
-// Kotlin's `kotlin.io.Reader.useLines(block)` extension reads all lines from the
-// receiver Reader, passes them to `block` as a `Sequence<String>`, and closes
-// the receiver before returning the block's result (Reader subclasses such as
-// `BufferedReader` inherit this overload). Our implementation materialises the
-// receiver's remaining lines into a `List<String>`, invokes the supplied lambda
-// once via the collection HOF closure ABI, and closes the underlying buffered
-// reader after the block runs —
+// Kotlin's `kotlin.io.Reader.useLines(block)` extension passes the receiver's
+// remaining lines to `block` as a `Sequence<String>` and closes the receiver
+// before returning the block's result (Reader subclasses such as
+// `BufferedReader` inherit this overload; on the JVM the sequence is the
+// `lineSequence().constrainOnce()` of a live reader). Our implementation hands
+// the lambda a `RuntimeSequenceBox` whose pull-source reads one line at a
+// time, so the block only buffers what it actually materialises — and closes
+// the underlying buffered reader after the block runs,
 // mirroring the JVM contract where the reader is closed even when the lambda
 // returns or throws.
 @_cdecl("__kk_buffered_reader_useLines")
@@ -431,11 +489,17 @@ public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ clos
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_useLines received invalid BufferedReader handle")
     }
-    let lines = reader.readLines()
-    let linesList = RuntimeListBox(elements: lines.map { fileMakeStringRaw($0) })
-    let linesListRaw = registerRuntimeObject(linesList)
+    let linesSequence = RuntimeSequenceBox(
+        steps: [
+            .pullSource {
+                reader.readLine().map(fileMakeStringRaw)
+            },
+        ],
+        constrainOnceState: RuntimeSequenceConstrainOnceState()
+    )
+    let linesSequenceRaw = registerRuntimeObject(linesSequence)
     var thrown = 0
-    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: linesListRaw, outThrown: &thrown)
+    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: linesSequenceRaw, outThrown: &thrown)
     // Always close the reader to honour the `use { }` contract even on lambda throw.
     reader.close()
     if thrown != 0 {
@@ -465,7 +529,9 @@ public func __kk_buffered_reader_forEachLine(
             "KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_forEachLine received invalid BufferedReader handle"
         )
     }
-    for line in reader.readLines() {
+    // Stream one line at a time: `forEachLine` exists to bound memory while
+    // walking large files, so the reader is never drained into a [String].
+    while let line = reader.readLine() {
         let lineRaw = fileMakeStringRaw(line)
         var thrown = 0
         _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: lineRaw, outThrown: &thrown)
@@ -540,7 +606,7 @@ public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outTh
     do {
         try writer.write(text)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -554,7 +620,7 @@ public func __kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeM
     do {
         try writer.newLine()
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -568,7 +634,7 @@ public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMuta
     do {
         try writer.flush()
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -782,7 +848,7 @@ public func __kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutable
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reset received invalid InputStream handle")
     }
     if !stream.reset() {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: mark/reset not supported")
+        outThrown?.pointee = runtimeAllocateIOException(message: "mark/reset not supported")
     }
     return 0
 }
@@ -840,9 +906,7 @@ public func __kk_input_stream_copyTo(
         do {
             try outputStream.writeBytes(chunk)
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
-            )
+            outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
             return kk_box_long(totalBytesCopied)
         }
         totalBytesCopied += bytesRead
@@ -948,7 +1012,7 @@ public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ o
     do {
         try stream.writeByte(valueRaw)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -966,7 +1030,7 @@ public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ 
     do {
         try stream.writeBytes(list.elements)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -980,7 +1044,7 @@ public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutabl
     do {
         try stream.flush()
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
     return 0
 }
@@ -1117,8 +1181,8 @@ public func __kk_reader_copyTo(
         guard let scalar = Unicode.Scalar(UInt32(charCode)) else {
             // Invalid scalar — surface as IOException to match JVM-style
             // surface for malformed character data.
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: invalid Unicode scalar in Reader stream (code point \(charCode))"
+            outThrown?.pointee = runtimeAllocateIOException(
+                message: "invalid Unicode scalar in Reader stream (code point \(charCode))"
             )
             return kk_box_long(copied)
         }
@@ -1129,9 +1193,7 @@ public func __kk_reader_copyTo(
             do {
                 try writer.write(String(pending))
             } catch {
-                outThrown?.pointee = runtimeAllocateThrowable(
-                    message: "IOException: \(error.localizedDescription)"
-                )
+                outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
                 return kk_box_long(copied)
             }
             pending.removeAll(keepingCapacity: true)
@@ -1142,9 +1204,7 @@ public func __kk_reader_copyTo(
         do {
             try writer.write(String(pending))
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
-            )
+            outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
             return kk_box_long(copied)
         }
     }

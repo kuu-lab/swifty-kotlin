@@ -77,6 +77,7 @@ extension CallTypeChecker {
             if externalLinkName == "__kk_ulong_rangeTo"
                 || externalLinkName == "__kk_ulong_progression_fromClosedRange"
                 || externalLinkName == "__kk_op_ulong_rangeUntil"
+                || externalLinkName == "__kk_ulong_rangeTo"
             {
                 sema.bindings.markULongRangeExpr(id)
             }

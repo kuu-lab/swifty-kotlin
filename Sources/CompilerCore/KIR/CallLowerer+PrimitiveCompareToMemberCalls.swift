@@ -30,8 +30,9 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard args.count == 1,
-              interner.resolve(calleeName) == "compareTo",
+              calleeName == knownNames.compareTo,
               let receiverType = sema.bindings.exprTypes[receiverExpr],
               let kind = primitiveCompareABIKind(for: receiverType, sema: sema),
               kind != .char

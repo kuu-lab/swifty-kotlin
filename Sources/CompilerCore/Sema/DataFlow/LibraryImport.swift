@@ -849,6 +849,32 @@ extension DataFlowSemaPhase {
                 symbols.setObjectInitializerSymbol(initSymbol, for: ownerSymbol)
             }
 
+            if record.kind == .object,
+               let linkName = record.objectLazyInitializerLinkName,
+               !linkName.isEmpty
+            {
+                let name = interner.intern(linkName)
+                let fqName = record.fqName + [interner.intern("__object_lazy_init")]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setObjectLazyInitializerSymbol(initSymbol, for: ownerSymbol)
+            }
+
             if let linkName = record.companionInitializerLinkName,
                !linkName.isEmpty,
                symbols.companionObjectSymbol(for: ownerSymbol) != nil
@@ -927,6 +953,7 @@ extension DataFlowSemaPhase {
         let itableSlots: [ImportedITableSlotEntry]
         let objectInitializerLinkName: String?
         let companionInitializerLinkName: String?
+        let objectLazyInitializerLinkName: String?
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
@@ -986,6 +1013,7 @@ extension DataFlowSemaPhase {
         itableSlots: [ImportedITableSlotEntry] = [],
         objectInitializerLinkName: String? = nil,
         companionInitializerLinkName: String? = nil,
+        objectLazyInitializerLinkName: String? = nil,
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
@@ -1039,6 +1067,7 @@ extension DataFlowSemaPhase {
             self.itableSlots = itableSlots
         self.objectInitializerLinkName = objectInitializerLinkName
         self.companionInitializerLinkName = companionInitializerLinkName
+        self.objectLazyInitializerLinkName = objectLazyInitializerLinkName
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass

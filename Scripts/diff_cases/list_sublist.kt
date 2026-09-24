@@ -41,4 +41,39 @@ fun main() {
     println(mutable)
     mutableSub.clear()
     println(mutable)
+
+    // KUU-633: fromIndex > toIndex must throw IllegalArgumentException
+    // (checkRangeIndexes contract), not IndexOutOfBoundsException.
+    try {
+        list.subList(3, 2)
+        println("unexpected")
+    } catch (e: IllegalArgumentException) {
+        println("IAE")
+    } catch (e: IndexOutOfBoundsException) {
+        println("IOOBE")
+    }
+    try {
+        list.subList(6, 4)
+        println("unexpected")
+    } catch (e: IllegalArgumentException) {
+        println("IAE")
+    } catch (e: IndexOutOfBoundsException) {
+        println("IOOBE")
+    }
+    try {
+        list.subList(-1, 2)
+        println("unexpected")
+    } catch (e: IllegalArgumentException) {
+        println("IAE")
+    } catch (e: IndexOutOfBoundsException) {
+        println("IOOBE")
+    }
+    try {
+        list.subList(0, 6)
+        println("unexpected")
+    } catch (e: IllegalArgumentException) {
+        println("IAE")
+    } catch (e: IndexOutOfBoundsException) {
+        println("IOOBE")
+    }
 }

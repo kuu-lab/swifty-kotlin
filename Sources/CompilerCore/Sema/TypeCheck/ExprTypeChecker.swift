@@ -1418,22 +1418,25 @@ final class ExprTypeChecker {
     /// Resolves the type of an unsuffixed integer literal given the expected
     /// type at its use site. Kotlin widens such literals to `Long`/`UInt`/`ULong`
     /// when that is the expected type (e.g. a value class field declared `Long`
-    /// receiving a plain `1500`); any other expected type falls back to `Int`.
+    /// receiving a plain `1500`); values outside the Int32 range infer `Long`.
     /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`
     /// and negative constants for unsigned types.
     private func intLiteralType(expectedType: TypeID?, sema: SemaModule, defaultType: TypeID, literalValue: Int64 = 0) -> TypeID {
-        guard let expectedType else { return defaultType }
+        let inferredType = literalValue >= Int64(Int32.min) && literalValue <= Int64(Int32.max)
+            ? defaultType
+            : sema.types.longType
+        guard let expectedType else { return inferredType }
         let nonNullExpected = sema.types.makeNonNullable(expectedType)
         guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullExpected) else {
-            return defaultType
+            return inferredType
         }
         switch primitive {
         case .long: return sema.types.longType
-        case .uint: return literalValue >= 0 ? sema.types.uintType : defaultType
-        case .ulong: return literalValue >= 0 ? sema.types.ulongType : defaultType
-        case .byte: return (literalValue >= -128 && literalValue <= 127) ? sema.types.byteType : defaultType
-        case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : defaultType
-        default: return defaultType
+        case .uint: return literalValue >= 0 ? sema.types.uintType : inferredType
+        case .ulong: return literalValue >= 0 ? sema.types.ulongType : inferredType
+        case .byte: return (literalValue >= -128 && literalValue <= 127) ? sema.types.byteType : inferredType
+        case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : inferredType
+        default: return inferredType
         }
     }
 
@@ -1453,22 +1456,25 @@ final class ExprTypeChecker {
     /// type. Kotlin permits constant unsigned literals such as 1u to narrow to
     /// UByte/UShort (and widen to ULong) at a call site when the value fits.
     private func uintLiteralType(expectedType: TypeID?, sema: SemaModule, literalValue: UInt64) -> TypeID {
+        let inferredType = literalValue <= UInt64(UInt32.max)
+            ? sema.types.uintType
+            : sema.types.ulongType
         guard let expectedType else {
-            return sema.types.uintType
+            return inferredType
         }
         let nonNullExpected = sema.types.makeNonNullable(expectedType)
         guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullExpected) else {
-            return sema.types.uintType
+            return inferredType
         }
         switch primitive {
         case .ulong:
             return sema.types.ulongType
         case .ubyte:
-            return literalValue <= UInt64(UInt8.max) ? sema.types.ubyteType : sema.types.uintType
+            return literalValue <= UInt64(UInt8.max) ? sema.types.ubyteType : inferredType
         case .ushort:
-            return literalValue <= UInt64(UInt16.max) ? sema.types.ushortType : sema.types.uintType
+            return literalValue <= UInt64(UInt16.max) ? sema.types.ushortType : inferredType
         default:
-            return sema.types.uintType
+            return inferredType
         }
     }
 }

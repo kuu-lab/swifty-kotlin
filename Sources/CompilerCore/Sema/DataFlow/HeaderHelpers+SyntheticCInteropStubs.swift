@@ -251,6 +251,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let vector128Symbol = ensureClassSymbol(
+            named: "Vector128",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         for symbol in [
             nativePointedSymbol,
@@ -279,6 +285,7 @@ extension DataFlowSemaPhase {
             cPointerVarOfSymbol,
             booleanVarOfSymbol,
             byteVarOfSymbol,
+            vector128Symbol,
         ] {
             if let cinteropPkgSymbol {
                 symbols.setParentSymbol(cinteropPkgSymbol, for: symbol)
@@ -408,6 +415,13 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(nativePtrType, for: nativePtrSymbol)
+
+        let vector128Type = types.make(.classType(ClassType(
+            classSymbol: vector128Symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(vector128Type, for: vector128Symbol)
 
 
 

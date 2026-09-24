@@ -119,9 +119,11 @@ public fun <T> List<T>.slice(indices: Iterable<Int>): List<T> {
 }
 
 public fun <T> List<T>.subList(fromIndex: Int, toIndex: Int): List<T> {
-    val message = "fromIndex: $fromIndex, toIndex: $toIndex, size: $size"
-    if (fromIndex < 0 || toIndex > size || fromIndex > toIndex) {
-        throw IndexOutOfBoundsException(message)
+    if (fromIndex < 0 || toIndex > size) {
+        throw IndexOutOfBoundsException("fromIndex: $fromIndex, toIndex: $toIndex, size: $size")
+    }
+    if (fromIndex > toIndex) {
+        throw IllegalArgumentException("fromIndex: $fromIndex > toIndex: $toIndex")
     }
     val result = mutableListOf<T>()
     var i = fromIndex

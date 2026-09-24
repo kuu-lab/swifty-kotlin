@@ -6,6 +6,67 @@ import Testing
 @Suite(.serialized)
 struct LinkPhaseIntegrationTests {
     @Test
+    func testImportedObjectAndCompanionLazyInitializersRunThroughKklib() throws {
+        let librarySource = """
+        package extdemo
+
+        object ExternalObject {
+            var initCount = 0
+            init { initCount += 1 }
+            val value = 41
+        }
+
+        class ExternalClass {
+            companion object {
+                var initCount = 0
+                init { initCount += 1 }
+                val value = 42
+            }
+        }
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "ExternalLazyInit") { libraryPath in
+            let appSource = """
+            import extdemo.ExternalClass
+            import extdemo.ExternalObject
+
+            val objectValue = ExternalObject.value
+            val companionValue = ExternalClass.value
+
+            fun main() {
+                println(objectValue)
+                println(companionValue)
+                println(ExternalObject.initCount)
+                println(ExternalClass.initCount)
+            }
+            """
+
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .path
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ExternalLazyInitApp",
+                    emit: .executable,
+                    outputPath: outputPath,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+                try LoweringPhase().run(appCtx)
+                try CodegenPhase().run(appCtx)
+                assertLinkSucceeds(appCtx)
+
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(
+                    result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
+                        "41\n42\n1\n1\n"
+                )
+            }
+        }
+    }
+
+    @Test
     func testLinkPhaseAutoLinksKotlinLibraryObjectForCrossModuleCall() throws {
         let librarySource = """
         package extdemo

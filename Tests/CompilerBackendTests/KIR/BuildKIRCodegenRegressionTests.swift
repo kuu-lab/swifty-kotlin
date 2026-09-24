@@ -172,6 +172,31 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    @Test
+    func testBuildKIRMarksListChunkedBridgesAsThrowing() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.chunked(2)
+            values.chunked(2) { chunk -> chunk.sum() }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+
+            #expect(callNames.contains("__kk_list_chunked"))
+            #expect(callNames.contains("__kk_list_chunked_transform"))
+            #expect(throwFlags["__kk_list_chunked"]?.allSatisfy { $0 } == true)
+            #expect(throwFlags["__kk_list_chunked_transform"]?.allSatisfy { $0 } == true)
+        }
+    }
+
     /// KSP-626: `withIndex`/`forEachIndexed` are bundled Kotlin source, so they
     /// must lower to the source-backed declaration instead of a runtime bridge.
     @Test
@@ -645,8 +670,8 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_box_int"))
-            #expect(callNames.contains("kk_box_bool"))
+            #expect(callNames.contains("kk_box_int_static"))
+            #expect(callNames.contains("kk_box_bool_static"))
         }
     }
 
@@ -668,7 +693,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let boxingThrowFlags = ["kk_box_int", "kk_box_bool", "kk_unbox_int", "kk_unbox_bool"]
+            let boxingThrowFlags = ["kk_box_int_static", "kk_box_bool_static", "kk_unbox_int_static", "kk_unbox_bool_static"]
                 .flatMap { throwFlags[$0] ?? [] }
             #expect(!(boxingThrowFlags.isEmpty))
             #expect(boxingThrowFlags.allSatisfy { $0 == false })
@@ -974,6 +999,8 @@ struct BuildKIRCodegenRegressionTests {
             list.add(1)
             set.add(1)
             map.put("a", 1)
+            map.remove("a")
+            map.clear()
         }
         """
 
@@ -988,6 +1015,8 @@ struct BuildKIRCodegenRegressionTests {
             #expect(throwFlags["__kk_mutable_list_add"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_mutable_set_add"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_mutable_map_put"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_map_remove"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_map_clear"]?.allSatisfy { $0 == true } == true)
         }
     }
 

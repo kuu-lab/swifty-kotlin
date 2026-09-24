@@ -1,7 +1,7 @@
 import Foundation
 
 /// A source edit that can be applied by a diagnostic code action.
-public struct DiagnosticTextEdit: Equatable, Sendable {
+public struct DiagnosticTextEdit: Hashable, Sendable {
     /// The source range to replace. An empty range represents insertion.
     public let range: SourceRange
     /// The replacement text, or an empty string for deletion.
@@ -14,7 +14,7 @@ public struct DiagnosticTextEdit: Equatable, Sendable {
 }
 
 /// Describes a single code action (quick-fix) that an LSP client can offer to the user.
-public struct DiagnosticCodeAction: Equatable, Sendable {
+public struct DiagnosticCodeAction: Hashable, Sendable {
     /// Human-readable title shown in the editor UI.
     public let title: String
     /// LSP code action kind (e.g. "quickfix", "refactor").
@@ -621,6 +621,13 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Type parameter's upper bounds combine two or more mutually exclusive class types."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0306",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Super-call omits an argument with a default value.",
+            codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",

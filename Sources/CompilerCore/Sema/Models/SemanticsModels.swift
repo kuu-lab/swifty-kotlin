@@ -434,9 +434,20 @@ public final class SymbolTable {
     private var byParentFQName: [[InternedString]: [SymbolID]] = [:]
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
+    /// Owning function/constructor for each symbol listed in some signature's
+    /// `valueParameterSymbols`; populated by `setFunctionSignature`. The first
+    /// registrant wins: later signatures may copy a parameter list wholesale
+    /// (e.g. synthesized forwarding helpers), but the parameter's semantic
+    /// owner is the declaration it was defined on.
+    private var valueParameterOwners: [SymbolID: SymbolID] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
+    /// Inverse of `directSupertypes`: supertype symbol → the nominal types
+    /// that declare it. Kept in sync by `setDirectSupertypes` so
+    /// `directSubtypes(of:)` reads a precomputed list instead of scanning
+    /// every nominal type in the module on each call.
+    private var directSubtypesIndex: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
@@ -464,6 +475,7 @@ public final class SymbolTable {
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
     private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
@@ -481,6 +493,19 @@ public final class SymbolTable {
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
+
+    /// KUU-655: an `override` whose own declaration carries no default value
+    /// expressions still accepts calls that omit the overridden parameter
+    /// (Kotlin inherits the base's default). `OverrideDefaultArgumentInheritance`
+    /// copies the base's `valueParameterHasDefaultValues` flags onto such an
+    /// override's `FunctionSignature` so overload resolution accepts the
+    /// call, and records the link here so KIR call-site lowering knows to
+    /// route through the base's `$default` stub (the override itself never
+    /// gets one -- its AST has no default expressions to evaluate).
+    /// Key = override symbol, Value = the overridden symbol that actually
+    /// owns the default value expressions (possibly several levels up an
+    /// override chain).
+    private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
 
     /// Thread safety lock for concurrent access
     private let lock = NSLock()
@@ -778,10 +803,30 @@ public final class SymbolTable {
 
     public func setFunctionSignature(_ signature: FunctionSignature, for symbol: SymbolID) {
         functionSignatures[symbol] = signature
+        for parameterSymbol in signature.valueParameterSymbols {
+            if valueParameterOwners[parameterSymbol] == nil {
+                valueParameterOwners[parameterSymbol] = symbol
+            }
+        }
+    }
+
+    /// The function/constructor whose signature lists `symbol` in
+    /// `valueParameterSymbols`, if any signature has done so.
+    public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
+        valueParameterOwners[symbol]
     }
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
         functionSignatures[symbol]
+    }
+
+    /// KUU-655: see `overrideDefaultsBaseSymbols` above.
+    public func setOverrideDefaultsBaseSymbol(_ base: SymbolID, for symbol: SymbolID) {
+        overrideDefaultsBaseSymbols[symbol] = base
+    }
+
+    public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
+        overrideDefaultsBaseSymbols[symbol]
     }
 
     public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {
@@ -820,7 +865,18 @@ public final class SymbolTable {
     }
 
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
+        if let previous = directSupertypes[symbol] {
+            for removedSupertype in previous where !supertypes.contains(removedSupertype) {
+                directSubtypesIndex[removedSupertype]?.removeAll { $0 == symbol }
+            }
+        }
         directSupertypes[symbol] = supertypes
+        var seen: Set<SymbolID> = []
+        for supertype in supertypes where seen.insert(supertype).inserted {
+            if directSubtypesIndex[supertype]?.contains(symbol) != true {
+                directSubtypesIndex[supertype, default: []].append(symbol)
+            }
+        }
     }
 
     public func directSupertypes(for symbol: SymbolID) -> [SymbolID] {
@@ -836,11 +892,7 @@ public final class SymbolTable {
     }
 
     public func directSubtypes(of symbol: SymbolID) -> [SymbolID] {
-        var result: [SymbolID] = []
-        for (candidate, supertypes) in directSupertypes where supertypes.contains(symbol) {
-            result.append(candidate)
-        }
-        return result.sorted(by: { $0.rawValue < $1.rawValue })
+        (directSubtypesIndex[symbol] ?? []).sorted(by: { $0.rawValue < $1.rawValue })
     }
 
     /// CLASS-008: Record that a class delegates to an interface.
@@ -1129,6 +1181,14 @@ public final class SymbolTable {
 
     public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
         objectInitializerSymbols[object]
+    }
+
+    public func setObjectLazyInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
+        objectLazyInitializerSymbols[object] = initializer
+    }
+
+    public func objectLazyInitializerSymbol(for object: SymbolID) -> SymbolID? {
+        objectLazyInitializerSymbols[object]
     }
 
     public func setCompanionObjectInitializerSymbol(_ initializer: SymbolID, for owner: SymbolID) {
@@ -1980,6 +2040,9 @@ public final class SemaModule {
     /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
     /// CallLowerer+MemberCalls.swift).
     var bundledIndex: BundledDeclarationIndex
+    /// ARCH-021: compiler-owned well-known declarations resolved by exact
+    /// SymbolID after header collection.
+    var wellKnownSymbols: WellKnownSymbols
 
     public init(
         symbols: SymbolTable,
@@ -1996,6 +2059,7 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
+        self.wellKnownSymbols = .empty
     }
 
     /// Module-internal overload that also accepts the bundled declaration
@@ -2019,5 +2083,6 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex
+        self.wellKnownSymbols = .empty
     }
 }

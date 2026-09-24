@@ -56,6 +56,8 @@ package struct MetadataRecord {
     let objectInitializerLinkName: String?
     /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
     let companionInitializerLinkName: String?
+    /// Link name of the guarded object/companion body initializer.
+    let objectLazyInitializerLinkName: String?
     /// Link name of the precompiled enum static initializer (e.g. `__enum_static_init_*`).
     package let enumStaticInitLinkName: String?
 
@@ -150,6 +152,7 @@ package struct MetadataRecord {
         itableSlots: String? = nil,
         objectInitializerLinkName: String? = nil,
         companionInitializerLinkName: String? = nil,
+        objectLazyInitializerLinkName: String? = nil,
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
@@ -201,6 +204,7 @@ package struct MetadataRecord {
         self.itableSlots = itableSlots
         self.objectInitializerLinkName = objectInitializerLinkName
         self.companionInitializerLinkName = companionInitializerLinkName
+        self.objectLazyInitializerLinkName = objectLazyInitializerLinkName
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
@@ -267,6 +271,7 @@ package final class MetadataEncoder {
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
+        objectLazyInitializerLinkNames: [SymbolID: String] = [:],
         enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
@@ -391,17 +396,17 @@ package final class MetadataEncoder {
                 }
                 return true
             }
+            .map { (symbol: $0, resolvedFQName: $0.fqName.map { interner.resolve($0) }) }
             .sorted { lhs, rhs in
-                if lhs.fqName.count != rhs.fqName.count {
-                    return lhs.fqName.count < rhs.fqName.count
+                if lhs.resolvedFQName.count != rhs.resolvedFQName.count {
+                    return lhs.resolvedFQName.count < rhs.resolvedFQName.count
                 }
-                let lhsResolved = lhs.fqName.map { interner.resolve($0) }
-                let rhsResolved = rhs.fqName.map { interner.resolve($0) }
-                if lhsResolved != rhsResolved {
-                    return lhsResolved.lexicographicallyPrecedes(rhsResolved)
+                if lhs.resolvedFQName != rhs.resolvedFQName {
+                    return lhs.resolvedFQName.lexicographicallyPrecedes(rhs.resolvedFQName)
                 }
-                return lhs.id.rawValue < rhs.id.rawValue
+                return lhs.symbol.id.rawValue < rhs.symbol.id.rawValue
             }
+            .map { $0.symbol }
 
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
@@ -423,6 +428,7 @@ package final class MetadataEncoder {
                 includedSymbolIDs: exportedSymbolIDs,
                 objectInitializerLinkNames: objectInitializerLinkNames,
                 companionInitializerLinkNames: companionInitializerLinkNames,
+                objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
                 enumStaticInitLinkNames: enumStaticInitLinkNames
             )
             records.append(built)
@@ -666,6 +672,7 @@ package final class MetadataEncoder {
         includedSymbolIDs: Set<SymbolID>? = nil,
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
+        objectLazyInitializerLinkNames: [SymbolID: String] = [:],
         enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> MetadataRecord {
         let mangler = NameMangler()
@@ -781,7 +788,24 @@ package final class MetadataEncoder {
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
             valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
-            valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
+            // KUU-655: an override with an inheritance link
+            // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
+            // flags copied from the overridden declaration in-memory
+            // (`OverrideDefaultArgumentInheritance`), but never gets a
+            // `$default` stub of its own -- only the base declaration does.
+            // Serializing the effective (true) flags here without a stub
+            // link would make a separately-compiled consumer believe this
+            // symbol owns a stub that was never emitted. Serialize this
+            // override's own (pre-inheritance) flags instead, exactly as if
+            // it had been compiled without this fix; the consumer's own
+            // `OverrideDefaultArgumentInheritance` pass re-derives the same
+            // link independently once it sees the (faithfully serialized)
+            // base declaration's defaults and the supertype/parent edges
+            // `LibraryImport` already restores.
+            let hasInheritedDefaultsLink = symbols.overrideDefaultsBaseSymbol(for: symbol.id) != nil
+            valueParameterHasDefaultValues = hasInheritedDefaultsLink
+                ? Array(repeating: false, count: signature.valueParameterHasDefaultValues.count)
+                : signature.valueParameterHasDefaultValues
             canThrow = signature.canThrow
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
@@ -806,7 +830,11 @@ package final class MetadataEncoder {
                 }
             }
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
-            if signature.valueParameterHasDefaultValues.contains(true) {
+            // KUU-655: uses the (already override-corrected) local flag, not
+            // `signature.valueParameterHasDefaultValues` directly, so an
+            // override with an inherited defaults link never looks for a
+            // stub it was never given (see the comment above).
+            if valueParameterHasDefaultValues.contains(true) {
                 let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
                 defaultStubExternalLinkName = functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
             }
@@ -957,6 +985,7 @@ package final class MetadataEncoder {
         var itableSlotsStr: String?
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
+        var objectLazyInitializerLinkName: String?
         var enumStaticInitLinkName: String?
         var nominalTypeParametersSignature: String?
         var nominalSupertypeSignatures: [String] = []
@@ -1010,6 +1039,9 @@ package final class MetadataEncoder {
                 objectInitializerLinkName = objectInitializerLinkNames[symbol.id]
             }
             companionInitializerLinkName = companionInitializerLinkNames[symbol.id]
+            if symbol.kind == .object {
+                objectLazyInitializerLinkName = objectLazyInitializerLinkNames[symbol.id]
+            }
             if symbol.kind == .enumClass {
                 enumStaticInitLinkName = enumStaticInitLinkNames[symbol.id]
             }
@@ -1080,6 +1112,7 @@ package final class MetadataEncoder {
             itableSlots: itableSlotsStr,
             objectInitializerLinkName: objectInitializerLinkName,
             companionInitializerLinkName: companionInitializerLinkName,
+            objectLazyInitializerLinkName: objectLazyInitializerLinkName,
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
@@ -1357,6 +1390,9 @@ package final class MetadataEncoder {
                 }
                 if let companionInitLink = record.companionInitializerLinkName, !companionInitLink.isEmpty {
                     fields.append("companionInitLink=\(companionInitLink)")
+                }
+                if let objectLazyInitLink = record.objectLazyInitializerLinkName, !objectLazyInitLink.isEmpty {
+                    fields.append("objectLazyInitLink=\(objectLazyInitLink)")
                 }
                 if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
                     fields.append("enumStaticInitLink=\(enumStaticInitLink)")
@@ -1675,6 +1711,7 @@ final class MetadataDecoder {
                 itableSlots: rec.itableSlots,
                 objectInitializerLinkName: rec.objectInitializerLinkName,
                 companionInitializerLinkName: rec.companionInitializerLinkName,
+                objectLazyInitializerLinkName: rec.objectLazyInitializerLinkName,
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isOpenClass: rec.isOpenClass,
@@ -1731,6 +1768,7 @@ final class MetadataDecoder {
         var itableSlots: String?
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
+        var objectLazyInitializerLinkName: String?
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
@@ -1820,6 +1858,8 @@ final class MetadataDecoder {
             record.objectInitializerLinkName = value.isEmpty ? nil : value
         case "companionInitLink":
             record.companionInitializerLinkName = value.isEmpty ? nil : value
+        case "objectLazyInitLink":
+            record.objectLazyInitializerLinkName = value.isEmpty ? nil : value
         case "enumStaticInitLink":
             record.enumStaticInitLinkName = value.isEmpty ? nil : value
         case "dataClass":

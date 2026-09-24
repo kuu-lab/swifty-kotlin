@@ -106,7 +106,6 @@ struct CollectionLiteralLoweringRegistry {
                 lookup: lookup,
                 arena: module.arena,
                 sema: ctx.sema,
-                interner: ctx.interner,
                 state: &state
             )
 

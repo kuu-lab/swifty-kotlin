@@ -266,6 +266,19 @@ extension KIRLoweringDriver {
             // this standalone function has no way to see that one.
             ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverExpr)
         }
+        // BUG-267: a delegate body on an object-literal member (e.g.
+        // `object { val x by lazy { outerLocal } }`) is lowered as its own KIR
+        // function, so outer locals it references must be reloaded from the
+        // capture fields materialized on the object instance — the same
+        // mechanism object-literal member functions use. No-op for named-class
+        // and top-level delegates (no objectLiteralCaptureSymbols registered).
+        objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody.instructions
+        )
         // Names the callback lambda declared for its parameters
         // (`{ property, old, new -> ... }`) must resolve to the synthetic
         // parameters below while the body is lowered. `resetScopeForFunction`/
