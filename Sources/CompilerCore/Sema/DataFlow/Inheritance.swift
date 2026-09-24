@@ -899,20 +899,42 @@ extension DataFlowSemaPhase {
         }
 
         for interfaceSymbol in symbols.delegatedInterfaces(forClass: classSymbol) {
-            guard let fieldSymbol = symbols.classDelegationField(forClass: classSymbol, interface: interfaceSymbol),
-                  let interfaceSym = symbols.symbol(interfaceSymbol)
-            else {
+            guard let fieldSymbol = symbols.classDelegationField(
+                forClass: classSymbol,
+                interface: interfaceSymbol
+            ) else {
                 continue
             }
-            let interfaceMembers = symbols.children(ofFQName: interfaceSym.fqName)
-                .compactMap { symbols.symbol($0) }
-                // Extension member aliases (KSP-443) are lookup shims, not
-                // interface members — delegation must not forward to them.
-                .filter { !$0.flags.contains(.extensionMemberAlias) }
+            // Interface delegation forwards inherited contracts too. Looking
+            // only at the declared interface's own members misses e.g.
+            // List.get and Collection.size when the class delegates to
+            // MutableList, because those members are declared on its
+            // supertypes. Extension member aliases (KSP-443) are lookup
+            // shims, not interface members — do not forward them.
+            var interfaceQueue = [interfaceSymbol]
+            var visitedInterfaces: Set<SymbolID> = []
+            var interfaceMembersByID: [SymbolID: SemanticSymbol] = [:]
+            while let currentInterface = interfaceQueue.popLast() {
+                guard visitedInterfaces.insert(currentInterface).inserted,
+                      let currentInfo = symbols.symbol(currentInterface)
+                else {
+                    continue
+                }
+                for member in symbols.children(ofFQName: currentInfo.fqName)
+                    .compactMap({ symbols.symbol($0) })
+                    where !member.flags.contains(.extensionMemberAlias)
+                {
+                    interfaceMembersByID[member.id] = member
+                }
+                interfaceQueue.append(contentsOf: symbols.directSupertypes(for: currentInterface))
+            }
+            let interfaceMembers = interfaceMembersByID.values.sorted { $0.id.rawValue < $1.id.rawValue }
+            var forwardedMethodKeys: Set<DelegationDispatchKey> = []
 
             for methodSym in interfaceMembers where methodSym.kind == .function {
                 let key = delegationDispatchKey(for: methodSym.id, symbols: symbols, interner: interner)
                 guard !classMethodKeys.contains(key),
+                      forwardedMethodKeys.insert(key).inserted,
                       let ifaceSig = symbols.functionSignature(for: methodSym.id)
                 else { continue }
                 synthesizeForwardingMethod(
