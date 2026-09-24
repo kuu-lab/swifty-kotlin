@@ -158,8 +158,8 @@ final class ObjectLiteralLowerer {
             instructions: &instructions
         )
 
-        // KSP-CAP-001: materialize outer locals/parameters captured by this
-        // object literal's member functions into instance fields, while the
+        // KSP-CAP-001: materialize outer locals/parameters and any enclosing
+        // receiver captured by this object's member functions into instance fields, while the
         // *enclosing* function's implicit receiver and locals are still
         // active (needed so `captureValueExpr` can resolve a captured outer
         // `this` correctly) -- i.e. before `setImplicitReceiver` below
@@ -346,14 +346,14 @@ final class ObjectLiteralLowerer {
         ))
     }
 
-    /// KSP-CAP-001: re-establishes an object literal's captured outer
-    /// locals/parameters inside one of its own member functions.
+    /// KSP-CAP-001: re-establishes an object literal's captured outer values
+    /// and receiver inside one of its own member functions.
     ///
     /// Member functions are lowered as independent top-level KIR functions
     /// (`MemberLowerer.lowerSingleMemberFunction` resets `driver.ctx`'s
     /// scope per function, the same way `LambdaLowerer` does per lambda), so
     /// a captured symbol's KIR value from the enclosing function is not
-    /// visible here on its own -- it must be read back from the instance
+    /// visible here on its own, so the capture must be read back from the instance
     /// field it was stored into at construction time (see the capture loop
     /// in `lowerStoredObjectLiteralExpr` above), then re-registered with
     /// `driver.ctx` so ordinary `nameRef` lowering finds it exactly as if it
@@ -409,7 +409,34 @@ final class ObjectLiteralLowerer {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
             }
             driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
+            if let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: ownerSymbol),
+               capturedReceiver.receiverSymbol == capturedSymbol
+            {
+                driver.ctx.setCapturedOuterReceiver(loadedExpr, for: capturedReceiver.ownerSymbol)
+            }
         }
+    }
+
+    func implicitReceiverExprID(forProperty symbol: SymbolID, sema: SemaModule) -> KIRExprID? {
+        guard let propertyOwner = sema.symbols.parentSymbol(for: symbol),
+              let functionSymbol = driver.ctx.currentFunctionSymbol,
+              let objectOwner = sema.symbols.parentSymbol(for: functionSymbol),
+              let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: objectOwner)
+        else {
+            return driver.ctx.activeImplicitReceiverExprID()
+        }
+        var visited: Set<SymbolID> = []
+        var pending = [capturedReceiver.ownerSymbol]
+        while let owner = pending.popLast() {
+            guard visited.insert(owner).inserted else { continue }
+            if owner == propertyOwner,
+               let receiverExprID = driver.ctx.capturedOuterReceiverExprID(for: capturedReceiver.ownerSymbol)
+            {
+                return receiverExprID
+            }
+            pending.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+        return driver.ctx.activeImplicitReceiverExprID()
     }
 
     private func registerObjectLiteralSupertypes(
