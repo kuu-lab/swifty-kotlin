@@ -133,8 +133,10 @@ struct RuntimeRangeHOFTests {
     @Test
     func testLongRangeFirstAndLastOrNullWithoutPredicate() {
         let range = kk_long_rangeTo(1, 4)
-        #expect(kk_long_range_firstOrNull(range) == 1)
-        #expect(kk_long_range_lastOrNull(range) == 4)
+        // Erased `Long?` results arrive boxed: a raw sentinel-colliding value
+        // (Long.MIN_VALUE) must survive as a real element, so unbox here.
+        #expect(kk_unbox_long(kk_long_range_firstOrNull(range)) == 1)
+        #expect(kk_unbox_long(kk_long_range_lastOrNull(range)) == 4)
 
         let empty = kk_long_rangeTo(5, 1)
         #expect(kk_long_range_firstOrNull(empty) == runtimeNullSentinelInt)
@@ -558,7 +560,9 @@ struct RuntimeRangeHOFTests {
         if size <= 0 {
             return []
         }
-        return (0 ..< size).map { kk_list_get(listRaw, $0) }
+        // Elements are erased-slot values: Long elements are boxed (raw scalars
+        // pass through kk_unbox_long unchanged).
+        return (0 ..< size).map { kk_unbox_long(kk_list_get(listRaw, $0)) }
     }
 }
 #endif

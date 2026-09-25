@@ -23,13 +23,71 @@ final class RuntimeRangeIteratorBox {
     var current: Int
     let last: Int
     var step: Int
-    let yieldsChars: Bool
+    let kind: RuntimeRangeKind
+    var hasNextValue: Bool
 
-    init(current: Int, last: Int, step: Int, yieldsChars: Bool = false) {
+    // Range handles share one representation, so preserve Char identity for
+    // erased Iterable/Iterator calls that must return a boxed element.
+    var yieldsChars: Bool {
+        kind == .charRange || kind == .charProgression
+    }
+
+    init(current: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.current = current
         self.last = last
         self.step = step
-        self.yieldsChars = yieldsChars
+        self.kind = kind
+        hasNextValue = RuntimeRangeIteratorBox.computeHasNext(
+            current: current, last: last, step: step, kind: kind
+        )
+    }
+
+    static func computeHasNext(current: Int, last: Int, step: Int, kind: RuntimeRangeKind) -> Bool {
+        switch kind {
+        case .uintRange, .uintProgression, .ulongRange, .ulongProgression:
+            let uCurrent = UInt(bitPattern: current)
+            let uLast = UInt(bitPattern: last)
+            if step > 0 { return uCurrent <= uLast }
+            if step < 0 { return uCurrent >= uLast }
+            return false
+        default:
+            if step > 0 { return current <= last }
+            if step < 0 { return current >= last }
+            return false
+        }
+    }
+
+    /// Advances one step, updating `hasNextValue`, and returns the element at
+    /// the position held on entry. Checked arithmetic stops at the type
+    /// boundary (Long.MIN_VALUE / ULong.max): wrapping `current &+ step` would
+    /// land back inside the range and iterate forever.
+    func advance() -> Int {
+        let current = self.current
+        guard hasNextValue else { return current }
+        let candidate: Int
+        switch kind {
+        case .uintRange, .uintProgression, .ulongRange, .ulongProgression:
+            if step > 0 {
+                let (next, overflow) = UInt(bitPattern: current)
+                    .addingReportingOverflow(UInt(bitPattern: step))
+                if overflow { hasNextValue = false; step = 0; return current }
+                candidate = Int(bitPattern: next)
+            } else {
+                let (next, overflow) = UInt(bitPattern: current)
+                    .subtractingReportingOverflow(UInt(step.magnitude))
+                if overflow { hasNextValue = false; step = 0; return current }
+                candidate = Int(bitPattern: next)
+            }
+        default:
+            let (next, overflow) = current.addingReportingOverflow(step)
+            if overflow { hasNextValue = false; step = 0; return current }
+            candidate = next
+        }
+        hasNextValue = RuntimeRangeIteratorBox.computeHasNext(
+            current: candidate, last: last, step: step, kind: kind
+        )
+        self.current = candidate
+        return current
     }
 }
 
@@ -162,7 +220,7 @@ func runtimeUnsignedRangeFirstMatch(
         return true
     }
     if found {
-        return match
+        return orNull ? runtimeRangeErasedElement(match, kind: range.kind) : match
     }
     if didThrow {
         return orNull ? runtimeNullSentinelInt : 0
@@ -201,7 +259,7 @@ func runtimeUnsignedRangeLastMatch(
         return true
     }
     if found {
-        return match
+        return orNull ? runtimeRangeErasedElement(match, kind: range.kind) : match
     }
     if didThrow {
         return orNull ? runtimeNullSentinelInt : 0
@@ -241,16 +299,22 @@ func runtimeSignedRangeTraverse(
 ) -> Bool {
     var current = range.first
     var index = 0
+    // Checked arithmetic matches the unsigned traverse: stepping past a type
+    // boundary (e.g. Long.MIN_VALUE) must stop the loop instead of wrapping.
     if range.step > 0 {
         while current <= range.last {
             if !body(current, index) { return false }
-            current &+= range.step
+            let (next, overflow) = current.addingReportingOverflow(range.step)
+            if overflow { break }
+            current = next
             index &+= 1
         }
     } else if range.step < 0 {
         while current >= range.last {
             if !body(current, index) { return false }
-            current &+= range.step
+            let (next, overflow) = current.addingReportingOverflow(range.step)
+            if overflow { break }
+            current = next
             index &+= 1
         }
     }
@@ -265,12 +329,16 @@ func runtimeSignedRangeTraverseReversed(
     if range.step > 0 {
         while current >= range.first {
             if !body(current) { return false }
-            current &-= range.step
+            let (next, overflow) = current.subtractingReportingOverflow(range.step)
+            if overflow { break }
+            current = next
         }
     } else if range.step < 0 {
         while current <= range.first {
             if !body(current) { return false }
-            current &-= range.step
+            let (next, overflow) = current.subtractingReportingOverflow(range.step)
+            if overflow { break }
+            current = next
         }
     }
     return true
@@ -294,7 +362,7 @@ func runtimeSignedRangeFirstMatch(
         if result != 0 { found = true; match = current; return false }
         return true
     }
-    if found { return match }
+    if found { return orNull ? runtimeRangeErasedElement(match, kind: range.kind) : match }
     if didThrow { return orNull ? runtimeNullSentinelInt : 0 }
     if orNull { return runtimeNullSentinelInt }
     outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "No element matching the predicate was found.")
@@ -319,7 +387,7 @@ func runtimeSignedRangeLastMatch(
         if result != 0 { found = true; match = current; return false }
         return true
     }
-    if found { return match }
+    if found { return orNull ? runtimeRangeErasedElement(match, kind: range.kind) : match }
     if didThrow { return orNull ? runtimeNullSentinelInt : 0 }
     if orNull { return runtimeNullSentinelInt }
     outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "No element matching the predicate was found.")
@@ -378,7 +446,7 @@ func runtimeSignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -
             var rng = SystemRandomNumberGenerator()
             bits = rng.next()
         }
-        return Int(bitPattern: UInt(truncatingIfNeeded: bits))
+        return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: bits)), kind: range.kind)
     }
     let count = distance / absStep + 1
     let index: UInt64
@@ -392,7 +460,7 @@ func runtimeSignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -
     }
     let offset = index &* absStep
     let chosenOrdered = ascending ? firstOrdered &+ offset : firstOrdered &- offset
-    return Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask))
+    return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask)), kind: range.kind)
 }
 
 func runtimeUnsignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
@@ -413,7 +481,7 @@ func runtimeUnsignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?)
             var rng = SystemRandomNumberGenerator()
             bits = rng.next()
         }
-        return Int(bitPattern: UInt(truncatingIfNeeded: bits))
+        return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: bits)), kind: range.kind)
     }
     let count = distance / absStep + 1
     let index: UInt64
@@ -427,7 +495,7 @@ func runtimeUnsignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?)
     }
     let offset = index &* absStep
     let chosen = ascending ? first &+ offset : first &- offset
-    return Int(bitPattern: UInt(truncatingIfNeeded: chosen))
+    return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: chosen)), kind: range.kind)
 }
 
 func runtimeCharRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
@@ -732,7 +800,7 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
             current: range.first,
             last: range.last,
             step: range.step,
-            yieldsChars: range.yieldsChars
+            kind: range.kind
         )
     )
 }
@@ -783,7 +851,7 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
             current: range.first,
             last: range.last,
             step: range.step,
-            yieldsChars: range.yieldsChars
+            kind: range.kind
         )
     )
 }
@@ -803,7 +871,7 @@ public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     guard let iterator = object as? RuntimeRangeIteratorBox else {
         return 0
     }
-    return runtimeRangeIteratorHasNext(iterator)
+    return iterator.hasNextValue ? 1 : 0
 }
 
 @_cdecl("kk_range_next")
@@ -821,7 +889,7 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
     guard let iterator = object as? RuntimeRangeIteratorBox else {
         return 0
     }
-    return runtimeRangeIteratorNext(iterator)
+    return iterator.advance()
 }
 
 /// BUG-198: Fast path used only after lowering proves a signed built-in range.
@@ -897,6 +965,23 @@ public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointe
     return 0
 }
 
+/// Converts a raw range element into the representation an erased `T`/`T?`/
+/// `List<T>` slot requires: element kinds whose scalar collides with the null
+/// sentinel (Long.MIN_VALUE, ULong 2^63) or loses type identity (Char) must
+/// become real boxes so generic consumers recover the primitive.
+func runtimeRangeErasedElement(_ value: Int, kind: RuntimeRangeKind) -> Int {
+    switch kind {
+    case .charRange, .charProgression:
+        return kk_box_char(value)
+    case .longRange, .longProgression:
+        return kk_box_long_nonnull(value)
+    case .ulongRange, .ulongProgression:
+        return kk_box_ulong_nonnull(value)
+    default:
+        return value
+    }
+}
+
 @_cdecl("kk_iterator_next")
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
@@ -911,10 +996,9 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
         if runtimeRangeIteratorHasNext(rangeIterator) == 0 {
             return runtimeThrowIteratorExhausted(outThrown)
         }
-        let value = runtimeRangeIteratorNext(rangeIterator)
-        // `Iterator<T>.next()` is an erased boundary. Direct range iteration
-        // still uses `kk_range_next` and keeps the primitive representation.
-        return rangeIterator.yieldsChars ? kk_box_char(value) : value
+        let value = rangeIterator.advance()
+        // `Iterator<T>.next()` is an erased boundary.
+        return runtimeRangeErasedElement(value, kind: rangeIterator.kind)
     }
     if object is RuntimeListIteratorBox {
         return kk_list_iterator_next(iterRaw, outThrown)
@@ -1647,19 +1731,11 @@ public func kk_ulong_range_step(_ rangeRaw: Int) -> Int {
 }
 
 private func runtimeRangeIteratorHasNext(_ iterator: RuntimeRangeIteratorBox) -> Int {
-    if iterator.step > 0 {
-        return iterator.current <= iterator.last ? 1 : 0
-    }
-    if iterator.step < 0 {
-        return iterator.current >= iterator.last ? 1 : 0
-    }
-    return 0
+    iterator.hasNextValue ? 1 : 0
 }
 
 private func runtimeRangeIteratorNext(_ iterator: RuntimeRangeIteratorBox) -> Int {
-    let current = iterator.current
-    iterator.current = iterator.current &+ iterator.step
-    return current
+    iterator.advance()
 }
 
 private func runtimeSignedRangeForInIteratorBox(from rawValue: Int) -> RuntimeSignedRangeForInIteratorBox? {
