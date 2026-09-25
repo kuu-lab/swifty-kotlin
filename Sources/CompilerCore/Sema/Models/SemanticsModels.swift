@@ -1468,6 +1468,12 @@ public final class BindingTable {
     /// Maps nameRef expression IDs to their member name when they were resolved
     /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
+    /// For calls that resolved on an *outer* implicit receiver (e.g. an
+    /// enclosing class's member called unqualified from an object literal's
+    /// member body), the enclosing function's receiver parameter symbol. KIR
+    /// lowering reads the receiver through the captured value of that symbol
+    /// instead of the innermost implicit receiver.
+    public private(set) var implicitReceiverOuterReceiverSymbols: [ExprID: SymbolID] = [:]
     /// Calls resolved through the ambient CoroutineScope of a coroutine builder
     /// need a runtime receiver even though the builder lambda keeps a no-receiver
     /// function ABI.
@@ -1988,6 +1994,18 @@ public final class BindingTable {
     /// Mark a nameRef expression as an implicit receiver member access (STDLIB-004).
     public func markImplicitReceiverMember(_ expr: ExprID, name: InternedString) {
         implicitReceiverMemberNames[expr] = name
+    }
+
+    /// Record which captured outer receiver an unqualified member call
+    /// dispatches on. See `implicitReceiverOuterReceiverSymbols`.
+    public func markImplicitReceiverOuterReceiver(_ expr: ExprID, symbol: SymbolID) {
+        implicitReceiverOuterReceiverSymbols[expr] = symbol
+    }
+
+    /// The captured outer-receiver symbol an unqualified member call dispatches
+    /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
+    public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
+        implicitReceiverOuterReceiverSymbols[expr]
     }
 
     public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {

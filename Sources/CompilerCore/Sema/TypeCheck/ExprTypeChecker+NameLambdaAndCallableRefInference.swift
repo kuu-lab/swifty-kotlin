@@ -1145,7 +1145,12 @@ extension ExprTypeChecker {
         }
 
         var lambdaLocals = locals
+        // Outer receiver `this` symbols are reachable inside the lambda even
+        // though the enclosing member's `this` shadows them in `locals` — the
+        // enclosing context (e.g. an object literal) captured them, so the
+        // lambda can capture them through the same chain.
         let outerSymbols = Set(locals.values.map(\.symbol))
+            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema)
             : nil
@@ -2123,16 +2128,22 @@ extension ExprTypeChecker {
         }
         if let label {
             if let qualifiedType = ctx.resolveQualifiedThis(label: label) {
-                // An extension function's receiver is also addressable by the
-                // function-name label (for example `this@describe`). Bind that
-                // reference to the same synthetic receiver symbol used by KIR
-                // so nested receiver lambdas capture the outer receiver rather
-                // than accidentally reading their own receiver.
-                if let currentDeclSymbol = ctx.currentDeclSymbol,
-                   let currentDecl = sema.symbols.symbol(currentDeclSymbol),
-                   currentDecl.name == label,
-                   sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
+                // An outer receiver whose enclosing `this` is capturable (e.g.
+                // the class around an object literal) binds to its receiver
+                // parameter symbol so capture analysis stores it and KIR
+                // reads the captured value instead of the innermost receiver.
+                if let receiverSymbol = ctx.resolveQualifiedThisReceiverSymbol(label: label) {
+                    sema.bindings.bindIdentifier(id, symbol: receiverSymbol)
+                } else if let currentDeclSymbol = ctx.currentDeclSymbol,
+                          let currentDecl = sema.symbols.symbol(currentDeclSymbol),
+                          currentDecl.name == label,
+                          sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
                 {
+                    // An extension function's receiver is also addressable by the
+                    // function-name label (for example `this@describe`). Bind that
+                    // reference to the same synthetic receiver symbol used by KIR
+                    // so nested receiver lambdas capture the outer receiver rather
+                    // than accidentally reading their own receiver.
                     sema.bindings.bindIdentifier(
                         id,
                         symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
