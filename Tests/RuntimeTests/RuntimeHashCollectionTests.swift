@@ -187,6 +187,15 @@ struct RuntimeHashCollectionTests {
         #expect(RuntimeElementKey(value: intBox) == RuntimeElementKey(value: rawInt))
         #expect(elementHash(intBox) == elementHash(rawInt))
 
+        // Enum boxes cross call sites both as `RuntimeIntBox` carrying
+        // `enumClassID` and as raw unboxed ordinals; runtimeValuesEqual
+        // unboxes them, so a classID-dependent hash would send equal keys to
+        // different buckets (regex_option_options_property).
+        let enumBox = registerRuntimeObject(RuntimeIntBox(3, enumEntryName: "UNIX_LINES", enumClassID: 0x5EED))
+        #expect(runtimeValuesEqual(enumBox, 3))
+        #expect(RuntimeElementKey(value: enumBox) == RuntimeElementKey(value: 3))
+        #expect(elementHash(enumBox) == elementHash(3))
+
         let doubleBox = registerRuntimeObject(RuntimeDoubleBox(3.14))
         let rawDouble = Int(bitPattern: UInt(truncatingIfNeeded: Double(3.14).bitPattern))
         #expect(runtimeValuesEqual(doubleBox, rawDouble))

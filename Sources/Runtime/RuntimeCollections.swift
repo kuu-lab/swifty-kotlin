@@ -74,14 +74,13 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         return
     }
     if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
-        if let enumClassID = intBox.enumClassID {
-            hasher.combine(2)
-            hasher.combine(enumClassID)
-            hasher.combine(intBox.value)
-        } else {
-            hasher.combine(1)
-            hasher.combine(intBox.value)
-        }
+        // Enum ordinals cross call sites as both `RuntimeIntBox` (optionally
+        // carrying `enumClassID`) and raw unboxed `Int`s. `runtimeValuesEqual`
+        // unboxes both sides and reports such pairs equal, so the internal
+        // hash must be keyed by value only — hashing `enumClassID` here would
+        // send equal keys to different buckets and break `Set.contains`.
+        hasher.combine(1)
+        hasher.combine(intBox.value)
         return
     }
     if let boolBox = tryCast(pointer, to: RuntimeBoolBox.self) {
