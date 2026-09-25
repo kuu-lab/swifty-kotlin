@@ -630,3 +630,105 @@ public func __kk_bignum_toString(_ numRaw: Int) -> Int {
     }
     return runtimeMakeStringRaw(box.value)
 }
+
+/// BigDecimal.compareTo: exact comparison of two validated decimal strings.
+/// Unlike `equals`, Java/Kotlin BigDecimal comparison ignores scale
+/// (1.0 == 1.00) and treats any zero as equal regardless of sign.
+private struct BigDecimalParts {
+    /// Canonical mantissa with no leading or trailing zeros; empty means zero.
+    var digits: String
+    /// Value is `0.digits * 10^pointExponent` (normalised scientific form).
+    var pointExponent: Int
+    var negative: Bool
+}
+
+private func parseBigDecimalParts(_ s: String) -> BigDecimalParts {
+    var index = s.startIndex
+    var negative = false
+    if index < s.endIndex, s[index] == "+" || s[index] == "-" {
+        negative = s[index] == "-"
+        index = s.index(after: index)
+    }
+    var digits = ""
+    var integerCount = 0
+    while index < s.endIndex, s[index] >= "0", s[index] <= "9" {
+        digits.append(s[index])
+        integerCount += 1
+        index = s.index(after: index)
+    }
+    if index < s.endIndex, s[index] == "." {
+        index = s.index(after: index)
+        while index < s.endIndex, s[index] >= "0", s[index] <= "9" {
+            digits.append(s[index])
+            index = s.index(after: index)
+        }
+    }
+    var exponent = 0
+    if index < s.endIndex, s[index] == "e" || s[index] == "E" {
+        index = s.index(after: index)
+        var exponentNegative = false
+        if index < s.endIndex, s[index] == "+" || s[index] == "-" {
+            exponentNegative = s[index] == "-"
+            index = s.index(after: index)
+        }
+        while index < s.endIndex, s[index] >= "0", s[index] <= "9" {
+            exponent = exponent * 10 + Int(s[index].asciiValue! - UInt8(ascii: "0"))
+            index = s.index(after: index)
+        }
+        if exponentNegative { exponent = -exponent }
+    }
+    var pointExponent = exponent + integerCount
+    while digits.hasPrefix("0") {
+        digits.removeFirst()
+        pointExponent -= 1
+    }
+    while digits.hasSuffix("0") {
+        digits.removeLast()
+    }
+    return BigDecimalParts(digits: digits, pointExponent: pointExponent, negative: negative)
+}
+
+private func compareBigDecimalMagnitudes(_ a: BigDecimalParts, _ b: BigDecimalParts) -> Int {
+    if a.pointExponent != b.pointExponent {
+        return a.pointExponent < b.pointExponent ? -1 : 1
+    }
+    let aDigits = Array(a.digits.utf8)
+    let bDigits = Array(b.digits.utf8)
+    for i in 0 ..< max(aDigits.count, bDigits.count) {
+        let aDigit = i < aDigits.count ? aDigits[i] : UInt8(ascii: "0")
+        let bDigit = i < bDigits.count ? bDigits[i] : UInt8(ascii: "0")
+        if aDigit != bDigit {
+            return aDigit < bDigit ? -1 : 1
+        }
+    }
+    return 0
+}
+
+private func compareBigDecimalValues(_ lhs: String, _ rhs: String) -> Int {
+    let a = parseBigDecimalParts(lhs)
+    let b = parseBigDecimalParts(rhs)
+    let aIsZero = a.digits.isEmpty
+    let bIsZero = b.digits.isEmpty
+    if aIsZero || bIsZero {
+        if aIsZero, bIsZero { return 0 }
+        return aIsZero ? (b.negative ? 1 : -1) : (a.negative ? -1 : 1)
+    }
+    if a.negative != b.negative {
+        return a.negative ? -1 : 1
+    }
+    let magnitude = compareBigDecimalMagnitudes(a, b)
+    return a.negative ? -magnitude : magnitude
+}
+
+@_cdecl("__kk_bignum_compareTo")
+public func __kk_bignum_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhsRaw),
+          let lhs = tryCast(lhsPtr, to: RuntimeBigNumberBox.self),
+          let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhsRaw),
+          let rhs = tryCast(rhsPtr, to: RuntimeBigNumberBox.self),
+          lhs.kind == .decimal, rhs.kind == .decimal
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bignum_compareTo received invalid BigNumber handle")
+    }
+    return compareBigDecimalValues(lhs.value, rhs.value)
+}

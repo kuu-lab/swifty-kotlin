@@ -1507,6 +1507,16 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_bignum_compareTo",
+            parameters: [
+                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
+                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
         // KSP-410: map/mapIndexed/mapNotNull/firstNotNullOf(OrNull)/
         // filterIndexed/onEachIndexed/reduce family are bundled Kotlin source
         // (StringHOF.kt); their flat ABI entries were removed.
