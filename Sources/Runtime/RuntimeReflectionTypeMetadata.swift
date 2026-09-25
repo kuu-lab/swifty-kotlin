@@ -27,12 +27,32 @@ let kTypeParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.ref
 let kTypeProjectionRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KTypeProjection")
 let kParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KParameter")
 
+// The compiler declares the `name` slot's result as the flat String aggregate
+// `{ptr, i64, i64, i64}`. On x86_64 SysV that lowers the indirect call to a
+// hidden output pointer in the first argument register, shifting the receiver
+// and thrown-channel arguments right; the thunk must therefore take the output
+// buffer explicitly and write the raw string handle to word 0. On arm64 the
+// aggregate returns in registers, so a plain `Int` return lands in word 0.
+#if arch(x86_64)
+private let runtimeKCallableNameGetter:
+    @convention(c) (UnsafeMutablePointer<Int>, Int, UnsafeMutablePointer<Int>?) -> Void = {
+        outResult,
+        raw,
+        outThrown in
+        outThrown?.pointee = 0
+        outResult[0] = __kk_kcallable_get_name(raw)
+        outResult[1] = 0
+        outResult[2] = 0
+        outResult[3] = 0
+    }
+#else
 private let runtimeKCallableNameGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
     outThrown?.pointee = 0
     return __kk_kcallable_get_name(raw)
 }
+#endif
 
 private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
