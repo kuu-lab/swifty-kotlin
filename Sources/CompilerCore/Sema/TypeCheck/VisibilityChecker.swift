@@ -1,6 +1,17 @@
 
 struct VisibilityChecker {
     let symbols: SymbolTable
+    let sourceManager: SourceManager?
+    /// Files that opted into calling otherwise-invisible declarations via
+    /// `@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")`, the same
+    /// escape hatch kotlin-stdlib uses to reach `@PublishedApi internal` API.
+    let invisibleAccessFiles: Set<Int32>
+
+    init(symbols: SymbolTable, sourceManager: SourceManager? = nil, invisibleAccessFiles: Set<Int32> = []) {
+        self.symbols = symbols
+        self.sourceManager = sourceManager
+        self.invisibleAccessFiles = invisibleAccessFiles
+    }
 
     func isAccessible(
         _ symbol: SemanticSymbol,
@@ -8,8 +19,17 @@ struct VisibilityChecker {
         enclosingClass: SymbolID?
     ) -> Bool {
         switch symbol.visibility {
-        case .public, .internal:
+        case .public:
             return true
+        case .internal:
+            guard let sourceManager,
+                  let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
+                  sourceManager.origin(of: declarationFileID)?.isBundledStdlib == true
+            else {
+                return true
+            }
+            return sourceManager.origin(of: accessFileID)?.isBundledStdlib == true
+                || invisibleAccessFiles.contains(accessFileID.rawValue)
         case .private:
             if isLocalOrParameter(symbol.kind) {
                 return true
