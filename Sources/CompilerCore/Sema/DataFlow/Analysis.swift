@@ -40,21 +40,10 @@ struct ConditionBranch: Equatable {
 }
 
 final class DataFlowAnalyzer {
-    /// Cached `BuiltinTypeNames` for the active interner. Builtin name
-    /// interning is compilation-invariant, so building it once avoids the
-    /// locked `interner.intern` calls being repeated on every type-argument
-    /// and `is`-check resolution (mirrors `TypeCheckDriver.builtinTypeNamesCache`).
-    private var builtinTypeNamesCache: (names: BuiltinTypeNames, interner: StringInterner)?
-
     init() {}
 
     private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        if let cached = builtinTypeNamesCache, cached.interner === interner {
-            return cached.names
-        }
-        let names = BuiltinTypeNames(interner: interner)
-        builtinTypeNamesCache = (names, interner)
-        return names
+        BuiltinTypeNames(interner: interner)
     }
 
     func branchOnCondition(
