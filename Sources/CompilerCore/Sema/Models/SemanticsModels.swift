@@ -856,6 +856,12 @@ public final class SymbolTable {
         propertyTypes[symbol]
     }
 
+    /// The property a synthetic getter/setter accessor symbol encodes, or nil
+    /// when `symbol` is a real member rather than a property accessor.
+    public func propertySymbol(forAccessor accessor: SymbolID) -> SymbolID? {
+        SyntheticSymbolScheme.decodedPropertyAccessor(accessor)?.property
+    }
+
     public func setPropertyHasCustomGetter(_ value: Bool, for symbol: SymbolID) {
         propertyHasCustomGetter[symbol] = value
     }

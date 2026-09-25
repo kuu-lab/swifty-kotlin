@@ -2736,10 +2736,25 @@ extension NativeEmitter {
                 // result convention), not the raw pointer the generic fallback
                 // declaration assumes — without this the receiver lands in the
                 // callee's hidden result parameter and `this` reads garbage.
+                // Decide on the declared callee signature rather than the
+                // call-site result type: a generic `val value: T` accessed as
+                // `Lazy<String>.value` still erases to a raw pointer return.
+                // The KIR symbol is the synthetic getter accessor, so recover
+                // the declared property type via the accessor encoding.
                 let virtualCallReturnsAggregate = calleeName == "get"
                     && argumentValues.count == 1
                     && typeLowering != nil
-                    && isStringAggregateType(result.flatMap { module.arena.exprType($0) })
+                    && {
+                        if let symbol,
+                           let property = symbols?.propertySymbol(forAccessor: symbol)
+                        {
+                            return isStringAggregateType(symbols?.propertyType(for: property))
+                        }
+                        if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
+                            return isStringAggregateType(signature.returnType)
+                        }
+                        return isStringAggregateType(result.flatMap { module.arena.exprType($0) })
+                    }()
                 let isThrowableToStringVirtualCall: Bool = {
                     guard case .vtable = dispatch,
                           let symbols
