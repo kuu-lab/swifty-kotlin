@@ -983,6 +983,17 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         interner: interner,
         instructions: &instructions
     )
+    // Setter counterpart: register interface property setters into the itable
+    // so a write through an interface-typed receiver can dispatch to them.
+    appendObjectItablePropertySetterRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
 }
 
 /// Returns the interface methods that must be registered for dynamic itable dispatch.
