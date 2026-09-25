@@ -2585,7 +2585,7 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
             }
-            let resolved = resolveCallRespectingLambdaReturnType(
+            var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
                 argTypes: argTypes,
@@ -2600,7 +2600,7 @@ final class CallTypeChecker {
                 hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
                 ctx: ctx
             )
-            if let diagnostic = resolved.diagnostic {
+            if resolved.diagnostic != nil {
                 if let calleeName,
                    let recovered = tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
                        id,
@@ -2632,6 +2632,26 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
+                if let retried = retryResolutionReinferringNestedCallArguments(
+                    candidates: candidates,
+                    args: args,
+                    argTypes: argTypes,
+                    range: range,
+                    calleeName: calleeName ?? InternedString(),
+                    explicitTypeArgs: explicitTypeArgs,
+                    expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                    implicitReceiverType: ctx.implicitReceiverType,
+                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                    hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                    ctx: ctx,
+                    locals: &locals
+                ) {
+                    resolved = retried
+                }
+            }
+            if let diagnostic = resolved.diagnostic {
                 ctx.semaCtx.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
