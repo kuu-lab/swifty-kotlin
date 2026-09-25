@@ -2341,7 +2341,7 @@
   - 2026-09-15 完了: 既存の `GCInfo.kt` source-backed 宣言（constructor / `sweptCount` / `keptCount`）を KUU-421 の owner fixture に接続し、`stdlib_kotlin_native_runtime_SweepStatistics_SweepStatistics_n` の Sema golden と Native-only diff case を追加した。対象 symbol に Runtime/ABI bridge や name-string 特例はなく、既存の synthetic class shell 以外の property/constructor stub は登録されていないため追加削除は不要。
   - 検証: `NativeRefRuntimeSemaTests` 45件 PASS、Sema golden shard 73（対象を含む8件）PASS、`bash Scripts/check_todo_ids.sh` PASS、`git diff --check` PASS。対象 diff command は実行したが、`kotlin.native.*` の SKIP 判定前に初回 stdlib artifact build が120秒 timeout（fixture の compile failure ではない）となった。全 Golden / 全 diff / Runtime ABI 全体ゲートは未実行（他セッションの SwiftPM 同時実行による lock 待ちを避け、変更関連範囲に限定）。
 
-- [ ] KSP-1274: kotlin.properties.Delegates.Delegates の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1274: kotlin.properties.Delegates.Delegates の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.properties.Delegates` / receiver `Delegates`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/properties/Delegates/Delegates.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2352,6 +2352,9 @@
     - `kotlin.properties.Delegates.notNull` — fun Delegates.notNull(): ReadWriteProperty  -- `final fun <#A1: kotlin/Any> notNull(): kotlin.properties/ReadWriteProperty<kotlin/Any?, #A1>`
     - `kotlin.properties.Delegates.observable` — fun Delegates.observable(, Function3): ReadWriteProperty  -- `final inline fun <#A1: kotlin/Any?> observable(#A1, crossinline kotlin/Function3<kotlin.reflect/KProperty<*>, #A1, #A1, kotlin/Unit>): kotlin.properties/ReadWriteProperty<kotlin/Any?, #A1>`
     - `kotlin.properties.Delegates.vetoable` — fun Delegates.vetoable(, Function3): ReadWriteProperty  -- `final inline fun <#A1: kotlin/Any?> vetoable(#A1, crossinline kotlin/Function3<kotlin.reflect/KProperty<*>, #A1, #A1, kotlin/Boolean>): kotlin.properties/ReadWriteProperty<kotlin/Any?, #A1>`
+  - 2026-09-25 完了: 監査エントリは stale（audit 2026-08-16 生成、KSP-491 #5921 が 2026-08-26 に `Sources/CompilerCore/Stdlib/kotlin/properties/Delegates.kt` を追加済み）。3 シンボルは既に source-backed 実装済みで canonical signature も一致。`__kk_*`/`kk_*` bridge、Synthetic stub、RuntimeABISpec エントリ、name-string 特例は対象シンボルに存在しない（`__kk_lazy_sync_*` は lazy 共有 bridge、`StdlibDelegateKind` は生成 kind 分類器として維持）。Sema golden と diff case を追加した。
+  - 同 PR のバグ修正: diff 検証で top-level `Delegates.notNull()` の try/catch が `KSWIFTK-LINK-0003` で panic する実コンパイラバグを発見。`rewriteDelegateAccesses` が合成 `get`/`set` accessor call を `thrownResult: nil` で挿入するため、try body 内の accessor 例外が catch dispatch に届かず caller に伝播していた。guard region の (exceptionSlot, exceptionTypeSlot, thrownTarget) を sibling wiring または init block から回復して accessor call に同じ配線を施すよう修正し、`TopLevelDelegateThrowRoutingTests`（3件: get/set/fallback）で回帰固定。
+  - 検証: `swift build` PASS、`TopLevelDelegateThrowRoutingTests` 3件 PASS、`LocalDelegatePropertyKIRTests` 13件 PASS、Sema golden（`stdlib_kotlin_properties_Delegates_Delegates_n`）PASS、対象 diff case PASS、delegate/try/use/runCatching 関連26 diff cases PASS、`check_todo_ids.sh` PASS、`validate_runtime_abi_links.sh` PASS、`git diff --check` PASS。全 Golden / 全 diff / 全 Swift テストは未実行（CI に委譲）。
 
 - [ ] KSP-1275: kotlin.properties.ObservableProperty top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.ObservableProperty` / top-level
