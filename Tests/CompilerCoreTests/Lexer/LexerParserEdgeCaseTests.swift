@@ -219,6 +219,22 @@ struct LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testLexerBoundsDeeplyNestedStringTemplates() {
+        let nestingDepth = 2_000
+        let sources = [
+            "val value = \"" + String(repeating: "${", count: nestingDepth) + "1" + String(repeating: "}", count: nestingDepth) + "\"",
+            "val value = \"" + String(repeating: "${\"", count: nestingDepth) + "1" + String(repeating: "}\"", count: nestingDepth),
+        ]
+
+        for source in sources {
+            let result = lex(source)
+
+            #expect(result.tokens.last?.kind == .eof)
+            assertHasDiagnostic("KSWIFTK-LEX-0007", in: result.diagnostics.diagnostics)
+        }
+    }
+
+    @Test
     func testParserCanStartTypeArgumentsLookaheadVariants() {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()

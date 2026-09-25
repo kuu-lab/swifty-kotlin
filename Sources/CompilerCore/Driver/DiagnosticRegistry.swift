@@ -148,6 +148,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Malformed number literal (overflow or bad format)."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LEX-0007",
+            pass: "LEX",
+            defaultSeverity: .error,
+            summary: "String template nesting exceeds the supported depth."
+        ),
     ]
 
     // MARK: - Parser pass (PARSE)
