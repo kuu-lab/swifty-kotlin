@@ -14,6 +14,14 @@ extension DataFlowSemaPhase {
             return nil
         }
 
+        guard validateImportedNominalLayoutValues(
+            in: content,
+            diagnostics: diagnostics,
+            metadataPath: path
+        ) else {
+            return nil
+        }
+
         let decoder = MetadataDecoder()
         let metadataRecords = decoder.decode(content)
         let nominalTypeParametersByFQName = Dictionary(
@@ -153,6 +161,72 @@ extension DataFlowSemaPhase {
         }
 
         return records
+    }
+
+    private func validateImportedNominalLayoutValues(
+        in content: String,
+        diagnostics: DiagnosticEngine,
+        metadataPath: String
+    ) -> Bool {
+        let dimensionKeys: Set<String> = ["fields", "layoutWords", "vtable", "itable"]
+        let slotKeys: Set<String> = ["fieldOffsets", "vtableSlots", "itableSlots"]
+
+        for rawLine in content.split(whereSeparator: \.isNewline) {
+            let parts = rawLine.split(whereSeparator: \.isWhitespace)
+            guard let kindToken = parts.first,
+                  let kind = symbolKindFromMetadataToken(String(kindToken)),
+                  isNominalLayoutTargetSymbol(kind)
+            else {
+                continue
+            }
+            for part in parts {
+                guard let equalsIndex = part.firstIndex(of: "=") else { continue }
+                let key = String(part[..<equalsIndex])
+                let value = String(part[part.index(after: equalsIndex)...])
+                if dimensionKeys.contains(key) {
+                    guard let dimension = Int(value), (0 ... maximumImportedNominalLayoutValue).contains(dimension) else {
+                        diagnostics.warning(
+                            "KSWIFTK-LIB-0003",
+                            "Invalid nominal layout value in metadata at " + metadataPath + ": " + key + "=" + value + " (expected 0..." + String(maximumImportedNominalLayoutValue) + ")",
+                            range: nil
+                        )
+                        return false
+                    }
+                } else if slotKeys.contains(key), !validateImportedLayoutSlots(value, key: key) {
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0003",
+                        "Invalid nominal layout slot in metadata at " + metadataPath + ": " + key + "=" + value + " (expected 0..." + String(maximumImportedNominalLayoutValue) + ")",
+                        range: nil
+                    )
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private func validateImportedLayoutSlots(_ value: String, key: String) -> Bool {
+        guard !value.isEmpty else { return true }
+        let body: String
+        let separator: Character
+        if key == "vtableSlots", value.hasPrefix("v2:") {
+            body = String(value.dropFirst(3))
+            separator = "|"
+        } else {
+            body = value
+            separator = ","
+        }
+        var slotCount = 0
+        for entry in body.split(separator: separator, omittingEmptySubsequences: true) {
+            guard slotCount < maximumImportedNominalLayoutValue else { return false }
+            slotCount += 1
+            guard let atIndex = entry.lastIndex(of: "@") else { continue }
+            let rawSlot = entry[entry.index(after: atIndex)...]
+            guard let slot = Int(rawSlot), (0 ... maximumImportedNominalLayoutValue).contains(slot) else {
+                return false
+            }
+        }
+        return true
     }
 
     func importedFunctionSignature(
