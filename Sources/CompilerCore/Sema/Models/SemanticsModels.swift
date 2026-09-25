@@ -478,7 +478,6 @@ public final class SymbolTable {
     private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
-    private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
     private var enumEntryDispatchTargets: [SymbolID: [EnumEntryDispatchTarget]] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
@@ -827,14 +826,6 @@ public final class SymbolTable {
 
     public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
         overrideDefaultsBaseSymbols[symbol]
-    }
-
-    public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {
-        enumEntryDispatchSymbols[functionSymbol] = dispatchSymbol
-    }
-
-    public func enumEntryDispatchSymbol(for functionSymbol: SymbolID) -> SymbolID? {
-        enumEntryDispatchSymbols[functionSymbol]
     }
 
     public func setEnumEntryDispatchTargets(

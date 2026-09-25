@@ -201,10 +201,32 @@ extension CallLowerer {
         // enum member through the predeclared ordinal dispatcher before any
         // runtime-name or virtual-dispatch rewriting can select the abstract
         // declaration itself.
+        //
+        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
+        // or any interface member) that more than one enum class in this
+        // compilation registers entry-body dispatch for. A single
+        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
+        // would have the second such enum processed silently overwrite the
+        // first's registration. Resolve the helper directly under the
+        // *receiver's own* enum class fqName instead (deterministic from
+        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
+        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
+        // cross-resolve to each other's dispatch helper.
         if normalized.defaultMask == 0,
            !isSuperCall,
            let chosenCallee,
-           let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
+           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
+           let receiverType = sema.bindings.exprTypes[receiver.expr],
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass,
+           let dispatchSymbol = {
+               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
+               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
+                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+               }
+           }(),
            let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
            let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
            dispatchSignature.typeParameterSymbols.isEmpty,
