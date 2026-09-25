@@ -255,6 +255,11 @@ enum TypeRefParserCore {
                 next += 1
                 ref = nullableVariant(of: ref, astArena: astArena)
             }
+            if next < tokens.count, tokens[next].kind == .symbol(.arrow) {
+                // `(T) -> U` reaching here means the caller disallowed function
+                // types; returning just `T` would leave `-> U` dangling.
+                return nil
+            }
             return (ref, next)
         }
 
