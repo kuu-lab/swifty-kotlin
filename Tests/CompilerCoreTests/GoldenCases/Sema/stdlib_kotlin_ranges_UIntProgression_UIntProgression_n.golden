@@ -1,3 +1,4 @@
+symbol fq=__local_0.progression[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.UIntProgression
 symbol fq=inspectUIntProgression.$0.progressions[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=inspectUIntProgression[kind=fun;params=kotlin.collections.List<kotlin.ranges.UIntProgression>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<kotlin.ranges.UIntProgression>] ret=Unit
 file fstdlib_kotlin_ranges_UIntProgression_UIntProgression_n package=_
