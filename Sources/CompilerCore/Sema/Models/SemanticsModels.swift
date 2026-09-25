@@ -1362,6 +1362,7 @@ public final class BindingTable {
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
+    public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
     /// Maps a secondary constructor's own symbol to the constructor symbol chosen
     /// by overload resolution for its `this(...)` / `super(...)` delegation call.
@@ -1519,6 +1520,10 @@ public final class BindingTable {
 
     public func bindLoopIteration(_ expr: ExprID, binding: LoopIterationBinding) {
         loopIterationBindings[expr] = binding
+    }
+
+    public func bindIndexedCompoundAssignOperator(_ expr: ExprID, binding: IndexedCompoundAssignOperatorBinding) {
+        indexedCompoundAssignOperatorBindings[expr] = binding
     }
 
     public func bindCallableTarget(_ expr: ExprID, target: CallableTarget) {
@@ -1792,6 +1797,10 @@ public final class BindingTable {
 
     public func loopIterationBinding(for expr: ExprID) -> LoopIterationBinding? {
         loopIterationBindings[expr]
+    }
+
+    public func indexedCompoundAssignOperatorBinding(for expr: ExprID) -> IndexedCompoundAssignOperatorBinding? {
+        indexedCompoundAssignOperatorBindings[expr]
     }
 
     public func callableTarget(for expr: ExprID) -> CallableTarget? {
