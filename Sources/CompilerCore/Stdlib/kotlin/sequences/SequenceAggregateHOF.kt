@@ -744,33 +744,30 @@ public fun <T> Sequence<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, L
     return Pair(matched.toList(), unmatched.toList())
 }
 
-// Shares appendJoinToPlain/appendJoinToTransform (Iterables.kt, kotlin.collections)
-// with Iterable.joinTo/joinToString: both only need iterator() (KSP-621).
-public fun <T> Sequence<T>.joinTo(
-    buffer: StringBuilder,
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
-): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, -1, "...")
+// Shares appendJoinToAppendablePlain/appendJoinToAppendableTransform
+// (Iterables.kt, kotlin.collections) with Iterable.joinTo.
+public fun <T, A : Appendable> Sequence<T>.joinTo(
+    buffer: A,
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): A = appendJoinToAppendablePlain(
+    this.iterator(), buffer, separator, prefix, postfix, limit, truncated
+)
 
-public fun <T> Sequence<T>.joinTo(
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
+public fun <T, A : Appendable> Sequence<T>.joinTo(
+    buffer: A,
+    separator: CharSequence,
+    prefix: CharSequence,
+    postfix: CharSequence,
     limit: Int,
-    truncated: String
-): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, limit, truncated)
-
-public fun <T> Sequence<T>.joinTo(
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
-    transform: (T) -> Any
-): StringBuilder = appendJoinToTransform(this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform)
+    truncated: CharSequence,
+    transform: (T) -> CharSequence
+): A = appendJoinToAppendableTransform(
+    this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform
+)
 
 public fun <T> Sequence<T>.joinToString(
     separator: String = ", ",
