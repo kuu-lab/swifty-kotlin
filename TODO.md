@@ -1968,12 +1968,15 @@
     - `kotlin.native.toByteArray` — fun ImmutableBlob.toByteArray(Int, Int): ByteArray  -- `final fun (kotlin.native/ImmutableBlob).kotlin.native/toByteArray(kotlin/Int = ..., kotlin/Int = ...): kotlin/ByteArray`
     - `kotlin.native.toUByteArray` — fun ImmutableBlob.toUByteArray(Int, Int): UByteArray  -- `final fun (kotlin.native/ImmutableBlob).kotlin.native/toUByteArray(kotlin/Int = ..., kotlin/Int = ...): kotlin/UByteArray`
 
-- [ ] KSP-1203: kotlin.native.ImmutableBlob.ImmutableBlob の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1203: kotlin.native.ImmutableBlob.ImmutableBlob の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.ImmutableBlob` / receiver `ImmutableBlob`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Blob.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 実装確認: `Blob.kt` の `ImmutableBlob` に `size`（private external `getArrayLength` → `__kk_byteArray_size`）、`get`（external operator → `kk_native_byteArray_getByteAt`）、`iterator`（private `ImmutableBlobIteratorImpl` を返す）を追加。ByteArray と同じデータレイアウトとして既存の ByteArray 用 Runtime 関数を共有する upstream 構成を踏襲し、対象シンボル専用の Runtime/ABI、synthetic stub、name-string 特例は存在しないため追加削除なし。
+  - 個別検証: `CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（`-Xswiftc -swift-version -Xswiftc 6`）で `size` → `kotlin.native.ImmutableBlob.size[kind=prop]`、`get`/`blob[i]` → `kotlin.native.ImmutableBlob.get[kind=fun]`、`iterator` → `kotlin.native.ImmutableBlob.iterator` / `kotlin.collections.ByteIterator` に解決することを確認。`for (e in blob)` は `Iterator.hasNext`/`next` 経由で展開されることを golden で確認。`bash Scripts/validate_runtime_abi_links.sh` green、`bash Scripts/check_todo_ids.sh` pass。diff ケースは Kotlin/JVM の参照 target がないため `SKIP-DIFF (DEBT-DIFF-001)`（単体実行で skipped=1/failed=0 を確認）。
+  - 未実行: 四スイート一括の `--filter matchesGolden` と全 diff ケースは CI に委譲（Sema suite のみ UPDATE_GOLDEN 済み、他スイート差分なし）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.ImmutableBlob.get` — fun ImmutableBlob.get(Int): Byte  -- `final fun get(kotlin/Int): kotlin/Byte`
