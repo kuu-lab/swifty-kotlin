@@ -719,6 +719,88 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        // Callable-value invocation through a safe call (KUU-644):
+        // `h?.f(args)` on a function-typed member property, and
+        // `x?.invoke(args)` on a function value. The receiver is already
+        // known non-null here; emit the property read / invoke on the
+        // non-null path and copy into the nullable result like the other
+        // safe-call arms.
+        if let callableBinding = sema.bindings.callableValueCalls[exprID],
+           case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
+           let invokeCallee = runtimeCallableInvokeCallee(
+               callableValueCallBinding: callableBinding,
+               sema: sema,
+               interner: interner
+           )
+        {
+            // Resolve the call prefix first so that a missed arm does not
+            // emit dead argument instructions.
+            var callSymbol: SymbolID?
+            var callCallee = invokeCallee
+            var callPrefix: [KIRExprID]?
+            switch callableBinding.target {
+            case .localValue(let localSym):
+                if sema.symbols.symbol(localSym)?.kind == .property {
+                    if let functionValue = lowerStoredMemberPropertyReadValue(
+                        propertySymbol: localSym,
+                        receiverExpr: receiverExpr,
+                        loweredReceiverID: loweredReceiverID,
+                        resultType: callableBinding.functionType,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions.instructions
+                    ) {
+                        callSymbol = localSym
+                        var prefix = [functionValue]
+                        if fnType.receiver != nil {
+                            prefix.append(loweredReceiverID)
+                        }
+                        callPrefix = prefix
+                    }
+                } else if let localExprID = driver.ctx.localValue(for: localSym) {
+                    if let info = driver.ctx.callableValueInfo(for: localExprID) {
+                        callSymbol = info.symbol
+                        callCallee = info.callee
+                        callPrefix = info.captureArguments + [loweredReceiverID]
+                    } else {
+                        callSymbol = localSym
+                        callPrefix = [localExprID, loweredReceiverID]
+                    }
+                }
+            case nil:
+                // `.invoke` sugar on a function value: the lowered receiver
+                // itself is the function object.
+                callPrefix = [loweredReceiverID]
+            case .symbol:
+                break
+            }
+            if var callPrefix {
+                let loweredArgIDs = args.map { argument in
+                    driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+                }
+                callPrefix.append(contentsOf: normalizedCallableValueArguments(
+                    providedArguments: loweredArgIDs,
+                    callableValueCallBinding: callableBinding,
+                    sema: sema
+                ))
+                let nonNullResult = arena.appendTemporary(type: fnType.returnType)
+                instructions.append(.call(
+                    symbol: callSymbol,
+                    callee: callCallee,
+                    arguments: callPrefix,
+                    result: nonNullResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
+                return result
+            }
+        }
+
         // KCallable metadata properties are shared by KFunction, KConstructor,
         // and KProperty.
         // boxes. Handle the safe-call form here after the receiver null check;
@@ -794,6 +876,7 @@ extension CallLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions.instructions
         ) {
             instructions.append(.copy(from: storedRead, to: result))

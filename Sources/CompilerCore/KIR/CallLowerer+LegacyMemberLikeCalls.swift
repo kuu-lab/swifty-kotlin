@@ -617,6 +617,7 @@ extension CallLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         ) {
             return storedMemberProperty
