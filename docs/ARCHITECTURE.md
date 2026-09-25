@@ -206,9 +206,9 @@ Tests/
 
 ### Synthetic member link tests
 
-`Tests/CompilerCoreTests/Sema/*SyntheticMemberLinkTests*.swift` は、合成 stdlib surface がまだ存在する間の link-surface sentinel として扱う。
-対応する stdlib API を Kotlin source へ移行して合成スタブを削除する PR では、同じ PR で該当 synthetic member link test も削除または source-backed assertion へ置換する。
-この群は migration progress を測るための一時的な安全網なので、単独の大規模リファクタ・分割・命名整理の対象にしない。
+`Tests/CompilerCoreTests/Sema/*SyntheticMemberLinkTests*.swift` と `*SourceMigrationTests*` / メンバー単位 `*FunctionTests*` の簿記テスト群は 2026-09 に撤去済み。
+stdlib メンバーの挙動カバレッジは `Scripts/diff_cases/`（JVM kotlinc との実行差分）と GoldenCases が担い、JVM 参照側で比較できない API は `// SKIP-DIFF (DEBT-DIFF-001)` ケースとして残す。
+新しい stdlib メンバーを追加するときは、シンボル内部をピンする単体テストではなく diff_cases / golden ケースを足す。
 
 ### Codegen 実行テスト資産 (fixture 駆動)
 
