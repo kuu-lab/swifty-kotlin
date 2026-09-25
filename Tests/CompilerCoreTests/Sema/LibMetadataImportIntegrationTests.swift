@@ -450,6 +450,21 @@ struct LibMetadataImportIntegrationTests {
         assertNoDiagnostic("KSWIFTK-LIB-0023", in: ctx)
     }
 
+    @Test func testInlineKIRSymlinkOutsideLibraryIsRejected() throws {
+        let outsideKIR = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kirbin")
+        try "version=2\nparams=0\nsuspend=false\nbody:\nreturnValue value=_\n"
+            .write(to: outsideKIR, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: outsideKIR) }
+
+        let ctx = try compileWithInlineKIRBody(
+            moduleName: "ExternalInline",
+            body: "returnValue value=_",
+            externalKIRURL: outsideKIR
+        )
+        assertHasDiagnostic("KSWIFTK-LIB-0019", in: ctx)
+    }
+
     private func base64(_ value: String) -> String {
         Data(value.utf8).base64EncodedString()
     }
@@ -458,7 +473,8 @@ struct LibMetadataImportIntegrationTests {
     /// then compiles a trivial program against it.
     private func compileWithInlineKIRBody(
         moduleName: String,
-        body: String
+        body: String,
+        externalKIRURL: URL? = nil
     ) throws -> CompilationContext {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -492,7 +508,12 @@ struct LibMetadataImportIntegrationTests {
 
         try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
-        try kirbin.write(to: inlineDir.appendingPathComponent("InlineBody.kirbin"), atomically: true, encoding: .utf8)
+        let inlineKIRURL = inlineDir.appendingPathComponent("InlineBody.kirbin")
+        if let externalKIRURL {
+            try fm.createSymbolicLink(at: inlineKIRURL, withDestinationURL: externalKIRURL)
+        } else {
+            try kirbin.write(to: inlineKIRURL, atomically: true, encoding: .utf8)
+        }
 
         // Deferred import only reads the artifact when `foo` is expanded,
         // so the app calls it and the parse diagnostics land in lowering.
