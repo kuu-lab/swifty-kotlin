@@ -1518,6 +1518,14 @@ public final class BindingTable {
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
     public private(set) var unboundCallableRefs: Set<ExprID> = []
+    /// REFL-PRIMOP: primitive arithmetic operators (`Int.plus`/`times`, ...)
+    /// have no real member symbol -- CallTypeChecker's
+    /// `tryInferRegularMemberCallPrimitiveSpecials` binds a call's result
+    /// type directly from the receiver/argument types instead of resolving a
+    /// `plus`/`times` symbol. A callable reference to one (`Int::plus`) has
+    /// no symbol to bind either, so this records which raw binary operator
+    /// KIR lowering should synthesize a wrapper function around in its place.
+    public private(set) var primitiveOperatorCallableRefs: [ExprID: BinaryOp] = [:]
     /// KSP-CAP-001: outer local variables/parameters captured by an object
     /// literal's member function bodies, keyed by the object literal's
     /// synthesized class symbol. Populated during Sema so KIR lowering can
@@ -2090,6 +2098,19 @@ public final class BindingTable {
     /// Query whether a callable reference is an unbound type reference (REFL-003).
     public func isUnboundCallableRef(_ expr: ExprID) -> Bool {
         unboundCallableRefs.contains(expr)
+    }
+
+    /// Record which raw binary operator a primitive-operator callable
+    /// reference (`Int::plus`) should synthesize a wrapper function around
+    /// (REFL-PRIMOP).
+    public func bindPrimitiveOperatorCallableRef(_ expr: ExprID, op: BinaryOp) {
+        primitiveOperatorCallableRefs[expr] = op
+    }
+
+    /// Query the raw binary operator recorded for a primitive-operator
+    /// callable reference (REFL-PRIMOP).
+    public func primitiveOperatorCallableRef(for expr: ExprID) -> BinaryOp? {
+        primitiveOperatorCallableRefs[expr]
     }
 }
 
