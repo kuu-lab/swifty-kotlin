@@ -1,4 +1,10 @@
 
+enum ImportedLibraryLimits {
+    /// Keep imported callable shapes small enough that malformed metadata cannot
+    /// trigger disproportionate allocations or parser work.
+    static let maxCallableArity = 1_024
+}
+
 extension DataFlowSemaPhase {
     func parseLibraryMetadata(
         path: String,
@@ -42,6 +48,16 @@ extension DataFlowSemaPhase {
 
         var records: [ImportedLibrarySymbolRecord] = []
         for metadataRecord in metadataRecords {
+            if metadataRecord.kind == .function || metadataRecord.kind == .constructor {
+                guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(metadataRecord.arity) else {
+                    diagnostics.error(
+                        "KSWIFTK-LIB-0024",
+                        "Callable arity \(metadataRecord.arity) in '\(path)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                        range: nil
+                    )
+                    continue
+                }
+            }
             let fqName = metadataRecord.fqName
                 .split(separator: ".")
                 .map { interner.intern(String($0)) }
@@ -248,6 +264,18 @@ extension DataFlowSemaPhase {
         allowPlaceholders: Bool = false,
         phantomTypeParameterSymbols: [SymbolID] = []
     ) -> FunctionSignature {
+        guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0024",
+                "Callable arity \(record.arity) in '\(metadataPath)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                range: nil
+            )
+            return FunctionSignature(
+                parameterTypes: [],
+                returnType: types.withNullability(.platformType, for: types.anyType),
+                isSuspend: record.isSuspend
+            )
+        }
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         let fallback = FunctionSignature(
             parameterTypes: Array(repeating: platformAny, count: max(0, record.arity)),
@@ -764,6 +792,7 @@ extension DataFlowSemaPhase {
         private var index: Int
         private var depth: Int
         private var depthLimitReported: Bool
+        private var arityLimitReported: Bool
         private var isOversized: Bool
         private let symbols: SymbolTable
         private let types: TypeSystem
@@ -777,6 +806,7 @@ extension DataFlowSemaPhase {
         // A signature with more than 63 nested wrappers is not practical metadata.
         private static let maxDepth: Int = 64
         private static let maxSourceLength: Int = 1_048_576
+        private static let maxCallableArity = ImportedLibraryLimits.maxCallableArity
 
         init(
             source: String,
@@ -798,6 +828,7 @@ extension DataFlowSemaPhase {
             index = 0
             depth = 0
             depthLimitReported = false
+            arityLimitReported = false
             self.symbols = symbols
             self.types = types
             self.interner = interner
@@ -817,7 +848,7 @@ extension DataFlowSemaPhase {
                 return nil
             }
             guard let type = parseType(), index == source.count else {
-                if depthLimitReported {
+                if depthLimitReported || arityLimitReported {
                     return nil
                 }
                 diagnostics.warning(
@@ -1020,6 +1051,10 @@ extension DataFlowSemaPhase {
             guard let arity = parseNumber(), consume(character: "<") else {
                 return nil
             }
+            guard arity <= Self.maxCallableArity else {
+                reportArityLimit(arity)
+                return nil
+            }
 
             var contextReceivers: [TypeID] = []
             if peek() == "C",
@@ -1028,6 +1063,10 @@ extension DataFlowSemaPhase {
             {
                 _ = consume(character: "C")
                 guard let contextArity = parseNumber(), consume(character: "<") else {
+                    return nil
+                }
+                guard contextArity <= Self.maxCallableArity else {
+                    reportArityLimit(contextArity)
                     return nil
                 }
                 contextReceivers.reserveCapacity(contextArity)
@@ -1043,6 +1082,11 @@ extension DataFlowSemaPhase {
                 guard consume(character: ">"), consume(character: ",") else {
                     return nil
                 }
+            }
+
+            guard arity <= Self.maxCallableArity - contextReceivers.count else {
+                reportArityLimit(arity + contextReceivers.count)
+                return nil
             }
 
             var receiver: TypeID?
@@ -1076,6 +1120,16 @@ extension DataFlowSemaPhase {
                 isSuspend: isSuspend,
                 nullability: .nonNull
             )))
+        }
+
+        private mutating func reportArityLimit(_ arity: Int) {
+            guard !arityLimitReported else { return }
+            arityLimitReported = true
+            diagnostics.error(
+                "KSWIFTK-LIB-0024",
+                "Function type arity \(arity) in '\(metadataPath)' exceeds the maximum supported (\(Self.maxCallableArity))",
+                range: nil
+            )
         }
 
         private mutating func parseTypeParameterType() -> TypeID? {

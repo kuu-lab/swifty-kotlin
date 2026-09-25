@@ -1860,7 +1860,7 @@ final class MetadataDecoder {
         case "fq":
             record.fqName = value
         case "arity":
-            record.arity = Int(value) ?? 0
+            record.arity = Int(value) ?? Int.max
         case "suspend":
             record.isSuspend = value == "1" || value == "true"
         case "inline":
