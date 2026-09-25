@@ -24,14 +24,21 @@ extension DataFlowSemaPhase {
 
         let decoder = MetadataDecoder()
         let metadataRecords = decoder.decode(content)
-        let nominalTypeParametersByFQName = Dictionary(
-            uniqueKeysWithValues: metadataRecords.compactMap { record -> (String, String)? in
-                guard let signature = record.nominalTypeParametersSignature else {
-                    return nil
-                }
-                return (record.fqName, signature)
+        var nominalTypeParametersByFQName: [String: String] = [:]
+        for record in metadataRecords {
+            guard let signature = record.nominalTypeParametersSignature else {
+                continue
             }
-        )
+            guard nominalTypeParametersByFQName[record.fqName] == nil else {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0024",
+                    "Duplicate nominal type metadata for '\(record.fqName)' in library metadata at \(path)",
+                    range: nil
+                )
+                return nil
+            }
+            nominalTypeParametersByFQName[record.fqName] = signature
+        }
 
         var records: [ImportedLibrarySymbolRecord] = []
         for metadataRecord in metadataRecords {
