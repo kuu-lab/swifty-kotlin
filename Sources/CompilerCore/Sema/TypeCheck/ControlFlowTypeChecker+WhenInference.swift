@@ -48,11 +48,22 @@ extension ControlFlowTypeChecker {
                         local.isMutable
                     )
                 }
-                // Fall back to the subject expression being a simple name reference.
-                guard let subjectExpr = ast.arena.expr(subjectID),
-                      case let .nameRef(subjectName, _) = subjectExpr,
-                      let local = locals[subjectName]
-                else {
+                // Fall back to the subject expression being a simple name
+                // reference, or the (unlabeled) extension/implicit receiver
+                // `this` -- mirrors DataFlow/Analysis.swift's resolveLocalVariable.
+                guard let subjectExpr = ast.arena.expr(subjectID) else {
+                    return nil
+                }
+                let subjectName: InternedString
+                switch subjectExpr {
+                case let .nameRef(name, _):
+                    subjectName = name
+                case let .thisRef(label, _) where label == nil:
+                    subjectName = interner.intern("this")
+                default:
+                    return nil
+                }
+                guard let local = locals[subjectName] else {
                     return nil
                 }
                 return (
@@ -60,6 +71,18 @@ extension ControlFlowTypeChecker {
                     driver.helpers.isStableLocalSymbol(local.symbol, sema: sema),
                     local.isMutable
                 )
+            }()
+            // When the subject is the implicit receiver `this`, narrowing must
+            // also update `ctx.implicitReceiverType` so bare-name member
+            // access (e.g. `v`, not just `this.v`) resolves against the
+            // narrowed type inside each branch.
+            let subjectIsImplicitReceiverThis: Bool = {
+                guard let subjectExpr = ast.arena.expr(subjectID),
+                      case let .thisRef(label, _) = subjectExpr
+                else {
+                    return false
+                }
+                return label == nil
             }()
             let hasExplicitNullBranch = branches.contains { branch in
                 branch.conditions.contains { cond in
@@ -172,10 +195,16 @@ extension ControlFlowTypeChecker {
                     recordResolvedConditionSymbol(conditionSymbolID, fallbackName: calleeName)
 
                 case let .isCheck(checkedExprID, _, negated, _):
+                    // The parser desugars a bare `is Type` when-branch condition to
+                    // `.isCheck(expr: subject, ...)`, reusing the exact subject
+                    // ExprID -- so identity comparison is both equivalent to, and
+                    // (for synthetic subjects such as `this` or a lambda parameter,
+                    // which never get an `identifierSymbols` binding) more reliable
+                    // than resolving the checked expression through
+                    // `identifierSymbols` and comparing symbols.
                     guard !negated,
-                          let subjectLocalBinding,
-                          let checkedSymbolID = sema.bindings.identifierSymbols[checkedExprID],
-                          checkedSymbolID == subjectLocalBinding.symbol,
+                          subjectLocalBinding != nil,
+                          checkedExprID == subjectID,
                           let targetType = sema.bindings.isCheckTargetType(for: conditionID),
                           let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types),
                           let targetSymbol = sema.symbols.symbol(targetNominal)
@@ -233,6 +262,7 @@ extension ControlFlowTypeChecker {
                         let trueState = ctx.dataFlow.branchOnWhenSubject(
                             subjectSymbol: subjectLocalBinding.symbol,
                             subjectType: subjectType,
+                            subjectID: subjectID,
                             conditionID: cond,
                             base: cumulativeFalseState,
                             ast: ast,
@@ -291,6 +321,9 @@ extension ControlFlowTypeChecker {
                                 subjectLocalBinding.isMutable,
                                 true
                             )
+                            if subjectIsImplicitReceiverThis {
+                                branchCtx = branchCtx.copying(implicitReceiverType: narrowedType)
+                            }
                         }
                     } else if hasExplicitNullBranch, !isNullBranch {
                         let nonNullState = ctx.dataFlow.whenNonNullBranchState(
@@ -301,6 +334,14 @@ extension ControlFlowTypeChecker {
                         )
                         branchCtx = ctx.copying(flowState: nonNullState)
                         driver.exprChecker.applyFlowStateToLocals(nonNullState, locals: &branchLocals, sema: sema)
+                        if subjectIsImplicitReceiverThis,
+                           let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                               nonNullState,
+                               symbol: subjectLocalBinding.symbol
+                           )
+                        {
+                            branchCtx = branchCtx.copying(implicitReceiverType: narrowedType)
+                        }
                     }
                 }
 
@@ -336,6 +377,14 @@ extension ControlFlowTypeChecker {
                     )
                     elseCtx = ctx.copying(flowState: elseFlowState)
                     driver.exprChecker.applyFlowStateToLocals(elseFlowState, locals: &elseLocals, sema: sema)
+                    if subjectIsImplicitReceiverThis,
+                       let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                           elseFlowState,
+                           symbol: subjectLocalBinding.symbol
+                       )
+                    {
+                        elseCtx = elseCtx.copying(implicitReceiverType: narrowedType)
+                    }
                 }
                 branchTypes.append(
                     driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
