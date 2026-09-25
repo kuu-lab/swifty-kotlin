@@ -786,6 +786,133 @@ let runtimeStringNominalTypeID: Int64 = {
     return stringTypeID
 }()
 
+/// Stable nominal type IDs for boxed primitive Kotlin types (pure hashes of
+/// their fqNames, safe to cache once). Their `kotlin.Number`/
+/// `kotlin.Comparable` supertype edges are registered separately by
+/// `registerEdgesOnce()` below -- see that method's doc comment for why this
+/// can't reuse `runtimeStringNominalTypeID`'s "register inside a `static
+/// let` closure" pattern.
+private struct RuntimePrimitiveNominalTypeIDs {
+    let byte, short, int, long, float, double: Int64
+    let uint, ulong, ubyte, ushort, char, boolean: Int64
+
+    static let shared = RuntimePrimitiveNominalTypeIDs(
+        byte: runtimeStableNominalTypeID(fqName: "kotlin.Byte"),
+        short: runtimeStableNominalTypeID(fqName: "kotlin.Short"),
+        int: runtimeStableNominalTypeID(fqName: "kotlin.Int"),
+        long: runtimeStableNominalTypeID(fqName: "kotlin.Long"),
+        float: runtimeStableNominalTypeID(fqName: "kotlin.Float"),
+        double: runtimeStableNominalTypeID(fqName: "kotlin.Double"),
+        uint: runtimeStableNominalTypeID(fqName: "kotlin.UInt"),
+        ulong: runtimeStableNominalTypeID(fqName: "kotlin.ULong"),
+        ubyte: runtimeStableNominalTypeID(fqName: "kotlin.UByte"),
+        ushort: runtimeStableNominalTypeID(fqName: "kotlin.UShort"),
+        char: runtimeStableNominalTypeID(fqName: "kotlin.Char"),
+        boolean: runtimeStableNominalTypeID(fqName: "kotlin.Boolean")
+    )
+
+    /// Registers every ID above against `kotlin.Number`/`kotlin.Comparable`
+    /// (Kotlin's unsigned types and Char/Boolean implement Comparable but
+    /// are not Number subtypes), exactly once -- mirroring
+    /// `registerReflectionRuntimeTypeMetadata`'s `reflectionTypeEdgesRegistered`
+    /// flag (RuntimeReflectionTypeMetadata.swift), including its
+    /// resettability: `kk_runtime_reset_metadata` clears
+    /// `primitiveTypeEdgesRegistered` alongside `typeParents`, so a metadata
+    /// reset (e.g. RuntimeTests' per-test isolation) re-registers on the next
+    /// call instead of leaving these edges permanently missing after the
+    /// one-time `static let` closure that installed them has already run.
+    /// Cheap on the hot path: one lock acquisition and a flag read once the
+    /// edges are installed (the caller's own `runtimeIsAssignable` takes a
+    /// second, separate acquisition for its BFS).
+    func registerEdgesOnce() {
+        runtimeStorage.withMetadataLock { state in
+            if state.primitiveTypeEdgesRegistered {
+                return
+            }
+            let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+            let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+            for id in [byte, short, int, long, float, double] {
+                state.typeParents[id, default: []].insert(number)
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            for id in [uint, ulong, ubyte, ushort, char, boolean] {
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            state.primitiveTypeEdgesRegistered = true
+        }
+    }
+}
+
+/// The nominal type ID of the boxed primitive `ptr` represents (Int, Double,
+/// UInt, Char, ...), or `nil` when `ptr` is not a registered primitive box.
+/// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
+/// nominal identity is its enum class, not `kotlin.Int`.
+///
+/// `RuntimeIntBox` also backs Byte/Short (there is no dedicated
+/// `kk_box_byte`/`kk_box_short`, so both box through `kk_box_int`'s
+/// `anyFallbackTag: 1`), so this collapses Byte/Short/Int to the same ID --
+/// harmless here since all three share the same `Number`/`Comparable`
+/// ancestry this lookup exists to answer; see `kk_op_is`'s intBase case for
+/// the same pre-existing limitation.
+///
+/// Precondition (enforced by `kk_op_is`, this function's only caller): `ptr`
+/// must not already be a tagged value-class box (`runtimeObjectTypeID(rawValue:)
+/// != nil`). This function does not re-check that itself, so a value class
+/// boxed through the same primitive box types would otherwise be misreported
+/// as its underlying primitive's Number/Comparable identity instead of its
+/// own nominal one. Kept `private` so that precondition can't be violated
+/// from another call site.
+private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) -> Int64? {
+    // `tryCast` force-unwraps `ptr` as a live Swift object via
+    // `Unmanaged.fromOpaque`; only call it once the GC registry confirms
+    // this is actually a tracked allocation, matching every other cast site
+    // in this function's callers (e.g. the throwable check below).
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let ids = RuntimePrimitiveNominalTypeIDs.shared
+    // Registration only runs once a box actually matches below, so an `is`
+    // check on an untagged non-primitive object (a throwable, list, map, ...)
+    // never pays for it.
+    if let intBox = tryCast(ptr, to: RuntimeIntBox.self), intBox.enumClassID == nil {
+        ids.registerEdgesOnce()
+        switch intBox.anyFallbackTag {
+        case 9: return ids.uint
+        case 10: return ids.ubyte
+        case 11: return ids.ushort
+        default: return ids.int
+        }
+    }
+    if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.long
+    }
+    if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.ulong
+    }
+    if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.float
+    }
+    if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.double
+    }
+    if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.char
+    }
+    if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.boolean
+    }
+    return nil
+}
+
 /// True when `ptr` is a live runtime object pointer holding a `RuntimeStringBox`.
 func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
     let isObjectPointer = runtimeStorage.withGCLock { state in
@@ -965,6 +1092,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if runtimeIsStringBoxPointer(ptr) {
             return runtimeIsAssignable(
                 sourceTypeID: runtimeStringNominalTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // A Double/Float/Long/Int/... held in an Any slot boxes through the
+        // same primitive box types as `is Int`/`is Double` above, but (like
+        // String) carries no object type ID, so it needs the same recovery
+        // to answer an interface check (`is Number`, `is Comparable<*>`).
+        if let primitiveTypeID = runtimePrimitiveBoxNominalTypeID(ptr) {
+            return runtimeIsAssignable(
+                sourceTypeID: primitiveTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }
