@@ -693,7 +693,7 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
         return 0
     }
     guard (0...list.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "MutableList index \(index) out of bounds for length \(list.count)."
         )
         return 0
@@ -717,7 +717,7 @@ public func kk_mutable_list_addAll_at(
         return 0
     }
     guard (0...list.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "MutableList index \(index) out of bounds for length \(list.count)."
         )
         return 0
@@ -738,7 +738,7 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     }
     let values = list.values
     guard values.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "MutableList index \(index) out of bounds for length \(values.count)."
         )
         return 0

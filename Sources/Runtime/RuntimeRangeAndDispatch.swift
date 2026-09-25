@@ -790,44 +790,38 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
 
 @_cdecl("kk_range_hasNext")
 public func kk_range_hasNext(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+    let object = resolveRuntimeObjectHandle(iterRaw)
+    if object is RuntimeIteratorBuilderBox {
         return __kk_iterator_builder_hasNext(iterRaw)
     }
-    if runtimeListIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeListIteratorBox {
         return kk_list_iterator_hasNext(iterRaw)
     }
     if let result = runtimeBufferedLineIteratorHasNext(iterRaw) {
         return result
     }
-    guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
+    guard let iterator = object as? RuntimeRangeIteratorBox else {
         return 0
     }
-    if iterator.step > 0 {
-        return iterator.current <= iterator.last ? 1 : 0
-    }
-    if iterator.step < 0 {
-        return iterator.current >= iterator.last ? 1 : 0
-    }
-    return 0
+    return runtimeRangeIteratorHasNext(iterator)
 }
 
 @_cdecl("kk_range_next")
 public func kk_range_next(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+    let object = resolveRuntimeObjectHandle(iterRaw)
+    if object is RuntimeIteratorBuilderBox {
         return __kk_iterator_builder_next(iterRaw)
     }
-    if runtimeListIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeListIteratorBox {
         return kk_list_iterator_next(iterRaw)
     }
     if let result = runtimeBufferedLineIteratorNext(iterRaw, outThrown: nil) {
         return result
     }
-    guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
+    guard let iterator = object as? RuntimeRangeIteratorBox else {
         return 0
     }
-    let current = iterator.current
-    iterator.current = iterator.current &+ iterator.step
-    return current
+    return runtimeRangeIteratorNext(iterator)
 }
 
 /// BUG-198: Fast path used only after lowering proves a signed built-in range.
@@ -878,19 +872,20 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 @_cdecl("kk_iterator_hasNext")
 public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+    let object = resolveRuntimeObjectHandle(iterRaw)
+    if object is RuntimeIteratorBuilderBox {
         return __kk_iterator_builder_hasNext(iterRaw)
     }
-    if runtimeRangeIteratorBox(from: iterRaw) != nil {
-        return kk_range_hasNext(iterRaw)
+    if let rangeIterator = object as? RuntimeRangeIteratorBox {
+        return runtimeRangeIteratorHasNext(rangeIterator)
     }
-    if runtimeListIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeListIteratorBox {
         return kk_list_iterator_hasNext(iterRaw)
     }
-    if runtimeMapIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeMapIteratorBox {
         return kk_map_iterator_hasNext(iterRaw)
     }
-    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeIndexingIteratorBox {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
     if let result = runtimeBufferedLineIteratorHasNext(iterRaw) {
@@ -905,31 +900,32 @@ public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointe
 @_cdecl("kk_iterator_next")
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+    let object = resolveRuntimeObjectHandle(iterRaw)
+    if object is RuntimeIteratorBuilderBox {
         if __kk_iterator_builder_hasNext(iterRaw) == 0 {
             return runtimeThrowIteratorExhausted(outThrown)
         }
         return __kk_iterator_builder_next(iterRaw)
     }
-    if let rangeIterator = runtimeRangeIteratorBox(from: iterRaw) {
-        if kk_range_hasNext(iterRaw) == 0 {
+    if let rangeIterator = object as? RuntimeRangeIteratorBox {
+        if runtimeRangeIteratorHasNext(rangeIterator) == 0 {
             return runtimeThrowIteratorExhausted(outThrown)
         }
-        let value = kk_range_next(iterRaw)
+        let value = runtimeRangeIteratorNext(rangeIterator)
         // `Iterator<T>.next()` is an erased boundary. Direct range iteration
         // still uses `kk_range_next` and keeps the primitive representation.
         return rangeIterator.yieldsChars ? kk_box_char(value) : value
     }
-    if runtimeListIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeListIteratorBox {
         return kk_list_iterator_next(iterRaw, outThrown)
     }
-    if runtimeMapIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeMapIteratorBox {
         return kk_map_iterator_next(iterRaw, outThrown)
     }
-    if runtimeMutableMapIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeMutableMapIteratorBox {
         return kk_mutable_map_iterator_next(iterRaw, outThrown)
     }
-    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+    if object is RuntimeIndexingIteratorBox {
         return kk_indexing_iterable_next(iterRaw, outThrown)
     }
     if let result = runtimeBufferedLineIteratorNext(iterRaw, outThrown: outThrown) {
@@ -1650,8 +1646,20 @@ public func kk_ulong_range_step(_ rangeRaw: Int) -> Int {
     return range.step
 }
 
-private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
-    resolveRuntimeHandle(rawValue, as: RuntimeRangeIteratorBox.self)
+private func runtimeRangeIteratorHasNext(_ iterator: RuntimeRangeIteratorBox) -> Int {
+    if iterator.step > 0 {
+        return iterator.current <= iterator.last ? 1 : 0
+    }
+    if iterator.step < 0 {
+        return iterator.current >= iterator.last ? 1 : 0
+    }
+    return 0
+}
+
+private func runtimeRangeIteratorNext(_ iterator: RuntimeRangeIteratorBox) -> Int {
+    let current = iterator.current
+    iterator.current = iterator.current &+ iterator.step
+    return current
 }
 
 private func runtimeSignedRangeForInIteratorBox(from rawValue: Int) -> RuntimeSignedRangeForInIteratorBox? {

@@ -1,0 +1,215 @@
+name: Nightly O2 kotlinc Diff
+
+# Full-sweep kotlinc diff regression at -O2. On pull requests the O2 lane in
+# ci.yml only runs when backend-relevant paths change; this workflow keeps the
+# complete Scripts/diff_cases corpus under optimization on a daily cadence so
+# regressions introduced by skipped PRs are still caught within a day.
+
+on:
+  schedule:
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-o2-diff
+  cancel-in-progress: true
+
+env:
+  KOTLIN_VERSION: "2.3.10"
+  KOTLINX_COROUTINES_VERSION: "1.10.2"
+
+jobs:
+  build-release-kswiftc:
+    name: Build release kswiftc once
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Setup release SwiftPM cache
+        uses: ./.github/actions/setup-swiftpm-cache
+        with:
+          swift-version: "6.3"
+          build-variant: release-kswiftc
+          save: "false"
+      - name: Build release kswiftc
+        env:
+          SWIFT_BUILD_JOBS: "4"
+          SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Package release compiler and resources
+        run: |
+          archive_name="kswiftc-release.tar.zst"
+          archive_path="$RUNNER_TEMP/$archive_name"
+          release_bin_dir="$(swift build -c release --show-bin-path)"
+          test -x "$release_bin_dir/kswiftc"
+          tar -I 'zstd -T0 -1' -cf "$archive_path" -C "$release_bin_dir" .
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum "$archive_name" > "$archive_name.sha256"
+          )
+          {
+            echo "## Release compiler artifact"
+            echo
+            echo "- Source directory: \`$release_bin_dir\`"
+            echo "- Archive size: \`$(du -h "$archive_path" | cut -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload release compiler artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kswiftc-release.tar.zst
+            ${{ runner.temp }}/kswiftc-release.tar.zst.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  verify-diff-o2:
+    name: Nightly O2 kotlinc diff, shard ${{ matrix.shard_label }}/4
+    needs: build-release-kswiftc
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - shard_index: 0
+            shard_label: 1
+          - shard_index: 1
+            shard_label: 2
+          - shard_index: 2
+            shard_label: 3
+          - shard_index: 3
+            shard_label: 4
+    steps:
+      - name: Fail when the shared release build failed
+        if: needs.build-release-kswiftc.result != 'success'
+        run: |
+          echo "Shared release kswiftc build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
+          exit 1
+      - uses: actions/checkout@v7
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Download release compiler artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/kswiftc-release-artifact
+      - name: Verify and extract release compiler artifact
+        run: |
+          artifact_dir="$RUNNER_TEMP/kswiftc-release-artifact"
+          install_dir="$RUNNER_TEMP/kswiftc-release"
+          (
+            cd "$artifact_dir"
+            sha256sum --check kswiftc-release.tar.zst.sha256
+          )
+          rm -rf "$install_dir"
+          mkdir -p "$install_dir"
+          tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
+          test -x "$install_dir/kswiftc"
+          echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
+      - name: Cache Kotlin compiler and coroutines jar
+        id: cache-kotlin
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/kotlin-tools
+          key: kotlin-tools-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
+      - name: Cache kotlinc reference jars
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/kotlinc-ref-cache
+          key: kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-${{ hashFiles('Scripts/diff_cases/**/*.kt') }}
+          restore-keys: |
+            kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Kotlin compiler
+        run: |
+          TOOLS_DIR="${RUNNER_TEMP}/kotlin-tools"
+          KOTLIN_DIR="${TOOLS_DIR}/kotlin"
+          mkdir -p "$KOTLIN_DIR"
+
+          if [ ! -f "${KOTLIN_DIR}/kotlinc/bin/kotlinc" ]; then
+            zip_path="${TOOLS_DIR}/kotlin-compiler.zip"
+            for attempt in 1 2 3 4 5; do
+              if curl -fSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 120 \
+                -o "$zip_path" \
+                "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"; then
+                break
+              fi
+              echo "Kotlin compiler download attempt $attempt failed; retrying in $((attempt * 10))s..." >&2
+              rm -f "$zip_path"
+              sleep $((attempt * 10))
+            done
+            if [ ! -f "$zip_path" ]; then
+              echo "Failed to download Kotlin compiler after 5 attempts" >&2
+              exit 1
+            fi
+            unzip -q "$zip_path" -d "$KOTLIN_DIR"
+          fi
+          echo "${KOTLIN_DIR}/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Verify prerequisites
+        run: |
+          java -version
+          kotlinc -version
+          "$KSWIFTC" --version || true
+      - name: Run kotlinc diff regression cases
+        id: diff_kotlinc
+        continue-on-error: true
+        env:
+          DIFF_REPORT: ${{ runner.temp }}/diff_kotlinc_report.tsv
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_kotlinc_artifacts
+          DIFF_COMPILE_TIMEOUT: "180"
+          DIFF_RUN_TIMEOUT: "30"
+          DIFF_LOG_PASS: "0"
+          KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
+          KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
+          KSWIFTK_KIR_VERIFY: "1"
+          DIFF_KSWIFTC_FLAGS: "-O2"
+        run: |
+          DIFF_WORKERS="$(nproc)" \
+            bash Scripts/diff_kotlinc.sh \
+              --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
+              --report "$DIFF_REPORT" Scripts/diff_cases
+      - name: Summarize kotlinc diff artifacts
+        if: always() && steps.diff_kotlinc.outcome != 'cancelled'
+        env:
+          DIFF_REPORT: ${{ runner.temp }}/diff_kotlinc_report.tsv
+        run: bash Scripts/diff_kotlinc_ci_summary.sh --report "$DIFF_REPORT"
+      - name: Fail when kotlinc diff regression mismatches exist
+        if: steps.diff_kotlinc.outcome == 'failure'
+        run: |
+          echo "kotlinc diff regression cases failed." >&2
+          exit 1
+      - name: Upload kotlinc diff failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kotlinc-diff-o2-nightly-${{ github.run_id }}-shard-${{ matrix.shard_label }}
+          path: |
+            ${{ runner.temp }}/diff_kotlinc_report.tsv
+            ${{ runner.temp }}/diff_kotlinc_artifacts
+          if-no-files-found: ignore
+          retention-days: 30

@@ -105,11 +105,13 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
+                valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
                 typeSignature: metadataRecord.typeSignature,
                 typeParameterUpperBoundsSignatures: metadataRecord.typeParameterUpperBoundsSignatures,
+                callableTypeParameterSignatures: metadataRecord.callableTypeParameterSignatures,
                 defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
                 declaredFieldCount: metadataRecord.declaredFieldCount,
@@ -238,6 +240,45 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
+        // KUU-546: when the artifact records the callable's declared type
+        // parameters (`callTParams`), prefer that list over the structural
+        // scan. It restores the declaration order of "phantom" parameters
+        // interspersed with structural ones (e.g.
+        // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`) and
+        // identifies each overload's own parameters, which the FQ-name-grouped
+        // `.typeParameter` records cannot. For member callables the list also
+        // carries the leading owner parameters as placeholders, which
+        // `normalizeImportedLibraryMemberSignatures` later replaces with the
+        // owner's real symbols. The list is adopted only when it decodes
+        // cleanly and accounts for every structurally found parameter.
+        var restoredDeclarationOrder = false
+        if !record.callableTypeParameterSignatures.isEmpty {
+            var restored: [SymbolID] = []
+            var isWellFormed = true
+            for encodedTypeParameter in record.callableTypeParameterSignatures {
+                guard let decodedTypeParameter = decodeImportedTypeSignature(
+                    token: encodedTypeParameter,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    diagnostics: diagnostics,
+                    metadataPath: metadataPath,
+                    ownerFQName: record.fqName,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                ), case let .typeParam(typeParam) = types.kind(
+                    of: types.makeNonNullable(decodedTypeParameter)
+                ) else {
+                    isWellFormed = false
+                    break
+                }
+                restored.append(typeParam.symbol)
+            }
+            if isWellFormed, restored.count >= typeParameterSymbols.count {
+                typeParameterSymbols = restored
+                restoredDeclarationOrder = true
+            }
+        }
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: `collectTypeParameterSymbols` only
         // finds type parameters that structurally appear in the receiver,
         // value parameters, or return type. A type parameter used only inside
@@ -256,8 +297,10 @@ extension DataFlowSemaPhase {
         // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`,
         // where only C is structural) the padded symbols may land in the
         // wrong position relative to the structurally-found ones. That
-        // ordering gap is a known, accepted limitation of this fix.
-        if classTypeParameterCount == 0 {
+        // ordering gap is a known, accepted limitation of this fix for
+        // artifacts that predate `callTParams`; newer artifacts restore the
+        // exact declaration order above instead.
+        if !restoredDeclarationOrder, classTypeParameterCount == 0 {
             let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
             if deficit > 0 {
                 typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
@@ -318,6 +361,20 @@ extension DataFlowSemaPhase {
             )
             symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
             valueParameterSymbols.append(paramSymbol)
+        }
+        // STDLIB-592: restore `contract { callsInPlace(param, kind) }` effects
+        // decoded from metadata. `ContractCallsInPlaceEffect.parameterSymbol` is a
+        // `SymbolID` that cannot itself survive the metadata round-trip, so the
+        // wire format carries a per-parameter-index kind instead and this
+        // reconstructs the symbol reference from the freshly-imported
+        // `valueParameterSymbols`, mirroring how `recordContractEffects` derives
+        // it from a parameter index when parsing source directly.
+        for (index, kind) in record.valueParameterCallsInPlaceKinds.enumerated() where kind != nil {
+            guard index < valueParameterSymbols.count else { continue }
+            symbols.addContractCallsInPlaceEffect(
+                ContractCallsInPlaceEffect(parameterSymbol: valueParameterSymbols[index], kind: kind!),
+                for: ownerSymbol
+            )
         }
         return FunctionSignature(
             receiverType: functionType.receiver,

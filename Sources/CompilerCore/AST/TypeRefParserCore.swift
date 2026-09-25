@@ -491,10 +491,62 @@ enum TypeRefParserCore {
             return nil
         }
 
+        // `(T)?` denotes a nullable type when the parenthesized group is
+        // followed by `?` rather than `->`, e.g. `((Int) -> Int)?` (KUU-644).
+        if closeParen + 1 < tokens.count,
+           tokens[closeParen + 1].kind == .symbol(.question),
+           let inner = parseTypeRefPrefix(
+               tokens,
+               from: next + 1,
+               interner: interner,
+               astArena: astArena,
+               options: options,
+               diagnostics: diagnostics,
+               recursionDepth: recursionDepth + 1
+           ),
+           inner.next == closeParen,
+           let nullableRef = wrapTypeRefInGroup(
+               inner.ref,
+               astArena: astArena,
+               contextReceivers: contextReceivers,
+               isSuspend: isSuspend,
+               nullable: true
+           )
+        {
+            var end = closeParen + 1
+            while end < tokens.count, tokens[end].kind == .symbol(.question) {
+                end += 1
+            }
+            return (nullableRef, end)
+        }
+
         guard closeParen + 1 < tokens.count,
               tokens[closeParen + 1].kind == .symbol(.arrow)
         else {
-            return nil
+            // A `(` group that is not a function parameter list is a
+            // parenthesized type: `(T)` is `T`, so `((Int) -> Int)` still
+            // resolves to a function type.
+            guard let inner = parseTypeRefPrefix(
+                tokens,
+                from: next + 1,
+                interner: interner,
+                astArena: astArena,
+                options: options,
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
+            ),
+                  inner.next == closeParen,
+                  let grouped = wrapTypeRefInGroup(
+                      inner.ref,
+                      astArena: astArena,
+                      contextReceivers: contextReceivers,
+                      isSuspend: isSuspend,
+                      nullable: false
+                  )
+            else {
+                return nil
+            }
+            return (grouped, closeParen + 1)
         }
 
         guard let params = parseFunctionParamRefs(
@@ -532,6 +584,49 @@ enum TypeRefParserCore {
         ))
 
         return (ref, returnRef.next)
+    }
+
+    /// Re-append `ref` absorbing an outer `suspend`/`context` prefix and the
+    /// `(T)` parenthesized group's optional `?` nullability mark.
+    private static func wrapTypeRefInGroup(
+        _ refID: TypeRefID,
+        astArena: ASTArena,
+        contextReceivers: [TypeRefID],
+        isSuspend: Bool,
+        nullable: Bool
+    ) -> TypeRefID? {
+        guard let ref = astArena.typeRef(refID) else {
+            return nil
+        }
+        if !nullable, contextReceivers.isEmpty, !isSuspend {
+            return refID
+        }
+        switch ref {
+        case let .named(path, args, innerNullable):
+            return astArena.appendTypeRef(.named(path: path, args: args, nullable: innerNullable || nullable))
+        case let .functionType(innerContextReceivers, receiver, params, returnType, innerIsSuspend, innerNullable):
+            return astArena.appendTypeRef(.functionType(
+                contextReceivers: contextReceivers + innerContextReceivers,
+                receiver: receiver,
+                params: params,
+                returnType: returnType,
+                isSuspend: isSuspend || innerIsSuspend,
+                nullable: innerNullable || nullable
+            ))
+        case let .annotated(base, annotations):
+            guard let wrappedBase = wrapTypeRefInGroup(
+                base,
+                astArena: astArena,
+                contextReceivers: contextReceivers,
+                isSuspend: isSuspend,
+                nullable: nullable
+            ) else {
+                return nil
+            }
+            return astArena.appendTypeRef(.annotated(base: wrappedBase, annotations: annotations))
+        case .intersection:
+            return nullable ? nil : refID
+        }
     }
 
     private static func parseContextFunctionTypeParams(

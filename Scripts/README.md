@@ -231,6 +231,11 @@ this to keep the baseline and optimized lanes separate:
 DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+In CI, the `-O2` diff lane is gated: on pull requests it runs only when
+backend-relevant paths change (see `detect-diff-trigger` in
+`.github/workflows/ci.yml`); the full corpus sweep at `-O2` runs every night
+via `.github/workflows/nightly-o2-diff.yml`.
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:

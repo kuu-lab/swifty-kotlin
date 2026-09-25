@@ -509,6 +509,13 @@ struct RuntimeRangeHOFTests {
     }
 
     @Test
+    func testLongRangeSortedOnAscendingRangeKeepsOrder() {
+        let range = kk_long_rangeTo(1, 4)
+        let sorted = kk_long_range_sorted(range)
+        #expect(listElements(sorted) == [1, 2, 3, 4])
+    }
+
+    @Test
     func testLongRangeAverageReturnsDoubleAsBitPattern() {
         let range = kk_long_rangeTo(1, 4)
         let avg = Double(bitPattern: UInt64(bitPattern: Int64(kk_long_range_average(range))))

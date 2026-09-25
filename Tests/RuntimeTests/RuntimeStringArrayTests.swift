@@ -1650,6 +1650,47 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatSupportsPreviousArgumentReuseFlag() {
+        func format(_ template: String, _ args: [Int]) -> String {
+            flatStringReturnValueNoThrow(template, intArg: makeRuntimeArray(args), using: __kk_string_format_flat)
+        }
+
+        // `java.util.Formatter` `<` flag: reuse the argument selected by the
+        // previous specifier without consuming the ordinary index.
+        #expect(format("%s %<s", [rawFromRuntimeString("x")]) == "x x")
+        #expect(format("%d|%03d|%<d", [7, 8]) == "7|008|8")
+        #expect(format("%1$s %<s", [rawFromRuntimeString("a")]) == "a a")
+        #expect(format("%s %s %<s %<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+            rawFromRuntimeString("c"),
+        ]) == "a b b b")
+        #expect(format("%s %<s %s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+        ]) == "a a b")
+        #expect(format("%2$s %s %<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+            rawFromRuntimeString("c"),
+        ]) == "b a a")
+        #expect(format("%d %<05d %<d", [42]) == "42 00042 42")
+        #expect(format("%s %<d", [7]) == "7 7")
+        #expect(format("%s|%<5s|%-<5s", [rawFromRuntimeString("x")]) == "x|    x|x    ")
+
+        // The `<` flag overrides an explicit `%n$` index, matching
+        // `java.util.Formatter`.
+        #expect(format("%s %2$<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+        ]) == "a a")
+
+        // No previous specifier: Java throws MissingFormatArgumentException;
+        // KSwiftK falls back to the same null rendering as a missing argument.
+        #expect(format("%<s", [rawFromRuntimeString("x")]) == "null")
+    }
+
+    @Test
     func testStringFormatSupportsBooleanSpecifiers() {
         let args = makeRuntimeArray([
             kk_box_bool(1),

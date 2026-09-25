@@ -306,6 +306,25 @@ package struct KnownCompilerNames {
     let launch: InternedString
     let async: InternedString
     let produce: InternedString
+    let coroutineScope: InternedString
+    let supervisorScope: InternedString
+
+    // Free-function names intercepted on CallTypeChecker's per-call
+    // special-case dispatch; InternedString id compares avoid a locked
+    // resolve + String compare per call expression. `sequenceFn` is the
+    // `sequence {}` builder function — `sequence` already interns the
+    // "Sequence" type name (Fn suffix per `emptyListFn`).
+    let contextOf: InternedString
+    let sequenceFn: InternedString
+    let contract: InternedString
+    let compareBy: InternedString
+    let compareByDescending: InternedString
+    let compareValuesBy: InternedString
+    let delay: InternedString
+    let atomicArrayOf: InternedString
+    let atomicIntArray: InternedString
+    let atomicLongArray: InternedString
+    let collections: InternedString
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
@@ -701,6 +720,20 @@ package struct KnownCompilerNames {
         launch = interner.intern("launch")
         async = interner.intern("async")
         produce = interner.intern("produce")
+        coroutineScope = interner.intern("coroutineScope")
+        supervisorScope = interner.intern("supervisorScope")
+
+        contextOf = interner.intern("contextOf")
+        sequenceFn = interner.intern("sequence")
+        contract = interner.intern("contract")
+        compareBy = interner.intern("compareBy")
+        compareByDescending = interner.intern("compareByDescending")
+        compareValuesBy = interner.intern("compareValuesBy")
+        delay = interner.intern("delay")
+        atomicArrayOf = interner.intern("atomicArrayOf")
+        atomicIntArray = interner.intern("AtomicIntArray")
+        atomicLongArray = interner.intern("AtomicLongArray")
+        collections = interner.intern("collections")
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
@@ -743,23 +776,23 @@ package struct KnownCompilerNames {
         kotlinSequenceFQName = [kotlin, kotlinSequences, sequence]
         kotlinContinuationFQName = [kotlin, kotlinCoroutines, continuation]
         kotlinSuspendCoroutineFQName = [kotlin, kotlinCoroutines, suspendCoroutine]
-        kotlinCollectionsArrayListFQName = [kotlin, kotlinCollections, interner.intern("ArrayList")]
-        kotlinCollectionsListFQName = [kotlin, kotlinCollections, list]
-        kotlinCollectionsMutableListFQName = [kotlin, kotlinCollections, mutableList]
-        kotlinCollectionsSetFQName = [kotlin, kotlinCollections, set]
-        kotlinCollectionsMutableSetFQName = [kotlin, kotlinCollections, mutableSet]
-        kotlinCollectionsHashSetFQName = [kotlin, kotlinCollections, hashSet]
-        kotlinCollectionsLinkedHashSetFQName = [kotlin, kotlinCollections, linkedHashSet]
-        kotlinCollectionsMapFQName = [kotlin, kotlinCollections, map]
-        kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
-        kotlinCollectionsHashMapFQName = [kotlin, kotlinCollections, interner.intern("HashMap")]
-        kotlinCollectionsLinkedHashMapFQName = [kotlin, kotlinCollections, interner.intern("LinkedHashMap")]
-        kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
-        kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
-        kotlinCollectionsIterableFQName = [kotlin, kotlinCollections, interner.intern("Iterable")]
+        kotlinCollectionsArrayListFQName = [kotlin, collections, interner.intern("ArrayList")]
+        kotlinCollectionsListFQName = [kotlin, collections, list]
+        kotlinCollectionsMutableListFQName = [kotlin, collections, mutableList]
+        kotlinCollectionsSetFQName = [kotlin, collections, set]
+        kotlinCollectionsMutableSetFQName = [kotlin, collections, mutableSet]
+        kotlinCollectionsHashSetFQName = [kotlin, collections, hashSet]
+        kotlinCollectionsLinkedHashSetFQName = [kotlin, collections, linkedHashSet]
+        kotlinCollectionsMapFQName = [kotlin, collections, map]
+        kotlinCollectionsMutableMapFQName = [kotlin, collections, mutableMap]
+        kotlinCollectionsHashMapFQName = [kotlin, collections, interner.intern("HashMap")]
+        kotlinCollectionsLinkedHashMapFQName = [kotlin, collections, interner.intern("LinkedHashMap")]
+        kotlinCollectionsCollectionFQName = [kotlin, collections, collection]
+        kotlinCollectionsMutableCollectionFQName = [kotlin, collections, mutableCollection]
+        kotlinCollectionsIterableFQName = [kotlin, collections, interner.intern("Iterable")]
         sourceBackedArrayCopyFQNames = [
-            [kotlin, kotlinCollections, interner.intern("copyOf")],
-            [kotlin, kotlinCollections, interner.intern("copyOfRange")],
+            [kotlin, collections, interner.intern("copyOf")],
+            [kotlin, collections, interner.intern("copyOfRange")],
         ]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
         kotlinxCoroutinesJobFQName = [kotlinx, coroutines, job]

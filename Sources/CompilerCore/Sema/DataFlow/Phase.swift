@@ -3,19 +3,8 @@ import Foundation
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
-    /// Cached `BuiltinTypeNames` for the active interner. Builtin name
-    /// interning is compilation-invariant, so building it once avoids the
-    /// locked `interner.intern` calls being repeated on every type-reference
-    /// resolution (mirrors `TypeCheckDriver.builtinTypeNamesCache`).
-    private var builtinTypeNamesCache: (names: BuiltinTypeNames, interner: StringInterner)?
-
     func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        if let cached = builtinTypeNamesCache, cached.interner === interner {
-            return cached.names
-        }
-        let names = BuiltinTypeNames(interner: interner)
-        builtinTypeNamesCache = (names, interner)
-        return names
+        BuiltinTypeNames(interner: interner)
     }
 
     init() {}
@@ -372,12 +361,12 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+    ) -> (ImportedInlineFunctionStore, LibraryImportDeferredWork) {
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
         return (importedInlineFunctions, deferredWork)
     }
