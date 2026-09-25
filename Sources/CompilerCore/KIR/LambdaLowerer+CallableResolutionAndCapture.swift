@@ -524,42 +524,9 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        func boxRawSuspendFunctionValue(_ valueExpr: KIRExprID) -> KIRExprID {
-            let valueType = arena.exprType(valueExpr) ?? typeForSymbolReference(symbol, sema: sema)
-            let nonNullType = sema.types.makeNonNullable(valueType)
-            guard case let .functionType(functionType) = sema.types.kind(of: nonNullType),
-                  functionType.isSuspend,
-                  case .symbolRef = arena.expr(valueExpr)
-            else {
-                return valueExpr
-            }
-
-            let arity = functionType.params.count
-                + (functionType.receiver == nil ? 0 : 1)
-            // The current generated Flow callback ABI uses a closure-first
-            // entry point for one-argument suspend values. Two-argument suspend
-            // values already use the raw `(arg1, arg2, outThrown)` ABI; boxing
-            // those values here would shift the first argument at invocation.
-            guard arity == 1 else {
-                return valueExpr
-            }
-
-            // A suspend lambda with an implicit closure parameter must cross the
-            // function-value ABI before a nested Flow collector invokes it.
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let boxedExpr = arena.appendTemporary(type: valueType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_create_\(arity)"),
-                arguments: [valueExpr, zeroExpr],
-                result: boxedExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return boxedExpr
-        }
-
+        // Keep suspend callables in their raw-thunk or boxed-closure form;
+        // kk_suspend_function_invoke handles both, while re-boxing a raw thunk
+        // would add a closure parameter that its entry point does not accept.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .local,
            semanticSymbol.flags.contains(.mutable)
@@ -633,7 +600,7 @@ extension LambdaLowerer {
             }
         }
         if let localValue = driver.ctx.localValue(for: symbol) {
-            return boxRawSuspendFunctionValue(localValue)
+            return localValue
         }
         // KSP-491: a delegated local (`val x by lazy { ... }`/`by Prop()`) has
         // no `localValue` -- its storage is the delegate instance, tracked
@@ -687,7 +654,7 @@ extension LambdaLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            return boxRawSuspendFunctionValue(valueExpr)
+            return valueExpr
         }
         guard let semanticSymbol = sema.symbols.symbol(symbol),
               semanticSymbol.kind == .valueParameter
@@ -698,6 +665,6 @@ extension LambdaLowerer {
         let symbolType = typeForSymbolReference(symbol, sema: sema)
         let symbolExpr = arena.appendExpr(.symbolRef(symbol), type: symbolType)
         instructions.append(.constValue(result: symbolExpr, value: .symbolRef(symbol)))
-        return boxRawSuspendFunctionValue(symbolExpr)
+        return symbolExpr
     }
 }
