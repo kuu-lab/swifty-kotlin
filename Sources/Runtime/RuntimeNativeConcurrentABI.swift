@@ -489,10 +489,13 @@ public func __kk_native_concurrent_current_worker() -> Int {
 
 /// Returns the live workers tracked by `activeWorkerRegistry`, ordered by
 /// worker ID for a deterministic list. Backs `Worker.Companion.activeWorkers`
-/// (KSP-1251).
+/// (KSP-1251). The calling thread's worker is resolved first so the lazily
+/// materialized main worker is always listed, matching the upstream contract
+/// that `activeWorkers` covers the current worker.
 @_cdecl("__kk_native_concurrent_active_workers")
 public func __kk_native_concurrent_active_workers() -> Int {
-    registerRuntimeObject(RuntimeListBox(elements: activeWorkerRegistry.activeHandles()))
+    _ = runtimeCurrentWorkerHandle()
+    return registerRuntimeObject(RuntimeListBox(elements: activeWorkerRegistry.activeHandles()))
 }
 
 /// Resolves a `COpaquePointer` produced by `kk_worker_as_cpointer` (whose
