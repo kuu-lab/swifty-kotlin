@@ -2111,7 +2111,7 @@
     - `kotlin.native.concurrent.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1234: kotlin.native.concurrent.DetachedObjectGraph top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1234: kotlin.native.concurrent.DetachedObjectGraph top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2121,6 +2121,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.DetachedObjectGraph.<init>` — constructor (CPointer)  -- `constructor <init>(kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?)`
     - `kotlin.native.concurrent.DetachedObjectGraph.<init>` — constructor (TransferMode, Function0)  -- `constructor <init>(kotlin.native.concurrent/TransferMode = ..., kotlin/Function0<#A>)`
+  - 完了根拠: `ObjectTransfer.kt` に producer と opaque C pointer の public constructor を追加。KSwiftK に `NativePtr.NULL` / `CPointer.rawValue` の Kotlin 宣言が無いため、既存の `__kk_native_concurrent_detach_object_graph` / `kk_cpointer_address` Runtime ABI を private `@KsSymbolName` adapter 経由で利用し、Runtime・RuntimeABISpec・synthetic stub の変更は行っていない。generic class の secondary constructor 委譲で class 型引数を推論できないコンパイラ不備を修正し、同じ constructor fixture を Sema golden に追加。Golden Sema 785 ケース、`NativeConcurrentTopLevelSourceTests` 4 件、Runtime ABI link validation、TODO ID check、`git diff --check` は pass。Kotlin/JVM diff ケースは Kotlin/Native 専用 API のため `SKIP-DIFF (DEBT-DIFF-001)`（スクリプト上 skipped 1）。全 Swift tests・全 diff ケースは未実行。
 
 - [x] KSP-1235: kotlin.native.concurrent.DetachedObjectGraph.DetachedObjectGraph の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / receiver `DetachedObjectGraph`
