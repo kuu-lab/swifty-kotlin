@@ -919,7 +919,12 @@ final class CallTypeChecker {
                argumentCount: args.count,
                ctx: ctx
            ),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
+           !isShadowedByNonSyntheticSymbol(
+               calleeName,
+               locals: locals,
+               ctx: ctx,
+               argumentCount: args.count
+           ),
            let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
                className: "AtomicLongArray",
