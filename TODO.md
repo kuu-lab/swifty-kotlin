@@ -1685,7 +1685,7 @@
     - `kotlin.concurrent.atomics.AtomicIntArray.<init>` — constructor (IntArray)  -- `constructor <init>(kotlin/IntArray)`
   - 完了根拠 (2026-09-16): `AtomicIntArray/Stdlib.kt` に `AtomicIntArray(Int)` の `kk_atomic_int_array_create` source-backed 宣言と、`AtomicIntArray(IntArray)` の public copy-loop 実装を追加した。artifact import 時も source-backed constructor overload を通常解決へ渡すよう `CallTypeChecker` の atomic-array 特例ガードを補正した。残余の nominal shell、`size`/receiver 操作、既存 runtime bridge は KSP-1115 の所有範囲のため保持。
 
-- [ ] KSP-1115: kotlin.concurrent.atomics.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1115: kotlin.concurrent.atomics.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.concurrent.atomics.AtomicIntArray` / receiver `AtomicIntArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicIntArray/AtomicIntArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1698,6 +1698,7 @@
     - `kotlin.concurrent.atomics.AtomicIntArray.length` — val AtomicIntArray.length: Int  -- `final val length`
     - `kotlin.concurrent.atomics.AtomicIntArray.size` — val AtomicIntArray.size: Int  -- `final val size`
     - `kotlin.concurrent.atomics.AtomicIntArray.toString` — fun AtomicIntArray.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了根拠 (2026-09-23): `AtomicIntArray/AtomicIntArray.kt` に `@ExperimentalAtomicApi` の source-backed class 宣言を追加し、`compareAndExchange` / `compareAndSet` / `length` / `size` / `toString` の 5 件を class member として実装した。`size` は `kk_atomic_int_array_size` への `__kkSize` private external bridge 経由、`compareAndExchange` / `compareAndSet` は `compareAndExchangeAt`、`length` / `toString` は `size` / `loadAt` に委譲する。class 化で `.synthetic` を要求する `AtomicIntArray(Int, init)` 特別経路が失われるため、`AtomicIntArray/Stdlib.kt` に source-backed inline factory を追加して通常解決へ移した（KSP-1100 の該当 1 件も兼ねる）。既存 `*At` 合成 stub と runtime bridge は継続利用のため保持し、`kotlin/concurrent/AtomicArrayMigration.kt`（実パッケージは `kotlin.concurrent.atomics`）へ `@file:OptIn(ExperimentalAtomicApi)` を追加してクラスの opt-in 必須化に追従させた。
 
 - [ ] KSP-1116: kotlin.concurrent.atomics.AtomicLong top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLong` / top-level
