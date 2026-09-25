@@ -1118,7 +1118,7 @@ extension DataFlowSemaPhase {
         )
 
         // KSP-1323: kotlin.reflect.typeOf<T>() is bundled Kotlin source
-        // (Stdlib/kotlin/reflect/Stdlib.kt); the `kotlin.typeOf` alias is not
+        // (Stdlib/kotlin/reflect/typeOf.kt); the `kotlin.typeOf` alias is not
         // part of the official surface, so only the reflect FQName keeps a
         // synthetic fallback for compilations without the bundled stdlib.
         let typeOfName = interner.intern("typeOf")

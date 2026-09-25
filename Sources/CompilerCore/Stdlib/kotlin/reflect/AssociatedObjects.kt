@@ -17,3 +17,12 @@ package kotlin.reflect
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
 public annotation class ExperimentalAssociatedObjects
+
+/**
+ * An annotation that designates a property or a function returning a key for
+ * associated object lookup.
+ */
+@kotlin.reflect.ExperimentalAssociatedObjects
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.Target(AnnotationTarget.ANNOTATION_CLASS)
+public annotation class AssociatedObjectKey
