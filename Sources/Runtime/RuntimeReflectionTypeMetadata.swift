@@ -27,32 +27,60 @@ let kTypeParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.ref
 let kTypeProjectionRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KTypeProjection")
 let kParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KParameter")
 
-// The compiler declares the `name` slot's result as the flat String aggregate
-// `{ptr, i64, i64, i64}`. On x86_64 SysV that lowers the indirect call to a
-// hidden output pointer in the first argument register, shifting the receiver
-// and thrown-channel arguments right; the thunk must therefore take the output
-// buffer explicitly and write the raw string handle to word 0. On arm64 the
-// aggregate returns in registers, so a plain `Int` return lands in word 0.
-#if arch(x86_64)
-private let runtimeKCallableNameGetter:
-    @convention(c) (UnsafeMutablePointer<Int>, Int, UnsafeMutablePointer<Int>?) -> Void = {
-        outResult,
-        raw,
-        outThrown in
-        outThrown?.pointee = 0
-        outResult[0] = __kk_kcallable_get_name(raw)
-        outResult[1] = 0
-        outResult[2] = 0
-        outResult[3] = 0
-    }
-#else
-private let runtimeKCallableNameGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
-    raw,
-    outThrown in
-    outThrown?.pointee = 0
-    return __kk_kcallable_get_name(raw)
+/// Out-buffer matching the emitted `{i8*, i64, i64, i64}` String aggregate
+/// ABI: itable-dispatched String members are invoked through the flat
+/// convention, so the first argument is the caller's sret buffer.
+private struct RuntimeKCallableFlatStringOut {
+    var data: Int = 0
+    var length: Int = 0
+    var byteCount: Int = 0
+    var hash: Int = 0
 }
-#endif
+
+/// Whether `value` could be the receiver of a KCallable itable call: a
+/// registered object carrying the KCallable interface slot, or a compiler-
+/// tagged callable reference.
+private func runtimeKCallableIsReceiver(_ value: Int) -> Bool {
+    if runtimeRegisteredInterfaceSlot(objectRaw: value, interfaceTypeID: kCallableRuntimeTypeID) != nil {
+        return true
+    }
+    return runtimeStorage.withDelegateLock { state in
+        state.callableRefMetadataByValue[value] != nil
+    }
+}
+
+/// Dual-ABI shim. `property.name` call sites emit either the erased Int
+/// convention (arg0 = receiver, arg1 = outThrown) or the flat String
+/// aggregate convention (arg0 = sret out-buffer, arg1 = receiver,
+/// arg2 = outThrown), depending on which callee signature the emitter
+/// resolved for the synthetic accessor. The receiver is always a registered
+/// object or tagged callable ref, so identify which argument carries it.
+private let runtimeKCallableNameGetter: @convention(c) (
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { arg0, arg1, arg2 in
+    if !runtimeKCallableIsReceiver(arg0), runtimeKCallableIsReceiver(arg1) {
+        // Flat String-aggregate convention: arg0 is the caller's sret buffer.
+        arg2?.pointee = 0
+        let nameRaw = __kk_kcallable_get_name(arg1)
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = kk_string_to_flat(nameRaw, &length, &byteCount, &hash)
+        if let out = UnsafeMutableRawPointer(bitPattern: arg0) {
+            let flat = out.assumingMemoryBound(to: RuntimeKCallableFlatStringOut.self)
+            flat.pointee.data = data.map { Int(bitPattern: $0) } ?? 0
+            flat.pointee.length = length
+            flat.pointee.byteCount = byteCount
+            flat.pointee.hash = hash
+        }
+        return arg0
+    }
+    // Erased Int convention: arg0 = receiver, arg1 = outThrown.
+    UnsafeMutablePointer<Int>(bitPattern: arg1)?.pointee = 0
+    return __kk_kcallable_get_name(arg0)
+}
 
 private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
