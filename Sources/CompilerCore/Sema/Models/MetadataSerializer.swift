@@ -38,6 +38,13 @@ package struct MetadataRecord {
     /// Per-parameter flags indicating whether a function-type argument may
     /// contain a non-local return when the callable is inline-expanded.
     package let valueParameterAllowsNonLocalReturn: [Bool]
+    /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect,
+    /// `nil` where the parameter has none. Lets definite-assignment analysis see
+    /// bundled-stdlib contracts (e.g. `run`/`let`/`apply`/`also`/`with`) even when
+    /// the stdlib is loaded from a precompiled `.kklib` rather than re-typechecked
+    /// from source, since `recordContractEffects` never runs against a decoded
+    /// symbol's (nonexistent) AST body.
+    package let valueParameterCallsInPlaceKinds: [InvocationKind?]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
     /// Whether the function/constructor is declared `throws`.
@@ -146,6 +153,7 @@ package struct MetadataRecord {
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
+        valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
@@ -199,6 +207,7 @@ package struct MetadataRecord {
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+        self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -782,6 +791,7 @@ package final class MetadataEncoder {
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
+        var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
         var canThrow = false
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
@@ -799,6 +809,12 @@ package final class MetadataEncoder {
             isOperator = symbol.flags.contains(.operatorFunction)
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
+            let callsInPlaceEffects = symbols.contractCallsInPlaceEffects(for: symbol.id)
+            if !callsInPlaceEffects.isEmpty {
+                valueParameterCallsInPlaceKinds = signature.valueParameterSymbols.map { paramSymbol in
+                    callsInPlaceEffects.first { $0.parameterSymbol == paramSymbol }?.kind
+                }
+            }
             valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
             // KUU-655: an override with an inheritance link
             // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
@@ -1110,6 +1126,7 @@ package final class MetadataEncoder {
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
@@ -1311,6 +1328,18 @@ package final class MetadataEncoder {
                 if !record.valueParameterHasDefaultValues.isEmpty {
                     let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
                     fields.append("default=\(mask)")
+                }
+                if record.valueParameterCallsInPlaceKinds.contains(where: { $0 != nil }) {
+                    let mask = record.valueParameterCallsInPlaceKinds.map { kind -> String in
+                        switch kind {
+                        case nil: "-"
+                        case .atMostOnce: "M"
+                        case .atLeastOnce: "A"
+                        case .exactlyOnce: "E"
+                        case .unknown: "U"
+                        }
+                    }.joined()
+                    fields.append("callsInPlace=\(mask)")
                 }
                 if record.canThrow {
                     fields.append("canThrow=1")
@@ -1713,6 +1742,7 @@ final class MetadataDecoder {
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
+                valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
                 reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
@@ -1771,6 +1801,7 @@ final class MetadataDecoder {
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
+        var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
@@ -1833,6 +1864,16 @@ final class MetadataDecoder {
             record.valueParameterAllowsNonLocalReturn = value.map { $0 == "1" }
         case "default":
             record.valueParameterHasDefaultValues = value.map { $0 == "1" }
+        case "callsInPlace":
+            record.valueParameterCallsInPlaceKinds = value.map { char -> InvocationKind? in
+                switch char {
+                case "M": .atMostOnce
+                case "A": .atLeastOnce
+                case "E": .exactlyOnce
+                case "U": .unknown
+                default: nil
+                }
+            }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"
         case "paramNames":

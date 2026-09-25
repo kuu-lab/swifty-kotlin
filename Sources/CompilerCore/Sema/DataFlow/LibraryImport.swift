@@ -942,6 +942,9 @@ extension DataFlowSemaPhase {
         let valueParameterIsVararg: [Bool]
         let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
+        /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
+        /// decoded from metadata, `nil` where the parameter has none.
+        let valueParameterCallsInPlaceKinds: [InvocationKind?]
         let canThrow: Bool
         let valueParameterNames: [String]
         let reifiedTypeParameterIndices: Set<Int>
@@ -1008,6 +1011,7 @@ extension DataFlowSemaPhase {
             valueParameterIsVararg: [Bool] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
+            valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
             reifiedTypeParameterIndices: Set<Int> = [],
@@ -1063,6 +1067,7 @@ extension DataFlowSemaPhase {
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+            self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
