@@ -1596,7 +1596,7 @@
     - `kotlin.concurrent.atomics.update` — fun AtomicReference.update(Function1): Unit  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicReference<#A>).kotlin.concurrent.atomics/update(kotlin/Function1<#A, #A>)`
     - `kotlin.concurrent.atomics.updateAndFetch` — fun AtomicReference.updateAndFetch(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicReference<#A>).kotlin.concurrent.atomics/updateAndFetch(kotlin/Function1<#A, #A>): #A`
 
-- [ ] KSP-1108: kotlin.concurrent.atomics.AtomicArray top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1108: kotlin.concurrent.atomics.AtomicArray top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1605,6 +1605,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicArray.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<#A>)`
+  - 完了根拠 (2026-09-25): `atomics/AtomicArray/Stdlib.kt` に `public fun <T> AtomicArray(array: Array<T>): AtomicArray<T> = atomicArrayOf(*array)` の source-backed 実装を追加した。`kk_atomic_ref_array_of` が要素を新規 atomic box へコピーするため copy-ctor 意味論と一致し、nullable スロットの `AtomicArray<T?>` を返す `AtomicArray(Int)` ctor 経由ではなく nonNull `AtomicArray<T>` を返せる。対象シンボルに `__kk_*`/`kk_*` の direct bridge や CallTypeChecker/CallLowerer の name-string 特例は存在せず削除対象なし。`atomicArrayOf`/`atomicArrayOfNulls` の合成ファクトリ登録は KSP-1100 の所有範囲のため保持。
 
 - [ ] KSP-1109: kotlin.concurrent.atomics.AtomicArray.AtomicArray の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.concurrent.atomics.AtomicArray` / receiver `AtomicArray`
