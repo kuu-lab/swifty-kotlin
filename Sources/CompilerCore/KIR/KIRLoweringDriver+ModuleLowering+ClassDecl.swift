@@ -509,7 +509,50 @@ extension KIRLoweringDriver {
         }
 
         body.append(.label(fallbackLabel))
-        if let fallbackAccessorSymbol {
+        if accessorKind == .getter,
+           let linkName = sema.symbols.externalLinkName(for: info.interfacePropertySymbol),
+           !linkName.isEmpty
+        {
+            // Runtime-bridged stdlib view property (e.g. Map.size / keys /
+            // values / entries): its synthetic accessor symbol has no emitted
+            // body — call the bridge, which resolves box and source-backed
+            // delegates alike.
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(linkName),
+                arguments: callArgs,
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+        } else if accessorKind == .getter,
+                  let getterSlot = kirInterfacePropertyGetterSlot(
+                      interfaceProperty: info.interfacePropertySymbol,
+                      interfaceSymbol: info.interfaceSymbol,
+                      sema: sema,
+                      interner: interner
+                  )
+        {
+            // Kotlin-declared interface property whose delegate's concrete
+            // type is not a registered subtype: dispatch dynamically through
+            // the delegate's own itable getter slot.
+            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: info.interfaceSymbol,
+                sema: sema,
+                interner: interner
+            )
+            body.append(.virtualCall(
+                symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: info.interfacePropertySymbol),
+                callee: accessorName,
+                receiver: delegateResultID,
+                arguments: [],
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: getterSlot)
+            ))
+        } else if let fallbackAccessorSymbol {
             body.append(.call(
                 symbol: fallbackAccessorSymbol,
                 callee: accessorName,
@@ -680,7 +723,10 @@ extension KIRLoweringDriver {
         sema: SemaModule
     ) -> SymbolID? {
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
-              !interfaceProperty.flags.contains(.abstractType)
+              !interfaceProperty.flags.contains(.abstractType),
+              // A runtime-bridged property's synthetic accessor has no
+              // emitted body — resolve it through the bridge instead.
+              (sema.symbols.externalLinkName(for: interfacePropertySymbol) ?? "").isEmpty
         else {
             return nil
         }
