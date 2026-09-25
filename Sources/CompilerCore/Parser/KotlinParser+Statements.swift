@@ -763,7 +763,7 @@ extension KotlinParser {
     /// appear inside an expression (`suspend { ... }` lambda literal,
     /// `context(...) { ... }` helper call). A single token of lookahead
     /// can't tell these apart.
-    private func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
+    func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
         switch token.kind {
         case let .keyword(kw):
             return Self.isDeclarationModifierKeyword(kw)
@@ -774,14 +774,23 @@ extension KotlinParser {
         }
     }
 
+    /// Outcome of scanning a modifier / context-parameter prefix: a genuine
+    /// declaration keyword follows it, the prefix does not introduce a
+    /// declaration, or the lookahead ran out of budget mid-scan.
+    enum DeclarationPrefixVerdict: Equatable {
+        case declaration
+        case notDeclaration
+        case overBudget
+    }
+
     /// Resolves the ambiguity in `isAmbiguousDeclarationPrefix` by scanning
     /// past the modifier / context-parameter prefix at lookahead `offset`.
     /// Results are memoized for every prefix token visited so expression-tail
     /// recovery does not rescan each suffix of a long chain.
-    private func startsGenuineDeclaration(at offset: Int) -> Bool {
+    func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
         let startIndex = stream.index + offset
         if let cached = genuineDeclarationLookahead[startIndex] {
-            return cached
+            return cached ? .declaration : .notDeclaration
         }
 
         var cursor = offset
@@ -792,7 +801,7 @@ extension KotlinParser {
                 // Treat an over-budget prefix as a recovery boundary. The outer
                 // parser then consumes it iteratively through normal recovery.
                 cacheGenuineDeclarationLookahead(true, for: prefixIndices)
-                return true
+                return .overBudget
             }
 
             let token = stream.peek(cursor)
@@ -809,7 +818,7 @@ extension KotlinParser {
                     repeat {
                         guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
                             cacheGenuineDeclarationLookahead(true, for: prefixIndices)
-                            return true
+                            return .overBudget
                         }
                         let kind = stream.peek(cursor).kind
                         if kind == .symbol(.lParen) {
@@ -828,8 +837,12 @@ extension KotlinParser {
             let result = isDeclarationStart(token.kind)
             cacheGenuineDeclarationLookahead(result, for: prefixIndices)
             genuineDeclarationLookahead[stream.index + cursor] = result
-            return result
+            return result ? .declaration : .notDeclaration
         }
+    }
+
+    func startsGenuineDeclaration(at offset: Int) -> Bool {
+        declarationPrefixVerdict(at: offset) != .notDeclaration
     }
 
     private static let declarationLookaheadWorkLimit = 4096
