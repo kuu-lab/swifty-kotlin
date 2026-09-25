@@ -131,20 +131,18 @@ package enum CommandRunner {
     }
 
     /// Checks the opened final target rather than relying on attributes of the
-    /// candidate path (which may itself be a symlink). The target's containing
-    /// directory chain must also be protected: otherwise another user could
-    /// replace a trusted, read-only executable between this check and launch.
+    /// candidate path (which may itself be a symlink). The target's immediate
+    /// containing directory must also be protected: otherwise another user
+    /// could replace a trusted, read-only executable between this check and
+    /// launch. Only the immediate parent is verified; deeper ancestors are not
+    /// required to be trusted because shared tool-install roots (e.g. the
+    /// runner toolcache) are commonly owned by a different provisioning user.
     private static func isTrustedExecutable(_ path: String, fileManager: FileManager) -> Bool {
         guard fileManager.isExecutableFile(atPath: path) else { return false }
 
         let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
-        var parentPath = URL(fileURLWithPath: resolvedPath).deletingLastPathComponent().path
-        while true {
-            guard TrustedFileSystem.isTrustedDirectory(parentPath, fileManager: fileManager) else { return false }
-            let nextParentPath = URL(fileURLWithPath: parentPath).deletingLastPathComponent().path
-            if nextParentPath == parentPath { break }
-            parentPath = nextParentPath
-        }
+        let parentPath = URL(fileURLWithPath: resolvedPath).deletingLastPathComponent().path
+        guard TrustedFileSystem.isTrustedDirectory(parentPath, fileManager: fileManager) else { return false }
 
         let descriptor = open(resolvedPath, O_RDONLY | O_CLOEXEC)
         guard descriptor >= 0 else { return false }
