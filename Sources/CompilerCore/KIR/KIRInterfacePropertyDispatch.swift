@@ -10,7 +10,7 @@
 /// (`[vtableSize, vtableSize + propertyCount)`) so they never collide with
 /// method slots and require no change to the persisted `NominalLayout`.
 
-private struct KIRInterfacePropertyGetterSlot {
+struct KIRInterfacePropertyGetterSlot {
     let propertySymbol: SymbolID?
     let propertyName: InternedString
     let slot: Int
@@ -21,7 +21,7 @@ private struct KIRInterfacePropertyGetterSlot {
 /// name so the dispatch site and the registration site agree even when they are
 /// in different compilation units (a precompiled library registers the getters,
 /// its consumer dispatches through them, and symbol ids differ between the two).
-private func kirInterfacePropertyGetterSlots(
+func kirInterfacePropertyGetterSlots(
     interfaceSymbol: SymbolID,
     sema: SemaModule,
     interner: StringInterner
@@ -34,19 +34,14 @@ private func kirInterfacePropertyGetterSlots(
     }
 
     let base = layout.vtableSize
+    let knownNames = KnownCompilerNames(interner: interner)
+    let sizeName = knownNames.size
+    let isCollectionOrMap = interfaceInfo.fqName == knownNames.kotlinCollectionsCollectionFQName
+        || interfaceInfo.fqName == knownNames.kotlinCollectionsMapFQName
     var properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
-            let isSyntheticCollectionSize = property.name == interner.intern("size")
-                && (interfaceInfo.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Collection"),
-                ] || interfaceInfo.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Map"),
-                ])
+            let isSyntheticCollectionSize = isCollectionOrMap && property.name == sizeName
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `length`) are read through their external link, not an
             // itable slot — leave them out of the property getter table.
@@ -69,16 +64,6 @@ private func kirInterfacePropertyGetterSlots(
             }
             return (symbol: id, name: property.name)
         }
-    let sizeName = interner.intern("size")
-    let isCollectionOrMap = interfaceInfo.fqName == [
-        interner.intern("kotlin"),
-        interner.intern("collections"),
-        interner.intern("Collection"),
-    ] || interfaceInfo.fqName == [
-        interner.intern("kotlin"),
-        interner.intern("collections"),
-        interner.intern("Map"),
-    ]
     // Collection/Map size is currently a synthetic interface surface. Keep a
     // KIR-only slot when the declaration is absent so source-defined concrete
     // implementations still participate in dynamic property dispatch without
@@ -86,17 +71,19 @@ private func kirInterfacePropertyGetterSlots(
     if isCollectionOrMap, !properties.contains(where: { $0.name == sizeName }) {
         properties.append((symbol: nil, name: sizeName))
     }
-    properties.sort { lhs, rhs in
-        let lhsName = interner.resolve(lhs.name)
-        let rhsName = interner.resolve(rhs.name)
-        if lhsName != rhsName { return lhsName < rhsName }
-        return (lhs.symbol?.rawValue ?? -1) < (rhs.symbol?.rawValue ?? -1)
-    }
+    // Resolve names once up front: interner.resolve is a lock-protected lookup,
+    // so calling it inside the comparator costs O(n log n) resolves per build.
+    let sortedProperties = properties
+        .map { (resolvedName: interner.resolve($0.name), property: $0) }
+        .sorted { lhs, rhs in
+            if lhs.resolvedName != rhs.resolvedName { return lhs.resolvedName < rhs.resolvedName }
+            return (lhs.property.symbol?.rawValue ?? -1) < (rhs.property.symbol?.rawValue ?? -1)
+        }
 
-    return properties.enumerated().map { index, propertySymbol in
+    return sortedProperties.enumerated().map { index, entry in
         KIRInterfacePropertyGetterSlot(
-            propertySymbol: propertySymbol.symbol,
-            propertyName: propertySymbol.name,
+            propertySymbol: entry.property.symbol,
+            propertyName: entry.property.name,
             slot: base + index
         )
     }
@@ -108,9 +95,18 @@ func kirInterfacePropertyGetterSlot(
     interfaceProperty: SymbolID,
     interfaceSymbol: SymbolID,
     sema: SemaModule,
-    interner: StringInterner
+    interner: StringInterner,
+    cache: KIRNominalDispatchCache? = nil
 ) -> Int? {
-    kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
+    if let cache {
+        return cache.interfacePropertyGetterSlot(
+            for: interfaceProperty,
+            in: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+    }
+    return kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
         .first { $0.propertySymbol == interfaceProperty }?
         .slot
 }
@@ -229,8 +225,8 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     let interfaceSupertypes = cache.transitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
 
     for interfaceSymbol in interfaceSupertypes {
-        let getterSlots = kirInterfacePropertyGetterSlots(
-            interfaceSymbol: interfaceSymbol,
+        let getterSlots = cache.interfacePropertyGetterSlots(
+            for: interfaceSymbol,
             sema: sema,
             interner: interner
         )

@@ -632,7 +632,8 @@ extension CallLowerer {
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,
                   sema: sema,
-                  interner: interner
+                  interner: interner,
+                  cache: driver.ctx.nominalDispatchCache
               )
         else {
             return nil
