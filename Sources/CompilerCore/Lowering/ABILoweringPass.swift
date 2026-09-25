@@ -113,6 +113,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // same unboxing as the accessors above only for the generic receiver;
         // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
+        let arrayClassName = ctx.interner.intern("Array")
 
         // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
         // generic and primitive arrays without a Sema function signature. Keep
@@ -618,7 +619,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             module: module,
                             types: types,
                             symbols: symbols,
-                            interner: ctx.interner
+                            arrayName: arrayClassName
                         ))
                     || boxedBooleanReturnCallees.contains(effectiveCallee)
                 if effectiveUnbox == nil,

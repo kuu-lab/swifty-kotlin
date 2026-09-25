@@ -53,7 +53,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                         callee: callee,
                         arguments: arguments,
                         sema: sema,
-                        interner: ctx.interner,
                         kotlinName: kotlinName,
                         ioName: ioName,
                         printlnName: printlnName,
@@ -105,7 +104,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         callee: InternedString,
         arguments: [KIRExprID],
         sema: SemaModule,
-        interner: StringInterner,
         kotlinName: InternedString,
         ioName: InternedString,
         printlnName: InternedString,
@@ -113,11 +111,10 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     ) -> PrintKind? {
         guard arguments.count <= 1 else { return nil }
 
-        let calleeStr = interner.resolve(callee)
-        if calleeStr == "println" {
+        if callee == printlnName {
             return .println
         }
-        if calleeStr == "print" {
+        if callee == printName {
             return .print
         }
 
