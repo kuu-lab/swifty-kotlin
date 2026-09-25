@@ -2739,117 +2739,40 @@ extension ExprLowerer {
                 lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
-            let rhsID = lowerExpr(
-                rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
-            )
-            let result = arena.appendTemporary(type: boundType ?? boolType)
-            // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
-            // gated on `rhsType == uintType` — but `rhsType` is the range's own type
-            // (e.g. UIntRange), never its element type, so that comparison was always
-            // false. UInt now falls through to the same `appendContainsCall` path as
-            // every other range, which resolves to the shared `__kk_range_contains`
-            // bridge (safe: UInt always fits the Int64 fields it operates on).
-            if let floatingPointCallee = floatingPointRangeContainsCallee(
-                for: rhsExpr,
-                value: lhsExpr,
+            return lowerContainsCheck(
+                exprID: exprID,
+                lhsID: lhsID,
+                lhsExpr: lhsExpr,
+                rhsExpr: rhsExpr,
+                negated: false,
+                boundType: boundType,
+                ast: ast,
                 sema: sema,
-                interner: interner
-            ) {
-                let floatingPointValueID = floatingPointRangeContainsValueID(
-                    lhsID,
-                    valueExpr: lhsExpr,
-                    callee: floatingPointCallee,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: floatingPointCallee,
-                    arguments: [rhsID, floatingPointValueID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                appendContainsCall(
-                    exprID: exprID,
-                    elementID: lhsID,
-                    containerID: rhsID,
-                    resultID: result,
-                    sema: sema,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            return result
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
 
         case let .notInExpr(lhsExpr, rhsExpr, _):
             let lhsID = lowerExpr(
                 lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
-            let rhsID = lowerExpr(
-                rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
-            )
-            let notInContainsCallee: String
-            // KSP-1523: see the `inExpr` case above — the analogous UInt branch here
-            // was gated on the same always-false `rhsType == uintType` check and has
-            // been folded away; UInt falls through to `appendContainsCall` below.
-            let floatingPointContainsCallee = floatingPointRangeContainsCallee(
-                for: rhsExpr,
-                value: lhsExpr,
+            return lowerContainsCheck(
+                exprID: exprID,
+                lhsID: lhsID,
+                lhsExpr: lhsExpr,
+                rhsExpr: rhsExpr,
+                negated: true,
+                boundType: boundType,
+                ast: ast,
                 sema: sema,
-                interner: interner
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
             )
-            if let floatingPointContainsCallee {
-                notInContainsCallee = interner.resolve(floatingPointContainsCallee)
-            } else {
-                notInContainsCallee = "kk_op_contains"
-            }
-            let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee.hasPrefix("__kk_")
-            {
-                let floatingPointValueID: KIRExprID = if let floatingPointContainsCallee {
-                    floatingPointRangeContainsValueID(
-                        lhsID,
-                        valueExpr: lhsExpr,
-                        callee: floatingPointContainsCallee,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                } else {
-                    lhsID
-                }
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(notInContainsCallee),
-                    arguments: [rhsID, floatingPointValueID],
-                    result: containsResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                appendContainsCall(
-                    exprID: exprID,
-                    elementID: lhsID,
-                    containerID: rhsID,
-                    resultID: containsResult,
-                    sema: sema,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            let result = arena.appendTemporary(type: boundType ?? boolType)
-            let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
-            instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
-            instructions.append(.binary(op: .equal, lhs: containsResult, rhs: falseValue, result: result))
-            return result
 
         case let .destructuringDecl(names, _, initializer, _):
             // Lower: val (a, b) = expr  →  tmp = expr; a = tmp.component1(); b = tmp.component2()
@@ -2935,6 +2858,109 @@ extension ExprLowerer {
                 instructions: &instructions
             )
         }
+    }
+
+    /// Lowers `lhs in rhs` / `lhs !in rhs` given an already-lowered `lhsID`.
+    /// `when` branch conditions (`ControlFlowLowerer+WhenExpr.swift`) reuse the
+    /// subject's single lowering here instead of re-lowering `lhsExpr`, which
+    /// would re-evaluate a side-effecting subject once per `in`/`!in` branch.
+    func lowerContainsCheck(
+        exprID: ExprID,
+        lhsID: KIRExprID,
+        lhsExpr: ExprID,
+        rhsExpr: ExprID,
+        negated: Bool,
+        boundType: TypeID?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+        let rhsID = lowerExpr(
+            rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+        )
+        // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
+        // gated on `rhsType == uintType` — but `rhsType` is the range's own type
+        // (e.g. UIntRange), never its element type, so that comparison was always
+        // false. UInt now falls through to the same `appendContainsCall` path as
+        // every other range, which resolves to the shared `__kk_range_contains`
+        // bridge (safe: UInt always fits the Int64 fields it operates on).
+        let floatingPointCallee = floatingPointRangeContainsCallee(
+            for: rhsExpr, value: lhsExpr, sema: sema, interner: interner
+        )
+
+        if !negated {
+            let result = arena.appendTemporary(type: boundType ?? boolType)
+            if let floatingPointCallee {
+                let floatingPointValueID = floatingPointRangeContainsValueID(
+                    lhsID, valueExpr: lhsExpr, callee: floatingPointCallee,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: floatingPointCallee,
+                    arguments: [rhsID, floatingPointValueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                appendContainsCall(
+                    exprID: exprID,
+                    elementID: lhsID,
+                    containerID: rhsID,
+                    resultID: result,
+                    sema: sema,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            return result
+        }
+
+        let notInContainsCallee: String = if let floatingPointCallee {
+            interner.resolve(floatingPointCallee)
+        } else {
+            "kk_op_contains"
+        }
+        let containsResult = arena.appendTemporary(type: boolType)
+        if notInContainsCallee.hasPrefix("__kk_") {
+            let floatingPointValueID: KIRExprID = if let floatingPointCallee {
+                floatingPointRangeContainsValueID(
+                    lhsID, valueExpr: lhsExpr, callee: floatingPointCallee,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+            } else {
+                lhsID
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(notInContainsCallee),
+                arguments: [rhsID, floatingPointValueID],
+                result: containsResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        } else {
+            appendContainsCall(
+                exprID: exprID,
+                elementID: lhsID,
+                containerID: rhsID,
+                resultID: containsResult,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        let result = arena.appendTemporary(type: boundType ?? boolType)
+        let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
+        instructions.append(.binary(op: .equal, lhs: containsResult, rhs: falseValue, result: result))
+        return result
     }
 
     /// Emits a contains call instruction, dispatching to a user-defined operator fun contains
