@@ -171,7 +171,18 @@ extension CallLowerer {
         } else {
             false
         }
-        let isStringAdd = op == .add && sema.bindings.exprTypes[exprID] == stringType
+        // `String.plus(Any?)` is itself a member, so a String-receiver `+`
+        // always keeps the flat string-concat ABI below regardless of which
+        // (bundled-source) symbol Sema bound it to. Only a *non*-String
+        // receiver whose `+` resolved to a genuine operator candidate (e.g. a
+        // user's `operator fun Int.plus(s: String): String` extension) should
+        // defer to the resolved callee instead of this String-result
+        // shortcut; a non-String receiver with no such binding is the
+        // unresolved lenient built-in concatenation path, which keeps using
+        // this ABI too.
+        let isStringAdd = op == .add
+            && sema.bindings.exprTypes[exprID] == stringType
+            && (lhsIsString || isStringOperand || sema.bindings.callBindings[exprID] == nil)
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.

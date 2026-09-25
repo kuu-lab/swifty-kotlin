@@ -2844,7 +2844,7 @@ final class CallTypeChecker {
         // the overload resolver as a member call.
         if let callableCalleeType {
             let invokeName = interner.intern("invoke")
-            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+            var invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: invokeName,
                 receiverType: callableCalleeType,
                 sema: sema,
@@ -2852,6 +2852,29 @@ final class CallTypeChecker {
             ).filter { candidateID in
                 guard let sym = sema.symbols.symbol(candidateID) else { return false }
                 return sym.flags.contains(.operatorFunction)
+            }
+            // `collectMemberFunctionCandidates` only walks the callee type's
+            // nominal member/supertype surface, so a user-declared extension
+            // (e.g. `operator fun String.invoke(n: Int)`) is invisible to it.
+            // Only when no member `invoke` applies, fall back to a scope-based
+            // extension lookup so the callable-value call syntax also finds
+            // extension `operator fun invoke`, mirroring the member-wins
+            // ordering ordinary dotted extension calls use.
+            if invokeCandidates.isEmpty {
+                let nonNullCalleeType = sema.types.makeNonNullable(callableCalleeType)
+                invokeCandidates = ctx.cachedScopeLookup(invokeName).filter { candidateID in
+                    guard let symbol = ctx.cachedSymbol(candidateID),
+                          symbol.kind == .function,
+                          symbol.flags.contains(.operatorFunction),
+                          let signature = sema.symbols.functionSignature(for: candidateID),
+                          let declaredReceiver = signature.receiverType
+                    else { return false }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullCalleeType,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
             }
             if !invokeCandidates.isEmpty {
                 let resolvedArgs = zip(args, argTypes).map { argument, type in

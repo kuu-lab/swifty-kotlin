@@ -82,6 +82,21 @@ extension CallLowerer {
         return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType || receiverType == byteType || receiverType == shortType
     }
 
+    /// Whether `exprID`'s type is a primitive (numeric or Char), i.e. one of
+    /// the types the built-in `kk_op_*` arithmetic intrinsics actually accept.
+    /// A non-primitive argument (a user class, String, ...) means the callee
+    /// name only *looks* like a primitive operator; the real applicable
+    /// candidate is whatever Sema resolved (e.g. a user's
+    /// `operator fun Int.times(v: Vec)` extension), so the primitive fast
+    /// path in `shouldLowerPrimitiveInv`'s callers must not claim the call.
+    func isNumericPrimitiveOperand(_ exprID: ExprID, sema: SemaModule) -> Bool {
+        let type = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
+        if case .primitive = sema.types.kind(of: type) {
+            return true
+        }
+        return false
+    }
+
     func appendReceiverToMemberArguments(
         _ loweredReceiverID: KIRExprID,
         receiverExpr: ExprID,
