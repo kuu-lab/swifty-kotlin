@@ -372,12 +372,12 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+    ) -> (ImportedInlineFunctionStore, LibraryImportDeferredWork) {
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
         return (importedInlineFunctions, deferredWork)
     }

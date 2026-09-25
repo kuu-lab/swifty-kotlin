@@ -2029,7 +2029,11 @@ public final class SemaModule {
     /// arguments passed to a vararg parameter). Kept optional for lightweight
     /// unit-test sema modules that do not build a full source environment.
     public let interner: StringInterner?
-    public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// Imported inline bodies, resolved lazily: library import registers
+    /// descriptors (path + signature + name) per symbol, and the inline
+    /// lowering pass reads + parses each body on first expansion instead of
+    /// paying for every artifact up front.
+    public var importedInlineFunctions: ImportedInlineFunctionStore
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
     /// in the transient `BundledSyntheticStubRegistration` thread-local, which
@@ -2050,7 +2054,7 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
-        importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()
     ) {
         self.symbols = symbols
         self.types = types
@@ -2073,7 +2077,7 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
-        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore(),
         bundledIndex: BundledDeclarationIndex
     ) {
         self.symbols = symbols

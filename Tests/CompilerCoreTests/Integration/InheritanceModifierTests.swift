@@ -532,14 +532,14 @@ import Testing
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let baseSymbol = symbols.allSymbols().first {

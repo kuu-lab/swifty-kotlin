@@ -27,7 +27,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache? = nil
     ) -> LibraryImportDeferredWork {
         // Imported function bounds may refer to java.io.Closeable before the
@@ -250,12 +250,10 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
+                importedInlineFunctions: importedInlineFunctions,
                 pendingSupertypeEdges: &pendingSupertypeEdges,
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName,
                 phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
@@ -276,12 +274,10 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
+                importedInlineFunctions: importedInlineFunctions,
                 pendingSupertypeEdges: &pendingSupertypeEdges,
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName,
                 phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
@@ -340,6 +336,18 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+
+        // Bind the resolution context for deferred inline-body parses only
+        // after every binding has been applied, so a lazy parse resolves
+        // callees against the final link-name and FQ-name maps — exactly the
+        // maps the eager parse observed.
+        importedInlineFunctions.bindParseContext(
+            types: types,
+            interner: interner,
+            diagnostics: diagnostics,
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
+        )
 
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
@@ -1186,12 +1194,10 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID],
         phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
@@ -1209,11 +1215,9 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            importedInlineFunctions: &importedInlineFunctions,
+            importedInlineFunctions: importedInlineFunctions,
             cache: cache,
             isStdlibArtifact: isStdlibArtifact,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName,
             phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
         )
         applyImportedValueClassMetadata(
@@ -1285,11 +1289,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool = false,
-        externalLinkNameToSymbol: [String: SymbolID] = [:],
-        importedSymbolByFQName: [String: SymbolID] = [:],
         phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
@@ -1365,12 +1367,9 @@ extension DataFlowSemaPhase {
                 binding,
                 symbol: symbol,
                 signature: signature,
-                types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName
+                importedInlineFunctions: importedInlineFunctions
             )
             return
         }
@@ -1550,12 +1549,9 @@ extension DataFlowSemaPhase {
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
         signature: FunctionSignature,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        importedInlineFunctions: ImportedInlineFunctionStore
     ) {
         let record = binding.record
         guard record.isInline,
@@ -1596,19 +1592,20 @@ extension DataFlowSemaPhase {
             }
             return
         }
-        guard let inlineFunction = parseImportedInlineFunction(
-            path: inlinePath,
-            importedSymbol: symbol,
-            signature: signature,
-            types: types,
-            interner: interner,
-            diagnostics: diagnostics,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
-        ) else {
-            return
-        }
-        importedInlineFunctions[symbol] = inlineFunction
+        // Defer the read + KIR parse to first expansion: most imported inline
+        // bodies are never spliced into a caller, so parsing ~every artifact
+        // at import is wasted work. The descriptor carries what the lazy
+        // parse needs that the symbol table cannot rebuild here — the
+        // resolved path, the signature captured at binding time, and the
+        // declared name (`record.fqName.last` is what `nameB64` serializes).
+        importedInlineFunctions.register(
+            ImportedInlineFunctionStore.Descriptor(
+                path: inlinePath,
+                signature: signature,
+                name: record.fqName.last ?? interner.intern("_")
+            ),
+            for: symbol
+        )
     }
 
     private func applyImportedValueClassMetadata(

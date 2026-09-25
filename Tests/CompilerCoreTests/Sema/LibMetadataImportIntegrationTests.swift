@@ -397,7 +397,14 @@ struct LibMetadataImportIntegrationTests {
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         try kirbin.write(to: inlineDir.appendingPathComponent("HugeParams.kirbin"), atomically: true, encoding: .utf8)
 
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        // The artifact is only parsed when a call site expands to it, so the
+        // app must actually call `foo` — and the diagnostic lands during
+        // lowering, not import.
+        let appSource = """
+        import lib.foo
+        fun main() { foo() }
+        """
+        try withTemporaryFile(contents: appSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "HugeInlineApp",
@@ -405,6 +412,7 @@ struct LibMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0020", in: ctx)
         }
@@ -486,8 +494,14 @@ struct LibMetadataImportIntegrationTests {
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         try kirbin.write(to: inlineDir.appendingPathComponent("InlineBody.kirbin"), atomically: true, encoding: .utf8)
 
+        // Deferred import only reads the artifact when `foo` is expanded,
+        // so the app calls it and the parse diagnostics land in lowering.
+        let appSource = """
+        import lib.foo
+        fun main() { foo() }
+        """
         var result: CompilationContext!
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        try withTemporaryFile(contents: appSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: moduleName + "App",
@@ -495,6 +509,7 @@ struct LibMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
             result = ctx
         }
         return result
