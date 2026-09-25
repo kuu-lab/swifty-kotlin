@@ -1199,18 +1199,6 @@ public func kk_structural_ne(_ lhs: Int, _ rhs: Int) -> Int {
     (runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 0 : 1
 }
 
-/// `true` when `raw` is a live handle registered by one of the `kk_box_*`
-/// entry points (or another GC-tracked allocation) — i.e. a boxed non-null
-/// value, never the bare runtime null sentinel.
-private func runtimeIsRegisteredObjectPointer(_ raw: Int) -> Bool {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return false
-    }
-    return runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-}
-
 /// Null-aware equality for `==`/`!=` where at least one operand is a
 /// nullable `Long`/`ULong`/`Double`/`Float`. Those are the only primitives
 /// whose full raw (unboxed) value range coincides with the runtime null
@@ -1219,25 +1207,29 @@ private func runtimeIsRegisteredObjectPointer(_ raw: Int) -> Bool {
 /// guess (in `runtimeValuesEqual`) cannot tell a genuine null apart from a
 /// genuine value that happens to share that bit pattern.
 ///
-/// `nullableRaw` is the operand statically known to be nullable — per
-/// `needsBoxingForCopy`, a non-null value written to a nullable-primitive
-/// slot is always boxed, so a nullable primitive is null if and only if it
-/// is *not* a registered object pointer, regardless of its raw bits. The
-/// compiler resolves this unambiguously via each operand's static type
-/// (OperatorLoweringPass), which a pure runtime function operating on raw
-/// `Int`s alone cannot recover from the bits.  `peerRaw` is the other
-/// operand — a provably non-null value if `peerIsNullable == 0` (its raw
-/// bits are never treated as a possible null), otherwise checked the same
-/// way as `nullableRaw`. Once neither side is null, the comparison defers to
-/// `runtimeNonNullValuesEqual`, which already normalizes boxed-vs-raw pairs
-/// (e.g. a boxed `Long.MIN_VALUE` against the raw literal `Long.MIN_VALUE`).
+/// `nullableRaw` is the operand statically known to be nullable. Its slot
+/// holds the null sentinel, a registered box, or a raw value (external
+/// `Long?`-returning entries such as `__kk_long_range_randomOrNull_random`
+/// pass raw bits through unchanged), so only the sentinel itself marks
+/// null — a registry membership test would misclassify every raw non-null
+/// value as null. A raw value that equals the sentinel's bit pattern
+/// (e.g. a `Long?` slot holding `Long.MIN_VALUE` unboxed) stays
+/// indistinguishable from null at the bit level; preserving its non-null
+/// identity is the boxing side's job, not this comparison's.  `peerRaw` is
+/// the other operand — a provably non-null value if `peerIsNullable == 0`
+/// (its raw bits are never treated as a possible null, so a peer holding
+/// raw `Long.MIN_VALUE` still compares by value), otherwise checked for
+/// the sentinel the same way as `nullableRaw`. Once neither side is null,
+/// the comparison defers to `runtimeNonNullValuesEqual`, which already
+/// normalizes boxed-vs-raw pairs (e.g. a boxed `Long.MIN_VALUE` against
+/// the raw literal `Long.MIN_VALUE`).
 private func runtimeNullablePrimitiveEqualityCheck(
     nullableRaw: Int,
     peerRaw: Int,
     peerIsNullable: Int
 ) -> Bool {
-    let nullableIsNull = !runtimeIsRegisteredObjectPointer(nullableRaw)
-    let peerIsNull = peerIsNullable != 0 && !runtimeIsRegisteredObjectPointer(peerRaw)
+    let nullableIsNull = nullableRaw == runtimeNullSentinelInt
+    let peerIsNull = peerIsNullable != 0 && peerRaw == runtimeNullSentinelInt
     if nullableIsNull || peerIsNull {
         return nullableIsNull && peerIsNull
     }

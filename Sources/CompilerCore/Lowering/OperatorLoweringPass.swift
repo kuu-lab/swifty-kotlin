@@ -162,15 +162,24 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             if lhsNeedsSentinelSafeCompare || rhsNeedsSentinelSafeCompare {
                 let nullableSide: KIRExprID
                 let peerSide: KIRExprID
+                // peerIsNullable must mean "the peer's static type admits null
+                // at runtime" — not "the peer is a nullable primitive". A
+                // `null` literal is `Nothing?`, and the peer can also be
+                // `Any?`/a nullable reference/`T?`; all of those hold either
+                // the null sentinel or a registered heap handle, so the
+                // runtime may check their nullness through the object-pointer
+                // registry just like the nullable side. Restricting the flag
+                // to nullable primitives would mark a `null` literal
+                // "provably non-null" and turn `null == null` into false.
                 let peerIsNullable: Bool
                 if lhsNeedsSentinelSafeCompare {
                     nullableSide = lhs
                     peerSide = rhs
-                    peerIsNullable = rhsNullableKind != nil
+                    peerIsNullable = isNullableOrPlatform(rhs, arena: arena, types: types)
                 } else {
                     nullableSide = rhs
                     peerSide = lhs
-                    peerIsNullable = lhsNullableKind != nil
+                    peerIsNullable = isNullableOrPlatform(lhs, arena: arena, types: types)
                 }
                 let intType = types?.make(.primitive(.int, .nonNull))
                 let flagValue: Int64 = peerIsNullable ? 1 : 0
@@ -265,6 +274,17 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return primitiveType
         }
         return nil
+    }
+
+    /// True when the expression's static type may hold null at runtime
+    /// (`.nullable` or `.platformType`). Any such value is represented as
+    /// either the null sentinel or a registered heap handle, so
+    /// `kk_nullable_primitive_eq/ne` can determine its nullness via the
+    /// object-pointer registry regardless of the specific type kind
+    /// (`Nothing?` null literals, `Any?`, nullable references, `T?`).
+    private func isNullableOrPlatform(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
+        guard let types, let typeID = arena.exprType(exprID) else { return false }
+        return types.nullability(of: typeID) != .nonNull
     }
 
     /// Returns true when the expression is a reference type that requires structural
