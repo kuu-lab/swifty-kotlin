@@ -565,13 +565,38 @@ extension KotlinParser {
     /// modifier keyword used as a parameter name inside a multiline group
     /// from prematurely terminating that group.
     private func startsDeclarationAfterModifier(at offset: Int) -> Bool {
-        let token = stream.peek(offset)
-        if case let .keyword(keyword) = token.kind,
-           Self.isDeclarationModifierKeyword(keyword)
-        {
-            return startsDeclarationAfterModifier(at: offset + 1)
+        var cursor = offset
+        var work = 0
+        var prefixIndices: [Int] = []
+        while true {
+            let absoluteIndex = stream.index + cursor
+            if let cached = modifierDeclarationLookahead[absoluteIndex] {
+                for index in prefixIndices {
+                    modifierDeclarationLookahead[index] = cached
+                }
+                return cached
+            }
+            guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
+                for index in prefixIndices {
+                    modifierDeclarationLookahead[index] = true
+                }
+                modifierDeclarationLookahead[stream.index + offset] = true
+                return true
+            }
+            let token = stream.peek(cursor)
+            guard case let .keyword(keyword) = token.kind,
+                  Self.isDeclarationModifierKeyword(keyword)
+            else {
+                let result = isDeclarationStart(token.kind)
+                for index in prefixIndices {
+                    modifierDeclarationLookahead[index] = result
+                }
+                modifierDeclarationLookahead[absoluteIndex] = result
+                return result
+            }
+            prefixIndices.append(absoluteIndex)
+            cursor += 1
         }
-        return isDeclarationStart(token.kind)
     }
 
     var invalidRange: SourceRange {

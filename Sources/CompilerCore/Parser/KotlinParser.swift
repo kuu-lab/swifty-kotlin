@@ -11,6 +11,8 @@ final class KotlinParser {
     var lastConsumedToken: Token?
     private var nestingDepth = 0
     private var nestingLimitReported = false
+    var genuineDeclarationLookahead: [Int: Bool] = [:]
+    var modifierDeclarationLookahead: [Int: Bool] = [:]
 
     init(tokens: [Token], interner: StringInterner, diagnostics: DiagnosticEngine) {
         stream = TokenStream(tokens)
@@ -82,6 +84,22 @@ final class KotlinParser {
             importRange = RangeAccumulator()
         }
 
+        func parseTopLevelStatement() -> NodeID {
+            let before = stream.index
+            var statement = parseStatement(inBlock: false)
+            if stream.index == before {
+                var skipChildren: [SyntaxChild] = []
+                var skipRange = RangeAccumulator()
+                skipToSynchronizationPoint(inBlock: false, into: &skipChildren, range: &skipRange)
+                if stream.index == before, !stream.atEOF() {
+                    _ = consumeToken(into: &skipChildren, range: &skipRange)
+                }
+                statement = arena.appendNode(kind: .statement, range: skipRange.value ?? invalidRange, skipChildren)
+            }
+            sawTopLevelStatement = true
+            return statement
+        }
+
         while !stream.atEOF() {
             let token = stream.peek()
             if token.kind == .eof {
@@ -100,22 +118,19 @@ final class KotlinParser {
                 range.append(arena.node(node).range)
                 continue
             case _ where isDeclarationStart(token.kind):
-                node = parseDeclaration()
+                if isAmbiguousDeclarationPrefix(token),
+                   declarationPrefixVerdict(at: 0) == .overBudget {
+                    // The prefix ran out of lookahead budget; consume it as
+                    // statements so recovery stays iterative instead of
+                    // rescanning the same run through parseDeclaration.
+                    node = parseTopLevelStatement()
+                } else {
+                    node = parseDeclaration()
+                }
             case .softKeyword(.context):
                 node = parseDeclaration()
             default:
-                let before = stream.index
-                node = parseStatement(inBlock: false)
-                if stream.index == before {
-                    var skipChildren: [SyntaxChild] = []
-                    var skipRange = RangeAccumulator()
-                    skipToSynchronizationPoint(inBlock: false, into: &skipChildren, range: &skipRange)
-                    if stream.index == before, !stream.atEOF() {
-                        _ = consumeToken(into: &skipChildren, range: &skipRange)
-                    }
-                    node = arena.appendNode(kind: .statement, range: skipRange.value ?? invalidRange, skipChildren)
-                }
-                sawTopLevelStatement = true
+                node = parseTopLevelStatement()
             }
 
             flushPendingImportsIfNeeded()
