@@ -1,13 +1,13 @@
 symbol fq=__local_0.associated[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int>
 symbol fq=__local_1.byKey[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, String>
 symbol fq=__local_2.byKeyTransformed[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int>
-symbol fq=__local_3.nullableKeys[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int>
+symbol fq=__local_3.nullableKeys[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, String?>
 symbol fq=__local_4.withValues[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int>
 symbol fq=__local_5.associatedTo[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Any, Any>
 symbol fq=__local_6.byTo[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Int, String>
 symbol fq=__local_7.byToTransformed[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Any, Any>
 symbol fq=__local_8.withTo[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Any, Any>
-symbol fq=__local_9.listAssociated[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int>
+symbol fq=__local_9.listAssociated[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, String>
 symbol fq=associateFamily.$0.destination[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=associateFamily.$0.intDestination[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=associateFamily.$0.list[kind=vparam] kind=valueParameter vis=private flags=_
@@ -37,13 +37,13 @@ expr e@12:11#1 memberCall recv=e@12:11 callee=length args=[] type=Int call=kotli
 expr e@12:9 lambda params=[] body=e@12:11#1 label=associateBy type=(String) -> Any
 expr e@10:46#1 memberCall recv=e@10:46 callee=associateBy args=[_:e@11:9,_:e@12:9] type=kotlin.collections.Map<String, Int> call=kotlin.collections.associateBy[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1},fn{p=T0;ret=T2};gen=3] targs=[String,String,Int]
 expr e@10:5 localDecl byKeyTransformed mutable=0 type=Map<String,Int> init=e@10:46#1 type=Unit ref=__local_2.byKeyTransformed[kind=local]
-expr e@14:42 name(nullable) type=kotlin.sequences.Sequence<String?> ref=associateFamily.$0.nullable[kind=vparam]
-expr e@14:65 name(it) type=String? ref=s-4
-expr e@14:71 string(null) type=String
-expr e@14:65#1 binary(elvis) lhs=e@14:65 rhs=e@14:71 type=String
-expr e@14:63 lambda params=[] body=e@14:65#1 label=associateBy type=(String?) -> Any
-expr e@14:42#1 memberCall recv=e@14:42 callee=associateBy args=[_:e@14:63] type=kotlin.collections.Map<String, String?> call=kotlin.collections.associateBy[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[String?,String]
-expr e@14:5 localDecl nullableKeys mutable=0 type=Map<String,Int> init=e@14:42#1 type=Unit ref=__local_3.nullableKeys[kind=local]
+expr e@14:46 name(nullable) type=kotlin.sequences.Sequence<String?> ref=associateFamily.$0.nullable[kind=vparam]
+expr e@14:69 name(it) type=String? ref=s-4
+expr e@14:75 string(null) type=String
+expr e@14:69#1 binary(elvis) lhs=e@14:69 rhs=e@14:75 type=String
+expr e@14:67 lambda params=[] body=e@14:69#1 label=associateBy type=(String?) -> Any
+expr e@14:46#1 memberCall recv=e@14:46 callee=associateBy args=[_:e@14:67] type=kotlin.collections.Map<String, String?> call=kotlin.collections.associateBy[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[String?,String]
+expr e@14:5 localDecl nullableKeys mutable=0 type=Map<String,String?> init=e@14:46#1 type=Unit ref=__local_3.nullableKeys[kind=local]
 expr e@15:40 name(values) type=kotlin.sequences.Sequence<String> ref=associateFamily.$0.values[kind=vparam]
 expr e@15:63 name(it) type=String ref=s-5
 expr e@15:63#1 memberCall recv=e@15:63 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
@@ -82,11 +82,9 @@ expr e@25:78#1 memberCall recv=e@25:78 callee=length args=[] type=Int call=kotli
 expr e@25:76 lambda params=[] body=e@25:78#1 label=associateWithTo type=(String) -> Any
 expr e@25:40#1 memberCall recv=e@25:40 callee=associateWithTo args=[_:e@25:63,_:e@25:76] type=kotlin.collections.MutableMap<Any, Any> call=kotlin.collections.associateWithTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=T0;ret=T1};gen=3]
 expr e@25:5 localDecl withTo mutable=0 type=MutableMap<Any,Any> init=e@25:40#1 type=Unit ref=__local_8.withTo[kind=local]
-expr e@26:44 name(list) type=kotlin.collections.List<String> ref=associateFamily.$0.list[kind=vparam]
-expr e@26:44#1 memberCall recv=e@26:44 callee=asSequence args=[] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.asSequence[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;gen=1] targs=[String]
-expr e@26:76 name(it) type=String ref=s-11
-expr e@26:74 lambda params=[] body=e@26:76 label=associateBy type=(String) -> Any
-expr e@26:44#2 memberCall recv=e@26:44#1 callee=associateBy args=[_:e@26:74] type=kotlin.collections.Map<String, String> call=kotlin.collections.associateBy[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[String,String]
-expr e@26:5 localDecl listAssociated mutable=0 type=Map<String,Int> init=e@26:44#2 type=Unit ref=__local_9.listAssociated[kind=local]
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=14:5 msg=Type constraint could not be satisfied.
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=26:5 msg=Type constraint could not be satisfied.
+expr e@26:47 name(list) type=kotlin.collections.List<String> ref=associateFamily.$0.list[kind=vparam]
+expr e@26:47#1 memberCall recv=e@26:47 callee=asSequence args=[] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.asSequence[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;gen=1] targs=[String]
+expr e@26:79 name(it) type=String ref=s-11
+expr e@26:77 lambda params=[] body=e@26:79 label=associateBy type=(String) -> Any
+expr e@26:47#2 memberCall recv=e@26:47#1 callee=associateBy args=[_:e@26:77] type=kotlin.collections.Map<String, String> call=kotlin.collections.associateBy[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[String,String]
+expr e@26:5 localDecl listAssociated mutable=0 type=Map<String,String> init=e@26:47#2 type=Unit ref=__local_9.listAssociated[kind=local]

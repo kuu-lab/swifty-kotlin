@@ -11,7 +11,7 @@ fun associateFamily(
         { it },
         { it.length }
     )
-    val nullableKeys: Map<String, Int> = nullable.associateBy { it ?: "null" }
+    val nullableKeys: Map<String, String?> = nullable.associateBy { it ?: "null" }
     val withValues: Map<String, Int> = values.associateWith { it.length }
     val associatedTo: MutableMap<Any, Any> = values.associateTo(destination) {
         it to it.length
@@ -23,5 +23,5 @@ fun associateFamily(
         { it.length }
     )
     val withTo: MutableMap<Any, Any> = values.associateWithTo(destination) { it.length }
-    val listAssociated: Map<String, Int> = list.asSequence().associateBy { it }
+    val listAssociated: Map<String, String> = list.asSequence().associateBy { it }
 }
