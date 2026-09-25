@@ -126,3 +126,4 @@ internal class ULongProgressionIterator(first: ULong, last: ULong, private val s
 public operator fun UIntRange.iterator(): Iterator<UInt> = UIntProgressionIterator(this.first, this.last, this.step)
 public operator fun UIntProgression.iterator(): Iterator<UInt> = UIntProgressionIterator(this.first, this.last, this.step)
 public operator fun ULongRange.iterator(): Iterator<ULong> = ULongProgressionIterator(this.first, this.last, this.step)
+public operator fun ULongProgression.iterator(): Iterator<ULong> = ULongProgressionIterator(this.first, this.last, this.step)
