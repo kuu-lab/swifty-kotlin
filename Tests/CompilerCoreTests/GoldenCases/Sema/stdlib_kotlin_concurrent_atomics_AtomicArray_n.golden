@@ -1,0 +1,25 @@
+symbol fq=golden.sema.atomicArrayFetchAndUpdateAt.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayFetchAndUpdateAt.$0.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayFetchAndUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,(String) -> String] ret=String
+symbol fq=golden.sema.atomicArrayUpdateAndFetchAt.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayUpdateAndFetchAt.$1.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,(String) -> String] ret=String
+symbol fq=golden.sema.atomicArrayUpdateAt.$2.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayUpdateAt.$2.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,(String) -> String] ret=Unit
+file fstdlib_kotlin_concurrent_atomics_AtomicArray_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicArrayFetchAndUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}] fun atomicArrayFetchAndUpdateAt sym=golden.sema.atomicArrayFetchAndUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}]
+  decl golden.sema.atomicArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}] fun atomicArrayUpdateAt sym=golden.sema.atomicArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}]
+  decl golden.sema.atomicArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}] fun atomicArrayUpdateAndFetchAt sym=golden.sema.atomicArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,fn{p=String;ret=String}]
+expr e@10:13 name(atomic) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayFetchAndUpdateAt.$0.atomic[kind=vparam]
+expr e@10:37 int(0) type=Int
+expr e@10:40 name(transform) type=(String) -> String ref=golden.sema.atomicArrayFetchAndUpdateAt.$0.transform[kind=vparam]
+expr e@10:13#1 memberCall recv=e@10:13 callee=fetchAndUpdateAt args=[_:e@10:37,_:e@10:40] type=String call=kotlin.concurrent.atomics.fetchAndUpdateAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,fn{p=T0;ret=T0};gen=1] targs=[String]
+expr e@15:11 name(atomic) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayUpdateAt.$2.atomic[kind=vparam]
+expr e@15:27 int(0) type=Int
+expr e@15:30 name(transform) type=(String) -> String ref=golden.sema.atomicArrayUpdateAt.$2.transform[kind=vparam]
+expr e@15:11#1 memberCall recv=e@15:11 callee=updateAt args=[_:e@15:27,_:e@15:30] type=Unit call=kotlin.concurrent.atomics.updateAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,fn{p=T0;ret=T0};gen=1] targs=[String]
+expr e@20:13 name(atomic) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayUpdateAndFetchAt.$1.atomic[kind=vparam]
+expr e@20:37 int(0) type=Int
+expr e@20:40 name(transform) type=(String) -> String ref=golden.sema.atomicArrayUpdateAndFetchAt.$1.transform[kind=vparam]
+expr e@20:13#1 memberCall recv=e@20:13 callee=updateAndFetchAt args=[_:e@20:37,_:e@20:40] type=String call=kotlin.concurrent.atomics.updateAndFetchAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,fn{p=T0;ret=T0};gen=1] targs=[String]
