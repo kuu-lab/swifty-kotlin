@@ -1105,6 +1105,32 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // Range handles carry no object type ID either: they are allocated by
+        // `__kk_*_rangeTo`/`downTo`/`until` factories, not kk_object_new.
+        // Recover the nominal identity from the range kind, mirroring the
+        // primitive-box recovery above.
+        if let rangeBox = runtimeRangeBox(from: value) {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeRangeBoxNominalTypeID(rangeBox.kind),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        let isFloatingRangeBox = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+                ? tryCast(ptr, to: RuntimeDoubleRangeBox.self) != nil
+                    || tryCast(ptr, to: RuntimeFloatRangeBox.self) != nil
+                : false
+        }
+        if isFloatingRangeBox {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.ranges.ClosedFloatingPointRange"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)
