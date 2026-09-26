@@ -88,12 +88,6 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
 
-    if delimiter.isEmpty {
-        let singleElement = runtimeMakeStringRaw(source)
-        let seq = RuntimeSequenceBox(steps: [.source(elements: [singleElement])])
-        return registerRuntimeObject(seq)
-    }
-
     let splitStrings = runtimeSplitString(source, delimiter: delimiter).map { runtimeMakeStringRaw($0) }
     let seq = RuntimeSequenceBox(steps: [.source(elements: splitStrings)])
     return registerRuntimeObject(seq)

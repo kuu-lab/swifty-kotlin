@@ -1,6 +1,8 @@
 
 final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "OperatorLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         _ = ctx
@@ -135,8 +137,21 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return
         }
 
-        let lhsRank = primitiveRank(for: lhs, arena: arena, types: types)
-        let rhsRank = primitiveRank(for: rhs, arena: arena, types: types)
+        // For == / != where either operand is a reference type (Any, class
+        // type, type param, String), equality must go through Any.equals /
+        // structural comparison, never the numeric fast path below -- even
+        // when the *other* operand is statically Double/Float (e.g.
+        // `anyValue == 3.0`, or a `when` constant branch against a
+        // Double/Float literal). Computing this before the rank-based
+        // widening, and forcing rank to 0 when it applies, keeps the
+        // reference-typed operand's raw representation (a boxed pointer, or
+        // the null sentinel) from being reinterpreted as numeric bits by the
+        // conversion calls below.
+        let needsStructuralEquality = (op == .equal || op == .notEqual)
+            && (isReferenceType(lhs, arena: arena, types: types) || isReferenceType(rhs, arena: arena, types: types))
+
+        let lhsRank = needsStructuralEquality ? 0 : primitiveRank(for: lhs, arena: arena, types: types)
+        let rhsRank = needsStructuralEquality ? 0 : primitiveRank(for: rhs, arena: arena, types: types)
         let rank = max(lhsRank, rhsRank)
         let isUnsigned = isUnsignedOperand(lhs, arena: arena, types: types)
             || isUnsignedOperand(rhs, arena: arena, types: types)
@@ -148,15 +163,16 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         var effectiveLhs = lhs
         var effectiveRhs = rhs
         if rank > 0 {
+            let convertedType = widenedPrimitiveType(rank: rank, types: types)
             if lhsRank < rank {
                 let convCallee = conversionCallee(fromRank: lhsRank, toRank: rank, interner: interner)
-                let converted = arena.appendTemporary(type: arena.exprType(result))
+                let converted = arena.appendTemporary(type: convertedType)
                 emitNonThrowingCall(callee: convCallee, arg: lhs, result: converted, into: &newBody)
                 effectiveLhs = converted
             }
             if rhsRank < rank {
                 let convCallee = conversionCallee(fromRank: rhsRank, toRank: rank, interner: interner)
-                let converted = arena.appendTemporary(type: arena.exprType(result))
+                let converted = arena.appendTemporary(type: convertedType)
                 emitNonThrowingCall(callee: convCallee, arg: rhs, result: converted, into: &newBody)
                 effectiveRhs = converted
             }
@@ -165,9 +181,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let useUnsignedRank0 = isUnsigned && rank == 0
         let divModCmpPrefix = useUnsignedRank0 ? "u" : prefix
         let divModOp = useUnsignedRank0 ? "rem" : "mod" // unsigned uses urem (LLVM), signed uses mod
-        // For == / != on non-primitive reference types, use structural equality
-        let needsStructuralEquality = (op == .equal || op == .notEqual) && rank == 0
-            && (isReferenceType(lhs, arena: arena, types: types) || isReferenceType(rhs, arena: arena, types: types))
         let callee: InternedString = switch op {
         case .add: interner.intern("kk_op_\(prefix)add")
         case .subtract: interner.intern("kk_op_\(prefix)sub")
@@ -244,6 +257,20 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return true
         default:
             return false
+        }
+    }
+
+    /// The primitive type a rank-0/1 operand is converted to when widened to
+    /// match the other operand's rank (see `primitiveRank`). Used as the KIR
+    /// type of the conversion call's result -- must not be the comparison's
+    /// own Boolean result type, or later ABI lowering misreads the widened
+    /// numeric value as a boxed Boolean needing its own unboxing.
+    private func widenedPrimitiveType(rank: Int, types: TypeSystem?) -> TypeID? {
+        guard let types else { return nil }
+        switch rank {
+        case 2: return types.make(.primitive(.double, .nonNull))
+        case 1: return types.make(.primitive(.float, .nonNull))
+        default: return nil
         }
     }
 

@@ -42,7 +42,7 @@ struct ReflectKTypeParameterSyntheticTests {
 
         let kTypeParameterInfo = try #require(sema.symbols.symbol(kTypeParameterSymbol))
         #expect(kTypeParameterInfo.kind == .interface)
-        #expect(kTypeParameterInfo.flags.contains(.synthetic))
+        #expect(!kTypeParameterInfo.flags.contains(.synthetic))
         #expect(sema.symbols.directSupertypes(for: kTypeParameterSymbol).contains(kClassifierSymbol))
 
         let kVarianceType = sema.types.make(.classType(ClassType(
@@ -71,7 +71,12 @@ struct ReflectKTypeParameterSyntheticTests {
             let propertySymbol = try #require(sema.symbols.lookup(
                 fqName: reflectPackage + [interner.intern("KTypeParameter"), interner.intern(expectation.name)]
             ))
+            let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
             #expect(sema.symbols.parentSymbol(for: propertySymbol) == kTypeParameterSymbol)
+            #expect(!propertyInfo.flags.contains(.synthetic))
+            #expect(propertyInfo.declSite != nil)
+            #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
+            #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
             #expect(sema.symbols.propertyType(for: propertySymbol) == expectation.type)
         }
     }

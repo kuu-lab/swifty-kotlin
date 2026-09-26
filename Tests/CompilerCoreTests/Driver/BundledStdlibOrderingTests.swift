@@ -110,11 +110,13 @@ struct BundledStdlibOrderingTests {
             for expected in [
                 "__bundled_kotlin/native/Annotations.kt",
                 "__bundled_kotlin/native/BitSet.kt",
+                "__bundled_kotlin/native/Blob.kt",
                 "__bundled_kotlin/native/FreezingIsDeprecated.kt",
                 "__bundled_kotlin/native/ObsoleteNativeApi.kt",
                 "__bundled_kotlin/native/Platform.kt",
                 "__bundled_kotlin/native/Runtime.kt",
                 "__bundled_kotlin/native/ThrowableExtensions.kt",
+                "__bundled_kotlin/native/simd.kt",
                 "__bundled_kotlin/native/concurrent/Atomics.kt",
                 "__bundled_kotlin/native/concurrent/Freezing.kt",
                 "__bundled_kotlin/native/concurrent/Internal.kt",

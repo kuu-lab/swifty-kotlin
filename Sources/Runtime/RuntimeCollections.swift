@@ -1,21 +1,200 @@
 
 /// Hashable wrapper around an opaque runtime value (`Int`) that uses
-/// `kk_any_hashCode` / `runtimeValuesEqual` so value-equal objects (e.g.
+/// `runtimeElementKeyHash` / `runtimeValuesEqual` so value-equal objects (e.g.
 /// two distinct String handles with the same content) are treated as
-/// equal keys.  Used by Set deduplication, Map key lookup, and Sequence
-/// terminal operations (toMap, groupBy).
+/// equal keys while feeding actual content directly into Swift's randomized
+/// `Hasher` to protect against hash-collision denial-of-service (KUU-812).
+/// Used by Set deduplication, Map key lookup, and Sequence terminal operations.
 internal struct RuntimeElementKey: Hashable {
     let value: Int
 
     func hash(into hasher: inout Hasher) {
-        // Keep the runtime's floating-point hash normalization in one helper
-        // so every indexed collection uses the same value-level hash.
-        hasher.combine(runtimeValueHash(value))
+        runtimeElementKeyHash(value, into: &hasher)
     }
 
     static func == (lhs: RuntimeElementKey, rhs: RuntimeElementKey) -> Bool {
         runtimeValuesEqual(lhs.value, rhs.value)
     }
+}
+
+/// Hashes an opaque runtime value directly into Swift's randomized `Hasher`
+/// for internal hash-table placement in Set and Map collections.
+///
+/// Unlike public `kk_any_hashCode` (which produces a deterministic 32-bit
+/// polynomial hash matching Kotlin/JVM), this feeds actual UTF-16 code units
+/// and composite elements into Swift's SipHash to ensure linear-time operations
+/// even when given an attacker-crafted hash collision corpus (KUU-812).
+func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int = 0) {
+    if depth >= 32 {
+        hasher.combine(value)
+        return
+    }
+    if value == runtimeNullSentinelInt {
+        hasher.combine(0)
+        return
+    }
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: value) else {
+        hasher.combine(1)
+        hasher.combine(value)
+        return
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: pointer))
+    }
+    guard isObjectPointer else {
+        hasher.combine(1)
+        hasher.combine(value)
+        return
+    }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        hasher.combine(10)
+        hasher.combine(range.kind.rawValue)
+        if runtimeRangeIsEmpty(range) {
+            hasher.combine(true)
+        } else {
+            hasher.combine(false)
+            hasher.combine(range.first)
+            hasher.combine(range.last)
+            if range.kind.isProgression {
+                hasher.combine(range.step)
+            }
+        }
+        return
+    }
+    if runtimeIsUnitBox(value) {
+        hasher.combine(13)
+        return
+    }
+    if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
+        hasher.combine(3)
+        hasher.combine(stringBox.value.utf16.count)
+        for codeUnit in stringBox.value.utf16 {
+            hasher.combine(codeUnit)
+        }
+        return
+    }
+    if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+        // Enum ordinals cross call sites as both `RuntimeIntBox` (optionally
+        // carrying `enumClassID`) and raw unboxed `Int`s. `runtimeValuesEqual`
+        // unboxes both sides and reports such pairs equal, so the internal
+        // hash must be keyed by value only — hashing `enumClassID` here would
+        // send equal keys to different buckets and break `Set.contains`.
+        hasher.combine(1)
+        hasher.combine(intBox.value)
+        return
+    }
+    if let boolBox = tryCast(pointer, to: RuntimeBoolBox.self) {
+        hasher.combine(1)
+        hasher.combine(boolBox.value ? 1 : 0)
+        return
+    }
+    if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
+        hasher.combine(1)
+        hasher.combine(longBox.value)
+        return
+    }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        hasher.combine(1)
+        hasher.combine(ulongBox.value)
+        return
+    }
+    if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
+        hasher.combine(1)
+        hasher.combine(Int(floatBox.value.bitPattern))
+        return
+    }
+    if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
+        hasher.combine(1)
+        hasher.combine(Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern)))
+        return
+    }
+    if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
+        hasher.combine(1)
+        hasher.combine(charBox.value)
+        return
+    }
+    if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
+        hasher.combine(11)
+        hasher.combine(durationBox.nanoseconds)
+        return
+    }
+    if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
+        hasher.combine(12)
+        hasher.combine(instantBox.epochSeconds)
+        hasher.combine(instantBox.nanoOfSecond)
+        return
+    }
+    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+        hasher.combine(4)
+        let elements = listBox.elements
+        hasher.combine(elements.count)
+        for elem in elements {
+            runtimeElementKeyHash(elem, into: &hasher, depth: depth + 1)
+        }
+        return
+    }
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        hasher.combine(5)
+        let elements = setBox.elements
+        hasher.combine(elements.count)
+        var sum: UInt64 = 0
+        for elem in elements {
+            var subHasher = Hasher()
+            runtimeElementKeyHash(elem, into: &subHasher, depth: depth + 1)
+            sum = sum &+ UInt64(bitPattern: Int64(subHasher.finalize()))
+        }
+        hasher.combine(sum)
+        return
+    }
+    if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
+        hasher.combine(6)
+        hasher.combine(mapBox.keys.count)
+        var sum: UInt64 = 0
+        for (key, value) in zip(mapBox.keys, mapBox.values) {
+            var subHasher = Hasher()
+            runtimeElementKeyHash(key, into: &subHasher, depth: depth + 1)
+            runtimeElementKeyHash(value, into: &subHasher, depth: depth + 1)
+            sum = sum &+ UInt64(bitPattern: Int64(subHasher.finalize()))
+        }
+        hasher.combine(sum)
+        return
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    {
+        hasher.combine(7)
+        runtimeElementKeyHash(pairBox.firstValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(pairBox.secondValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        return
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
+       let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
+    {
+        hasher.combine(8)
+        runtimeElementKeyHash(tripleBox.firstValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(tripleBox.secondValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(tripleBox.thirdValue.legacyRawValue, into: &hasher, depth: depth + 1)
+        return
+    }
+    if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
+        hasher.combine(9)
+        hasher.combine(localeBox.language)
+        hasher.combine(localeBox.country)
+        hasher.combine(localeBox.variant)
+        return
+    }
+    if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        hasher.combine(14)
+        hasher.combine(objBox.classID)
+        let elements = objBox.elements
+        hasher.combine(elements.count)
+        for elem in elements {
+            runtimeElementKeyHash(elem, into: &hasher, depth: depth + 1)
+        }
+        return
+    }
+    hasher.combine(15)
+    hasher.combine(Int(bitPattern: pointer))
 }
 
 /// Extracts elements from an opaque `otherRaw` handle that may be either a
@@ -125,7 +304,7 @@ public func kk_list_size(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
     }
-    return list.elements.count
+    return list.count
 }
 
 @_cdecl("__kk_list_get")
@@ -139,14 +318,14 @@ public func kk_list_get(
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
-    guard list.elements.indices.contains(index) else {
+    guard list.indices.contains(index) else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "Index: \(index), Size: \(list.elements.count)")
+            runtimeAllocateIndexOutOfBoundsException(message: "Index: \(index), Size: \(list.count)")
         )
         return 0
     }
-    return list.elements[index]
+    return list[index]
 }
 
 /// `EnumEntries.get` checks bounds and reports Kotlin's
@@ -159,14 +338,14 @@ public func kk_enum_entries_get(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw), list.elements.indices.contains(index) else {
-        let size = runtimeListBox(from: listRaw)?.elements.count ?? 0
+    guard let list = runtimeListBox(from: listRaw), list.indices.contains(index) else {
+        let size = runtimeListBox(from: listRaw)?.count ?? 0
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "Index: \(index), size: \(size)"
         )
         return 0
     }
-    return list.elements[index]
+    return list[index]
 }
 
 @_cdecl("kk_list_is_empty")
@@ -174,7 +353,7 @@ public func kk_list_is_empty(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(1)
     }
-    return kk_box_bool(list.elements.isEmpty ? 1 : 0)
+    return kk_box_bool(list.count == 0 ? 1 : 0)
 }
 
 @_cdecl("kk_list_iterator")
@@ -182,18 +361,18 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
     if let list = runtimeListBox(from: listRaw) {
         let raw = registerRuntimeObject(
             RuntimeListIteratorBox(
-                elements: list.elements,
+                values: list.values,
                 removeAction: { index in
-                    guard list.elements.indices.contains(index) else { return }
-                    list.elements.remove(at: index)
+                    guard list.indices.contains(index) else { return }
+                    list.withMutableValues { $0.remove(at: index) }
                 },
                 setAction: { index, value in
-                    guard list.elements.indices.contains(index) else { return }
-                    list.elements[index] = value
+                    guard list.indices.contains(index) else { return }
+                    list.setValue(value, at: index)
                 },
                 addAction: { index, value in
-                    guard (0...list.elements.count).contains(index) else { return }
-                    list.elements.insert(value, at: index)
+                    guard (0...list.count).contains(index) else { return }
+                    list.withMutableValues { $0.insert(value, at: index) }
                 }
             )
         )
@@ -207,11 +386,10 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         // needed here, unlike the `list` branch above.
         let raw = registerRuntimeObject(
             RuntimeListIteratorBox(
-                elements: set.elements,
+                values: set.values,
                 removeAction: { index in
-                    let currentElements = set.elements
-                    guard currentElements.indices.contains(index) else { return }
-                    _ = set.remove(rawValue: currentElements[index])
+                    guard set.indices.contains(index) else { return }
+                    _ = set.remove(rawValue: set[index])
                 }
             )
         )
@@ -219,7 +397,7 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         return raw
     }
     if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
-        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: array.elements))
+        let raw = registerRuntimeObject(RuntimeListIteratorBox(values: array.values))
         registerListIteratorItable(raw: raw)
         return raw
     }
@@ -253,25 +431,25 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         registerListIteratorItable(raw: raw)
         return raw
     }
-    guard (0...list.elements.count).contains(index) else {
+    guard (0...list.count).contains(index) else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index: \(index), Size: \(list.elements.count)"
+            message: "Index: \(index), Size: \(list.count)"
         )
         return 0
     }
     let iter = RuntimeListIteratorBox(
-        elements: list.elements,
+        values: list.values,
         removeAction: { removedIndex in
-            guard list.elements.indices.contains(removedIndex) else { return }
-            list.elements.remove(at: removedIndex)
+            guard list.indices.contains(removedIndex) else { return }
+            list.withMutableValues { $0.remove(at: removedIndex) }
         },
         setAction: { setIndex, value in
-            guard list.elements.indices.contains(setIndex) else { return }
-            list.elements[setIndex] = value
+            guard list.indices.contains(setIndex) else { return }
+            list.setValue(value, at: setIndex)
         },
         addAction: { addIndex, value in
-            guard (0...list.elements.count).contains(addIndex) else { return }
-            list.elements.insert(value, at: addIndex)
+            guard (0...list.count).contains(addIndex) else { return }
+            list.withMutableValues { $0.insert(value, at: addIndex) }
         }
     )
     iter.index = index
@@ -279,6 +457,39 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
     registerListIteratorItable(raw: raw)
     registerMutableListIteratorItable(raw: raw)
     return raw
+}
+
+/// Returns a mutable view over a list range. ArrayList constructors are
+/// lowered to RuntimeListBox values, so ArrayList must bypass
+/// AbstractMutableList's field-backed default `subList` implementation.
+@_cdecl("kk_list_subList")
+public func kk_list_subList(
+    _ listRaw: Int,
+    _ fromIndex: Int,
+    _ toIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
+        return 0
+    }
+    guard fromIndex >= 0,
+          toIndex <= list.count,
+          fromIndex <= toIndex
+    else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIndexOutOfBoundsException(
+                message: "fromIndex: \(fromIndex), toIndex: \(toIndex), size: \(list.count)"
+            )
+        )
+        return 0
+    }
+    return registerRuntimeObject(
+        RuntimeListBox(subListOf: list, fromIndex: fromIndex, toIndex: toIndex),
+        typeID: listRuntimeTypeID
+    )
 }
 
 @_cdecl("kk_list_iterator_hasNext")
@@ -291,7 +502,7 @@ public func kk_list_iterator_hasNext(_ iterRaw: Int) -> Int {
         // kk_iterator_* dispatcher, which knows how to drive it via itable.
         return kk_iterator_hasNext(iterRaw)
     }
-    return iter.index < iter.elements.count ? 1 : 0
+    return iter.index < iter.values.count ? 1 : 0
 }
 
 @_cdecl("kk_list_iterator_next")
@@ -304,17 +515,16 @@ public func kk_list_iterator_next(
         // BUG-231: see kk_list_iterator_hasNext above.
         return kk_iterator_next(iterRaw, outThrown)
     }
-    guard iter.index < iter.elements.count else {
-        runtimeSetThrown(
+    guard iter.index < iter.values.count else {
+        return runtimeThrowIteratorExhausted(
             outThrown,
-            runtimeAllocateNoSuchElementException(message: "List iterator has no next element.")
+            message: "List iterator has no next element."
         )
-        return 0
     }
-    let value = iter.elements[iter.index]
+    let value = iter.values[iter.index]
     iter.lastReturnedIndex = iter.index
     iter.index += 1
-    return value
+    return runtimeCollectionABIValue(value)
 }
 
 func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
@@ -329,7 +539,7 @@ func runtimeListIteratorSet(_ iterRaw: Int, _ elem: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
         return 0
     }
-    _ = iter.setLastReturned(elem)
+    _ = iter.setLastReturned(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem))
     return 0
 }
 
@@ -337,7 +547,7 @@ func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
         return 0
     }
-    iter.addBeforeNext(elem)
+    iter.addBeforeNext(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem))
     return 0
 }
 
@@ -347,7 +557,7 @@ func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int) -> Int {
 /// also check the upper bound so that a corrupted/invalid index
 /// cannot lead to an out-of-bounds access in `previous()`.
 func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
-    iter.index > 0 && iter.index <= iter.elements.count
+    iter.index > 0 && iter.index <= iter.values.count
 }
 
 @_cdecl("kk_list_iterator_hasPrevious")
@@ -370,7 +580,7 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     // This matches the standard ListIterator behavior
     iter.index -= 1
     iter.lastReturnedIndex = iter.index
-    return iter.elements[iter.index]
+    return runtimeCollectionABIValue(iter.values[iter.index])
 }
 
 @_cdecl("kk_list_iterator_nextIndex")
@@ -423,11 +633,11 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: Int) {
 @inline(__always)
 func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
     if let list = runtimeListBox(from: destRaw) {
-        list.values.append(element)
+        list.withMutableValues { $0.append(element) }
         return
     }
     if let set = runtimeSetBox(from: destRaw) {
-        _ = set.insert(rawValue: element.legacyRawValue)
+        _ = set.insert(value: element)
         return
     }
     invalidContainerPanic(#function, "mutable collection")
@@ -436,13 +646,13 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
 @_cdecl("__kk_mutable_collection_add")
 public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int {
     if let list = runtimeListBox(from: collectionRaw) {
-        var values = list.values
-        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
-        list.values = values
+        list.withMutableValues { values in
+            values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+        }
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
-        return kk_box_bool(set.insert(rawValue: elem) ? 1 : 0)
+        return kk_box_bool(set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0)
     }
     return kk_box_bool(0)
 }
@@ -453,9 +663,7 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
         guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
             return kk_box_bool(0)
         }
-        var values = list.values
-        values.remove(at: index)
-        list.values = values
+        list.withMutableValues { $0.remove(at: index) }
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
@@ -483,7 +691,7 @@ public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw:
         return kk_mutable_list_removeAll(collectionRaw, elementsRaw)
     }
     if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_removeAll(collectionRaw, elementsRaw)
+        return kk_mutable_set_removeAll(collectionRaw, elementsRaw, nil)
     }
     return kk_box_bool(0)
 }
@@ -494,27 +702,27 @@ public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw:
         return kk_mutable_list_retainAll(collectionRaw, elementsRaw)
     }
     if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_retainAll(collectionRaw, elementsRaw)
+        return kk_mutable_set_retainAll(collectionRaw, elementsRaw, nil)
     }
     return kk_box_bool(0)
 }
 
 @_cdecl("__kk_mutable_collection_addAll")
 public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
-    guard let elements = runtimeCollectionOrArrayElements(from: elementsRaw) else {
+    guard let values = runtimeCollectionOrArrayValues(from: elementsRaw) else {
         return kk_box_bool(0)
     }
     if let list = runtimeListBox(from: collectionRaw) {
-        if elements.isEmpty {
+        if values.isEmpty {
             return kk_box_bool(0)
         }
-        list.elements.append(contentsOf: elements)
+        list.withMutableValues { $0.append(contentsOf: values) }
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
         var modified = false
-        for element in elements {
-            if set.insert(rawValue: element) {
+        for value in values {
+            if set.insert(value: value) {
                 modified = true
             }
         }
@@ -525,38 +733,29 @@ public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: In
 
 @_cdecl("__kk_collection_toCollection")
 public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
-    guard let elements = runtimeCollectionElements(from: collRaw) else {
+    guard let values = runtimeCollectionValues(from: collRaw) else {
         invalidContainerPanic(#function, "collection")
     }
     guard runtimeMutableCollectionExists(destRaw) else {
         invalidContainerPanic(#function, "mutable collection")
     }
-    for element in elements {
-        runtimeAppendToMutableCollection(destRaw, element)
+    for value in values {
+        runtimeAppendToMutableCollection(destRaw, value)
     }
     return destRaw
 }
 
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
-    let isObjectPointer: Bool = if let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) {
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: pointer))
-        }
-    } else {
-        false
-    }
-    if isObjectPointer,
-       let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
-       let charBox = tryCast(pointer, to: RuntimeCharBox.self)
-    {
-        return RuntimeValue(charScalar: charBox.value)
+    let value = runtimeValueFromCollectionABI(rawValue)
+    if value.tag == RuntimeValue.charTag {
+        return value
     }
     if !currentValues.isEmpty,
        currentValues.allSatisfy({ $0.tag == RuntimeValue.charTag })
     {
         return RuntimeValue(charScalar: maybeUnbox(rawValue))
     }
-    return RuntimeValue(raw: rawValue)
+    return value
 }
 
 @_cdecl("__kk_mutable_list_add")
@@ -573,9 +772,9 @@ public func kk_mutable_list_add(
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
-    var values = list.values
-    values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
-    list.values = values
+    list.withMutableValues { values in
+        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+    }
     return kk_box_bool(1)
 }
 
@@ -586,9 +785,7 @@ public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
     else {
         return kk_box_bool(0)
     }
-    var values = list.values
-    values.remove(at: index)
-    list.values = values
+    list.withMutableValues { $0.remove(at: index) }
     return kk_box_bool(1)
 }
 
@@ -603,73 +800,58 @@ public func kk_mutable_list_removeAt(
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
         return outThrown == nil ? runtimeNullSentinelInt : 0
     }
-    guard list.values.indices.contains(index) else {
+    guard list.indices.contains(index) else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.values.count)")
+            runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.count)")
         )
         return outThrown == nil ? runtimeNullSentinelInt : 0
     }
-    var values = list.values
-    let removed = values.remove(at: index)
-    list.values = values
-    return removed.legacyRawValue
+    return list.withMutableValues { $0.remove(at: index).legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeFirst")
 public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw),
-          !list.values.isEmpty
+          list.count > 0
     else {
         outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
         return 0
     }
-    var values = list.values
-    let removed = values.removeFirst()
-    list.values = values
-    return removed.legacyRawValue
+    return list.withMutableValues { $0.removeFirst().legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeFirstOrNull")
 public func kk_mutable_list_removeFirstOrNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
-          !list.values.isEmpty
+          list.count > 0
     else {
         return runtimeNullSentinelInt
     }
-    var values = list.values
-    let removed = values.removeFirst()
-    list.values = values
-    return removed.legacyRawValue
+    return list.withMutableValues { $0.removeFirst().legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeLast")
 public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw),
-          !list.values.isEmpty
+          list.count > 0
     else {
         outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
         return 0
     }
-    var values = list.values
-    let removed = values.removeLast()
-    list.values = values
-    return removed.legacyRawValue
+    return list.withMutableValues { $0.removeLast().legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeLastOrNull")
 public func kk_mutable_list_removeLastOrNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
-          !list.values.isEmpty
+          list.count > 0
     else {
         return runtimeNullSentinelInt
     }
-    var values = list.values
-    let removed = values.removeLast()
-    list.values = values
-    return removed.legacyRawValue
+    return list.withMutableValues { $0.removeLast().legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_clear")
@@ -689,15 +871,15 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
         outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
         return 0
     }
-    var values = list.values
-    guard (0...values.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "MutableList index \(index) out of bounds for length \(values.count)."
+    guard (0...list.count).contains(index) else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "MutableList index \(index) out of bounds for length \(list.count)."
         )
         return 0
     }
-    values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
-    list.values = values
+    list.withMutableValues { values in
+        values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
+    }
     return 0
 }
 
@@ -713,16 +895,16 @@ public func kk_mutable_list_addAll_at(
         outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
         return 0
     }
-    guard (0...list.elements.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "MutableList index \(index) out of bounds for length \(list.elements.count)."
+    guard (0...list.count).contains(index) else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "MutableList index \(index) out of bounds for length \(list.count)."
         )
         return 0
     }
-    guard let newElements = runtimeCollectionOrArrayElements(from: collectionRaw), !newElements.isEmpty else {
+    guard let newValues = runtimeCollectionOrArrayValues(from: collectionRaw), !newValues.isEmpty else {
         return kk_box_bool(0)
     }
-    list.elements.insert(contentsOf: newElements, at: index)
+    list.withMutableValues { $0.insert(contentsOf: newValues, at: index) }
     return kk_box_bool(1)
 }
 
@@ -733,16 +915,16 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
         outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
         return 0
     }
-    var values = list.values
+    let values = list.values
     guard values.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "MutableList index \(index) out of bounds for length \(values.count)."
         )
         return 0
     }
     let old = values[index]
-    values[index] = runtimeMutableListInsertedValue(for: values, rawValue: element)
-    list.values = values
+    let replacement = runtimeMutableListInsertedValue(for: values, rawValue: element)
+    list.setValue(replacement, at: index)
     return old.legacyRawValue
 }
 
@@ -754,12 +936,14 @@ public func kk_mutable_list_shuffle(_ listRaw: Int) -> Int {
         return 0
     }
     // Fisher-Yates shuffle
-    let count = list.elements.count
+    let count = list.count
     if count > 1 {
         var rng = SystemRandomNumberGenerator()
-        for i in stride(from: count - 1, through: 1, by: -1) {
-            let j = Int.random(in: 0 ... i, using: &rng)
-            list.elements.swapAt(i, j)
+        list.withMutableValues { values in
+            for i in stride(from: count - 1, through: 1, by: -1) {
+                let j = Int.random(in: 0 ... i, using: &rng)
+                values.swapAt(i, j)
+            }
         }
     }
     return 0
@@ -770,7 +954,7 @@ public func kk_mutable_list_reverse(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
     }
-    list.elements.reverse()
+    list.withMutableValues { $0.reverse() }
     return 0
 }
 
@@ -782,23 +966,23 @@ public func kk_mutable_list_addAll(_ listRaw: Int, _ collectionRaw: Int) -> Int 
 }
 
 private func runtimeMutableListAddAllSequence(list: RuntimeListBox, sequenceRaw: Int) -> Int {
-    guard let elements = runtimeSequenceSourceElements(from: sequenceRaw) else {
+    guard let values = runtimeSequenceSourceValues(from: sequenceRaw) else {
         return kk_box_bool(0)
     }
-    if elements.isEmpty {
+    if values.isEmpty {
         return kk_box_bool(0)
     }
-    list.elements.append(contentsOf: elements)
+    list.withMutableValues { $0.append(contentsOf: values) }
     return kk_box_bool(1)
 }
 
 private func runtimeMutableSetAddAllSequence(set: RuntimeSetBox, sequenceRaw: Int) -> Int {
-    guard let elements = runtimeSequenceSourceElements(from: sequenceRaw) else {
+    guard let values = runtimeSequenceSourceValues(from: sequenceRaw) else {
         return kk_box_bool(0)
     }
     var modified = false
-    for elem in elements {
-        if set.insert(rawValue: elem) {
+    for value in values {
+        if set.insert(value: value) {
             modified = true
         }
     }
@@ -833,13 +1017,13 @@ public func kk_mutable_collection_addAll_iterable(_ collectionRaw: Int, _ iterab
         if values.isEmpty {
             return kk_box_bool(0)
         }
-        list.values.append(contentsOf: values)
+        list.withMutableValues { $0.append(contentsOf: values) }
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
         var modified = false
         for value in values {
-            if set.insert(rawValue: value.legacyRawValue) {
+            if set.insert(value: value) {
                 modified = true
             }
         }
@@ -858,19 +1042,15 @@ public func kk_mutable_list_removeAll(_ listRaw: Int, _ collectionRaw: Int) -> I
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(0)
     }
-    let collectionElements: [Int]
-    if let collection = runtimeListBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else if let collection = runtimeSetBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else {
+    guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return kk_box_bool(0)
     }
-    let originalCount = list.elements.count
-    list.elements.removeAll { elem in
-        collectionElements.contains(where: { runtimeValuesEqual($0, elem) })
+    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    let originalCount = list.count
+    list.withMutableValues { values in
+        values.removeAll { members.contains(RuntimeElementKey(value: $0.legacyRawValue)) }
     }
-    return kk_box_bool(list.elements.count != originalCount ? 1 : 0)
+    return kk_box_bool(list.count != originalCount ? 1 : 0)
 }
 
 @_cdecl("__kk_mutable_list_retainAll")
@@ -878,19 +1058,15 @@ public func kk_mutable_list_retainAll(_ listRaw: Int, _ collectionRaw: Int) -> I
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(0)
     }
-    let collectionElements: [Int]
-    if let collection = runtimeListBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else if let collection = runtimeSetBox(from: collectionRaw) {
-        collectionElements = collection.elements
-    } else {
+    guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return kk_box_bool(0)
     }
-    let originalCount = list.elements.count
-    list.elements.removeAll { elem in
-        !collectionElements.contains(where: { runtimeValuesEqual($0, elem) })
+    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    let originalCount = list.count
+    list.withMutableValues { values in
+        values.removeAll { !members.contains(RuntimeElementKey(value: $0.legacyRawValue)) }
     }
-    return kk_box_bool(list.elements.count != originalCount ? 1 : 0)
+    return kk_box_bool(list.count != originalCount ? 1 : 0)
 }
 // KSP-428: Keep asReversed lazy so mutations of a MutableList are visible
 // through the returned view.

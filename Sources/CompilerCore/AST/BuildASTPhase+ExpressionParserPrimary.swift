@@ -53,6 +53,11 @@ extension BuildASTPhase.ExpressionParser {
             let suspendStart = token.range.start
             _ = consume()
             return parseLambdaLiteral(start: suspendStart)
+        case .keyword(.fun) where peek(1)?.kind == .symbol(.lParen):
+            // Anonymous function expression: `fun(params): RetType { body }`.
+            // Distinct from `fun` as a declaration modifier/keyword, which is
+            // never followed directly by `(` (a name always comes first).
+            return parseAnonymousFunctionLiteral()
         case let .keyword(keyword):
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))
@@ -80,11 +85,8 @@ extension BuildASTPhase.ExpressionParser {
         case let .intLiteral(text):
             _ = consume()
             let value = parseSignedLiteral(text, range: token.range) ?? 0
-            // Hex/bin literals whose value exceeds Int32 range are auto-promoted to Long in Kotlin
-            let lower = text.lowercased()
-            if (lower.hasPrefix("0x") || lower.hasPrefix("0b"))
-                && (value > Int64(Int32.max) || value < Int64(Int32.min))
-            {
+            // Unsuffixed integer literals widen to Long when they do not fit Int32.
+            if value > Int64(Int32.max) || value < Int64(Int32.min) {
                 return astArena.appendExpr(.longLiteral(value, token.range))
             }
             return astArena.appendExpr(.intLiteral(value, token.range))
@@ -207,7 +209,12 @@ extension BuildASTPhase.ExpressionParser {
         if magnitude <= UInt64(Int64.max) {
             return Int64(magnitude)
         }
-        return Int64(bitPattern: magnitude)
+        diagnostics?.error(
+            "KSWIFTK-LEX-0002",
+            "Signed literal overflow.",
+            range: range
+        )
+        return nil
     }
 
     private func parsePrimaryIdentifier(_ token: Token) -> ExprID? {

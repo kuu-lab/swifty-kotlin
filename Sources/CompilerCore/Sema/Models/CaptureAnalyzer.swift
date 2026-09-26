@@ -111,6 +111,14 @@ struct CaptureAnalyzer {
                 visit(value)
 
             case let .call(callee, _, args, _):
+                // A call that resolved on an outer implicit receiver needs the
+                // enclosing `this` captured so the receiver value reaches the
+                // member body's lowering.
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 visit(callee)
                 for arg in args {
                     visit(arg.expr)
@@ -248,9 +256,14 @@ struct CaptureAnalyzer {
                 visit(iterable)
                 visit(body)
 
+            case .thisRef:
+                // Qualified extension-receiver references such as
+                // `this@describe` are bound to the receiver parameter symbol.
+                recordCapture(for: currentExprID)
+
             case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
                  .charLiteral, .boolLiteral, .stringLiteral,
-                 .breakExpr, .continueExpr, .superRef, .thisRef:
+                 .breakExpr, .continueExpr, .superRef:
                 break
 
             case let .objectLiteral(_, declID, _):

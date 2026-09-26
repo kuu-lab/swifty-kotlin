@@ -55,7 +55,7 @@ LSPServerTests       --> LSPServer, CompilerCore
 Runtime (独立 — リンク時に結合)
 ```
 
-LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。
+LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。discovery の候補は `KSWIFTK_LLVM_DYLIB`（絶対パスのみ）と固定の trusted install directory に限定され、`LIBRARY_PATH` / `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` は参照しない。`dlopen` 前に対象ファイルと全 ancestor directory の owner（root または実行ユーザ）・mode（group/other 書き込み不可）・canonical path を `TrustedFileSystem.trustedLoadableFile` で検証する。
 
 ---
 
@@ -378,7 +378,7 @@ KIRModule (lowered)
 
 ## 10. CI ジョブ構成
 
-`.github/workflows/ci.yml` のジョブ（全ジョブ `ubuntu-latest`、Swift 6.3、`SWIFT_BUILD_SYSTEM=native`、`SWIFT_XSWIFTC_FLAGS` で言語モード 6 + strict concurrency を共有）:
+`.github/workflows/ci.yml` のジョブは Ubuntu、`.github/workflows/macos-ci.yml` は macOS 26 runner を使う。Swift 6.3、`SWIFT_XSWIFTC_FLAGS` による言語モード 6 + strict concurrency を共有する。Ubuntu 側は `SWIFT_BUILD_SYSTEM=native`、macOS 側は test product 単位の `swiftbuild` を使う:
 
 | ジョブ | 内容 |
 |---|---|
@@ -390,13 +390,15 @@ KIRModule (lowered)
 | `build-release-kswiftc` | `swift build -c release --product kswiftc` を 1 回だけ実行し `kswiftc-release-<run id>` artifact にする |
 | `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.3.10 で `Scripts/diff_kotlinc.sh` を 4 シャード実行。shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-shard-<n>` artifact |
 
+`.github/workflows/macos-ci.yml` の `macos-build-smoke-link` は、Homebrew LLVM 20 と macOS SDK を明示して `CompilerCoreTests` / `CompilerBackendTests` の test product をビルドし、`SmokeTests` と `LinkPhaseIntegrationTests` を直列実行する。これは一次プラットフォームの最小常設レーン（ARCH-027）であり、Ubuntu の共有 debug artifact とは独立に macOS 上でコンパイル・リンクを検証する。
+
 セットアップアクション（`.github/actions/`）:
-- [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux ランナーの共通準備（全ジョブ）
+- [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
 - [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
 - [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
-- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-debug-tests` / `build-release-kswiftc` が `save: "false"`（restore-only）で使用
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-debug-tests` / `build-release-kswiftc` / `macos-build-smoke-link` が `save: "false"`（restore-only）で使用
 
-LLVM を明示的に導入するのは `verify-self-hosted` だけ。`verify-diff` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2）。
+LLVM を明示的に導入するのは Ubuntu の `verify-self-hosted` と macOS の `macos-build-smoke-link`。`verify-diff` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2）。
 
 ### ビルドとテスト実行の分離
 

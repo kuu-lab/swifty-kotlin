@@ -94,5 +94,68 @@ extension LoweringPassRegressionTests {
                     "a class receiver has no ordinal to name; callees: \(callees)")
         }
     }
+
+    // BUG-A: an entry-body `override fun toString()` (e.g. `Op.MUL`) used to
+    // be silently ignored by `println(Op.MUL)`/`toString()` -- the rewrite
+    // always defaulted to `$enumOrdinalToName$` (the bare entry name), never
+    // checking whether some entry's dispatch helper should run first.
+    @Test
+    func testEnumEntryBodyToStringOverrideLowersToDispatchHelper() throws {
+        let source = """
+        enum class Op {
+            ADD, MUL { override fun toString() = "times" };
+        }
+        fun render(o: Op): String {
+            return o.toString()
+        }
+        fun main() {
+            println(render(Op.MUL))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumEntryBodyToString", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains(where: { $0.hasPrefix("$enumEntryDispatch$") }),
+                    "toString() must route through the entry dispatch helper when an entry overrides it; callees: \(callees)")
+            #expect(!callees.contains("kk_any_member_to_string"),
+                    "the kotlin.Any binding must be rewritten away; callees: \(callees)")
+        }
+    }
+
+    // BUG-A: a class-level `override fun toString()` must still win when no
+    // entry body overrides it (the dispatch-helper path above only applies
+    // once at least one entry does).
+    @Test
+    func testEnumClassLevelToStringOverrideLowersToDirectCall() throws {
+        let source = """
+        enum class Planet { MERCURY, VENUS; override fun toString() = "planet-" + name.lowercase() }
+        fun render(p: Planet): String {
+            return p.toString()
+        }
+        fun main() {
+            println(render(Planet.VENUS))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumClassLevelToString", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(!callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
+                    "a class-level override must win over the default bare-name rendering; callees: \(callees)")
+            #expect(!callees.contains("kk_any_member_to_string"),
+                    "the kotlin.Any binding must be rewritten away; callees: \(callees)")
+        }
+    }
 }
 #endif

@@ -81,6 +81,11 @@ public val FloatArray.size: Int get() = __kkFloatArraySize(this)
 public val Array<*>.size: Int get() = __kkArraySize(this)
 public fun <T> Array<out T>.toList(): List<T> = __kkArrayToList(this)
 
+/**
+ * Creates an [Iterable] instance that wraps the original array.
+ */
+public fun <T> Array<out T>.asIterable(): Iterable<T> = this.asList()
+
 public fun IntArray.toList(): List<Int> = __kkIntArrayToList(this)
 public fun LongArray.toList(): List<Long> = __kkLongArrayToList(this)
 public fun ShortArray.toList(): List<Short> = __kkShortArrayToList(this)

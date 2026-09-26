@@ -208,6 +208,43 @@ extension ControlFlowLowerer {
             return negatedResult
         }
 
+        // `in a..b -> ...` / `!in a..b -> ...`: unlike a plain value condition
+        // (which desugars to `subject == condition`), `in`/`!in` already
+        // stands alone as a complete Boolean test against the subject
+        // (`.inExpr`/`.notInExpr` embed the subject as their own `lhs`), so
+        // its lowered value is the match result directly. Route through
+        // `lowerContainsCheck` with the subject's already-lowered value
+        // (`loweredSubjectID`) rather than re-lowering the whole condition —
+        // that would re-lower `lhsExpr` (the subject) from scratch and
+        // re-evaluate a side-effecting subject once per `in`/`!in` branch.
+        if let loweredSubjectID,
+           let conditionExpr = ast.arena.expr(conditionExprID)
+        {
+            let inCondition: (lhsExpr: ExprID, rhsExpr: ExprID, negated: Bool)? = switch conditionExpr {
+            case let .inExpr(lhsExpr, rhsExpr, _): (lhsExpr, rhsExpr, false)
+            case let .notInExpr(lhsExpr, rhsExpr, _): (lhsExpr, rhsExpr, true)
+            default: nil
+            }
+            if let inCondition,
+               isSameWhenSubjectExpression(inCondition.lhsExpr, subjectExprID: subjectExprID, sema: sema)
+            {
+                return driver.exprLowerer.lowerContainsCheck(
+                    exprID: conditionExprID,
+                    lhsID: loweredSubjectID,
+                    lhsExpr: inCondition.lhsExpr,
+                    rhsExpr: inCondition.rhsExpr,
+                    negated: inCondition.negated,
+                    boundType: boolType,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
+        }
+
         let conditionValueID = driver.lowerExpr(
             conditionExprID,
             ast: ast,

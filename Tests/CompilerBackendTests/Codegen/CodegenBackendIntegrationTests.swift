@@ -119,6 +119,24 @@ import Testing
     }
 
     @Test
+    func testCodegenRawStringSimpleNameTemplatesInterpolate() throws {
+        let source = #"""
+        fun main() {
+            val x = 5
+            println("""$x""")
+            println("""a$x b""")
+            println("""${x}""")
+        }
+        """#
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RawStringSimpleNameTemplates",
+            expected: "5\na5 b\n5\n"
+        )
+    }
+
+    @Test
     func testCodegenProducesDeterministicKirOutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
@@ -703,6 +721,27 @@ import Testing
     }
 
     @Test
+    func testCodegenMutableMapEntrySetValueWritesThroughToMap() throws {
+        let source = """
+        fun main() {
+            val map = mutableMapOf("a" to 1, "b" to 2)
+            val entry = map.entries.first()
+            entry.setValue(99)
+            println(map)
+            println(map.values)
+            println(map.entries)
+            println(entry.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableMapEntrySetValueRuntime",
+            expected: "{a=99, b=2}\n[99, 2]\n[a=99, b=2]\n99\n"
+        )
+    }
+
+    @Test
     func testCodegenLinkedMapOfFactoryUsesMutableRuntimeMap() throws {
         let source = """
         fun main() {
@@ -1213,6 +1252,30 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
+    }
+
+    // KUU-637: generic Comparable minOf/maxOf must distinguish signed zeros.
+    @Test
+    func testCodegenGenericMinOfMaxOfSignedZeroTotalOrder() throws {
+        let source = """
+        fun <T : Comparable<T>> maxOf2(a: T, b: T): T = maxOf(a, b)
+        fun <T : Comparable<T>> minOf2(a: T, b: T): T = minOf(a, b)
+
+        fun main() {
+            println(maxOf2(-0.0, 0.0))
+            println(maxOf2(0.0, -0.0))
+            println(minOf2(0.0, -0.0))
+            println(minOf2(-0.0, 0.0))
+            println(maxOf2(-0.0f, 0.0f))
+            println(minOf2(0.0f, -0.0f))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericMinOfMaxOfSignedZero",
+            expected: "0.0\n0.0\n-0.0\n-0.0\n0.0\n-0.0\n"
+        )
     }
     // MARK: - Private Helpers
 

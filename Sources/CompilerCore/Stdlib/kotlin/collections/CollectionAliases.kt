@@ -43,6 +43,18 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     @KsSymbolName("kk_list_iterator")
     override external fun iterator(): Iterator<E>
 
+    // ArrayList instances are represented by the tagged RuntimeListBox used
+    // by the collection factory lowering. Keep the inherited default methods
+    // from reading AbstractMutableList.modCount as an object field.
+    @KsSymbolName("kk_list_iterator")
+    override external fun listIterator(): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_iterator_at")
+    override external fun listIterator(index: Int): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_subList")
+    override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
+
     @KsSymbolName("__kk_mutable_list_add")
     override external fun add(element: E): Boolean
 

@@ -64,7 +64,7 @@ data class Product private constructor(
         fun createPremiumProduct(name: String, price: Double): Product = Product("premium-$name", name, price)
     }
 
-    fun getDescription(): String = "$name (${'$'}$price) - ID: $id"
+    fun getDescription(): String = "$name ($$price) - ID: $id"
 }
 
 class EmailAddress private constructor(private val address: String) {

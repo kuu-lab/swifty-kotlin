@@ -7,6 +7,57 @@ import Testing
 // when toString() is called directly -- see that file's header comment for
 // the full root-cause writeup.
 extension BundledStdlibExecutionTests {
+    // KUU-599 regression: an imported generic collection HOF passes a boxed
+    // value-class element through an erased callback ABI. Double must be
+    // unboxed before the lambda reads its property, and a value class's
+    // toString() must survive Any/collection boxing.
+    @Test
+    func testValueClassDoubleSurvivesErasedMapAndAnyToString() throws {
+        try compileAndRunKotlin(
+            """
+            @JvmInline
+            value class Meters(val v: Double) {
+                override fun toString(): String = "${v}m"
+            }
+
+            @JvmInline
+            value class Id(val raw: Int) {
+                override fun toString(): String = "#$raw"
+            }
+
+            fun main() {
+                println(listOf(Meters(1.0)).map { it.v })
+                println(listOf(Meters(1.0)).map { it.v + 1 })
+                println(listOf(Meters(1.0), Meters(2.0)).map { it.v + 1 })
+                println(listOf(Id(2)).map { it.raw + 1 })
+                println(listOf(Meters(1.0)).sumOf { it.v })
+                println(listOf(Meters(1.0)))
+                println(listOf(Id(1)).map { it })
+                val any: Any = Id(3)
+                println(any.toString())
+                println("$any")
+                println(Meters(1.0))
+                println("${Id(4)}")
+            }
+            """,
+            expectedOutput:
+                """
+                [1.0]
+                [2.0]
+                [2.0, 3.0]
+                [3]
+                1.0
+                [1.0m]
+                [#1]
+                #3
+                #3
+                1.0m
+                #4
+                """ + "\n",
+            moduleName: "KUU599ValueClassDouble"
+        )
+    }
+
     @Test
     func testClassConcatenationAndInterpolationCallOverriddenToString() throws {
         try compileAndRunKotlin(
