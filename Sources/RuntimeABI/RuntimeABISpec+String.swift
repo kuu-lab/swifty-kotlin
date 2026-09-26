@@ -38,6 +38,15 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_flat_string_release",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_string_concat_flat",
             parameters: [
                 RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
