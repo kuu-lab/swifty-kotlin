@@ -72,67 +72,9 @@ public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
     return kk_box_char(Int(codeUnits[index]))
 }
 
-// MARK: - Flat ABI wrappers
-
-@_cdecl("kk_string_ifBlank_flat")
-public func kk_string_ifBlank_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ fnPtr: Int, _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        return runtimeRegisterFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    guard fnPtr != 0 else {
-        return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let raw = lambda(closureRaw, &thrown)
-    if thrown != 0 {
-        runtimePropagateThrownOrTrap(
-            thrown,
-            outThrown: outThrown,
-            context: "ifBlank defaultValue"
-        )
-        return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_ifEmpty_flat")
-public func kk_string_ifEmpty_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ fnPtr: Int, _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard source.isEmpty else {
-        return runtimeRegisterFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    guard fnPtr != 0 else {
-        return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let raw = lambda(closureRaw, &thrown)
-    if thrown != 0 {
-        runtimePropagateThrownOrTrap(
-            thrown,
-            outThrown: outThrown,
-            context: "ifEmpty defaultValue"
-        )
-        return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
+/* KSP-1362: kk_string_ifBlank_flat / kk_string_ifEmpty_flat removed;
+   ifBlank/ifEmpty are now bundled Kotlin source (StringEmptyBlankLines.kt)
+   on generic `C : CharSequence, C : R` receivers. */
 
 @_cdecl("kk_string_get")
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

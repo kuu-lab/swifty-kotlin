@@ -1483,8 +1483,9 @@ public extension RuntimeABISpec {
         // STDLIB-192
         // STDLIB-190
         // STDLIB-187
-        flatStringHOFReturnSpec(name: "kk_string_ifBlank_flat"),
-        flatStringHOFReturnSpec(name: "kk_string_ifEmpty_flat"),
+        // KSP-1362: kk_string_ifBlank_flat / kk_string_ifEmpty_flat removed;
+        // ifBlank/ifEmpty are bundled Kotlin source (StringEmptyBlankLines.kt)
+        // on generic `C : CharSequence, C : R` receivers.
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBigDecimal_flat",
             parameters: [

@@ -140,18 +140,10 @@ extension NativeEmitter {
             // no flat emission spec.
             // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
             // source (StringHOF.kt); no flat emission spec.
-            "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_ifBlank_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 2,
-                canThrow: true
-            ),
-            "kk_string_ifEmpty_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_ifEmpty_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 2,
-                canThrow: true
-            ),
+            // KSP-1362: kk_string_ifBlank_flat / kk_string_ifEmpty_flat
+            // removed; ifBlank/ifEmpty are bundled Kotlin source
+            // (StringEmptyBlankLines.kt) on generic `C : CharSequence, C : R`
+            // receivers.
             // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin
             // source (StringTakeDrop.kt); no flat emission spec.
             "kk_string_replace_flat": FlatStringReturnCallSpec(
