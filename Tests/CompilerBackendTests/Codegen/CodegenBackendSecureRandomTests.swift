@@ -30,15 +30,18 @@ struct CodegenBackendSecureRandomTests {
 
             val sr2 = SecureRandom.getInstance()
             sr2.setSeed(42)
-            val buf2a = ByteArray(4)
+            val buf2a = ByteArray(16)
             sr2.nextBytes(buf2a)
 
             val sr3 = SecureRandom.getInstance()
             sr3.setSeed(42)
-            val buf2b = ByteArray(4)
+            val buf2b = ByteArray(16)
             sr3.nextBytes(buf2b)
 
-            println(buf2a.toList() == buf2b.toList())
+            // setSeed must not replace the CSPRNG with a reproducible stream
+            // (KUU-790): identically seeded instances still produce different
+            // bytes.
+            println(buf2a.toList() != buf2b.toList())
         }
         """
 

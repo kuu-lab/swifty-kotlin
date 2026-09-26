@@ -35,6 +35,31 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
+        // BUG-274: whichever specialized lowering strategy below actually
+        // handles this member call/access, it targets a real member of
+        // `chosenCallee`'s (or, for a property-like access bound only via
+        // `identifierSymbol`, that symbol's) owner. When that owner is a
+        // source-backed object/companion, its state must not be touched
+        // before its lazy clinit-equivalent has run — and several of the
+        // strategies below construct the receiver value directly instead of
+        // lowering `receiverExpr` through the ordinary bare-name path
+        // (`ExprLowerer`'s ``.nameRef`` case, where an external qualifier
+        // like `Comp.member()` would otherwise trigger this on its own),
+        // most notably a same-class-body reference such as
+        // `Companion.member()`. Keying off the resolved target's owner,
+        // rather than chasing every receiver-construction shortcut
+        // individually, covers all of them uniformly. A no-op for anything
+        // that isn't a source-backed object/companion (see `objectLazyInit`).
+        if let targetSymbol = sema.bindings.callBindings[exprID]?.chosenCallee
+            ?? sema.bindings.identifierSymbol(for: exprID),
+           let ownerSymbol = sema.symbols.parentSymbol(for: targetSymbol)
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                instructions: &instructions.instructions
+            )
+        }
+
         if let lateinitStatus = tryLowerLateinitIsInitialized(
             exprID,
             receiverExpr: receiverExpr,
@@ -368,6 +393,7 @@ extension CallLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions.instructions
                 ) {
                     let loweredArgIDs = args.map { argument in
@@ -476,6 +502,41 @@ extension CallLowerer {
                 }
                 return result
             }
+        }
+
+        // Explicit `invoke` sugar on a function-typed value:
+        // `f.invoke(args)` / `prop.invoke(args)` (KUU-644). Sema binds a
+        // CallableValueCallBinding with `target == nil`, so the lowered
+        // receiver expression itself is the function object to invoke.
+        if let callableBinding = sema.bindings.callableValueCalls[exprID],
+           callableBinding.target == nil,
+           case .functionType = sema.types.kind(of: callableBinding.functionType),
+           let invokeCallee = runtimeCallableInvokeCallee(
+               callableValueCallBinding: callableBinding,
+               sema: sema,
+               interner: interner
+           )
+        {
+            let functionValue = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            let loweredArgIDs = args.map { argument in
+                driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+            }
+            let invokeArgs = normalizedCallableValueArguments(
+                providedArguments: loweredArgIDs,
+                callableValueCallBinding: callableBinding,
+                sema: sema
+            )
+            let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendTemporary(type: boundType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: invokeCallee,
+                arguments: [functionValue] + invokeArgs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
         }
 
         let effectiveCalleeName = if sema.bindings.isInvokeOperatorCall(exprID) {

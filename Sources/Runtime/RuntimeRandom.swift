@@ -84,16 +84,13 @@ public func __kk_random_seed_entropy() -> Int {
 // MARK: - SecureRandom (STDLIB-101)
 
 final class SecureRandomBox {
-    private var seeded: SeededRandomBox?
-
-    func setSeed(_ seed: Int) {
-        seeded = SeededRandomBox(seed: seed)
-    }
+    // java.security.SecureRandom.setSeed only supplements a CSPRNG's entropy
+    // and must never make output reproducible. SystemRandomNumberGenerator
+    // accepts no seed input, so the compatibility entry point is a no-op
+    // rather than a switch onto a deterministic stream.
+    func setSeed(_: Int) {}
 
     private func nextBits() -> UInt64 {
-        if let seeded {
-            return seeded.nextBits()
-        }
         var rng = SystemRandomNumberGenerator()
         return rng.next()
     }

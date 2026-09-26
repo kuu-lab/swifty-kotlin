@@ -149,6 +149,8 @@ struct SemanticsAndUtilitiesRegressionTests {
             """
             package sample8
 
+                    @file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
                     import kotlin.concurrent.AtomicLongArray
 
                     fun main() {

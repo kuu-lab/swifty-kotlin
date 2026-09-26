@@ -42,6 +42,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
 | DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
+| DEBT-DIFF-011 | 1 | KSwiftK-superset 構文で JVM kotlinc がコンパイル自体を拒否するケース（例: 関数本体内の named local `object` 宣言） | 詳細は下記節。candidate 出力が正しくても reference oracle が存在しないため keep skip。superset 部分の検証は sema golden / unit test 側で行う |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -398,6 +399,12 @@ real kotlinc は `next()` を呼ぶたびに要素を1個ずつ pull して prod
 KIR 実測（`--emit kir`）で、`yieldAll(inner)` は `call __kk_sequence_builder_yieldAll symbol=yieldAll args=[builder, innerSeq] thrown=true` という単一呼び出しへ解決され、`innerSeq` は先行する `.iterator()` 呼び出しの結果ではなく捕捉済みローカルへの直接参照（`symbolRef`）であることを確認した。`SequenceScope.kt` の `yieldAll(sequence: Sequence<T>): Unit = yieldAll(sequence.iterator())` という Kotlin source 委譲本体（`.iterator()` を経由するはず）は実行されていない（dead code）。`symbol` が nil でなく `thrown=true` である点から、`CollectionLiteralLoweringPass+CallRewriteSequenceBuilders.swift` の raw-name 書き換え分岐（`symbol: nil, canThrow: false` を設定）ではなく、`CallLowerer+MemberCallEmission.swift` の `sequenceBuilderRuntimeCalleeName`（解決済み symbol の owner が `kotlin.sequences.SequenceScope` であれば通常の member-call emission 時にコールバック名を runtime bridge へ差し替える経路）が実際に発火しているとみられる。`yield`/`yieldAll` のディスパッチには他にも独立した機構が存在する: `CallTypeChecker+BuilderDSL.swift:1107-1129` にも `externalLinkName == "__kk_sequence_builder_yieldAll"` を条件にした専用オーバーロード選択があるが、`rg -n 'externalLinkName' Sources/CompilerCore/Sema/ | rg -i 'sequence|yield'` で確認した限り、現行コードベースには `SequenceScope.yieldAll` のいずれのオーバーロードにもこの externalLinkName を設定する setter が存在せず、この選択ロジックは常に false（到達不能）と確認済み。いずれの経路でも「元の Kotlin 引数をそのまま runtime bridge へ転送し、委譲 body 自体は実行しない」という結果は同じであり、dead-body の結論と runtime 側の根本原因は変わらない。
 
 次アクション: `RuntimeSequenceCoroutine`（`Sources/Runtime/RuntimeTypes.swift`）へ「サブイテレータへ委譲中」状態を追加し、`nextElement()`/`nextElementAsync()` がこの状態を消費側 pull のたびにチェックして初めて内側シーケンスから1要素引き出す設計に変更する（CPS・legacy thread 両 producer 経路と `RuntimeSequence.swift` の `.lazyBuilder` traversal に影響する coroutine ランタイム自体の再設計）。BUG-255 で追跡。
+
+## DEBT-DIFF-011: KSwiftK-superset 構文（JVM kotlinc が拒否）
+
+KSwiftK が JVM より広い構文を意図的に受理するケースでは、reference kotlinc が compile exit 1 で終了するため差分 oracle が成立しない。`compile exit mismatch: ref=1 candidate=0` で常に FAIL するが、candidate 側の出力が正しくても同じである。`ref_compile.stderr` を読み、candidate が実装する superset 構文と判明したらこのバケットに入れる。
+
+現行ケース: `local_named_object.kt`（KUU-555）。JVM Kotlin では named local `object` 宣言は文法エラー（`error: named object 'Local' cannot be local. Try to use an anonymous object instead.`）だが、KUU-555 は local `class` と対称に kswiftc 側で受理する superset とした。同ファイルを kotlinc-legal な local `class` のみに縮小した `local_named_nominal.kt` は通常 diff で PASS（`5 7 9 4 7` を両側で一致）するため、そちらが oracle を担う。named object 側の回帰固定は `Tests/CompilerCoreTests/GoldenCases/{Parser,Sema}/local_named_nominal` と `LocalNamedNominalTypingTests` が担い、candidate の実行出力 `5 7 9 3 6` を `--force-run-skipped` で目視確認できる。
 
 ## 解除手順
 

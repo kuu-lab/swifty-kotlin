@@ -219,6 +219,22 @@ struct LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testLexerBoundsDeeplyNestedStringTemplates() {
+        let nestingDepth = 2_000
+        let sources = [
+            "val value = \"" + String(repeating: "${", count: nestingDepth) + "1" + String(repeating: "}", count: nestingDepth) + "\"",
+            "val value = \"" + String(repeating: "${\"", count: nestingDepth) + "1" + String(repeating: "}\"", count: nestingDepth),
+        ]
+
+        for source in sources {
+            let result = lex(source)
+
+            #expect(result.tokens.last?.kind == .eof)
+            assertHasDiagnostic("KSWIFTK-LEX-0007", in: result.diagnostics.diagnostics)
+        }
+    }
+
+    @Test
     func testParserCanStartTypeArgumentsLookaheadVariants() {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -416,6 +432,19 @@ struct LexerParserEdgeCaseTests {
         let groupParser = KotlinParser(tokens: groupTokens, interner: interner, diagnostics: groupDiagnostics)
         _ = groupParser.parseFile()
         #expect(groupDiagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
+    }
+
+    @Test
+    func testLexerUnknownByteFloodIsBoundedByDiagnosticLimit() {
+        // Each control byte produces a distinct-ranged KSWIFTK-LEX-0001 error;
+        // the engine stores at most the per-file limit plus one truncation notice.
+        let source = String(repeating: "\u{1}", count: DiagnosticEngine.defaultMaxDiagnosticsPerFile + 500)
+        let result = lex(source)
+        let stored = result.diagnostics.diagnostics
+        #expect(stored.count == DiagnosticEngine.defaultMaxDiagnosticsPerFile + 1)
+        #expect(stored.filter { $0.code == "KSWIFTK-LEX-0001" }.count == DiagnosticEngine.defaultMaxDiagnosticsPerFile)
+        #expect(stored.filter { $0.code == "KSWIFTK-PIPELINE-0005" }.count == 1)
+        #expect(result.diagnostics.hasError)
     }
 }
 #endif

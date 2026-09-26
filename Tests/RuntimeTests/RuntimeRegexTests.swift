@@ -288,6 +288,69 @@ struct RuntimeRegexTests {
         #expect(runtimeString(__kk_match_result_group_value(namedMatch, lhsIndex)) == "ab")
     }
 
+    @Test
+    func emptyPatternFindsZeroWidthMatchesAtEveryIndex() {
+        var thrown = 0
+        let regexRaw = withFlatString("") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+        #expect(regexRaw != 0)
+        #expect(regexRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "")
+
+        let findAllRaw = withFlatString("ab") { data, length, byteCount, hash in
+            kk_regex_findAll_flat(regexRaw, data, length, byteCount, hash)
+        }
+        let matches = runtimeListElements(findAllRaw)
+        #expect(matches.map(matchValue) == ["", "", ""])
+        #expect(matches.map { __kk_match_result_group_start($0, 0) } == [0, 1, 2])
+
+        withFlatString("") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(regexRaw, data, length, byteCount, hash)) == 1)
+        }
+        withFlatString("ab") { data, length, byteCount, hash in
+            #expect(kk_unbox_bool(kk_regex_matches_flat(regexRaw, data, length, byteCount, hash)) == 0)
+            #expect(kk_unbox_bool(kk_regex_containsMatchIn_flat(regexRaw, data, length, byteCount, hash)) == 1)
+        }
+    }
+
+    @Test
+    func emptyPatternNextReachesFinalZeroWidthMatch() {
+        var thrown = 0
+        let regexRaw = withFlatString("") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+
+        var matchRaw = regexFind(regexRaw, input: "ab")
+        var starts: [Int] = []
+        while matchRaw != runtimeNullSentinelInt && matchRaw != 0 {
+            starts.append(__kk_match_result_group_start(matchRaw, 0))
+            matchRaw = __kk_match_result_next(matchRaw)
+        }
+        #expect(starts == [0, 1, 2])
+    }
+
+    @Test
+    func emptyPatternReplaceInsertsAtEveryIndex() {
+        var thrown = 0
+        let regexRaw = withFlatString("") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+        let resultRaw = kk_string_replace_regex(makeStringRaw("ab"), regexRaw, makeStringRaw("-"), nil)
+        #expect(runtimeString(resultRaw) == "-a-b-")
+    }
+
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
+            }
+        }
+    }
+
     // KUU-648: fromLiteral keeps the original literal as `.pattern`, not the escaped matcher.
     @Test
     func fromLiteralPreservesOriginalPatternAndLiteralOption() {

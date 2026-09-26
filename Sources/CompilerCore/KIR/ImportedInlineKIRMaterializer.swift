@@ -25,41 +25,57 @@ enum ImportedInlineKIRMaterializer {
         interner: StringInterner
     ) {
         for symbol in importedFunctions.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
-            guard var function = importedFunctions[symbol] else { continue }
-
-            let concreteBooleanResults = inferConcreteBooleanInvokeResults(
-                in: function,
+            guard let function = importedFunctions[symbol] else { continue }
+            importedFunctions[symbol] = materializeOne(
+                function,
+                arena: arena,
                 types: types,
                 interner: interner
             )
-            var sourceToConsumer: [KIRExprID: KIRExprID] = [:]
-
-            func remap(_ source: KIRExprID) -> KIRExprID {
-                if let existing = sourceToConsumer[source] {
-                    return existing
-                }
-                // Imported bodies may carry exception-slot IDs that are only
-                // observed by an implicit throw check and have no defining
-                // instruction in the lowered body.  Keep their historical
-                // unresolved-value fallback at zero while still giving every
-                // ID a consumer-arena entry for type recovery and remapping.
-                let consumer = arena.appendExpr(.temporary(0))
-                sourceToConsumer[source] = consumer
-                return consumer
-            }
-
-            let body = function.body.map { remapInstruction($0, using: remap) }
-            let locations = function.instructionLocations.count == body.count
-                ? function.instructionLocations
-                : [SourceRange?](repeating: nil, count: body.count)
-            function.replaceBody(body, locations: locations)
-            for (source, type) in concreteBooleanResults {
-                if let consumer = sourceToConsumer[source] {
-                    arena.setExprType(type, for: consumer)
-                }
-            }
-            importedFunctions[symbol] = function
         }
+    }
+
+    /// Rebinds one imported body's expression IDs into `arena`, recovering
+    /// the concrete Boolean invoke-result types callback invokes need.
+    static func materializeOne(
+        _ function: KIRFunction,
+        arena: KIRArena,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> KIRFunction {
+        var function = function
+        let concreteBooleanResults = inferConcreteBooleanInvokeResults(
+            in: function,
+            types: types,
+            interner: interner
+        )
+        var sourceToConsumer: [KIRExprID: KIRExprID] = [:]
+
+        func remap(_ source: KIRExprID) -> KIRExprID {
+            if let existing = sourceToConsumer[source] {
+                return existing
+            }
+            // Imported bodies may carry exception-slot IDs that are only
+            // observed by an implicit throw check and have no defining
+            // instruction in the lowered body.  Keep their historical
+            // unresolved-value fallback at zero while still giving every
+            // ID a consumer-arena entry for type recovery and remapping.
+            let consumer = arena.appendExpr(.temporary(0))
+            sourceToConsumer[source] = consumer
+            return consumer
+        }
+
+        let body = function.body.map { remapInstruction($0, using: remap) }
+        let locations = function.instructionLocations.count == body.count
+            ? function.instructionLocations
+            : [SourceRange?](repeating: nil, count: body.count)
+        function.replaceBody(body, locations: locations)
+        for (source, type) in concreteBooleanResults {
+            if let consumer = sourceToConsumer[source] {
+                arena.setExprType(type, for: consumer)
+            }
+        }
+        return function
     }
 
     private static func inferConcreteBooleanInvokeResults(

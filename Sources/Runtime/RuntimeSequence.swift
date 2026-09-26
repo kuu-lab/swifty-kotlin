@@ -2813,7 +2813,7 @@ public func kk_sequence_elementAtOrNull(_ seqRaw: Int, _ index: Int) -> Int {
 public func kk_sequence_elementAt(_ seqRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     guard elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "Sequence index \(index) out of bounds for length \(elements.count)."
         )
         return runtimeNullSentinelInt

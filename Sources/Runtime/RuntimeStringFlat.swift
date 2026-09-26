@@ -1,15 +1,22 @@
 // Flat String ABI wrappers.
 
 import Foundation
+import RuntimeABI
 
+/// Flat result view of a boxed string handle: shares the box's cached flat
+/// storage so repeated raw→flat bridges of the same value do not accumulate a
+/// fresh buffer per call. Unresolvable handles still flatten to "".
 func runtimeRegisterFlatStringResult(
     _ raw: Int,
     outLength: UnsafeMutablePointer<Int>?,
     outByteCount: UnsafeMutablePointer<Int>?,
     outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatString(
-        runtimeStringFromRaw(raw) ?? "",
+    if let data = kk_string_to_flat(raw, outLength, outByteCount, outHash) {
+        return data
+    }
+    return runtimeRegisterFlatString(
+        "",
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -23,20 +30,6 @@ func runtimeStringScalarsFromFlat(
     hash: Int
 ) -> [UnicodeScalar] {
     Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
-}
-
-func runtimeStringUTF16CodeUnitsFromFlat(
-    data: UnsafePointer<UInt8>?,
-    length: Int,
-    byteCount: Int,
-    hash: Int
-) -> [UInt16] {
-    if let cached = runtimeFlatStringRegisteredUTF16CodeUnits(data: data) {
-        return cached
-    }
-    return runtimeKotlinStringUTF16CodeUnits(
-        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    )
 }
 
 /// Single-index code-unit read for the flat string ABI. Runtime-registered
@@ -62,6 +55,32 @@ func runtimeFlatStringCodeUnit(
         return (unit, -1)
     }
     return (nil, runtimeKotlinStringUTF16Length(source))
+}
+
+/// Boundary code-unit reads for the flat string ABI. Registered strings share
+/// the cached unit array; other buffers read only the leading and trailing
+/// UTF-16 units of the decoded string (surrogate markers mapped exactly like
+/// `runtimeKotlinStringUTF16CodeUnits`) plus whether a second unit exists,
+/// never materializing the whole code-unit array.
+func runtimeFlatStringBoundaryCodeUnits(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> (first: UInt16?, last: UInt16?, hasMultipleUnits: Bool) {
+    if let units = runtimeFlatStringRegisteredUTF16CodeUnits(data: data) {
+        return (units.first, units.last, units.count > 1)
+    }
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    func kotlinCodeUnit(_ unit: UInt16) -> UInt16 {
+        UInt16(KotlinStringSurrogateEncoding.codeUnitValue(for: UInt32(unit)) ?? UInt32(unit))
+    }
+    let units = source.utf16
+    return (
+        units.first.map(kotlinCodeUnit),
+        units.last.map(kotlinCodeUnit),
+        units.dropFirst().first != nil
+    )
 }
 
 @_cdecl("kk_string_trim_flat")
@@ -164,8 +183,8 @@ public func __kk_string_first_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let first = codeUnits.first else {
+    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let first = boundary.first else {
         runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
@@ -181,8 +200,8 @@ public func __kk_string_last_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let last = codeUnits.last else {
+    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let last = boundary.last else {
         runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
@@ -198,16 +217,16 @@ public func __kk_string_single_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard codeUnits.count == 1 else {
-        if codeUnits.isEmpty {
+    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let unit = boundary.first, !boundary.hasMultipleUnits else {
+        if boundary.first == nil {
             runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         } else {
             runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
         }
         return 0
     }
-    return Int(codeUnits[0])
+    return Int(unit)
 }
 
 // KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are
@@ -266,8 +285,8 @@ public func __kk_string_firstOrNull_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let first = codeUnits.first else { return runtimeNullSentinelInt }
+    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let first = boundary.first else { return runtimeNullSentinelInt }
     return Int(first)
 }
 
@@ -278,8 +297,8 @@ public func __kk_string_lastOrNull_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let last = codeUnits.last else { return runtimeNullSentinelInt }
+    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let last = boundary.last else { return runtimeNullSentinelInt }
     return Int(last)
 }
 
@@ -290,9 +309,9 @@ public func __kk_string_singleOrNull_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard codeUnits.count == 1 else { return runtimeNullSentinelInt }
-    return Int(codeUnits[0])
+    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let unit = boundary.first, !boundary.hasMultipleUnits else { return runtimeNullSentinelInt }
+    return Int(unit)
 }
 
 @_cdecl("__kk_string_toBoolean_flat")

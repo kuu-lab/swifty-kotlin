@@ -525,11 +525,15 @@ func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
     runtimeStructuredPanicMessage(String(cString: cstr))
 }
 
-private final class RuntimeFlatStringStorage: @unchecked Sendable {
+final class RuntimeFlatStringStorage: @unchecked Sendable {
     let data: UnsafeMutablePointer<UInt8>
     let length: Int
     let byteCount: Int
     let hash: Int
+    /// Canonical boxed handle for this buffer, materialized on the first
+    /// flat→raw bridge so repeated conversions share one registered box.
+    /// Only mutated under the flat-string registry lock.
+    weak var canonicalBox: RuntimeStringBox?
     /// Kotlin UTF-16 code units decoded on first positional access; the flat
     /// bytes never change, so the cache stays valid for the storage's lifetime.
     private var cachedUTF16CodeUnits: [UInt16]?
@@ -567,24 +571,100 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
     }
 }
 
+private struct RuntimeWeakStringBox {
+    weak var box: RuntimeStringBox?
+}
+
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
+    /// Owning registry of runtime-produced flat String buffers. Entries
+    /// retain their storage until `unregister` (the `kk_flat_string_release`
+    /// path) drops them and the buffer is freed.
     private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
+    /// Canonical boxes deduplicating `kk_string_from_flat` on buffers the
+    /// registry does not own (string literals and other foreign pointers).
+    private var foreignBoxByDataPointer: [UInt: RuntimeWeakStringBox] = [:]
 
-    func append(_ entry: RuntimeFlatStringStorage) {
+    func register(_ storage: RuntimeFlatStringStorage, canonicalBox: RuntimeStringBox?) {
         lock.lock()
-        storageByDataPointer[UInt(bitPattern: entry.data)] = entry
+        if let canonicalBox, storage.canonicalBox == nil {
+            storage.canonicalBox = canonicalBox
+        }
+        storageByDataPointer[UInt(bitPattern: storage.data)] = storage
         lock.unlock()
     }
 
     /// Storage whose `data` pointer is `data`, when the flat string was
-    /// produced by this runtime. Registered storages are retained forever, so
-    /// the pointer key stays unique for the process lifetime.
+    /// produced by this runtime and has not been released. The pointer key
+    /// stays unique among registered entries: released storages free their
+    /// buffer and are dropped from the map.
     func storage(for data: UnsafePointer<UInt8>?) -> RuntimeFlatStringStorage? {
         guard let data else { return nil }
         lock.lock()
         defer { lock.unlock() }
         return storageByDataPointer[UInt(bitPattern: data)]
+    }
+
+    /// Drops the storage registered for `data` so its buffer is freed.
+    /// Returns false for foreign or already-released pointers.
+    @discardableResult
+    func unregister(data: UnsafePointer<UInt8>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.removeValue(forKey: UInt(bitPattern: data)) != nil
+    }
+
+    /// Boxed handle that canonically represents `data`. Materializes and
+    /// registers a `RuntimeStringBox` on first use so repeated flat→raw
+    /// bridges of the same buffer share a single box instead of accumulating
+    /// one registered box per call.
+    func canonicalBoxRaw(
+        for data: UnsafePointer<UInt8>,
+        length: Int,
+        byteCount: Int,
+        hash: Int
+    ) -> Int {
+        let key = UInt(bitPattern: data)
+        lock.lock()
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            lock.unlock()
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        lock.unlock()
+
+        let string = runtimeStringFromFlatFields(
+            data: data,
+            length: length,
+            byteCount: byteCount,
+            hash: hash
+        )
+
+        lock.lock()
+        defer { lock.unlock() }
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        // A foreign buffer (literal or transient caller buffer) may reuse its
+        // address for different contents, so a dedup hit is only valid when
+        // the decoded bytes still match the cached box.
+        if let box = foreignBoxByDataPointer[key]?.box, box.value == string {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        let box = RuntimeStringBox(string)
+        let raw = registerRuntimeObject(box)
+        if let storage = storageByDataPointer[key] {
+            storage.canonicalBox = box
+        } else {
+            foreignBoxByDataPointer[key] = RuntimeWeakStringBox(box: box)
+        }
+        return raw
+    }
+
+    /// Number of storages retained by the registry; test support only.
+    var liveStorageCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.count
     }
 }
 
@@ -597,6 +677,11 @@ func runtimeFlatStringRegisteredUTF16CodeUnits(
     data: UnsafePointer<UInt8>?
 ) -> [UInt16]? {
     runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
+}
+
+/// Live storages tracked by the flat-string index; test support only.
+func runtimeFlatStringLiveStorageCountForTesting() -> Int {
+    runtimeFlatStringStorageRegistry.liveStorageCount
 }
 
 func runtimeStringFromFlatFields(
@@ -613,6 +698,17 @@ func runtimeStringFromFlatFields(
     return String(decoding: buffer, as: UTF8.self)
 }
 
+/// Publishes `storage` in the flat-string registry, which retains it until
+/// `kk_flat_string_release` unregisters and frees the buffer. `canonicalBox`
+/// (when already known, e.g. a `RuntimeStringBox` flattening itself) becomes
+/// the handle `kk_string_from_flat` resolves for this buffer.
+func runtimeRegisterFlatStringStorage(
+    _ storage: RuntimeFlatStringStorage,
+    canonicalBox: RuntimeStringBox? = nil
+) {
+    runtimeFlatStringStorageRegistry.register(storage, canonicalBox: canonicalBox)
+}
+
 func runtimeRegisterFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
@@ -620,12 +716,11 @@ func runtimeRegisterFlatString(
     outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let storage = RuntimeFlatStringStorage(value)
+    runtimeRegisterFlatStringStorage(storage)
     outLength?.pointee = storage.length
     outByteCount?.pointee = storage.byteCount
     outHash?.pointee = storage.hash
-    let data = storage.data
-    runtimeFlatStringStorageRegistry.append(storage)
-    return data
+    return storage.data
 }
 
 @_cdecl("kk_string_from_flat")
@@ -635,16 +730,15 @@ public func kk_string_from_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    guard data != nil else {
+    guard let data else {
         return 0
     }
-    let string = runtimeStringFromFlatFields(
-        data: data,
+    return runtimeFlatStringStorageRegistry.canonicalBoxRaw(
+        for: data,
         length: length,
         byteCount: byteCount,
         hash: hash
     )
-    return registerRuntimeObject(RuntimeStringBox(string))
 }
 
 @_cdecl("kk_string_to_flat")
@@ -656,19 +750,34 @@ public func kk_string_to_flat(
 ) -> UnsafeMutablePointer<UInt8>? {
     guard raw != runtimeNullSentinelInt,
           raw != 0,
-          let string = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
+          let box = extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
     else {
         outLength?.pointee = 0
         outByteCount?.pointee = 0
         outHash?.pointee = 0
         return nil
     }
-    return runtimeRegisterFlatString(
-        string,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+    let storage = box.flatStringStorage()
+    outLength?.pointee = storage.length
+    outByteCount?.pointee = storage.byteCount
+    outHash?.pointee = storage.hash
+    return storage.data
+}
+
+/// Releases the retained buffer behind a runtime-produced flat `String`
+/// aggregate: the registry drops the storage and its backing allocation is
+/// freed. The `data` pointer — and every aggregate still carrying it — must
+/// not be used after a successful call.
+///
+/// Returns `1` when a registered storage was dropped, and `0` when `data` is
+/// nil, a string literal or other foreign buffer, or an already-released
+/// buffer, making the call idempotent for stale pointers.
+@_cdecl("kk_flat_string_release")
+public func kk_flat_string_release(_ data: UnsafePointer<UInt8>?) -> Int {
+    guard let data else {
+        return 0
+    }
+    return runtimeFlatStringStorageRegistry.unregister(data: data) ? 1 : 0
 }
 
 @_cdecl("kk_string_from_utf8")
@@ -702,13 +811,24 @@ public func __kk_string_concat_flat(
     _ outByteCount: UnsafeMutablePointer<Int>?,
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    let lhs = runtimeStringFromFlatFields(
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil (zero-length) buffer, both for literals (LLVM never returns a
+    // null pointer for a global string constant) and at runtime
+    // (`RuntimeFlatStringStorage.init` always allocates at least 1 byte).
+    // String templates and the `+`/`String?.plus` operators must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type -- silently treating it as "" (as
+    // `runtimeStringFromFlatFields` does for every *other* caller that
+    // really does mean "absent data") hid an uninitialized-field bug behind
+    // output that merely looked wrong instead of null.
+    let lhs = lhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: lhsData,
         length: lhsLength,
         byteCount: lhsByteCount,
         hash: lhsHash
     )
-    let rhs = runtimeStringFromFlatFields(
+    let rhs = rhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: rhsData,
         length: rhsLength,
         byteCount: rhsByteCount,
@@ -774,6 +894,133 @@ let runtimeStringNominalTypeID: Int64 = {
     )
     return stringTypeID
 }()
+
+/// Stable nominal type IDs for boxed primitive Kotlin types (pure hashes of
+/// their fqNames, safe to cache once). Their `kotlin.Number`/
+/// `kotlin.Comparable` supertype edges are registered separately by
+/// `registerEdgesOnce()` below -- see that method's doc comment for why this
+/// can't reuse `runtimeStringNominalTypeID`'s "register inside a `static
+/// let` closure" pattern.
+private struct RuntimePrimitiveNominalTypeIDs {
+    let byte, short, int, long, float, double: Int64
+    let uint, ulong, ubyte, ushort, char, boolean: Int64
+
+    static let shared = RuntimePrimitiveNominalTypeIDs(
+        byte: runtimeStableNominalTypeID(fqName: "kotlin.Byte"),
+        short: runtimeStableNominalTypeID(fqName: "kotlin.Short"),
+        int: runtimeStableNominalTypeID(fqName: "kotlin.Int"),
+        long: runtimeStableNominalTypeID(fqName: "kotlin.Long"),
+        float: runtimeStableNominalTypeID(fqName: "kotlin.Float"),
+        double: runtimeStableNominalTypeID(fqName: "kotlin.Double"),
+        uint: runtimeStableNominalTypeID(fqName: "kotlin.UInt"),
+        ulong: runtimeStableNominalTypeID(fqName: "kotlin.ULong"),
+        ubyte: runtimeStableNominalTypeID(fqName: "kotlin.UByte"),
+        ushort: runtimeStableNominalTypeID(fqName: "kotlin.UShort"),
+        char: runtimeStableNominalTypeID(fqName: "kotlin.Char"),
+        boolean: runtimeStableNominalTypeID(fqName: "kotlin.Boolean")
+    )
+
+    /// Registers every ID above against `kotlin.Number`/`kotlin.Comparable`
+    /// (Kotlin's unsigned types and Char/Boolean implement Comparable but
+    /// are not Number subtypes), exactly once -- mirroring
+    /// `registerReflectionRuntimeTypeMetadata`'s `reflectionTypeEdgesRegistered`
+    /// flag (RuntimeReflectionTypeMetadata.swift), including its
+    /// resettability: `kk_runtime_reset_metadata` clears
+    /// `primitiveTypeEdgesRegistered` alongside `typeParents`, so a metadata
+    /// reset (e.g. RuntimeTests' per-test isolation) re-registers on the next
+    /// call instead of leaving these edges permanently missing after the
+    /// one-time `static let` closure that installed them has already run.
+    /// Cheap on the hot path: one lock acquisition and a flag read once the
+    /// edges are installed (the caller's own `runtimeIsAssignable` takes a
+    /// second, separate acquisition for its BFS).
+    func registerEdgesOnce() {
+        runtimeStorage.withMetadataLock { state in
+            if state.primitiveTypeEdgesRegistered {
+                return
+            }
+            let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+            let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+            for id in [byte, short, int, long, float, double] {
+                state.typeParents[id, default: []].insert(number)
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            for id in [uint, ulong, ubyte, ushort, char, boolean] {
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            state.primitiveTypeEdgesRegistered = true
+        }
+    }
+}
+
+/// The nominal type ID of the boxed primitive `ptr` represents (Int, Double,
+/// UInt, Char, ...), or `nil` when `ptr` is not a registered primitive box.
+/// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
+/// nominal identity is its enum class, not `kotlin.Int`.
+///
+/// `RuntimeIntBox` also backs Byte/Short (there is no dedicated
+/// `kk_box_byte`/`kk_box_short`, so both box through `kk_box_int`'s
+/// `anyFallbackTag: 1`), so this collapses Byte/Short/Int to the same ID --
+/// harmless here since all three share the same `Number`/`Comparable`
+/// ancestry this lookup exists to answer; see `kk_op_is`'s intBase case for
+/// the same pre-existing limitation.
+///
+/// Precondition (enforced by `kk_op_is`, this function's only caller): `ptr`
+/// must not already be a tagged value-class box (`runtimeObjectTypeID(rawValue:)
+/// != nil`). This function does not re-check that itself, so a value class
+/// boxed through the same primitive box types would otherwise be misreported
+/// as its underlying primitive's Number/Comparable identity instead of its
+/// own nominal one. Kept `private` so that precondition can't be violated
+/// from another call site.
+private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) -> Int64? {
+    // `tryCast` force-unwraps `ptr` as a live Swift object via
+    // `Unmanaged.fromOpaque`; only call it once the GC registry confirms
+    // this is actually a tracked allocation, matching every other cast site
+    // in this function's callers (e.g. the throwable check below).
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let ids = RuntimePrimitiveNominalTypeIDs.shared
+    // Registration only runs once a box actually matches below, so an `is`
+    // check on an untagged non-primitive object (a throwable, list, map, ...)
+    // never pays for it.
+    if let intBox = tryCast(ptr, to: RuntimeIntBox.self), intBox.enumClassID == nil {
+        ids.registerEdgesOnce()
+        switch intBox.anyFallbackTag {
+        case 9: return ids.uint
+        case 10: return ids.ubyte
+        case 11: return ids.ushort
+        default: return ids.int
+        }
+    }
+    if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.long
+    }
+    if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.ulong
+    }
+    if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.float
+    }
+    if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.double
+    }
+    if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.char
+    }
+    if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.boolean
+    }
+    return nil
+}
 
 /// True when `ptr` is a live runtime object pointer holding a `RuntimeStringBox`.
 func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
@@ -957,6 +1204,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // A Double/Float/Long/Int/... held in an Any slot boxes through the
+        // same primitive box types as `is Int`/`is Double` above, but (like
+        // String) carries no object type ID, so it needs the same recovery
+        // to answer an interface check (`is Number`, `is Comparable<*>`).
+        if let primitiveTypeID = runtimePrimitiveBoxNominalTypeID(ptr) {
+            return runtimeIsAssignable(
+                sourceTypeID: primitiveTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)
@@ -1034,18 +1291,11 @@ public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // Range check first
     if let range = runtimeRangeBox(from: container) {
-        if range.step > 0 {
-            guard element >= range.first, element <= range.last else { return 0 }
-            return (element - range.first) % range.step == 0 ? 1 : 0
-        } else if range.step < 0 {
-            guard element <= range.first, element >= range.last else { return 0 }
-            return (range.first - element) % (-range.step) == 0 ? 1 : 0
-        }
-        return 0
+        return runtimeRangeContains(range, element)
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return list.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
@@ -1055,7 +1305,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     guard let array = runtimeArrayBox(from: container) else {
         return 0
     }
-    return array.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+    return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
 }
 
 @_cdecl("kk_array_new")

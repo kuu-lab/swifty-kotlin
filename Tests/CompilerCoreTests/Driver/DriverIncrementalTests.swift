@@ -106,7 +106,7 @@ struct DriverIncrementalTests {
     }
 
     @Test
-    func testIncrementalNoOpBuildRestoresCachedOutputArtifact() throws {
+    func testIncrementalNoOpBuildRejectsTamperedCachedOutputArtifact() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let driver = makeDriver()
             let cachePath = tempDir + "/cache"
@@ -124,14 +124,46 @@ struct DriverIncrementalTests {
             #expect(first.exitCode == 0,
                            "Initial incremental build should succeed. Diagnostics: \(first.diagnostics.map(\.message))")
 
-            let sentinel = "// cached artifact\n"
+            let sentinel = "// tampered cached artifact\n"
             try sentinel.write(toFile: cachedOutputArtifactPath(in: cachePath), atomically: true, encoding: .utf8)
             try FileManager.default.removeItem(atPath: kirOutputPath())
 
             let second = driver.runForTesting(options: options)
             #expect(second.exitCode == 0,
-                           "No-op incremental build should restore cached artifact. Diagnostics: \(second.diagnostics.map(\.message))")
-            #expect(try String(contentsOfFile: kirOutputPath(), encoding: .utf8) == sentinel)
+                           "No-op incremental build should fall back to a full build. Diagnostics: \(second.diagnostics.map(\.message))")
+            let produced = try String(contentsOfFile: kirOutputPath(), encoding: .utf8)
+            #expect(produced != sentinel,
+                    "A tampered cached artifact must never be restored")
+            #expect(!produced.isEmpty)
+        }
+    }
+
+    @Test
+    func testIncrementalNoOpBuildRestoresOutputWhenOutputMissing() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let driver = makeDriver()
+            let cachePath = tempDir + "/cache"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: ["incremental"],
+                incrementalCachePath: cachePath
+            )
+
+            let first = driver.runForTesting(options: options)
+            #expect(first.exitCode == 0,
+                           "Initial incremental build should succeed. Diagnostics: \(first.diagnostics.map(\.message))")
+            let original = try String(contentsOfFile: kirOutputPath(), encoding: .utf8)
+
+            try FileManager.default.removeItem(atPath: kirOutputPath())
+
+            let second = driver.runForTesting(options: options)
+            #expect(second.exitCode == 0,
+                           "No-op incremental build should succeed. Diagnostics: \(second.diagnostics.map(\.message))")
+            #expect(try String(contentsOfFile: kirOutputPath(), encoding: .utf8) == original)
         }
     }
 

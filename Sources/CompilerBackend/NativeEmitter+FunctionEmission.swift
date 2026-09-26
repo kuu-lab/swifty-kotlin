@@ -1129,6 +1129,84 @@ extension NativeEmitter {
             )
         }
 
+        /// BUG-B: `.length` on a String must throw `NullPointerException`
+        /// when the value is *actually* null at runtime, regardless of its
+        /// statically-declared non-null type -- exactly like calling any
+        /// method on a null reference. This can genuinely happen: an
+        /// overridden non-null `String` property read during superclass
+        /// construction observes the not-yet-run subclass initializer's
+        /// zero-filled backing field, which `stringAggregateFields` bridges
+        /// to a null data pointer (mirroring `kk_string_to_flat`'s existing
+        /// raw-handle-zero-means-null convention). `lowerBuiltinCall`'s
+        /// ordinary fast path for this accessor has no way to signal a
+        /// thrown exception, so this handles it here instead, before that
+        /// fast path runs, with direct access to the thrown-channel
+        /// plumbing (`storeOutThrownIfNonNull`, `currentBlock`) that
+        /// `lowerBuiltinCall` does not have.
+        func emitThrowingStringLength(
+            receiverValue: LLVMCAPIBindings.LLVMValueRef,
+            result: KIRExprID?,
+            usesThrownChannel: Bool,
+            thrownResult: KIRExprID?,
+            instructionIndex: Int
+        ) -> Bool {
+            guard let typeLowering,
+                  let fields = stringAggregateFields(receiverValue, suffix: "len_npe_\(instructionIndex)"),
+                  let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                  let isNull = bindings.buildICmpEqual(
+                      builder, lhs: fields[0], rhs: nullData, name: "len_npe_isnull_\(instructionIndex)"
+                  ),
+                  let npeFunction = declareExternalFunction(
+                      named: "__kk_null_pointer_exception_new", argumentCount: 0, appendThrownChannel: false
+                  ),
+                  let throwBlock = bindings.appendBasicBlock(
+                      context: context, function: llvmFunction.value, name: "len_npe_throw_\(instructionIndex)"
+                  ),
+                  let okBlock = bindings.appendBasicBlock(
+                      context: context, function: llvmFunction.value, name: "len_npe_ok_\(instructionIndex)"
+                  )
+            else {
+                return false
+            }
+            let continueBlock = usesThrownChannel
+                ? bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "len_npe_cont_\(instructionIndex)")
+                : nil
+            _ = bindings.buildCondBr(builder, condition: isNull, thenBlock: throwBlock, elseBlock: okBlock)
+
+            currentBlock = throwBlock
+            bindings.positionBuilder(builder, at: throwBlock)
+            let exceptionHandle = bindings.buildCall(
+                builder, functionType: npeFunction.type, callee: npeFunction.value, arguments: [],
+                name: "len_npe_exc_\(instructionIndex)"
+            ) ?? zeroValue
+            storeResult(result, zeroValue)
+            if usesThrownChannel, let thrownResult, let continueBlock {
+                storeResult(thrownResult, exceptionHandle)
+                _ = bindings.buildBr(builder, destination: continueBlock)
+            } else {
+                // No enclosing catch reachable for this call within this
+                // function: propagate to this function's own caller
+                // immediately, matching the `nullAssert` case's pattern.
+                storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
+                _ = bindings.buildRet(builder, value: zeroReturnValue)
+            }
+
+            currentBlock = okBlock
+            bindings.positionBuilder(builder, at: okBlock)
+            storeResult(result, fields[1])
+            if usesThrownChannel, let thrownResult {
+                storeResult(thrownResult, zeroValue)
+            }
+            if let continueBlock {
+                _ = bindings.buildBr(builder, destination: continueBlock)
+                currentBlock = continueBlock
+                bindings.positionBuilder(builder, at: continueBlock)
+            } else {
+                currentBlock = okBlock
+            }
+            return true
+        }
+
         func isStringAggregateType(_ type: TypeID?) -> Bool {
             guard let type,
                   let typeSystem,
@@ -1809,12 +1887,33 @@ extension NativeEmitter {
             guard let result else {
                 return
             }
-            let storedValue = value ?? zeroLLVMValue(
+            var storedValue = value ?? zeroLLVMValue(
                 for: module.arena.exprType(result),
                 lowering: typeLowering,
                 int64Type: int64Type,
                 context: context
             ) ?? zeroValue
+            // The stored representation must match what `loweredLLVMType` yields
+            // for the result expression: copy-slot allocas and `resolveValue`
+            // loads both derive from it. A flat string aggregate leaking into an
+            // i64-typed slot (e.g. a source-backed itable getter result with an
+            // erased type) is read back as its data pointer, and a raw handle
+            // stored where aggregate fields are expected is read as garbage.
+            if let value,
+               bindings.isAggregateStructValue(value) != isStringAggregateType(module.arena.exprType(result))
+            {
+                if isStringAggregateType(module.arena.exprType(result)) {
+                    storedValue = bridgeRuntimeRawToStringAggregate(
+                        value,
+                        suffix: nameCounter.nextName("store_result_raw_")
+                    ) ?? value
+                } else {
+                    storedValue = bridgeStringAggregateToRuntimeRaw(
+                        value,
+                        suffix: nameCounter.nextName("store_result_flat_")
+                    ) ?? value
+                }
+            }
             if let resultExpr = module.arena.expr(result),
                case let .symbolRef(targetSymbol) = resultExpr,
                let globalPointer = globalVariables[targetSymbol]
@@ -2249,6 +2348,26 @@ extension NativeEmitter {
                     continue
                 }
 
+                // BUG-B: must run before `emitBuiltinCall`'s ordinary fast
+                // path for this accessor, which has no way to signal a
+                // thrown exception. Gated on the receiver's KIR-level type
+                // actually being String -- not merely "an aggregate struct
+                // value" -- so a CharSequence/StringBuilder handle bridged
+                // through the same struct shape never starts throwing.
+                if Self.isStringLengthAggregateAccessorName(externalCalleeName),
+                   argumentValues.count == 1,
+                   isStringAggregateType(argumentTypes.first ?? nil),
+                   emitThrowingStringLength(
+                       receiverValue: argumentValues[0],
+                       result: result,
+                       usesThrownChannel: usesThrownChannel,
+                       thrownResult: thrownResult,
+                       instructionIndex: instructionIndex
+                   )
+                {
+                    continue
+                }
+
                 if emitBuiltinCall(
                     calleeName: externalCalleeName,
                     argumentValues: argumentValues,
@@ -2632,6 +2751,39 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
+                // Property getter reads dispatched through a vtable/itable slot
+                // target a generated Kotlin accessor. A String-typed property
+                // returns its string aggregate (the source ABI's indirect
+                // result convention), not the raw pointer the generic fallback
+                // declaration assumes — without this the receiver lands in the
+                // callee's hidden result parameter and `this` reads garbage.
+                // Decide on the declared callee signature rather than the
+                // call-site result type: a generic `val value: T` accessed as
+                // `Lazy<String>.value` still erases to a raw pointer return.
+                // The KIR symbol is the synthetic getter accessor, so recover
+                // the declared property type via the accessor encoding.
+                let virtualCallDeclaredAggregateResult: Bool? = {
+                    guard calleeName == "get",
+                          argumentValues.count == 1,
+                          typeLowering != nil
+                    else {
+                        return nil
+                    }
+                    if let symbol,
+                       let property = symbols?.propertySymbol(forAccessor: symbol)
+                    {
+                        return isStringAggregateType(symbols?.propertyType(for: property))
+                    }
+                    if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
+                        return isStringAggregateType(signature.returnType)
+                    }
+                    return nil
+                }()
+                let virtualCallReturnsAggregate = calleeName == "get"
+                    && argumentValues.count == 1
+                    && typeLowering != nil
+                    && (virtualCallDeclaredAggregateResult
+                        ?? isStringAggregateType(result.flatMap { module.arena.exprType($0) }))
                 let isThrowableToStringVirtualCall: Bool = {
                     guard case .vtable = dispatch,
                           let symbols
@@ -2740,6 +2892,35 @@ extension NativeEmitter {
                     nil
                 }
 
+                // Itable slots carry the interface member's signature: a
+                // String-returning member is invoked through the flat aggregate
+                // convention on every call path (real implementations register
+                // flat getters, bridged by itableBridgeSymbolForMethod when the
+                // impl ABI differs). The unnamed `__v` fallback must therefore
+                // declare the aggregate return for itable String results rather
+                // than the raw Int handle used by runtime-registered members,
+                // which keeps the indirect-call ABI independent of whether the
+                // getter's KIRFunction happens to be emitted in this module.
+                //
+                // The call-site result type only decides this when the
+                // accessor's declared type is unavailable: a generic
+                // `val value: T` erases to the raw pointer ABI even when this
+                // call site reads it as `Lazy<String>.value`, so a resolved
+                // non-aggregate declaration must suppress the flat path.
+                let virtualItableFlatAggregateResult = if let result,
+                                                          virtualCallDeclaredAggregateResult != false,
+                                                          typeLowering != nil
+                {
+                    switch dispatch {
+                    case .itable, .itableDynamic:
+                        isStringAggregateExpr(result)
+                    default:
+                        false
+                    }
+                } else {
+                    false
+                }
+
                 let calleeFunction: LLVMFunction? = if let effectiveSymbol,
                                                        let internalFunction = internalFunctions[effectiveSymbol]
                 {
@@ -2767,13 +2948,21 @@ extension NativeEmitter {
                     // the indirect-call type. Fold arity into the name: a property getter
                     // and an unrelated same-named method (e.g. "get") can share
                     // `externalCalleeName` in one body, and the plain-name cache would
-                    // size both to the larger arity.
+                    // size both to the larger arity. The `_s` suffix marks a
+                    // source-ABI aggregate return (see `virtualCallReturnsAggregate`)
+                    // so it cannot alias the raw `Int`-returning shape.
                     declareExternalFunction(
-                        named: "\(externalCalleeName)__v\(argumentValues.count)",
+                        named: "\(externalCalleeName)__v\(argumentValues.count)\(virtualCallReturnsAggregate || virtualItableFlatAggregateResult ? "_s" : "")",
                         parameterTypes: Array<LLVMCAPIBindings.LLVMTypeRef?>(
                             repeating: int64Type, count: argumentValues.count
                         ) + (shouldAppendThrownChannel ? [outThrownPointerType] : []),
-                        returnType: int64Type
+                        returnType: virtualCallReturnsAggregate || virtualItableFlatAggregateResult
+                            ? loweredLLVMType(
+                                for: result.flatMap { module.arena.exprType($0) },
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                            : int64Type
                     )
                 }
 
@@ -2788,6 +2977,8 @@ extension NativeEmitter {
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall
                     && typeLowering != nil
                     && (virtualSourceCallSignature == nil || isThrowableToStringVirtualCall)
+                    && !virtualCallReturnsAggregate
+                    && !virtualItableFlatAggregateResult
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
@@ -2968,15 +3159,6 @@ extension NativeEmitter {
                         vCallValue,
                         suffix: "\(instructionIndex)_virtual_callback_result"
                     ) ?? vCallValue
-                } else if shouldBridgeVirtualExternalStringABI,
-                          let result,
-                          isStringAggregateExpr(result),
-                          let vCallValue
-                {
-                    mergedValue = bridgeRuntimeRawToStringAggregate(
-                        vCallValue,
-                        suffix: "\(instructionIndex)_virtual_result"
-                    ) ?? vCallValue
                 } else if isInternalCall,
                           let result,
                           let resultExprType = module.arena.exprType(result),
@@ -2989,6 +3171,27 @@ extension NativeEmitter {
                         to: resultExprType,
                         suffix: "\(instructionIndex)_virtual_internal_result"
                     )
+                } else if let result,
+                          let resultExprType = module.arena.exprType(result),
+                          let vCallValue,
+                          isStringAggregateType(resultExprType) != bindings.isAggregateStructValue(vCallValue)
+                {
+                    // The emitted callee ABI and the result's expected
+                    // representation can disagree on string-aggregate-ness for
+                    // itable or source-backed virtual calls — e.g. a flat
+                    // aggregate getter result consumed as the raw i64 handle by
+                    // a generic caller. Normalize by the value's actual shape.
+                    if isStringAggregateType(resultExprType) {
+                        mergedValue = bridgeRuntimeRawToStringAggregate(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_result"
+                        ) ?? vCallValue
+                    } else {
+                        mergedValue = bridgeStringAggregateToRuntimeRaw(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_flat_result"
+                        ) ?? vCallValue
+                    }
                 } else {
                     mergedValue = vCallValue ?? zeroValue
                 }

@@ -109,10 +109,15 @@ extension DeclTypeChecker {
     /// The arguments live in the primary constructor's scope, so they are
     /// checked with the primary constructor parameters seeded as locals — the
     /// same scope `typeCheckClassDelegation` builds for `by` expressions.
+    /// `extraLocals` seeds the delegation-argument scope with bindings that
+    /// outrank nothing but sit alongside the ctor params — used by the
+    /// KUU-555 local-class path, where `Base(x)` can reference a captured
+    /// outer local; named classes pass the default `[:]`.
     func typeCheckPrimaryConstructorSuperDelegation(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        extraLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
@@ -127,7 +132,7 @@ extension DeclTypeChecker {
         let args = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
 
         var delegationCtx = ctx
-        var locals: LocalBindings = [:]
+        var locals: LocalBindings = extraLocals
         if let signature = sema.symbols.functionSignature(for: primaryCtorSymbol.id) {
             let ctorScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
             for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
@@ -392,7 +397,9 @@ extension DeclTypeChecker {
                 let resolved = ctx.resolver.resolveCall(
                     candidates: candidates,
                     call: callExpr,
-                    expectedType: nil,
+                    expectedType: delegation.kind == .this
+                        ? constructorOwnerType(ownerSymbol, ctx: ctx)
+                        : nil,
                     ctx: sema
                 )
                 if let diagnostic = resolved.diagnostic {
@@ -405,6 +412,21 @@ extension DeclTypeChecker {
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func constructorOwnerType(
+        _ ownerSymbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard let ownerSymbol else { return nil }
+        let typeArguments = ctx.sema.types.nominalTypeParameterSymbols(for: ownerSymbol).map {
+            TypeArg.invariant(ctx.sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
     }
 
     private func resolveDelegationTarget(

@@ -42,7 +42,7 @@ public enum StdlibArtifactCache {
 
     private static let artifactFileName = "KSwiftKStdlib.kklib"
     private static let kotlinLanguageVersion = "2.3.10"
-    private static let compilerVersion = "0.1.0"
+    private static let compilerVersion = CompilerBuildInfo.version
 
     /// Resolve a packaged artifact or build one in the user's standard cache.
     public static func resolveOrBuild(target: TargetTriple) throws -> String {
@@ -195,13 +195,17 @@ public enum StdlibArtifactCache {
 
     private static func validateArtifact(at path: String, target: TargetTriple) -> ValidationResult {
         let fileManager = FileManager.default
-        let rootURL = URL(fileURLWithPath: path).standardizedFileURL
+        let rootURL = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             return .invalid("artifact directory does not exist")
         }
 
-        let manifestURL = rootURL.appendingPathComponent("manifest.json")
+        guard let manifestURL = containedURL(relativePath: "manifest.json", under: rootURL),
+              isRegularFile(at: manifestURL, fileManager: fileManager)
+        else {
+            return .invalid("manifest.json is missing, not a regular file, or escapes the artifact")
+        }
         guard let data = try? Data(contentsOf: manifestURL) else {
             return .invalid("manifest.json is missing")
         }
@@ -239,7 +243,7 @@ public enum StdlibArtifactCache {
 
         guard let metadata = manifest["metadata"] as? String,
               let metadataURL = containedURL(relativePath: metadata, under: rootURL),
-              fileManager.fileExists(atPath: metadataURL.path)
+              isRegularFile(at: metadataURL, fileManager: fileManager)
         else {
             return .invalid("metadata file is missing or escapes the artifact")
         }
@@ -258,7 +262,7 @@ public enum StdlibArtifactCache {
         }
         for objectPath in objects {
             guard let objectURL = containedURL(relativePath: objectPath, under: rootURL),
-                  fileManager.fileExists(atPath: objectURL.path)
+                  isRegularFile(at: objectURL, fileManager: fileManager)
             else {
                 return .invalid("an object path is missing or escapes the artifact")
             }
@@ -269,10 +273,15 @@ public enum StdlibArtifactCache {
 
     private static func containedURL(relativePath: String, under rootURL: URL) -> URL? {
         guard !relativePath.isEmpty else { return nil }
-        let candidate = rootURL.appendingPathComponent(relativePath).standardizedFileURL
+        let candidate = rootURL.appendingPathComponent(relativePath).resolvingSymlinksInPath().standardizedFileURL
         let rootPath = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
         guard candidate.path.hasPrefix(rootPath) else { return nil }
         return candidate
+    }
+
+    private static func isRegularFile(at url: URL, fileManager: FileManager) -> Bool {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
+        return attributes[.type] as? FileAttributeType == .typeRegular
     }
 
     private static func fingerprintMatches(fingerprintPath: String) -> Bool {

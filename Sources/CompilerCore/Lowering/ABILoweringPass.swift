@@ -113,6 +113,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // same unboxing as the accessors above only for the generic receiver;
         // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
+        let arrayClassName = ctx.interner.intern("Array")
 
         // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
         // generic and primitive arrays without a Sema function signature. Keep
@@ -335,7 +336,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        from: from, to: to,
                        module: module, types: types, symbols: symbols,
                        interner: ctx.interner,
-                       boxingCalleeTable: boxingCalleeTable
+                       boxingCalleeTable: boxingCalleeTable,
+                       sema: ctx.sema,
+                       cache: ctx.nominalDispatchCache
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -618,7 +621,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             module: module,
                             types: types,
                             symbols: symbols,
-                            interner: ctx.interner
+                            arrayName: arrayClassName
                         ))
                     || boxedBooleanReturnCallees.contains(effectiveCallee)
                 if effectiveUnbox == nil,
@@ -743,7 +746,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         interner: StringInterner,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        sema: SemaModule?,
+        cache: KIRNominalDispatchCache?
     ) -> [KIRInstruction]? {
         guard let fromType = intrinsicArgType(from, arena: module.arena, types: types),
               let toType = module.arena.exprType(to)
@@ -791,6 +796,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 symbols: symbols,
                 interner: interner,
                 arena: module.arena,
+                sema: sema,
+                cache: cache,
                 into: &instructions
             )
             return instructions

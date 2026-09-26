@@ -926,8 +926,8 @@ struct StringSyntheticMemberLinkTests {
                     #expect(symbolInfo.declSite != nil)
                     #expect(!symbolInfo.flags.contains(.synthetic))
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) != nil,
-                        "Appendable.append must retain its private runtime dispatch bridge"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Appendable.append must dispatch through the implementing class"
                     )
                 }
 

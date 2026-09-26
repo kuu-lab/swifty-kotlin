@@ -1467,6 +1467,37 @@ extension CallTypeChecker {
                 else { return false }
                 return visit(initializer)
             }
+        case let .localNominalDecl(declID, _):
+            // KUU-555: an implicit `it` can only reach a local nominal through
+            // expressions evaluated in the enclosing scope — supertype ctor
+            // args for a local `object`, plus member property initializers
+            // for both kinds.
+            guard let decl = ctx.ast.arena.decl(declID) else {
+                return false
+            }
+            let rootExprs: [ExprID]
+            switch decl {
+            case let .objectDecl(objectDecl):
+                rootExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                    + objectDecl.memberProperties.compactMap { propertyID in
+                        guard let property = ctx.ast.arena.decl(propertyID),
+                              case let .propertyDecl(propertyDecl) = property
+                        else { return nil }
+                        return propertyDecl.initializer
+                    }
+            case let .classDecl(classDecl):
+                rootExprs = classDecl.superTypeEntries
+                    .flatMap(\.constructorArgs).map(\.expr)
+                    + classDecl.memberProperties.compactMap { propertyID in
+                        guard let property = ctx.ast.arena.decl(propertyID),
+                              case let .propertyDecl(propertyDecl) = property
+                        else { return nil }
+                        return propertyDecl.initializer
+                    }
+            default:
+                rootExprs = []
+            }
+            return rootExprs.contains(where: visit)
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
              .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
              .stringLiteral, .breakExpr, .continueExpr,

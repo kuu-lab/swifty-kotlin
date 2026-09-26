@@ -67,12 +67,22 @@ extension CallLowerer {
         guard let valueSym,
               let info = sema.symbols.symbol(valueSym),
               info.kind == .property,
+              // KUU-555: a local `object`'s member properties keep
+              // `.object`-parented symbols too, but their storage lives in
+              // the materialized instance's field array — reading them must
+              // continue to `tryLowerObjectLiteralStoredPropertyRead`'s
+              // field-offset load, not the object-global slot this path
+              // emits for file-scope object members.
+              !sema.bindings.isObjectLiteralPropertySymbol(valueSym),
               let parent = sema.symbols.parentSymbol(for: valueSym),
               sema.symbols.symbol(parent)?.kind == .object
         else { return nil }
         if info.flags.contains(.constValue),
            let constant = sema.symbols.constValueExprKind(for: valueSym)
         {
+            // A `const val` is a compile-time constant inlined at the use
+            // site -- Kotlin never runs clinit for reading one, so this
+            // deliberately returns before the BUG-274 lazy-init guard below.
             let propType = sema.bindings.exprTypes[exprID]
                 ?? sema.symbols.propertyType(for: valueSym)
                 ?? sema.types.anyType
@@ -80,6 +90,14 @@ extension CallLowerer {
             instructions.append(.constValue(result: id, value: constant))
             return id
         }
+        // BUG-274: reading any other object-member property is a real
+        // access to the object's state, so it must trigger the object's
+        // lazy clinit-equivalent first. Imported-library objects restore the
+        // guard through metadata; compiler pseudo-objects such as
+        // `Dispatchers`/`Charsets` below remain no-ops.
+        driver.emitObjectLazyInitGuardIfNeeded(
+            objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
+        )
         let knownNames = KnownCompilerNames(interner: interner)
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.dispatchers
@@ -132,6 +150,42 @@ extension CallLowerer {
         // property initializers now (Stdlib/kotlin/text/StringNormalize.kt),
         // so the name-string special case that routed them to
         // __kk_normalization_form_* is no longer needed.
+        let propType = sema.bindings.exprTypes[exprID]
+            ?? sema.symbols.propertyType(for: valueSym)
+            ?? sema.types.anyType
+        return lowerObjectMemberPropertyReadValue(
+            propertySymbol: valueSym,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: nil,
+            resultType: propType,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
+
+    /// Read core for `object` member properties, shared between
+    /// `tryLowerObjectMemberPropertyRead` (which derives the symbol from the
+    /// access expression's bindings) and the callable-property invocation
+    /// path in `lowerStoredMemberPropertyReadValue`, which supplies the
+    /// property symbol and the function-typed result directly (KUU-644).
+    /// The receiver is lowered lazily — only the custom-getter arm needs it;
+    /// callers that already lowered it pass `loweredReceiverID`.
+    func lowerObjectMemberPropertyReadValue(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID?,
+        resultType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
         // BUG-257: a property with a real custom getter never gets a backing
         // global slot -- unlike the cases above, there is no storage for
         // `loadGlobal` below to read. Route through the real getter accessor
@@ -149,21 +203,18 @@ extension CallLowerer {
         // itable lookup failure. Leave delegated object properties on the
         // pre-existing `loadGlobal` fallback below until that gap is fixed
         // (BUG-265).
-        if sema.symbols.propertyHasCustomGetter(for: valueSym)
-            || sema.symbols.extensionPropertyGetterAccessor(for: valueSym) != nil
+        if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
+            || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
         {
-            let receiverID = driver.lowerExpr(
+            let receiverID = loweredReceiverID ?? driver.lowerExpr(
                 receiverExpr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: valueSym)
-                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: valueSym)
-            let propType = sema.bindings.exprTypes[exprID]
-                ?? sema.symbols.propertyType(for: valueSym)
-                ?? sema.types.anyType
-            let result = arena.appendTemporary(type: propType)
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),
@@ -174,14 +225,11 @@ extension CallLowerer {
             ))
             return result
         }
-        let propType = sema.bindings.exprTypes[exprID]
-            ?? sema.symbols.propertyType(for: valueSym)
-            ?? sema.types.anyType
-        let id = arena.appendExpr(.symbolRef(valueSym), type: propType)
-        instructions.append(.loadGlobal(result: id, symbol: valueSym))
+        let id = arena.appendExpr(.symbolRef(propertySymbol), type: resultType)
+        instructions.append(.loadGlobal(result: id, symbol: propertySymbol))
         return wrapLateinitReadIfNeeded(
             id,
-            symbol: valueSym,
+            symbol: propertySymbol,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -268,6 +316,7 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // `object` member properties never reach this point: they're always
@@ -296,6 +345,7 @@ extension CallLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
     }
@@ -315,12 +365,34 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
-              let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface
-                  || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
+              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+        else {
+            return nil
+        }
+        // `object` member properties live in a global slot / getter accessor
+        // rather than a field offset — mirror `tryLowerObjectMemberPropertyRead`
+        // so callable-property invocations like `Holder.f(3)` can read the
+        // function value (KUU-644).
+        if ownerInfo.kind == .object {
+            return lowerObjectMemberPropertyReadValue(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                loweredReceiverID: loweredReceiverID,
+                resultType: resultType,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+        guard ownerInfo.kind == .class || ownerInfo.kind == .interface
+            || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
         else {
             return nil
         }
@@ -621,7 +693,8 @@ extension CallLowerer {
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,
                   sema: sema,
-                  interner: interner
+                  interner: interner,
+                  cache: driver.ctx.nominalDispatchCache
               )
         else {
             return nil
@@ -958,6 +1031,12 @@ extension CallLowerer {
         if sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil {
             return true
         }
+        // CLASS-008: a synthetic forwarding property for `by` delegation has
+        // no `.propertyDecl` AST node for the loop below to find — its getter
+        // reads through the delegate field, not a real backing field.
+        if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
+            return true
+        }
         for rawDecl in ast.arena.decls.indices {
             let declID = DeclID(rawValue: Int32(rawDecl))
             guard sema.bindings.declSymbols[declID] == propertySymbol,
@@ -1069,6 +1148,23 @@ extension CallLowerer {
             // `.call` using the qualifier's bare short name expecting a 0-arg
             // instance accessor that was never synthesized, leaving an
             // undefined symbol at link time.
+            //
+            // BUG-274: when the qualifier resolves to a real `object` (e.g.
+            // the `N` in `Outer.N.v`), this is the *only* place its bare
+            // value is ever materialized for an external, further-qualified
+            // access -- neither `tryLowerObjectMemberPropertyRead` nor
+            // `ExprLowerer`'s bare-object-reference fallback ever runs for a
+            // receiver this deep in a qualifier chain, since this whole
+            // function only exists because Sema left no ordinary expression
+            // binding for it. Without the guard here, a nested named
+            // object's superclass constructor (and its own property
+            // initializers) never ran, silently keeping every inherited
+            // property at its zeroed default.
+            if valueSymbol.kind == .object {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
+                )
+            }
             let valueType = sema.bindings.exprTypes[exprID] ?? sema.types.make(.classType(ClassType(
                 classSymbol: valueSymbolID,
                 args: [],

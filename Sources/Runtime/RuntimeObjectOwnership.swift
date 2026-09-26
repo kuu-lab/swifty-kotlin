@@ -25,7 +25,7 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
         // A pinned or StableRef target still has an external root. Refusing
         // the explicit release keeps those root contracts intact; the owner
         // can retry after unpin/dispose has completed.
-        guard !state.pinnedObjects.contains(key), state.stableRefCounts[key] == nil else {
+        guard state.pinnedObjectCounts[key] == nil, state.stableRefCounts[key] == nil else {
             return false
         }
         return state.objectPointers.remove(key) != nil

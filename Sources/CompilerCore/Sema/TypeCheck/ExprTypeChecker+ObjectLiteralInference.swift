@@ -48,10 +48,22 @@ extension ExprTypeChecker {
         return objectType
     }
 
-    private func ensureObjectLiteralSymbol(
+    /// `fqNamePrefix` namespaces a *named local* `object` (`{ object L {} }`,
+    /// KUU-555): such a declaration is visible only inside its block but must
+    /// still carry an FQ name that cannot collide with a same-named
+    /// file-scope symbol — the caller passes a per-expression prefix like
+    /// `__localdecl_<exprID>`. Object literals pass `[]` and keep their
+    /// synthetic name as the FQ name's only component.
+    /// `symbolKind` is `.class` for object literals (matching the anonymous-
+    /// class treatment) and `.object` for a named local `object` — like a
+    /// file-scope `object` declaration, its name in expression position
+    /// denotes the singleton instance, not a class-name receiver.
+    func ensureObjectLiteralSymbol(
         declID: DeclID,
         objectDecl: ObjectDecl,
         superTypes: [TypeRefID],
+        fqNamePrefix: [InternedString] = [],
+        symbolKind: SymbolKind = .class,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> SymbolID {
@@ -107,12 +119,19 @@ extension ExprTypeChecker {
                 return symbol.id
             }
         )
-        let captureOuterSymbols = outerSymbols.union(outerReceiverPropertySymbols)
+        // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
+        // reachable here: the enclosing object literal captured them, so a
+        // nested literal can capture them again through the same chain even
+        // though the enclosing member's `this` binding shadows them in
+        // `outerLocalsSnapshot`.
+        let captureOuterSymbols = outerSymbols
+            .union(outerReceiverPropertySymbols)
+            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
 
         let objectSymbol = sema.symbols.define(
-            kind: .class,
+            kind: symbolKind,
             name: objectDecl.name,
-            fqName: [objectDecl.name],
+            fqName: fqNamePrefix + [objectDecl.name],
             declSite: objectDecl.range,
             visibility: .private,
             flags: [.synthetic]
@@ -177,8 +196,168 @@ extension ExprTypeChecker {
             _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
         }
 
+        let propertySymbolsByDecl = registerLocalNominalMemberProperties(
+            objectDecl.memberProperties,
+            ownerFQName: fqNamePrefix + [objectDecl.name],
+            ownerSymbol: objectSymbol,
+            ctx: ctx
+        )
+
+        let objectSymbolFQName = fqNamePrefix + [objectDecl.name]
+        let objectType = sema.types.make(.classType(ClassType(
+            classSymbol: objectSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let objectScope = ClassMemberScope(
+            parent: ctx.scope,
+            symbols: sema.symbols,
+            ownerSymbol: objectSymbol,
+            thisType: objectType
+        )
+        for propertySymbol in propertySymbolsByDecl.values {
+            objectScope.insert(propertySymbol)
+        }
+        let memberFunctionSymbolsByDecl = collectObjectLiteralMemberFunctions(
+            objectDecl.memberFunctions,
+            memberFQNamePrefix: objectSymbolFQName,
+            objectSymbol: objectSymbol,
+            objectType: objectType,
+            objectScope: objectScope,
+            ctx: ctx
+        )
+        // An unqualified member call (or `this@Outer`) inside the object
+        // literal's member bodies can target the enclosing receiver — the
+        // innermost `outerReceiverTypes` entry. Its runtime value is the
+        // enclosing function's `this`, which the capture machinery stores
+        // into the object literal's fields like any other outer local.
+        // Attaching that symbol to the entry is what lets call resolution
+        // and capture analysis find it; entries without a symbol stay
+        // type-only (`this@Label` typing) as before.
+        var objectOuterReceiverTypes = ctx.outerReceiverTypes
+        if let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")] {
+            // The stack may name the same receiver under several labels (the
+            // class itself and each enclosing member function), so fill every
+            // entry whose type is the enclosing `this` type.
+            for index in objectOuterReceiverTypes.indices
+                where objectOuterReceiverTypes[index].type == thisBinding.type
+            {
+                objectOuterReceiverTypes[index].symbol = thisBinding.symbol
+            }
+        }
+        let objectCtx = ctx.copying(
+            scope: objectScope,
+            implicitReceiverType: objectType,
+            enclosingClassSymbol: objectSymbol,
+            outerReceiverTypes: objectOuterReceiverTypes
+        )
+
+        typeCheckLocalNominalMemberProperties(
+            objectDecl.memberProperties,
+            propertySymbolsByDecl: propertySymbolsByDecl,
+            memberScope: objectScope,
+            memberCtx: objectCtx,
+            initializerLocals: locals,
+            accessorBaseLocals: outerLocalsSnapshot,
+            ctx: ctx
+        )
+
+        // KSP-CAP-001: member function bodies resolve outer locals the same
+        // way lambda bodies do — seeded via `locals`, which `inferNameRefExpr`
+        // always checks before the class member scope chain. Verified against
+        // kotlinc: an outer local shadows an object literal's own member of
+        // the same name (not the other way around) — a bare reference inside
+        // the member function binds to the captured outer local, and the
+        // object's own member is only reachable via explicit `this.member`.
+        var capturedSymbols: Set<SymbolID> = []
+        for functionDeclID in objectDecl.memberFunctions {
+            guard let functionSymbol = memberFunctionSymbolsByDecl[functionDeclID],
+                  let decl = ast.arena.decl(functionDeclID),
+                  case let .funDecl(functionDecl) = decl
+            else {
+                continue
+            }
+            driver.declChecker.typeCheckFunctionDecl(
+                functionDecl,
+                symbol: functionSymbol,
+                ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
+                solver: driver.solver,
+                diagnostics: ctx.semaCtx.diagnostics,
+                baseLocals: outerLocalsSnapshot
+            )
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inBody: functionDecl.body,
+                ast: ast,
+                sema: sema,
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
+            ))
+        }
+
+        // KSP-CAP-018: a custom accessor body is lowered as its own KIR
+        // function, exactly like a member function, so an outer local it
+        // references needs a capture field too. Property *initializers* are
+        // excluded on purpose: those are lowered inline in the enclosing
+        // function (see `lowerStoredObjectLiteralExpr`), where the local is
+        // still directly in scope. BUG-267: a delegate body (`lazy { ... }`)
+        // is also lowered as a standalone KIR function via
+        // `lowerDelegateLambdaBody`, so it needs the same capture treatment.
+        capturedSymbols.formUnion(collectLocalNominalCaptureSymbols(
+            memberProperties: objectDecl.memberProperties,
+            includePropertyInitializers: false,
+            extraBodies: [],
+            extraExprRoots: [],
+            captureOuterSymbols: captureOuterSymbols,
+            ast: ast,
+            sema: sema
+        ))
+        bindLocalNominalCaptures(
+            capturedSymbols,
+            ownerSymbol: objectSymbol,
+            outerLocalsSnapshot: outerLocalsSnapshot,
+            outerReceiverTypes: ctx.outerReceiverTypes,
+            sema: sema
+        )
+
+        synthesizeLocalNominalLayout(
+            ownerSymbol: objectSymbol,
+            memberFunctionDecls: objectDecl.memberFunctions,
+            memberFunctionSymbolsByDecl: memberFunctionSymbolsByDecl,
+            memberPropertyDecls: objectDecl.memberProperties,
+            propertySymbolsByDecl: propertySymbolsByDecl,
+            capturedSymbols: capturedSymbols,
+            directSuperSymbols: directSuperSymbols,
+            declRange: objectDecl.range,
+            // `.object`-kind symbols here are named local objects (KUU-555);
+            // anonymous object literals keep `.class` and read as
+            // "Object expression".
+            subjectDescription: sema.symbols.symbol(objectSymbol)?.kind == .object
+                ? "Object '\(interner.resolve(objectDecl.name))'"
+                : "Object expression",
+            ctx: ctx
+        )
+        return objectSymbol
+    }
+
+
+
+    /// Registers `.property` symbols for an anonymous or local nominal's
+    /// member properties (plus `$backing_<name>` / `$delegate_<name>` storage
+    /// symbols) — the same rules `MemberHeaderCollection` applies to named
+    /// nominals, keyed by `ownerFQName` so local declarations get unique FQ
+    /// names. Marks every symbol `markObjectLiteralPropertySymbol` so member
+    /// reads lower as direct field offsets.
+    func registerLocalNominalMemberProperties(
+        _ memberProperties: [DeclID],
+        ownerFQName: [InternedString],
+        ownerSymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> [DeclID: SymbolID] {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
         var propertySymbolsByDecl: [DeclID: SymbolID] = [:]
-        for propertyDeclID in objectDecl.memberProperties {
+        for propertyDeclID in memberProperties {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else {
@@ -191,14 +370,14 @@ extension ExprTypeChecker {
             let propertySymbol = sema.symbols.define(
                 kind: .property,
                 name: propertyDecl.name,
-                fqName: [objectDecl.name, propertyDecl.name],
+                fqName: ownerFQName + [propertyDecl.name],
                 declSite: propertyDecl.range,
                 visibility: .public,
                 flags: propertyFlags
             )
             sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
             sema.bindings.markObjectLiteralPropertySymbol(propertySymbol)
-            sema.symbols.setParentSymbol(objectSymbol, for: propertySymbol)
+            sema.symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: propertySymbol)
 
             let declaredType = propertyDecl.type.map {
@@ -232,12 +411,12 @@ extension ExprTypeChecker {
                 let backingFieldSymbol = sema.symbols.define(
                     kind: .backingField,
                     name: fieldName,
-                    fqName: [objectDecl.name, fieldName],
+                    fqName: ownerFQName + [fieldName],
                     declSite: propertyDecl.range,
                     visibility: .private,
                     flags: propertyDecl.isVar ? [.mutable] : []
                 )
-                sema.symbols.setParentSymbol(objectSymbol, for: backingFieldSymbol)
+                sema.symbols.setParentSymbol(ownerSymbol, for: backingFieldSymbol)
                 sema.symbols.setPropertyType(declaredType, for: backingFieldSymbol)
                 sema.symbols.setSourceFileID(ctx.currentFileID, for: backingFieldSymbol)
                 sema.symbols.setBackingFieldSymbol(backingFieldSymbol, for: propertySymbol)
@@ -252,47 +431,41 @@ extension ExprTypeChecker {
                 let delegateStorageSymbol = sema.symbols.define(
                     kind: .field,
                     name: delegateStorageName,
-                    fqName: [objectDecl.name, delegateStorageName],
+                    fqName: ownerFQName + [delegateStorageName],
                     declSite: propertyDecl.range,
                     visibility: .private,
                     flags: []
                 )
-                sema.symbols.setParentSymbol(objectSymbol, for: delegateStorageSymbol)
+                sema.symbols.setParentSymbol(ownerSymbol, for: delegateStorageSymbol)
                 sema.symbols.setSourceFileID(ctx.currentFileID, for: delegateStorageSymbol)
                 sema.symbols.setDelegateStorageSymbol(delegateStorageSymbol, for: propertySymbol)
             }
             propertySymbolsByDecl[propertyDeclID] = propertySymbol
         }
+        return propertySymbolsByDecl
+    }
 
-        let objectType = sema.types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let objectScope = ClassMemberScope(
-            parent: ctx.scope,
-            symbols: sema.symbols,
-            ownerSymbol: objectSymbol,
-            thisType: objectType
-        )
-        for propertySymbol in propertySymbolsByDecl.values {
-            objectScope.insert(propertySymbol)
-        }
-        let memberFunctionSymbolsByDecl = collectObjectLiteralMemberFunctions(
-            objectDecl.memberFunctions,
-            objectDecl: objectDecl,
-            objectSymbol: objectSymbol,
-            objectType: objectType,
-            objectScope: objectScope,
-            ctx: ctx
-        )
-        let objectCtx = ctx.copying(
-            scope: objectScope,
-            implicitReceiverType: objectType,
-            enclosingClassSymbol: objectSymbol
-        )
-
-        for propertyDeclID in objectDecl.memberProperties {
+    /// Type-checks member properties of an anonymous or local nominal:
+    /// declared type -> initializer -> custom getter -> `by` delegate ->
+    /// setter, in the owner nominal's member scope. `initializerLocals` is the
+    /// binding set initializer/delegate expressions infer against (the
+    /// enclosing scope for object literals, ctor-param + captured locals for
+    /// a local class whose initializers run inside `<init>`); accessors,
+    /// lowered as standalone KIR functions, get `accessorBaseLocals`.
+    func typeCheckLocalNominalMemberProperties(
+        _ memberProperties: [DeclID],
+        propertySymbolsByDecl: [DeclID: SymbolID],
+        memberScope: ClassMemberScope,
+        memberCtx: TypeInferenceContext,
+        initializerLocals: LocalBindings,
+        accessorBaseLocals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+        var initializerLocals = initializerLocals
+        for propertyDeclID in memberProperties {
             guard let propertySymbol = propertySymbolsByDecl[propertyDeclID],
                   let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
@@ -306,9 +479,9 @@ extension ExprTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    scope: objectScope,
+                    scope: memberScope,
                     diagnostics: ctx.semaCtx.diagnostics,
-                    inferenceContext: objectCtx,
+                    inferenceContext: memberCtx,
                     usageRange: propertyDecl.range
                 )
             }
@@ -317,8 +490,8 @@ extension ExprTypeChecker {
             if let initializer = propertyDecl.initializer {
                 let type = driver.inferExpr(
                     initializer,
-                    ctx: objectCtx,
-                    locals: &locals,
+                    ctx: memberCtx,
+                    locals: &initializerLocals,
                     expectedType: declaredType
                 )
                 if let declaredType {
@@ -343,7 +516,7 @@ extension ExprTypeChecker {
             // `DeclTypeChecker` describes for delegate bodies. Ordering mirrors
             // the named path in `DeclTypeChecker.typeCheckPropertyDecl`: the
             // getter can supply the property's type, the setter needs it final.
-            let accessorCtx = objectCtx.with(currentDeclSymbol: propertySymbol)
+            let accessorCtx = memberCtx.with(currentDeclSymbol: propertySymbol)
             if let getter = propertyDecl.getter, getter.body != .unit {
                 inferredType = driver.declChecker.typeCheckGetter(
                     getter,
@@ -352,7 +525,7 @@ extension ExprTypeChecker {
                     accessorCtx: accessorCtx,
                     solver: driver.solver,
                     diagnostics: ctx.semaCtx.diagnostics,
-                    baseLocals: outerLocalsSnapshot
+                    baseLocals: accessorBaseLocals
                 )
             }
 
@@ -369,8 +542,8 @@ extension ExprTypeChecker {
                     fallbackRange: propertyDecl.range,
                     symbol: propertySymbol,
                     inferredPropertyType: declaredType ?? inferredType,
-                    ctx: objectCtx,
-                    locals: &locals,
+                    ctx: memberCtx,
+                    locals: &initializerLocals,
                     diagnostics: ctx.semaCtx.diagnostics,
                     delegateBody: propertyDecl.delegateBody,
                     delegateBodyParams: propertyDecl.delegateBodyParams
@@ -401,51 +574,30 @@ extension ExprTypeChecker {
                     accessorCtx: accessorCtx,
                     solver: driver.solver,
                     diagnostics: ctx.semaCtx.diagnostics,
-                    baseLocals: outerLocalsSnapshot
+                    baseLocals: accessorBaseLocals
                 )
             }
         }
+    }
 
-        // KSP-CAP-001: member function bodies resolve outer locals the same
-        // way lambda bodies do — seeded via `locals`, which `inferNameRefExpr`
-        // always checks before the class member scope chain. Verified against
-        // kotlinc: an outer local shadows an object literal's own member of
-        // the same name (not the other way around) — a bare reference inside
-        // the member function binds to the captured outer local, and the
-        // object's own member is only reachable via explicit `this.member`.
+    /// Unions the captured-outer-symbol sets of a local nominal's accessor
+    /// bodies (always lowered as standalone KIR functions) and any caller-
+    /// supplied roots: `extraBodies` covers `init {}` blocks and
+    /// `extraExprRoots` covers superclass constructor arguments and property
+    /// initializers — all of which lower inside `<init>` for a local class,
+    /// unlike an object literal where they run inline in the enclosing
+    /// function. `includePropertyInitializers` handles the latter.
+    func collectLocalNominalCaptureSymbols(
+        memberProperties: [DeclID],
+        includePropertyInitializers: Bool,
+        extraBodies: [FunctionBody],
+        extraExprRoots: [ExprID],
+        captureOuterSymbols: Set<SymbolID>,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Set<SymbolID> {
         var capturedSymbols: Set<SymbolID> = []
-        for functionDeclID in objectDecl.memberFunctions {
-            guard let functionSymbol = memberFunctionSymbolsByDecl[functionDeclID],
-                  let decl = ast.arena.decl(functionDeclID),
-                  case let .funDecl(functionDecl) = decl
-            else {
-                continue
-            }
-            driver.declChecker.typeCheckFunctionDecl(
-                functionDecl,
-                symbol: functionSymbol,
-                ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
-                solver: driver.solver,
-                diagnostics: ctx.semaCtx.diagnostics,
-                baseLocals: outerLocalsSnapshot
-            )
-            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
-                inBody: functionDecl.body,
-                ast: ast,
-                sema: sema,
-                outerSymbols: captureOuterSymbols
-            ))
-        }
-
-        // KSP-CAP-018: a custom accessor body is lowered as its own KIR
-        // function, exactly like a member function, so an outer local it
-        // references needs a capture field too. Property *initializers* are
-        // excluded on purpose: those are lowered inline in the enclosing
-        // function (see `lowerStoredObjectLiteralExpr`), where the local is
-        // still directly in scope. BUG-267: a delegate body (`lazy { ... }`)
-        // is also lowered as a standalone KIR function via
-        // `lowerDelegateLambdaBody`, so it needs the same capture treatment.
-        for propertyDeclID in objectDecl.memberProperties {
+        for propertyDeclID in memberProperties {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else {
@@ -459,28 +611,98 @@ extension ExprTypeChecker {
                     inBody: accessorBody,
                     ast: ast,
                     sema: sema,
+                    outerSymbols: captureOuterSymbols,
+                    skipNestedClosures: false
+                ))
+            }
+            if includePropertyInitializers, let initializer = propertyDecl.initializer {
+                capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                    in: initializer,
+                    ast: ast,
+                    sema: sema,
                     outerSymbols: captureOuterSymbols
                 ))
             }
         }
-        if !capturedSymbols.isEmpty {
-            var typesBySymbol: [SymbolID: TypeID] = [:]
-            for binding in outerLocalsSnapshot.values {
-                typesBySymbol[binding.symbol] = binding.type
-            }
-            for capturedSymbol in capturedSymbols {
-                if let type = typesBySymbol[capturedSymbol]
-                    ?? sema.symbols.propertyType(for: capturedSymbol)
-                {
-                    sema.bindings.bindCapturedLocalType(capturedSymbol, type: type)
-                }
-            }
-            sema.bindings.bindObjectLiteralCaptureSymbols(
-                objectSymbol,
-                symbols: capturedSymbols.sorted(by: { $0.rawValue < $1.rawValue })
-            )
+        for body in extraBodies {
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inBody: body,
+                ast: ast,
+                sema: sema,
+                outerSymbols: captureOuterSymbols
+            ))
         }
+        for exprID in extraExprRoots {
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                in: exprID,
+                ast: ast,
+                sema: sema,
+                outerSymbols: captureOuterSymbols
+            ))
+        }
+        return capturedSymbols
+    }
 
+    /// Records the captured-symbol list on the owner nominal (read by
+    /// `ObjectLiteralLowerer` at materialization time) and binds each
+    /// captured local's type so member functions lowered as independent KIR
+    /// functions can read the field back.
+    func bindLocalNominalCaptures(
+        _ capturedSymbols: Set<SymbolID>,
+        ownerSymbol: SymbolID,
+        outerLocalsSnapshot: LocalBindings,
+        outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)],
+        sema: SemaModule
+    ) {
+        guard !capturedSymbols.isEmpty else {
+            return
+        }
+        var typesBySymbol: [SymbolID: TypeID] = [:]
+        for binding in outerLocalsSnapshot.values {
+            typesBySymbol[binding.symbol] = binding.type
+        }
+        for outerReceiver in outerReceiverTypes {
+            if let symbol = outerReceiver.symbol {
+                typesBySymbol[symbol] = outerReceiver.type
+            }
+        }
+        for capturedSymbol in capturedSymbols {
+            if let type = typesBySymbol[capturedSymbol]
+                ?? sema.symbols.propertyType(for: capturedSymbol)
+            {
+                sema.bindings.bindCapturedLocalType(capturedSymbol, type: type)
+            }
+        }
+        sema.bindings.bindObjectLiteralCaptureSymbols(
+            ownerSymbol,
+            symbols: capturedSymbols.sorted(by: { $0.rawValue < $1.rawValue })
+        )
+    }
+
+    /// Assigns the field/vtable/itable layout for a nominal synthesized
+    /// during body inference (object literal, named local `class`/`object`).
+    /// Such nominals are only known once the enclosing function body is
+    /// type-checked, well after `synthesizeNominalLayouts` assigned slots for
+    /// every named nominal (see `runValidationPasses` vs. `runBodyAnalysis`
+    /// in Phase.swift), so the layout is built here: inherited slots from the
+    /// class-kind supertype, then storage for member properties (keyed by
+    /// backing/delegate storage symbol), captured locals, override vtable
+    /// slots, and transitive-interface itable slots.
+    func synthesizeLocalNominalLayout(
+        ownerSymbol: SymbolID,
+        memberFunctionDecls: [DeclID],
+        memberFunctionSymbolsByDecl: [DeclID: SymbolID],
+        memberPropertyDecls: [DeclID],
+        propertySymbolsByDecl: [DeclID: SymbolID],
+        capturedSymbols: Set<SymbolID>,
+        directSuperSymbols: [SymbolID],
+        declRange: SourceRange,
+        subjectDescription: String = "Object expression",
+        ctx: TypeInferenceContext
+    ) {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
         let superClass = directSuperSymbols.first { superSymbol in
             guard let symbol = sema.symbols.symbol(superSymbol) else {
                 return false
@@ -491,7 +713,7 @@ extension ExprTypeChecker {
         var fieldOffsets = inheritedLayout?.fieldOffsets ?? [:]
         let objectHeaderWords = inheritedLayout?.objectHeaderWords ?? 2
         var nextFieldOffset = (fieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1
-        for propertyDeclID in objectDecl.memberProperties {
+        for propertyDeclID in memberPropertyDecls {
             guard let propertySymbol = propertySymbolsByDecl[propertyDeclID] else {
                 continue
             }
@@ -533,15 +755,10 @@ extension ExprTypeChecker {
         let inheritedVtableSize = inheritedLayout?.vtableSize
         let inheritedItableSize = inheritedLayout?.itableSize
 
-        // An object literal's own members are only known once the enclosing
-        // function body is type-checked, well after `synthesizeNominalLayouts`
-        // has already assigned vtable slots for every named class/object/interface
-        // (see `runValidationPasses` vs. `runBodyAnalysis` in Phase.swift). So
-        // unlike a named `class`/`object`, this nominal never goes through that
-        // pass — without this, `vtableSlots` would stay a bare copy of the
-        // superclass's own slots and an `override fun` here would leave its
-        // inherited slot pointing at the base class's implementation (the base
-        // method would keep running instead of the override, silently).
+        // The nominal never went through `synthesizeNominalLayouts`, so its
+        // `vtableSlots` start as a bare copy of the superclass's slots — an
+        // `override fun` here would leave the inherited slot pointing at the
+        // base class's implementation. Re-slot overrides now.
         var vtableSlots = inheritedVtableSlots
         let inheritedCandidatesByKey = vtableInheritedCandidatesByKey(
             inheritedVtableSlots: inheritedVtableSlots, symbols: sema.symbols
@@ -557,54 +774,41 @@ extension ExprTypeChecker {
             }
         }
 
-        // BUG-242: an object literal that implements an interface directly
-        // (no superclass to inherit itable slots from — e.g. `object :
-        // MutableIterator<Int> { ... }`) previously kept `inheritedItableSlots`
-        // verbatim, which is empty in that case. `appendObjectItableMethodRegistrations`
-        // then fell back to slot 0 for every interface it registers, so two
-        // interfaces (e.g. `Iterator` and `MutableIterator`) collided into the
-        // same itable slot and the later registration silently overwrote the
-        // earlier interface's method table. Mirror the named-class path
+        // BUG-242: mirror the named-class path
         // (`LayoutSynthesis.synthesizeLayoutForNominal`) by walking this
-        // literal's own transitive interface supertypes and assigning each one
-        // not already covered by inheritance a fresh slot.
+        // nominal's own transitive interface supertypes and assigning each
+        // one not already covered by inheritance a fresh itable slot.
         var itableSlots = inheritedItableSlots
         var nextItableSlot = max(inheritedItableSize ?? 0, (itableSlots.values.max() ?? -1) + 1)
-        for interfaceID in kirTransitiveInterfaceSupertypes(of: objectSymbol, sema: sema)
+        for interfaceID in kirTransitiveInterfaceSupertypes(of: ownerSymbol, sema: sema)
             where itableSlots[interfaceID] == nil
         {
             itableSlots[interfaceID] = nextItableSlot
             nextItableSlot += 1
         }
 
-        // KSP-CAP-018: an object literal is always concrete, so it must
-        // implement every inherited abstract member -- `object : Animal() {}`
+        // KSP-CAP-018: these nominals are always concrete, so they must
+        // implement every inherited abstract member — `object : Animal() {}`
         // over `abstract fun speak()` is an error in Kotlin. The named-nominal
-        // check (`Inheritance.validateAbstractOverrides`) runs during header
-        // validation, before this symbol exists, so object literals were never
-        // checked at all. Same structural cause as the vtable-slot gap above;
-        // the shared logic lives in `AbstractMemberCompleteness.swift`.
+        // check (`Inheritance.validateAbstractOverrides`) ran during header
+        // validation, before this symbol existed.
         var overriddenNames: Set<InternedString> = []
-        for functionDeclID in objectDecl.memberFunctions {
+        for functionDeclID in memberFunctionDecls {
             guard let decl = ast.arena.decl(functionDeclID),
                   case let .funDecl(functionDecl) = decl
             else { continue }
             overriddenNames.insert(functionDecl.name)
         }
-        for propertyDeclID in objectDecl.memberProperties {
+        for propertyDeclID in memberPropertyDecls {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else { continue }
             overriddenNames.insert(propertyDecl.name)
         }
-        // Unlike a named class, an object literal's members carry no `override`
-        // modifier requirement worth enforcing here (Kotlin does require it,
-        // but that is `OpenFinalOverride`'s job) -- any member of a matching
-        // name satisfies the abstract contract for this check.
         for missingMember in unimplementedAbstractMembers(
-            for: objectSymbol,
+            for: ownerSymbol,
             overriddenNames: overriddenNames,
-            delegatedInterfaces: sema.symbols.delegatedInterfaces(forClass: objectSymbol),
+            delegatedInterfaces: sema.symbols.delegatedInterfaces(forClass: ownerSymbol),
             symbols: sema.symbols
         ) {
             guard let missingSymbol = sema.symbols.symbol(missingMember) else {
@@ -612,9 +816,9 @@ extension ExprTypeChecker {
             }
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-ABSTRACT",
-                "Object expression must override abstract member "
+                "\(subjectDescription) must override abstract member "
                     + "'\(interner.resolve(missingSymbol.name))'.",
-                range: objectDecl.range
+                range: declRange
             )
         }
 
@@ -630,14 +834,17 @@ extension ExprTypeChecker {
                 itableSize: nextItableSlot,
                 superClass: superClass
             ),
-            for: objectSymbol
+            for: ownerSymbol
         )
-        return objectSymbol
     }
 
-    private func collectObjectLiteralMemberFunctions(
+    /// Defines member-function symbols for an anonymous or local nominal
+    /// (object literal, named local `object`, named local `class`).
+    /// `memberFQNamePrefix` is the owning nominal's FQ name — members get
+    /// `<prefix> + [memberName]`, parameters `<prefix> + [memberName, paramName]`.
+    func collectObjectLiteralMemberFunctions(
         _ memberFunctions: [DeclID],
-        objectDecl: ObjectDecl,
+        memberFQNamePrefix: [InternedString],
         objectSymbol: SymbolID,
         objectType: TypeID,
         objectScope: ClassMemberScope,
@@ -658,7 +865,7 @@ extension ExprTypeChecker {
             let memberSymbol = sema.symbols.define(
                 kind: .function,
                 name: functionDecl.name,
-                fqName: [objectDecl.name, functionDecl.name],
+                fqName: memberFQNamePrefix + [functionDecl.name],
                 declSite: functionDecl.range,
                 visibility: objectLiteralVisibility(from: functionDecl.modifiers),
                 flags: objectLiteralFunctionFlags(
@@ -695,7 +902,7 @@ extension ExprTypeChecker {
                 let paramSymbol = sema.symbols.define(
                     kind: .valueParameter,
                     name: param.name,
-                    fqName: [objectDecl.name, functionDecl.name, param.name],
+                    fqName: memberFQNamePrefix + [functionDecl.name, param.name],
                     declSite: functionDecl.range,
                     visibility: .private,
                     flags: []

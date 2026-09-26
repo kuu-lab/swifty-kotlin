@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "flatten_sequence_mixed.kt",
+      "range": {
+        "start": { "line": 9, "character": 20 },
+        "end": { "line": 9, "character": 35 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'flatten'.",
+      "codeActions": []
+    }
+  ]
+}

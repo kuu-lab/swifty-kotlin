@@ -686,7 +686,6 @@ final class CallLowerer {
             return loweredToList
         }
         if let loweredCollectionFactory = tryLowerCollectionFactoryCall(
-            sourceCalleeName: sourceCalleeName,
             args: args,
             loweredArgIDs: loweredArgIDs,
             chosenCallee: chosen,
@@ -712,6 +711,7 @@ final class CallLowerer {
                     objectValue: loweredCollectionFactory,
                     nominalSymbol: factoryResultClass,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
@@ -983,6 +983,19 @@ final class CallLowerer {
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                // Setter counterpart: register interface property setters
+                // into the itable so a write through an interface-typed
+                // receiver can dispatch to them.
+                appendObjectItablePropertySetterRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
@@ -1040,6 +1053,42 @@ final class CallLowerer {
                     }
                 }
             }
+            // KUU-555: a local class's `<init>` runs as an independent KIR
+            // function — materialize captured outer locals into the fresh
+            // instance's fields here, where the enclosing scope's locals are
+            // still active (same convention as object-literal capture
+            // materialization in `lowerStoredObjectLiteralExpr`).
+            if let ownerNominalSymbol,
+               let layout = sema.symbols.nominalLayout(for: ownerNominalSymbol)
+            {
+                for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerNominalSymbol) {
+                    guard let fieldOffset = layout.fieldOffsets[capturedSymbol],
+                          let captureValue = driver.lambdaLowerer.captureValueExpr(
+                              for: capturedSymbol,
+                              sema: sema,
+                              arena: arena,
+                              interner: interner,
+                              instructions: &instructions
+                          )
+                    else {
+                        continue
+                    }
+                    let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+                    instructions.append(.constValue(
+                        result: captureOffsetExpr,
+                        value: .intLiteral(Int64(fieldOffset))
+                    ))
+                    let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_set"),
+                        arguments: [allocatedObj, captureOffsetExpr, captureValue],
+                        result: captureSetResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+            }
             finalArgIDs.insert(allocatedObj, at: 0)
             if isSyntheticAnyConstructor(chosen, sema: sema) {
                 // Any's implicit constructor is represented by allocation only;
@@ -1051,7 +1100,13 @@ final class CallLowerer {
                   let signature = sema.symbols.functionSignature(for: chosen),
                   signature.receiverType != nil
         {
-            var implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+            // A call that Sema resolved on an *outer* implicit receiver (e.g.
+            // an enclosing class's member invoked unqualified from an object
+            // literal's member body) reads the receiver through the captured
+            // enclosing `this`, not the member's own implicit receiver.
+            var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
+                .flatMap { driver.ctx.localValue(for: $0) }
+                ?? driver.ctx.activeImplicitReceiverExprID()
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
             {
@@ -1073,11 +1128,18 @@ final class CallLowerer {
                 // source-backed default mutation members. Resolve those
                 // implicit calls to their demoted ABI bridges before the
                 // generic virtual-dispatch path is selected.
+                let implicitReceiverType = arena.exprType(implicitReceiver)
+                    ?? signature.receiverType
+                    ?? sema.types.anyType
                 implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(
                     memberName: interner.resolve(sourceCalleeName),
-                    receiverType: arena.exprType(implicitReceiver)
-                        ?? signature.receiverType
-                        ?? sema.types.anyType,
+                    receiverType: implicitReceiverType,
+                    chosenCallee: chosen,
+                    sema: sema,
+                    interner: interner
+                ) ?? runtimeBackedListMemberCallee(
+                    memberName: interner.resolve(sourceCalleeName),
+                    receiverType: implicitReceiverType,
                     chosenCallee: chosen,
                     sema: sema,
                     interner: interner
@@ -1445,7 +1507,9 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
+            "__kk_mutable_list_add_at",
             "__kk_mutable_list_removeAt",
+            "__kk_mutable_list_set",
             "__kk_list_get",
             "__kk_mutable_set_add",
             "__kk_mutable_set_remove",
@@ -1456,9 +1520,35 @@ final class CallLowerer {
             "__kk_mutable_map_putAll",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
+            "kk_sequence_elementAt",
             "kk_iterable_iterator",
             "kk_mutex_unlock",
             "kk_semaphore_release",
+            "__kk_file_readText",
+            "__kk_buffered_reader_useLines",
+            "__kk_buffered_reader_forEachLine",
+            "__kk_buffered_writer_write",
+            "__kk_buffered_writer_new_line",
+            "__kk_buffered_writer_flush",
+            "__kk_writer_buffered_default",
+            "__kk_writer_buffered",
+            "__kk_bytearrayinputstream_new",
+            "__kk_bytearray_inputStream",
+            "__kk_bytearray_inputStream_range",
+            "__kk_input_stream_read",
+            "__kk_input_stream_skip",
+            "__kk_input_stream_read_bytes",
+            "__kk_input_stream_readAllBytes",
+            "__kk_input_stream_reset",
+            "__kk_input_stream_buffered_default",
+            "__kk_input_stream_buffered",
+            "__kk_input_stream_copyTo",
+            "__kk_input_stream_bufferedReader",
+            "__kk_output_stream_write_byte",
+            "__kk_output_stream_write_bytes",
+            "__kk_output_stream_flush",
+            "__kk_reader_copyTo",
+            "__kk_reader_copyTo_default",
             "kk_iterator_next",
             "kk_list_iterator_next",
         ].contains(name)
@@ -1486,8 +1576,36 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "__kk_mutable_list_removeAt",
+            "__kk_mutable_list_add",
+            "__kk_mutable_list_add_at",
+            "__kk_mutable_list_set",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_file_readText",
+            "__kk_buffered_reader_useLines",
+            "__kk_buffered_reader_forEachLine",
+            "__kk_buffered_writer_write",
+            "__kk_buffered_writer_new_line",
+            "__kk_buffered_writer_flush",
+            "__kk_writer_buffered_default",
+            "__kk_writer_buffered",
+            "__kk_bytearrayinputstream_new",
+            "__kk_bytearray_inputStream",
+            "__kk_bytearray_inputStream_range",
+            "__kk_input_stream_read",
+            "__kk_input_stream_skip",
+            "__kk_input_stream_read_bytes",
+            "__kk_input_stream_readAllBytes",
+            "__kk_input_stream_reset",
+            "__kk_input_stream_buffered_default",
+            "__kk_input_stream_buffered",
+            "__kk_input_stream_copyTo",
+            "__kk_input_stream_bufferedReader",
+            "__kk_output_stream_write_byte",
+            "__kk_output_stream_write_bytes",
+            "__kk_output_stream_flush",
+            "__kk_reader_copyTo",
+            "__kk_reader_copyTo_default",
             "__kk_mutable_set_remove",
             "__kk_mutable_set_clear",
             "__kk_mutable_map_put",
@@ -1497,6 +1615,7 @@ final class CallLowerer {
             "__kk_list_get",
             "kk_mutex_unlock",
             "kk_semaphore_release",
+            "kk_sequence_elementAt",
             "kk_iterator_next",
             "kk_list_iterator_next",
         ].contains(interner.resolve(calleeName))

@@ -9,6 +9,14 @@ final class KIRLoweringContext {
         let exprID: KIRExprID
     }
 
+    /// BUG-274: the lazy "ensure initialized" function and `$initialized`
+    /// flag registered for one source-backed `object`/`companion object`.
+    struct ObjectLazyInit {
+        let ensureInitSymbol: SymbolID
+        let ensureInitName: InternedString
+        let flagSymbol: SymbolID
+    }
+
     // MARK: - Scope State (saved/restored per function/lambda)
 
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
@@ -77,11 +85,22 @@ final class KIRLoweringContext {
     var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
     /// Caches raw-returning bridges used by runtime Any.toString dispatch.
     var anyToStringBridgeSymbolsByImplementation: [SymbolID: SymbolID] = [:]
+    /// Per-nominal vtable/itable registration entries, computed once per type
+    /// instead of once per construction site.
+    let nominalDispatchCache = KIRNominalDispatchCache()
     var nextSyntheticLambdaSymbolRawValue: Int32 = -60_000_000
 
     /// Companion object initializer functions registered during class lowering.
     /// These are called in order during module initialization.
     private var companionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
+
+    /// BUG-274: maps a source-backed `object`/`companion object`'s own
+    /// symbol to its lazily-run "ensure initialized" function and its
+    /// `$initialized` flag global. Populated only for objects synthesized in
+    /// THIS compilation via `synthesizeObjectInitializer`/
+    /// `synthesizeCompanionInitializerIfNeeded`. Imported-library entries
+    /// live in `SymbolTable` after metadata restoration instead.
+    private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
     // MARK: - Structured Scope Management
 
@@ -93,6 +112,7 @@ final class KIRLoweringContext {
         let lambdaParamNameToSymbol: [InternedString: SymbolID]
         let currentImplicitReceiverExprID: KIRExprID?
         let currentImplicitReceiverSymbol: SymbolID?
+        let qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID]
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
@@ -111,6 +131,7 @@ final class KIRLoweringContext {
             lambdaParamNameToSymbol: lambdaParamNameToSymbol,
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
+            qualifiedThisReceiverExprsByLabel: qualifiedThisReceiverExprsByLabel,
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
@@ -129,6 +150,7 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol = snapshot.lambdaParamNameToSymbol
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
+        qualifiedThisReceiverExprsByLabel = snapshot.qualifiedThisReceiverExprsByLabel
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
@@ -155,6 +177,12 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol.removeAll(keepingCapacity: true)
         currentImplicitReceiverExprID = nil
         currentImplicitReceiverSymbol = nil
+        // `this@Label` entries only ever hold values valid inside one KIR
+        // function's instruction stream — the exprIDs they point at are
+        // dangling past a member-function/lambda boundary. Clear them so a
+        // labeled `this` inside the next body cannot resolve to a stale
+        // exprID from an unrelated context.
+        qualifiedThisReceiverExprsByLabel.removeAll(keepingCapacity: true)
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
@@ -500,6 +528,29 @@ final class KIRLoweringContext {
         companionInitializerFunctions
     }
 
+    /// BUG-274: registers `objectSymbol`'s lazy "ensure initialized"
+    /// function so read/write/call sites that touch its state can insert a
+    /// guard call before the eager module-init call is removed for it.
+    func registerObjectLazyInit(
+        for objectSymbol: SymbolID,
+        ensureInitSymbol: SymbolID,
+        ensureInitName: InternedString,
+        flagSymbol: SymbolID
+    ) {
+        objectLazyInitBySymbol[objectSymbol] = ObjectLazyInit(
+            ensureInitSymbol: ensureInitSymbol,
+            ensureInitName: ensureInitName,
+            flagSymbol: flagSymbol
+        )
+    }
+
+    /// Returns `objectSymbol`'s lazy-init entry, or `nil` for any object this
+    /// compilation did not itself synthesize an initializer for. Imported
+    /// library singletons are restored separately in `SymbolTable`.
+    func objectLazyInit(for objectSymbol: SymbolID) -> ObjectLazyInit? {
+        objectLazyInitBySymbol[objectSymbol]
+    }
+
     func resetModuleState() {
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
         callableValueInfoByExprID.removeAll(keepingCapacity: true)
@@ -509,5 +560,6 @@ final class KIRLoweringContext {
         itableBridgeSymbolsByKey.removeAll(keepingCapacity: true)
         anyToStringBridgeSymbolsByImplementation.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
+        objectLazyInitBySymbol.removeAll(keepingCapacity: true)
     }
 }

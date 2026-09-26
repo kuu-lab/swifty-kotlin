@@ -384,7 +384,7 @@ final class CallSupportLowerer {
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
             || externalLinkName == "__kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
-        if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner) {
+        if isStdlibCollectionFactory(chosenCallee, sema: sema) {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
         var boxedArguments = providedArguments
@@ -690,26 +690,9 @@ final class CallSupportLowerer {
 
     private func isStdlibCollectionFactory(
         _ symbolID: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> Bool {
-        guard let symbol = sema.symbols.symbol(symbolID) else {
-            return false
-        }
-        guard symbol.fqName.count == 3,
-              interner.resolve(symbol.fqName[0]) == "kotlin",
-              interner.resolve(symbol.fqName[1]) == "collections"
-        else {
-            return false
-        }
-        switch interner.resolve(symbol.fqName[2]) {
-        case "emptyList", "listOf", "mutableListOf", "arrayListOf",
-             "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
-             "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
-            return true
-        default:
-            return false
-        }
+        sema.wellKnownSymbols.collectionFactory(for: symbolID) != nil
     }
 
     func packVarargArguments(

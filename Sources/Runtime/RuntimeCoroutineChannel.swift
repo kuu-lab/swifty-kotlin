@@ -76,50 +76,6 @@ final class SuspendedReceiver: @unchecked Sendable {
     }
 }
 
-/// FIFO queue with amortized O(1) `enqueue`/`dequeue`.
-///
-/// Elements are stored in an array behind a head index: `dequeue` advances the
-/// head (releasing the slot) instead of shifting every element like
-/// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
-/// storage is compacted back to `head == 0`, which keeps the steady-state cost
-/// O(1) amortized; a fully drained queue resets its head so alternating
-/// send/receive never accumulates dead slots.
-private struct ChannelFIFOQueue<Element> {
-    private var elements: [Element?] = []
-    private var head = 0
-
-    var isEmpty: Bool { head >= elements.count }
-    var count: Int { elements.count - head }
-
-    mutating func enqueue(_ element: Element) {
-        elements.append(element)
-    }
-
-    mutating func dequeue() -> Element? {
-        guard head < elements.count, let element = elements[head] else {
-            return nil
-        }
-        elements[head] = nil
-        head += 1
-        if head == elements.count {
-            elements.removeAll(keepingCapacity: true)
-            head = 0
-        } else if head >= 32 && head * 2 >= elements.count {
-            elements.removeFirst(head)
-            head = 0
-        }
-        return element
-    }
-
-    /// Removes all queued elements and returns them in FIFO order.
-    mutating func drain() -> [Element] {
-        let queued = elements[head...].compactMap { $0 }
-        elements.removeAll(keepingCapacity: true)
-        head = 0
-        return queued
-    }
-}
-
 /// Channel with proper Kotlin suspend semantics:
 ///   - **Rendezvous** (`capacity == 0`): every `send` suspends until a matching
 ///     `receive` and vice-versa.
@@ -137,7 +93,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // `buffer`, `senderQueue`, and `receiverQueue` are head-index FIFO queues:
     // dequeue is O(1) amortized, so draining an UNLIMITED/backed-up channel
     // stays linear instead of quadratic in the buffered element count.
-    private var buffer = ChannelFIFOQueue<Int>()
+    private var buffer = RuntimeFIFOQueue<Int>()
     let capacity: Int
     private(set) var closed = false
     private let bufferOverflow: ChannelBufferOverflow
@@ -146,11 +102,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // reference.  Receivers set `delivered = true` before signaling the
     // semaphore so that senders can distinguish successful delivery from a
     // close-induced wakeup.
-    private var senderQueue = ChannelFIFOQueue<SuspendedSender>()
+    private var senderQueue = RuntimeFIFOQueue<SuspendedSender>()
 
     // Waiting-receiver queue: each suspended receiver is a `SuspendedReceiver`
     // reference.  Senders deposit a value before signaling the semaphore.
-    private var receiverQueue = ChannelFIFOQueue<SuspendedReceiver>()
+    private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
 
     init(capacity: Int, bufferOverflow: ChannelBufferOverflow = .suspend) {
         self.capacity = max(0, capacity)
@@ -233,7 +189,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // BUG-041 interaction: flush undispatched launch{} work before blocking
         // so a sibling `launch { receive() }` queued on this thread can run.
         RuntimePendingLaunchQueue.flush()
-        senderSem.wait()
+        runtimeWaitDrainingEventLoop(senderSem)
 
         // After waking, check the wakeup reason.
         lock.lock()
@@ -358,8 +314,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // BUG-041 interaction: flush undispatched launch{} work before blocking
         // so a sibling `launch { send(x) }` queued on this thread can run.
         // Without this, channel_basic-style rendezvous deadlocks (run exit 124).
+        // On a runBlocking event loop the flush only *queues* that sibling, so
+        // the wait below has to keep draining the queue rather than park.
         RuntimePendingLaunchQueue.flush()
-        receiverEntry.semaphore.wait()
+        runtimeWaitDrainingEventLoop(receiverEntry.semaphore)
 
         // After waking, check the wakeup reason.
         lock.lock()

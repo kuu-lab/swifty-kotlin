@@ -616,5 +616,123 @@ struct DiagnosticEngineTests {
         #expect(diag.codeActions.count == 1)
         #expect(diag.codeActions[0].title == "Fix it")
     }
+
+    // MARK: - Per-file diagnostic limit
+
+    private static let truncationCode = "KSWIFTK-PIPELINE-0005"
+
+    @Test
+    func testEmitsSingleTruncationNoticeWhenFileLimitExceeded() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 3)
+        let file = FileID(rawValue: 7)
+        for i in 0 ..< 10 {
+            engine.error("E-\(i)", "err \(i)", range: makeRange(file: file, start: i, end: i + 1))
+        }
+        let notices = engine.diagnostics.filter { $0.code == Self.truncationCode }
+        #expect(engine.diagnostics.count == 4) // 3 stored + 1 aggregated notice
+        #expect(notices.count == 1)
+        #expect(notices[0].severity == .error)
+        #expect(engine.errorCount == 4)
+    }
+
+    @Test
+    func testTruncationNoticeAnchorsAtFirstSuppressedRange() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 1)
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 0, end: 1))
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 2, end: 3))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 4, end: 5))
+        let notice = engine.diagnostics.last
+        #expect(notice?.code == Self.truncationCode)
+        #expect(notice?.primaryRange == makeRange(file: file, start: 4, end: 5))
+    }
+
+    @Test
+    func testPerFileLimitIsIndependentAcrossFiles() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let fileA = FileID(rawValue: 1)
+        let fileB = FileID(rawValue: 2)
+        for i in 0 ..< 4 {
+            engine.error("A-\(i)", "a", range: makeRange(file: fileA, start: i, end: i + 1))
+            engine.error("B-\(i)", "b", range: makeRange(file: fileB, start: i, end: i + 1))
+        }
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 2)
+        #expect(engine.diagnostics.count == 6) // 2 per file + 1 notice per file
+    }
+
+    @Test
+    func testDuplicatesDoNotCountTowardLimit() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let diag = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
+        for _ in 0 ..< 10 {
+            engine.emit(diag)
+        }
+        #expect(engine.diagnostics.count == 1)
+        #expect(engine.diagnostics.allSatisfy { $0.code != Self.truncationCode })
+    }
+
+    @Test
+    func testRangelessDiagnosticsShareOneBucket() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 3)
+        for i in 0 ..< 8 {
+            engine.warning("W-\(i)", "w\(i)", range: nil)
+        }
+        #expect(engine.diagnostics.count == 4)
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+    }
+
+    @Test
+    func testSuppressedDiagnosticsDoNotCountTowardLimit() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 5)
+        engine.addSuppression(code: "E-SUP", range: makeRange(file: file, start: 0, end: 100))
+        for i in 0 ..< 4 {
+            engine.error("E-SUP", "suppressed", range: makeRange(file: file, start: i, end: i + 1))
+        }
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 0, end: 1))
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 1, end: 2))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 2, end: 3))
+        #expect(engine.diagnostics.count == 3)
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+    }
+
+    @Test
+    func testTruncationNoticeEscalatesToErrorWhenErrorDropped() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 3)
+        engine.warning("W-0", "w0", range: makeRange(file: file, start: 0, end: 1))
+        engine.warning("W-1", "w1", range: makeRange(file: file, start: 1, end: 2))
+        engine.warning("W-2", "w2", range: makeRange(file: file, start: 2, end: 3))
+        var notices = engine.diagnostics.filter { $0.code == Self.truncationCode }
+        #expect(notices.count == 1)
+        #expect(notices[0].severity == .warning)
+        #expect(!engine.hasError)
+
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 3, end: 4))
+        notices = engine.diagnostics.filter { $0.code == Self.truncationCode }
+        #expect(notices.count == 1)
+        #expect(notices[0].severity == .error)
+        #expect(engine.hasError)
+    }
+
+    @Test
+    func testTruncateRestoresHeadroomAndNotice() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 4)
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 0, end: 1))
+        let snapshot = engine.count
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 1, end: 2))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 2, end: 3))
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+
+        engine.truncate(to: snapshot)
+        #expect(engine.diagnostics.count == 1)
+
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 1, end: 2))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 2, end: 3))
+        engine.error("E-3", "e3", range: makeRange(file: file, start: 3, end: 4))
+        #expect(engine.diagnostics.count == 3)
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+    }
 }
 #endif

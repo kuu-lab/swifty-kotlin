@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 @testable import Runtime
 import Testing
@@ -86,5 +87,42 @@ struct RuntimeLiveHandleRegistryTests {
         #expect(runtimeCoroutineScope(from: 0) == nil)
         #expect(runtimeJobHandle(from: 0) == nil)
         #expect(runtimeAsyncTask(from: 0) == nil)
+    }
+
+    @Test("a resolved strong reference keeps the object alive past the runtime release")
+    func resolvedHandleKeepsObjectAliveAfterRelease() {
+        let raw = kk_coroutine_continuation_new(5)
+        let resolved = runtimeContinuationState(from: raw)
+        #expect(resolved != nil)
+
+        // The runtime drops its own retain while the resolver holds a strong
+        // reference: the object must remain live — and keep resolving — for as
+        // long as `resolved` is held.
+        _ = kk_coroutine_state_exit(raw, 0)
+        #expect(resolved?.functionID == 5)
+        #expect(runtimeContinuationState(from: raw) === resolved)
+    }
+
+    @Test("resolve racing a release never dereferences a freed object")
+    func resolveRacingReleaseNeverReadsFreedMemory() {
+        // KUU-814: the resolver used to check liveness under the registry lock
+        // and only take an unretained value after dropping it, so a concurrent
+        // release could free the object mid-resolution. Resolution is now an
+        // atomic strong-retain, so this loop is a crash regression test.
+        for _ in 0..<128 {
+            let raw = kk_coroutine_continuation_new(1)
+            let group = DispatchGroup()
+            for _ in 0..<4 {
+                DispatchQueue.global().async(group: group) {
+                    for _ in 0..<250 {
+                        _ = runtimeContinuationState(from: raw)
+                    }
+                }
+            }
+            DispatchQueue.global().async(group: group) {
+                _ = kk_coroutine_state_exit(raw, 0)
+            }
+            group.wait()
+        }
     }
 }
