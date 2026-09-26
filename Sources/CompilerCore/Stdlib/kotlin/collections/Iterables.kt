@@ -1133,75 +1133,13 @@ public fun <T : Any> List<T?>.requireNoNulls(): List<T> {
     return this as List<T>
 }
 
-// Shared by Sequence.joinTo/joinToString (SequenceAggregateHOF.kt,
-// kotlin.sequences). The legacy Sequence surface only needs iterator(), so a
-// single implementation keyed on Iterator<T> covers its receiver type (KSP-621).
-internal fun <T> appendJoinToPlain(
-    iterator: Iterator<T>,
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String
-): StringBuilder {
-    buffer.append(prefix)
-    var count = 0
-    var hasMore = false
-    while (iterator.hasNext()) {
-        val element = iterator.next()
-        if (limit >= 0 && count >= limit) {
-            hasMore = true
-            break
-        }
-        if (count > 0) buffer.append(separator)
-        buffer.append(element.toString())
-        count++
-    }
-    if (hasMore) {
-        if (count > 0) buffer.append(separator)
-        buffer.append(truncated)
-    }
-    buffer.append(postfix)
-    return buffer
-}
-
-internal fun <T> appendJoinToTransform(
-    iterator: Iterator<T>,
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
-    transform: (T) -> Any
-): StringBuilder {
-    buffer.append(prefix)
-    var count = 0
-    var hasMore = false
-    while (iterator.hasNext()) {
-        val element = iterator.next()
-        if (limit >= 0 && count >= limit) {
-            hasMore = true
-            break
-        }
-        if (count > 0) buffer.append(separator)
-        buffer.append(transform(element).toString())
-        count++
-    }
-    if (hasMore) {
-        if (count > 0) buffer.append(separator)
-        buffer.append(truncated)
-    }
-    buffer.append(postfix)
-    return buffer
-}
-
 // Kotlin 2.3.10 models joinTo's transform as a nullable function with a null
 // default. The current compiler cannot lower nullable function-typed
 // parameters, so the source-backed surface keeps the no-transform and
 // non-null-transform paths as separate overloads while preserving the same
 // defaults and behavior.
+// Shared by Sequence.joinTo/joinToString (SequenceAggregateHOF.kt,
+// kotlin.sequences), which only needs iterator() (KSP-621, KSP-1350).
 internal fun <T, A : Appendable> appendJoinToAppendablePlain(
     iterator: Iterator<T>,
     buffer: A,
