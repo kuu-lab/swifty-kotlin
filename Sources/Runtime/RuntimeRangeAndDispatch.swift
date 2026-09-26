@@ -285,10 +285,15 @@ func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
 func runtimeRangeContains(_ range: RuntimeRangeBox, _ element: Int) -> Int {
     if range.step > 0 {
         guard element >= range.first, element <= range.last else { return 0 }
-        return (element - range.first) % range.step == 0 ? 1 : 0
+        // The signed distance can exceed Int64 range on full-span ranges
+        // (e.g. element=Int.max, first=Int.min); the wrapping subtraction's
+        // bit pattern is the true unsigned distance.
+        let distance = UInt(bitPattern: element &- range.first)
+        return distance % UInt(range.step) == 0 ? 1 : 0
     } else if range.step < 0 {
         guard element <= range.first, element >= range.last else { return 0 }
-        return (range.first - element) % (-range.step) == 0 ? 1 : 0
+        let distance = UInt(bitPattern: range.first &- element)
+        return distance % UInt(bitPattern: 0 &- range.step) == 0 ? 1 : 0
     }
     return 0
 }
@@ -304,6 +309,10 @@ func runtimeSignedRangeTraverse(
     if range.step > 0 {
         while current <= range.last {
             if !body(current, index) { return false }
+            // The stored last is already snapped to the progression's final
+            // reachable element, so reaching it ends the walk without letting
+            // the advance wrap around an Int/Long boundary (KUU-819).
+            if current == range.last { break }
             let (next, overflow) = current.addingReportingOverflow(range.step)
             if overflow { break }
             current = next
@@ -312,6 +321,7 @@ func runtimeSignedRangeTraverse(
     } else if range.step < 0 {
         while current >= range.last {
             if !body(current, index) { return false }
+            if current == range.last { break }
             let (next, overflow) = current.addingReportingOverflow(range.step)
             if overflow { break }
             current = next
@@ -329,6 +339,7 @@ func runtimeSignedRangeTraverseReversed(
     if range.step > 0 {
         while current >= range.first {
             if !body(current) { return false }
+            if current == range.first { break }
             let (next, overflow) = current.subtractingReportingOverflow(range.step)
             if overflow { break }
             current = next
@@ -336,6 +347,7 @@ func runtimeSignedRangeTraverseReversed(
     } else if range.step < 0 {
         while current <= range.first {
             if !body(current) { return false }
+            if current == range.first { break }
             let (next, overflow) = current.subtractingReportingOverflow(range.step)
             if overflow { break }
             current = next
@@ -704,8 +716,11 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
                 kind: range.kind.progressionKind
             ))
         }
-        let diff = range.last &- range.first
-        let remainder = diff % nextStep
+        // Unsigned distance stays exact even when the span exceeds Int64
+        // range (e.g. Int.min..Int.max): a plain subtraction would wrap and
+        // misalign `last` away from the boundary.
+        let distance = UInt(bitPattern: range.last &- range.first)
+        let remainder = Int(bitPattern: distance % UInt(nextStep))
         alignedLast = range.last &- remainder
     } else {
         guard range.first >= range.last else {
@@ -716,8 +731,8 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
                 kind: range.kind.progressionKind
             ))
         }
-        let diff = range.first &- range.last
-        let remainder = diff % (0 &- nextStep)
+        let distance = UInt(bitPattern: range.first &- range.last)
+        let remainder = Int(bitPattern: distance % UInt(bitPattern: 0 &- nextStep))
         alignedLast = range.last &+ remainder
     }
     return registerRuntimeObject(RuntimeRangeBox(
@@ -1138,20 +1153,24 @@ public func kk_range_sum(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_sum")
     }
-    var sum = 0
-    var current = range.first
-    if range.step > 0 {
-        while current <= range.last {
-            sum &+= current
-            current &+= range.step
+    switch range.kind {
+    case .intRange, .intProgression, .charRange, .charProgression,
+         .uintRange, .uintProgression:
+        // Int/UInt sums wrap at 32 bits, matching Kotlin's Int return type.
+        var sum32: Int32 = 0
+        _ = runtimeSignedRangeTraverse(range) { current, _ in
+            sum32 = sum32 &+ Int32(truncatingIfNeeded: current)
+            return true
         }
-    } else if range.step < 0 {
-        while current >= range.last {
+        return Int(sum32)
+    case .longRange, .longProgression, .ulongRange, .ulongProgression:
+        var sum = 0
+        _ = runtimeSignedRangeTraverse(range) { current, _ in
             sum &+= current
-            current &+= range.step
+            return true
         }
+        return sum
     }
-    return sum
 }
 
 @_cdecl("__kk_range_contains")
@@ -1159,67 +1178,7 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_contains")
     }
-    if range.step == 0 {
-        return 0
-    }
-    if range.step > 0 {
-        guard range.first <= value && value <= range.last else { return 0 }
-
-        // Enhanced overflow protection: check if value is within reasonable bounds first
-        // For extremely large ranges, use a more conservative approach
-        if range.first == Int.min && range.last == Int.max {
-            // Full range - all values are contained
-            return 1
-        }
-
-        // Use Int128-style calculation through careful checking to prevent overflow
-        let diff = value - range.first
-        let step = range.step
-
-        // Additional safety check for potential overflow cases
-        if diff == 0 {
-            return 1  // First element is always contained
-        }
-
-        // Check if diff and step have same sign (both positive or both negative)
-        // This helps avoid overflow in modulo operation
-        if (diff >= 0 && step > 0) || (diff <= 0 && step < 0) {
-            return diff % step == 0 ? 1 : 0
-        } else {
-            // Different signs - use absolute values to avoid overflow
-            let absDiff = diff < 0 ? -diff : diff
-            let absStep = step < 0 ? -step : step
-            return absDiff % absStep == 0 ? 1 : 0
-        }
-    } else {
-        guard range.first >= value && value >= range.last else { return 0 }
-
-        // Enhanced overflow protection for negative step ranges
-        if range.first == Int.max && range.last == Int.min {
-            // Full reverse range - all values are contained
-            return 1
-        }
-
-        let diff = range.first - value
-        let step = 0 &- range.step  // Make step positive
-
-        // Additional safety check for potential overflow cases
-        if diff == 0 {
-            return 1  // First element is always contained
-        }
-
-        // Use Int64 for large differences but with additional bounds checking
-        if diff > Int64.max || diff < Int64.min {
-            // For extremely large differences, fall back to safer calculation
-            let absDiff = diff < 0 ? -diff : diff
-            let absStep = step < 0 ? -step : step
-            return absDiff % absStep == 0 ? 1 : 0
-        }
-
-        let diff64 = Int64(diff)
-        let step64 = Int64(step)
-        return diff64 % step64 == 0 ? 1 : 0
-    }
+    return runtimeRangeContains(range, value)
 }
 
 @_cdecl("__kk_range_endExclusive")
@@ -1244,24 +1203,7 @@ public func kk_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutableP
         )
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    guard n > 0 else { return registerRuntimeObject(RuntimeListBox(elements: [])) }
-    var elements: [Int] = []
-    var current = range.first
-    var taken = 0
-    if range.step > 0 {
-        while current <= range.last && taken < n {
-            elements.append(current)
-            current &+= range.step
-            taken += 1
-        }
-    } else if range.step < 0 {
-        while current >= range.last && taken < n {
-            elements.append(current)
-            current &+= range.step
-            taken += 1
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return RuntimeSignedRangeHOFKind.take(range, n)
 }
 
 @_cdecl("kk_range_drop")
@@ -1276,21 +1218,7 @@ public func kk_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutableP
         )
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    var elements: [Int] = []
-    var current = range.first
-    var skipped = 0
-    if range.step > 0 {
-        while current <= range.last {
-            if skipped >= n { elements.append(current) } else { skipped += 1 }
-            current &+= range.step
-        }
-    } else if range.step < 0 {
-        while current >= range.last {
-            if skipped >= n { elements.append(current) } else { skipped += 1 }
-            current &+= range.step
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return RuntimeSignedRangeHOFKind.drop(range, n)
 }
 
 @_cdecl("kk_range_average")
@@ -1298,24 +1226,7 @@ public func kk_range_average(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_average")
     }
-    var sum: Double = 0.0
-    var count: Double = 0.0
-    var current = range.first
-    if range.step > 0 {
-        while current <= range.last {
-            sum += Double(current)
-            count += 1.0
-            current &+= range.step
-        }
-    } else if range.step < 0 {
-        while current >= range.last {
-            sum += Double(current)
-            count += 1.0
-            current &+= range.step
-        }
-    }
-    let result: Double = count > 0 ? sum / count : Double.nan
-    return Int(bitPattern: UInt(truncatingIfNeeded: result.bitPattern))
+    return RuntimeSignedRangeHOFKind.average(range)
 }
 
 @_cdecl("kk_range_sorted")
@@ -1323,21 +1234,7 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_sorted")
     }
-    var elements: [Int] = []
-    var current = range.first
-    if range.step > 0 {
-        while current <= range.last {
-            elements.append(current)
-            current &+= range.step
-        }
-    } else if range.step < 0 {
-        while current >= range.last {
-            elements.append(current)
-            current &+= range.step
-        }
-        elements.reverse()
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return RuntimeSignedRangeHOFKind.sorted(range)
 }
 
 // MARK: - CharRange HOFs (STDLIB-290)
@@ -1392,12 +1289,14 @@ public func kk_char_range_toList(_ rangeRaw: Int) -> Int {
         var current = first
         while current <= last {
             elements.append(kk_box_char(current))
+            if current == last { break }
             current &+= range.step
         }
     } else if range.step < 0 {
         var current = first
         while current >= last {
             elements.append(kk_box_char(current))
+            if current == last { break }
             current &+= range.step
         }
     }
@@ -1419,6 +1318,7 @@ public func kk_char_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: I
             // Pass raw char value (Unicode scalar) — the lambda expects Char-typed values
             _ = lambda(closureRaw, current, &thrown)
             if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+            if current == last { break }
             current &+= range.step
         }
     } else if range.step < 0 {
@@ -1427,6 +1327,7 @@ public func kk_char_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: I
             var thrown = 0
             _ = lambda(closureRaw, current, &thrown)
             if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+            if current == last { break }
             current &+= range.step
         }
     }
@@ -1454,6 +1355,7 @@ public func kk_char_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMut
         var current = first
         while current <= last && taken < n {
             elements.append(kk_box_char(current))
+            if current == last { break }
             current &+= range.step
             taken += 1
         }
@@ -1461,6 +1363,7 @@ public func kk_char_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMut
         var current = first
         while current >= last && taken < n {
             elements.append(kk_box_char(current))
+            if current == last { break }
             current &+= range.step
             taken += 1
         }
@@ -1488,12 +1391,14 @@ public func kk_char_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMut
         var current = first
         while current <= last {
             if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
+            if current == last { break }
             current &+= range.step
         }
     } else if range.step < 0 {
         var current = first
         while current >= last {
             if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
+            if current == last { break }
             current &+= range.step
         }
     }
@@ -1512,12 +1417,14 @@ public func kk_char_range_sorted(_ rangeRaw: Int) -> Int {
         var current = first
         while current <= last {
             elements.append(kk_box_char(current))
+            if current == last { break }
             current &+= range.step
         }
     } else if range.step < 0 {
         var current = first
         while current >= last {
             elements.append(kk_box_char(current))
+            if current == last { break }
             current &+= range.step
         }
     }
@@ -1562,13 +1469,14 @@ public func __kk_char_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ o
 func runtimeSignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
     if step > 0 {
         guard start <= end else { return end }
-        let distance = end &- start
-        return end &- (distance % step)
+        let distance = UInt(bitPattern: end &- start)
+        let remainder = Int(bitPattern: distance % UInt(step))
+        return end &- remainder
     }
     guard start >= end else { return end }
-    let magnitude = 0 &- step
-    let distance = start &- end
-    return end &+ (distance % magnitude)
+    let distance = UInt(bitPattern: start &- end)
+    let remainder = Int(bitPattern: distance % UInt(bitPattern: 0 &- step))
+    return end &+ remainder
 }
 
 func runtimeUnsignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
@@ -1576,12 +1484,12 @@ func runtimeUnsignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
     let endUnsigned = UInt(bitPattern: end)
     if step > 0 {
         guard startUnsigned <= endUnsigned else { return end }
-        let magnitude = UInt(step)
+        let magnitude = UInt(bitPattern: step)
         let distance = endUnsigned &- startUnsigned
         return Int(bitPattern: endUnsigned &- (distance % magnitude))
     }
     guard startUnsigned >= endUnsigned else { return end }
-    let magnitude = UInt((0 &- step))
+    let magnitude = UInt(bitPattern: 0 &- step)
     let distance = startUnsigned &- endUnsigned
     return Int(bitPattern: endUnsigned &+ (distance % magnitude))
 }
