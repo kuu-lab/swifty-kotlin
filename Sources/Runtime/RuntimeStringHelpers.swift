@@ -9,7 +9,24 @@ func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
 }
 
 func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
-    runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
+    if let box = runtimeStringBox(fromRaw: raw) {
+        return box.utf16CodeUnits
+    }
+    return runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
+}
+
+/// Appends `scalarValue`'s Kotlin UTF-16 code units, decoding the compiler's
+/// isolated surrogate markers back to their original values.
+private func runtimeAppendUTF16CodeUnit(of scalarValue: UInt32, to result: inout [UInt16]) {
+    if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
+        result.append(UInt16(codeUnitValue))
+    } else if scalarValue <= 0xFFFF {
+        result.append(UInt16(scalarValue))
+    } else {
+        let offset = scalarValue - 0x10000
+        result.append(UInt16(0xD800 + (offset >> 10)))
+        result.append(UInt16(0xDC00 + (offset & 0x03FF)))
+    }
 }
 
 /// Returns Kotlin's UTF-16 code units while decoding the compiler's isolated
@@ -17,23 +34,60 @@ func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
 func runtimeKotlinStringUTF16CodeUnits(_ value: String) -> [UInt16] {
     var result: [UInt16] = []
     result.reserveCapacity(value.utf16.count)
-    for scalar in value.unicodeScalars {
-        let scalarValue = scalar.value
-        if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
-            result.append(UInt16(codeUnitValue))
-        } else if scalarValue <= 0xFFFF {
-            result.append(UInt16(scalarValue))
-        } else {
-            let offset = scalarValue - 0x10000
-            result.append(UInt16(0xD800 + (offset >> 10)))
-            result.append(UInt16(0xDC00 + (offset & 0x03FF)))
-        }
-    }
+    runtimeAppendKotlinUTF16CodeUnits(of: value, to: &result)
     return result
 }
 
+/// Appends `value`'s Kotlin UTF-16 code units to `units` without building an
+/// intermediate array.
+func runtimeAppendKotlinUTF16CodeUnits(of value: String, to units: inout [UInt16]) {
+    units.reserveCapacity(units.count + value.utf16.count)
+    for scalar in value.unicodeScalars {
+        runtimeAppendUTF16CodeUnit(of: scalar.value, to: &units)
+    }
+}
+
+/// The Kotlin UTF-16 code unit at `index`, scanning scalars only until the
+/// target is reached instead of materializing the whole code-unit array.
+/// Returns nil when `index` is out of bounds; identical to
+/// `runtimeKotlinStringUTF16CodeUnits(value)[index]` for in-range indexes.
+func runtimeKotlinStringUTF16CodeUnit(_ value: String, at index: Int) -> UInt16? {
+    guard index >= 0 else { return nil }
+    var offset = 0
+    for scalar in value.unicodeScalars {
+        let scalarValue = scalar.value
+        if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
+            if index == offset { return UInt16(codeUnitValue) }
+            offset += 1
+        } else if scalarValue <= 0xFFFF {
+            if index == offset { return UInt16(scalarValue) }
+            offset += 1
+        } else {
+            let shifted = scalarValue - 0x10000
+            if index == offset {
+                return UInt16(0xD800 + (shifted >> 10))
+            }
+            if index == offset + 1 {
+                return UInt16(0xDC00 + (shifted & 0x03FF))
+            }
+            offset += 2
+        }
+    }
+    return nil
+}
+
+/// UTF-16 code-unit count without allocating the unit array.
 func runtimeKotlinStringUTF16Length(_ value: String) -> Int {
-    runtimeKotlinStringUTF16CodeUnits(value).count
+    var count = 0
+    for scalar in value.unicodeScalars {
+        let scalarValue = scalar.value
+        if KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) != nil || scalarValue <= 0xFFFF {
+            count += 1
+        } else {
+            count += 2
+        }
+    }
+    return count
 }
 
 /// Reconstructs a Swift String from Kotlin UTF-16 code units, preserving
@@ -142,7 +196,7 @@ func runtimeMakeListRaw(_ values: [Int]) -> Int {
 func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
     let box = RuntimeArrayBox(length: values.count)
     for (index, value) in values.enumerated() {
-        box.elements[index] = value
+        box[index] = value
     }
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -284,6 +338,9 @@ private func runtimeStringIndexOfLast(
 }
 
 func runtimeSplitString(_ source: String, delimiter: String, limit: Int = 0) -> [String] {
+    if delimiter.isEmpty {
+        return runtimeSplitStringOnEmptyDelimiter(source, limit: limit)
+    }
     if source.isEmpty {
         return [""]
     }
@@ -310,6 +367,9 @@ func runtimeSplitStringLimit(
     ignoreCase: Bool,
     limit: Int
 ) -> [String] {
+    if delimiter.isEmpty {
+        return runtimeSplitStringOnEmptyDelimiter(source, limit: limit)
+    }
     if source.isEmpty {
         return [""]
     }
@@ -329,4 +389,35 @@ func runtimeSplitStringLimit(
         result.append(String(source[cursor ..< match.lowerBound]))
         cursor = match.upperBound
     }
+}
+
+/// Splits at every UTF-16 code-unit boundary, including the boundaries at both
+/// ends of the source. Kotlin treats an empty string delimiter as a zero-width
+/// match at each such position.
+private func runtimeSplitStringOnEmptyDelimiter(_ source: String, limit: Int) -> [String] {
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(source)
+    var result: [String] = []
+    result.reserveCapacity(limit > 0 ? min(limit, codeUnits.count + 2) : codeUnits.count + 2)
+
+    var fieldStart = 0
+    var matchPosition = 0
+    while matchPosition <= codeUnits.count {
+        if limit > 0 && result.count == limit - 1 {
+            break
+        }
+        result.append(
+            runtimeKotlinStringFromUTF16CodeUnits(
+                Array(codeUnits[fieldStart ..< matchPosition])
+            )
+        )
+        fieldStart = matchPosition
+        matchPosition += 1
+    }
+
+    result.append(
+        runtimeKotlinStringFromUTF16CodeUnits(
+            Array(codeUnits[fieldStart ..< codeUnits.count])
+        )
+    )
+    return result
 }

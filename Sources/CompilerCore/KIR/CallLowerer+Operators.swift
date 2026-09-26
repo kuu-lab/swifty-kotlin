@@ -119,6 +119,24 @@ extension CallLowerer {
             ))
             return result
         }
+        let isRangeEquality = (op == .equal || op == .notEqual)
+            && (sema.bindings.isRangeExpr(lhs) || sema.bindings.isRangeExpr(rhs))
+        if isRangeEquality {
+            // Range expressions are duck-typed as their scalar element type
+            // during semantic analysis. Their raw values are still heap
+            // handles, so the scalar kk_op_eq path would unbox the handle and
+            // compare pointer bits. Preserve Kotlin's nominal range value
+            // equality through the runtime structural bridge instead.
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .equal ? "kk_structural_eq" : "kk_structural_ne"),
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         // Resolve String operators before the generic call-binding path. The
         // bundled stdlib exposes `String` APIs as ordinary Kotlin wrappers,
         // so Sema may bind `+`/`==` to those source declarations. String is a
@@ -153,7 +171,18 @@ extension CallLowerer {
         } else {
             false
         }
-        let isStringAdd = op == .add && sema.bindings.exprTypes[exprID] == stringType
+        // `String.plus(Any?)` is itself a member, so a String-receiver `+`
+        // always keeps the flat string-concat ABI below regardless of which
+        // (bundled-source) symbol Sema bound it to. Only a *non*-String
+        // receiver whose `+` resolved to a genuine operator candidate (e.g. a
+        // user's `operator fun Int.plus(s: String): String` extension) should
+        // defer to the resolved callee instead of this String-result
+        // shortcut; a non-String receiver with no such binding is the
+        // unresolved lenient built-in concatenation path, which keeps using
+        // this ABI too.
+        let isStringAdd = op == .add
+            && sema.bindings.exprTypes[exprID] == stringType
+            && (lhsIsString || isStringOperand || sema.bindings.callBindings[exprID] == nil)
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -263,7 +292,13 @@ extension CallLowerer {
                     let stubName = interner.intern(
                         (sema.symbols.symbol(callBinding.chosenCallee).map { interner.resolve($0.name) } ?? "unknown") + "$default"
                     )
-                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: callBinding.chosenCallee)
+                    // KUU-655: an override that inherits its defaults never
+                    // has its own stub; resolve to the base declaration's
+                    // stub instead (see `defaultStubOwnerSymbol`). Operators
+                    // have no `super.`-qualified call syntax, so there is no
+                    // mask "super call" bit to set here.
+                    let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: callBinding.chosenCallee, sema: sema)
+                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
                     instructions.append(.call(
                         symbol: stubSym,
                         callee: stubName,
@@ -675,12 +710,20 @@ extension CallLowerer {
         case .elvis:
             preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
-            // kk_op_rangeTo / __kk_uint_rangeTo / __kk_ulong_rangeTo are residual
-            // operator-core helpers.
+            // Range expressions are duck-typed to their scalar element type,
+            // but the runtime needs the exact nominal range class for equality
+            // and hashCode semantics.
             let rangeToCallee: InternedString
-            if sema.bindings.isFloatingPointRangeExpr(exprID) {
-                let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
-                let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeToCallee = interner.intern("__kk_char_rangeTo")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeToCallee = interner.intern("__kk_long_rangeTo")
+            } else if sema.bindings.isFloatingPointRangeExpr(exprID) {
                 if lhsType == sema.types.floatType || rhsType == sema.types.floatType {
                     rangeToCallee = interner.intern("__kk_float_rangeTo")
                 } else {
@@ -690,6 +733,8 @@ extension CallLowerer {
                 rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 rangeToCallee = interner.intern("__kk_uint_rangeTo")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else {
                 rangeToCallee = interner.intern("kk_op_rangeTo")
             }
@@ -703,6 +748,8 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
             let rangeUntilCallee: InternedString
             if sema.bindings.isFloatingPointRangeExpr(exprID) {
                 let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
@@ -711,8 +758,17 @@ extension CallLowerer {
                 } else {
                     rangeUntilCallee = interner.intern("__kk_double_rangeUntil")
                 }
+            } else if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeUntilCallee = interner.intern("__kk_char_rangeUntil")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeUntilCallee = interner.intern("__kk_long_rangeUntil")
             } else if sema.bindings.isULongRangeExpr(exprID) {
                 rangeUntilCallee = interner.intern("__kk_op_ulong_rangeUntil")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_uint_rangeUntil")
             } else {
                 rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
@@ -745,7 +801,9 @@ extension CallLowerer {
             return result
         case .step:
             let stepCallee: InternedString
-            if sema.bindings.isULongRangeExpr(exprID) {
+            if sema.bindings.isCharRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_char_range_step")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_ulong_step")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_uint_step")
@@ -1343,6 +1401,14 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        guard let expr = ast.arena.expr(exprID),
+              case let .indexedCompoundAssign(op, _, _, _, _) = expr
+        else {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
         // Conceptual desugaring: a[i] += v
         //   1) t = kk_array_get(a, i)
         //   2) t' = kk_op_*(t, v)      // appropriate kk_op_* for the compound operator
@@ -1356,6 +1422,36 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        // KSWIFTK-BUG: when Sema resolved a custom (or source-backed member,
+        // e.g. MutableList) get()/set() pair for this compound assign, both
+        // halves must dispatch through those member calls instead of the raw
+        // array runtime below — otherwise the write silently lands on the
+        // receiver's own raw memory layout instead of the container it
+        // actually indexes into (bindIndexedCompoundAssignSetOperator only
+        // binds this for a non-array-like receiver, so genuine
+        // Array<T>/IntArray/... always fall through to the raw path).
+        if let getCallBinding = sema.bindings.callBinding(for: exprID),
+           let operatorBinding = sema.bindings.indexedCompoundAssignOperatorBinding(for: exprID)
+        {
+            return lowerIndexedCompoundAssignExprViaCustomOperator(
+                exprID,
+                op: op,
+                receiverExpr: receiverExpr,
+                indices: indices,
+                valueExpr: valueExpr,
+                receiverID: receiverID,
+                getCallBinding: getCallBinding,
+                operatorBinding: operatorBinding,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
         // Built-in array compound assign only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed compound assign")
         let indexID = driver.lowerExpr(
@@ -1420,13 +1516,6 @@ extension CallLowerer {
             getResult = rawGetResult
         }
         let opResult = arena.appendTemporary(type: sema.types.anyType)
-        guard let expr = ast.arena.expr(exprID),
-              case let .indexedCompoundAssign(op, _, _, _, _) = expr
-        else {
-            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
-            instructions.append(.constValue(result: unit, value: .unit))
-            return unit
-        }
         // Determine the runtime op stub.
         // Use __kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
         // otherwise use the appropriate numeric op stub.
@@ -1499,6 +1588,161 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
+    /// Lowers `a[i] op= v` / `a[i]++`/`a[i]--` through the custom (or
+    /// source-backed member, e.g. MutableList) get()/set() pair resolved by
+    /// LocalDeclTypeChecker+IndexedCompoundAssignAndLocalFunctions.swift's
+    /// bindIndexedCompoundAssignSetOperator, instead of the raw array
+    /// runtime used by the fallback path in lowerIndexedCompoundAssignExpr:
+    ///   1) t = receiver.get(i...)
+    ///   2) t' = kk_op_*(t, v)
+    ///   3) receiver.set(i..., t')
+    /// emitMemberCallInstruction derives each call's own throwing ABI from
+    /// its resolved callee, so a throwing custom get()/set() propagates
+    /// correctly without special-casing here.
+    private func lowerIndexedCompoundAssignExprViaCustomOperator(
+        _ exprID: ExprID,
+        op: CompoundAssignOp,
+        receiverExpr: ExprID,
+        indices: [ExprID],
+        valueExpr: ExprID,
+        receiverID: KIRExprID,
+        getCallBinding: CallBinding,
+        operatorBinding: IndexedCompoundAssignOperatorBinding,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let loweredIndices = indices.map { indexExpr in
+            driver.lowerExpr(
+                indexExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+        let valueID = driver.lowerExpr(
+            valueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
+        let elementType = operatorBinding.elementType
+
+        let getResult = arena.appendTemporary(type: elementType)
+        emitMemberCallInstruction(
+            normalized: driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredIndices,
+                callBinding: getCallBinding,
+                chosenCallee: getCallBinding.chosenCallee,
+                spreadFlags: Array(repeating: false, count: loweredIndices.count),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            ),
+            callBinding: getCallBinding,
+            chosenCallee: getCallBinding.chosenCallee,
+            calleeName: interner.intern("get"),
+            receiver: MemberCallReceiver(expr: receiverExpr, loweredID: receiverID),
+            result: getResult,
+            isSuperCall: isSuperCall,
+            qualifiedSuperType: nil,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: [receiverID] + loweredIndices
+        )
+
+        // Determine the runtime op stub from the get() result's own element
+        // type — mirroring the raw-array path below, but keyed off the
+        // custom operator's actual return type rather than the receiver's
+        // array element type (the receiver here isn't array-shaped).
+        let stringType = sema.types.stringType
+        let isStringElement = elementType == stringType
+        let isUnsignedElement = sema.types.isUnsigned(elementType)
+        let floatingPointPrefix: String? = switch sema.types.kind(of: elementType) {
+        case .primitive(.double, _): "d"
+        case .primitive(.float, _): "f"
+        default: nil
+        }
+        let opName = if op == .plusAssign, isStringElement {
+            "__kk_string_concat_flat"
+        } else if let floatingPointPrefix {
+            switch op {
+            case .plusAssign: "kk_op_\(floatingPointPrefix)add"
+            case .minusAssign: "kk_op_\(floatingPointPrefix)sub"
+            case .timesAssign: "kk_op_\(floatingPointPrefix)mul"
+            case .divAssign: "kk_op_\(floatingPointPrefix)div"
+            case .modAssign: "kk_op_\(floatingPointPrefix)mod"
+            }
+        } else {
+            switch op {
+            case .plusAssign: "kk_op_add"
+            case .minusAssign: "kk_op_sub"
+            case .timesAssign: "kk_op_mul"
+            case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
+            case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
+            }
+        }
+        let opResult = arena.appendTemporary(type: elementType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(opName),
+            arguments: [getResult, valueID],
+            result: opResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        let setCallBinding = operatorBinding.setCall
+        let setArguments = loweredIndices + [opResult]
+        let setResult = arena.appendTemporary(type: sema.types.unitType)
+        emitMemberCallInstruction(
+            normalized: driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: setArguments,
+                callBinding: setCallBinding,
+                chosenCallee: setCallBinding.chosenCallee,
+                spreadFlags: Array(repeating: false, count: setArguments.count),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            ),
+            callBinding: setCallBinding,
+            chosenCallee: setCallBinding.chosenCallee,
+            calleeName: interner.intern("set"),
+            receiver: MemberCallReceiver(expr: receiverExpr, loweredID: receiverID),
+            result: setResult,
+            isSuperCall: isSuperCall,
+            qualifiedSuperType: nil,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: [receiverID] + setArguments
+        )
+
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit

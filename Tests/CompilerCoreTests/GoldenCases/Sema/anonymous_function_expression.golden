@@ -1,0 +1,18 @@
+symbol fq=__local_0.square[kind=local] kind=local vis=private flags=_ type=(Int) -> Int
+symbol fq=__localfun_0.__AnonymousFunction_0_468[kind=fun;params=Int] kind=function vis=private flags=_ sig=recv=_ params=[Int] ret=Int
+symbol fq=__localfun_0.x[kind=vparam] kind=valueParameter vis=private flags=_ type=Int
+symbol fq=golden.sema.anonymousFunctionExpressions[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+file fanonymous_function_expression package=golden.sema
+  decl golden.sema.anonymousFunctionExpressions[kind=fun;params=] fun anonymousFunctionExpressions sym=golden.sema.anonymousFunctionExpressions[kind=fun;params=]
+expr e@10:44 name(x) type=Int ref=__localfun_0.x[kind=vparam]
+expr e@10:48 name(x) type=Int ref=__localfun_0.x[kind=vparam]
+expr e@10:44#1 binary(multiply) lhs=e@10:44 rhs=e@10:48 type=Int
+expr e@10:37 return value=e@10:44#1 type=Nothing
+expr e@10:18 localFunDecl __AnonymousFunction_0_468 params=[x] returnType=Int body=block[e@10:37] type=Unit ref=__localfun_0.__AnonymousFunction_0_468[kind=fun;params=Int]
+expr e@10:18#1 callableRef recv=_ member=__AnonymousFunction_0_468 type=(Int) -> Int ref=__localfun_0.__AnonymousFunction_0_468[kind=fun;params=Int]
+expr e@10:18#2 blockExpr stmts=[e@10:18] trailing=e@10:18#1 type=(Int) -> Int
+expr e@10:5 localDecl square mutable=0 type=_ init=e@10:18#2 type=Unit ref=__local_0.square[kind=local]
+expr e@11:12 name(square) type=(Int) -> Int ref=__local_0.square[kind=local]
+expr e@11:19 int(4) type=Int
+expr e@11:12#1 call callee=e@11:12 args=[_:e@11:19] type=Int
+expr e@11:5 return value=e@11:12#1 type=Nothing

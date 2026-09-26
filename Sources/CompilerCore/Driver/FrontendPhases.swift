@@ -468,7 +468,13 @@ public final class BuildASTPhase: CompilerPhase {
             case .importHeader:
                 let path = extractQualifiedPath(from: nodeID, in: cst, interner: interner, isPackageHeader: false)
                 let alias = extractImportAlias(from: nodeID, in: cst, interner: interner)
-                imports.append(ImportDecl(range: node.range, path: path, alias: alias))
+                let isWildcard = collectTokens(from: nodeID, in: cst).contains { token in
+                    if case .symbol(.star) = token.kind {
+                        return true
+                    }
+                    return false
+                }
+                imports.append(ImportDecl(range: node.range, path: path, alias: alias, isWildcard: isWildcard))
 
             case .importList:
                 for importChild in cst.children(of: nodeID) {
@@ -477,7 +483,13 @@ public final class BuildASTPhase: CompilerPhase {
                     guard importNode.kind == .importHeader else { continue }
                     let path = extractQualifiedPath(from: importNodeID, in: cst, interner: interner, isPackageHeader: false)
                     let alias = extractImportAlias(from: importNodeID, in: cst, interner: interner)
-                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias))
+                    let isWildcard = collectTokens(from: importNodeID, in: cst).contains { token in
+                        if case .symbol(.star) = token.kind {
+                            return true
+                        }
+                        return false
+                    }
+                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias, isWildcard: isWildcard))
                 }
 
             case .classDecl:
@@ -683,11 +695,12 @@ public final class BuildASTPhase: CompilerPhase {
         var activeDeclsByFile = state.activeDeclsByFileRawID
         var tokenCountsByFile = state.tokenCountsByFileRawID
 
+        let tokenCountByFileID = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1.count) })
         let changedFiles: [ASTFile] = changedRawIDs.sorted().map { rawID in
             activeDeclsByFile[rawID] = allDeclsByFile[rawID] ?? []
             let fileID = FileID(rawValue: rawID)
-            if let tokens = ctx.tokensByFile.first(where: { $0.0 == fileID })?.1 {
-                tokenCountsByFile[rawID] = tokens.count
+            if let tokenCount = tokenCountByFileID[fileID] {
+                tokenCountsByFile[rawID] = tokenCount
             }
             return ASTFile(
                 fileID: fileID,

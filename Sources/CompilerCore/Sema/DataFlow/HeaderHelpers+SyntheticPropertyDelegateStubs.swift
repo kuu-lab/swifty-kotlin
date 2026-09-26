@@ -1108,7 +1108,6 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticKTypeParameterStub(
             kClassifierSymbol: kClassifierSymbol,
-            kTypeSymbol: kTypeSymbol,
             symbols: symbols,
             types: types,
             interner: interner,
@@ -1177,10 +1176,10 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // STDLIB-REFLECT-072: Register KTypeParameter interface and scalar properties.
+    // STDLIB-REFLECT-072: Register the KTypeParameter interface anchor.
+    // Its abstract members are declared by the bundled KTypeParameter source.
     private func registerSyntheticKTypeParameterStub(
         kClassifierSymbol: SymbolID,
-        kTypeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
@@ -1195,82 +1194,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
-
-        guard let kTypeParameterInfo = symbols.symbol(kTypeParameterSymbol) else { return }
-        let stringType = types.stringType
-        let boolType = types.make(.primitive(.boolean, .nonNull))
-        let kVarianceType: TypeID = if let kVarianceSymbol = symbols.lookup(
-            fqName: kotlinReflectPkg + [interner.intern("KVariance")]
-        ) {
-            types.make(.classType(ClassType(
-                classSymbol: kVarianceSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
-        let kTypeType = types.make(.classType(ClassType(
-            classSymbol: kTypeSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        registerSyntheticKTypeParameterProperty(
-            named: "name",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticKTypeParameterProperty(
-            named: "isReified",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticKTypeParameterProperty(
-            named: "variance",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: kVarianceType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticKTypeParameterProperty(
-            named: "upperBounds",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: kTypeType,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func registerSyntheticKTypeParameterProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        propertyType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerFQName + [propertyName]
-        guard symbols.lookup(fqName: propertyFQName) == nil else { return }
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(propertyType, for: propertySymbol)
     }
 
     // STDLIB-REFLECT-TYPE-013: Register KParameter interface and scalar properties.

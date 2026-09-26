@@ -297,9 +297,7 @@ private func runtimeDecodeUTF8Bytes(
         if let decoded = String(data: Data(bytes), encoding: .utf8) {
             return runtimeMakeStringRaw(decoded)
         }
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "MalformedInputException: Input byte array has malformed UTF-8 sequence"
-        )
+        outThrown?.pointee = runtimeAllocateMalformedInputException()
         return runtimeMakeStringRaw("")
     }
     return runtimeMakeStringRaw(String(decoding: bytes, as: UTF8.self))

@@ -274,6 +274,73 @@ struct DriverIncrementalTests {
         }
     }
 
+    @Test
+    func testIncrementalDependencyGraphIncludesFunctionBodiesAndPropertyInitializers() throws {
+        try withTemporaryFiles(contents: [
+            "fun helper(): Int = 1",
+            "val cached = helper()\nfun useIt() = helper()",
+        ]) { paths in
+            let driver = makeDriver()
+            let cachePath = tempDir + "/cache"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: paths,
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: ["incremental"],
+                incrementalCachePath: cachePath
+            )
+
+            let result = driver.runForTesting(options: options)
+            #expect(result.exitCode == 0,
+                           "Initial incremental build should succeed. Diagnostics: \(result.diagnostics.map(\.message))")
+
+            let cache = IncrementalCompilationCache(cachePath: cachePath)
+            cache.loadPreviousState()
+            let graph = try #require(cache.dependencyGraph)
+            #expect(graph.depended(by: paths[1]).contains("helper"))
+
+            try "fun helper(): Int = 2".write(toFile: paths[0], atomically: true, encoding: .utf8)
+            cache.computeCurrentFingerprints(for: paths)
+            let recompilationSet = try #require(cache.recompilationSet(allPaths: paths, options: options))
+            #expect(recompilationSet == Set(paths))
+        }
+    }
+
+    @Test
+    func testIncrementalDependencyGraphRecompilesWildcardImportDependents() throws {
+        try withTemporaryFiles(contents: [
+            "package provider\nfun helper(): Int = 1",
+            "package consumer\nimport provider.*\nfun useIt() = helper()",
+        ]) { paths in
+            let driver = makeDriver()
+            let cachePath = tempDir + "/cache"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: paths,
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: ["incremental"],
+                incrementalCachePath: cachePath
+            )
+
+            let first = driver.runForTesting(options: options)
+            #expect(first.exitCode == 0,
+                           "Initial wildcard-import build should succeed. Diagnostics: \(first.diagnostics.map(\.message))")
+
+            let cache = IncrementalCompilationCache(cachePath: cachePath)
+            cache.loadPreviousState()
+            #expect(cache.dependencyGraph?.wildcardImportedPackages(by: paths[1]) == ["provider"])
+
+            try "package provider\nfun helper(): Long = 1".write(toFile: paths[0], atomically: true, encoding: .utf8)
+            cache.computeCurrentFingerprints(for: paths)
+            let recompilationSet = try #require(cache.recompilationSet(allPaths: paths, options: options))
+            #expect(recompilationSet == Set(paths))
+        }
+    }
+
     // MARK: - run method
 
     @Test

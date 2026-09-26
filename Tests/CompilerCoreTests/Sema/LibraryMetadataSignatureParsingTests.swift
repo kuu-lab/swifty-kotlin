@@ -39,7 +39,7 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -47,7 +47,7 @@ struct LibraryMetadataSignatureParsingTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
@@ -92,7 +92,7 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -100,7 +100,7 @@ struct LibraryMetadataSignatureParsingTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
@@ -142,7 +142,7 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -150,7 +150,7 @@ struct LibraryMetadataSignatureParsingTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
@@ -194,7 +194,7 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -202,7 +202,7 @@ struct LibraryMetadataSignatureParsingTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }

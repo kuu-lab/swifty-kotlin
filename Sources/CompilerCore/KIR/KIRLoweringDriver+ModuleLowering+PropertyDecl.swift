@@ -327,7 +327,7 @@ extension KIRLoweringDriver {
                 propertyDecl: propertyDecl, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol,
                 delegateType: delegateType, shared: shared,
-                compilationCtx: compilationCtx, initInstructions: &initInstructions
+                initInstructions: &initInstructions
             )
         case .observable, .vetoable, .notNull, .custom:
             emitDelegateInit(
@@ -345,7 +345,6 @@ extension KIRLoweringDriver {
         delegateStorageSymbol: SymbolID,
         delegateType: TypeID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         initInstructions: inout KIRLoweringEmitContext
     ) {
         let arena = shared.arena
@@ -364,7 +363,7 @@ extension KIRLoweringDriver {
         ).map { lowerExpr($0, shared: shared, emit: &initInstructions) }
         let modeExpr = lowerLazyModeExpr(
             delegateExpression: propertyDecl.delegateExpression,
-            shared: shared, compilationCtx: compilationCtx, emit: &initInstructions
+            shared: shared, emit: &initInstructions
         )
         let lockArgument: KIRExprID
         if let lockValue {
@@ -404,7 +403,6 @@ extension KIRLoweringDriver {
     func lowerLazyModeExpr(
         delegateExpression: ExprID?,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let ast = shared.ast
@@ -421,7 +419,11 @@ extension KIRLoweringDriver {
         {
             return lowerExpr(modeArg.expr, shared: shared, emit: &instructions)
         }
-        let entryName: String = switch compilationCtx.options.lazyThreadSafetyMode {
+        // `ctx.lazyThreadSafetyMode` mirrors
+        // `compilationCtx.options.lazyThreadSafetyMode` (set in `lowerModule`)
+        // — this helper runs both from module lowering and from object-literal
+        // lowering, where no CompilationContext is in scope.
+        let entryName: String = switch ctx.lazyThreadSafetyMode {
         case .synchronized: "SYNCHRONIZED"
         case .publication: "PUBLICATION"
         case .none: "NONE"
@@ -521,7 +523,12 @@ extension KIRLoweringDriver {
         )
         appendObjectItablePropertyGetterRegistrations(
             objectValue: allocatedObj, nominalSymbol: ownerSymbol,
-            sema: sema, arena: arena, interner: interner,
+            sema: sema, cache: ctx.nominalDispatchCache, arena: arena, interner: interner,
+            instructions: &instructions.instructions
+        )
+        appendObjectItablePropertySetterRegistrations(
+            objectValue: allocatedObj, nominalSymbol: ownerSymbol,
+            sema: sema, cache: ctx.nominalDispatchCache, arena: arena, interner: interner,
             instructions: &instructions.instructions
         )
         appendObjectVtableMethodRegistrations(

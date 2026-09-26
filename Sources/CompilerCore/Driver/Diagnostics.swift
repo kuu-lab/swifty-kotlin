@@ -1,13 +1,13 @@
 import Foundation
 
-public enum DiagnosticSeverity: Sendable {
+public enum DiagnosticSeverity: Hashable, Sendable {
     case error
     case warning
     case note
     case info
 }
 
-public struct Diagnostic: Equatable {
+public struct Diagnostic: Hashable {
     public let severity: DiagnosticSeverity
     public let code: String
     public let message: String
@@ -35,6 +35,9 @@ public struct Diagnostic: Equatable {
 public final class DiagnosticEngine: @unchecked Sendable {
     private let lock = NSLock()
     private var _diagnostics: [Diagnostic] = []
+    /// Companion set to `_diagnostics` for O(1) duplicate detection in `emit`.
+    /// Holds exactly the same elements; the array preserves emission order.
+    private var _emittedDiagnostics: Set<Diagnostic> = []
     /// Diagnostic codes suppressed at specific source ranges via `@Suppress` annotations.
     /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
     private var suppressions: [String: [SourceRange]] = [:]
@@ -61,6 +64,24 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
     }
 
+    /// Marks the current diagnostic count for `rollback(to:)`.
+    public func checkpoint() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.count
+    }
+
+    /// Drops diagnostics emitted after `checkpoint`, for speculative paths
+    /// that re-infer an expression and keep the original diagnostic when the
+    /// retry fails.
+    public func rollback(to checkpoint: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        if _diagnostics.count > checkpoint {
+            _diagnostics.removeSubrange(checkpoint...)
+        }
+    }
+
     public func emit(_ diagnostic: Diagnostic) {
         lock.lock()
         defer { lock.unlock() }
@@ -70,7 +91,7 @@ public final class DiagnosticEngine: @unchecked Sendable {
                 return // Suppressed — do not emit.
             }
         }
-        if _diagnostics.contains(diagnostic) {
+        guard _emittedDiagnostics.insert(diagnostic).inserted else {
             return
         }
         _diagnostics.append(diagnostic)
@@ -150,6 +171,7 @@ public final class DiagnosticEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard count >= 0, count < _diagnostics.count else { return }
+        _emittedDiagnostics.subtract(_diagnostics[count...])
         _diagnostics.removeSubrange(count...)
     }
 

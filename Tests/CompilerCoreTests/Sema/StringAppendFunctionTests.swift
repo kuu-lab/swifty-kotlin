@@ -54,6 +54,11 @@ struct StringAppendFunctionTests {
             interner.intern("kotlin"),
             interner.intern("CharSequence"),
         ]))
+        let nullableCharSequenceType = sema.types.make(.classType(ClassType(
+            classSymbol: charSequenceSymbol,
+            args: [],
+            nullability: .nullable
+        )))
         let anySymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("Any"),
@@ -123,25 +128,29 @@ struct StringAppendFunctionTests {
             appendableAppendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [sema.types.charType]
-                    && sema.symbols.externalLinkName(for: symbolID) == "__kk_string_builder_append_char"
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
             },
-            "Expected Appendable.append(Char) to link to __kk_string_builder_append_char"
+            "Expected Appendable.append(Char) to use interface dispatch"
         )
         #expect(
             appendableAppendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return signature.parameterTypes.count == 1
-                    && sema.symbols.externalLinkName(for: symbolID) == "__kk_string_builder_append_obj"
+                return signature.parameterTypes == [nullableCharSequenceType]
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
             },
-            "Expected Appendable.append(CharSequence?) to link to __kk_string_builder_append_obj"
+            "Expected Appendable.append(CharSequence?) to use interface dispatch"
         )
         #expect(
             appendableAppendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return signature.parameterTypes.count == 3
-                    && sema.symbols.externalLinkName(for: symbolID) == "__kk_string_builder_append_range"
+                return signature.parameterTypes == [
+                    nullableCharSequenceType,
+                    sema.types.intType,
+                    sema.types.intType,
+                ]
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
             },
-            "Expected Appendable.append(CharSequence?, Int, Int) to link to __kk_string_builder_append_range"
+            "Expected Appendable.append(CharSequence?, Int, Int) to use interface dispatch"
         )
     }
 }

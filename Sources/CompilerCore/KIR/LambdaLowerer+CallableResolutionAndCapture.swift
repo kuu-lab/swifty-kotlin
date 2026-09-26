@@ -65,12 +65,28 @@ extension LambdaLowerer {
             return propertyType
         }
         if let valueParameterType = typeForValueParameterSymbol(symbol, sema: sema) {
+            driver.ctx.setLocalDeclaredType(valueParameterType, for: symbol)
             return valueParameterType
         }
         return sema.types.anyType
     }
 
     private func typeForValueParameterSymbol(_ symbol: SymbolID, sema: SemaModule) -> TypeID? {
+        // `valueParameterOwner` maps a parameter symbol to the callable whose
+        // signature listed it, so the owner lookup is O(1) rather than a scan
+        // of every function/constructor signature in the module.
+        guard let ownerSymbol = sema.symbols.valueParameterOwner(for: symbol) else {
+            return nil
+        }
+        if let signature = sema.symbols.functionSignature(for: ownerSymbol),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           index < signature.parameterTypes.count
+        {
+            return signature.parameterTypes[index]
+        }
+        // The recorded owner's stored signature no longer lists the parameter
+        // (it was rewritten after the index entry was made), so another
+        // signature may still claim it — fall back to the module-wide scan.
         let kinds: [SymbolKind] = [.function, .constructor]
         for kind in kinds {
             for candidateID in sema.symbols.symbols(ofKind: kind) {
@@ -269,9 +285,11 @@ extension LambdaLowerer {
                 )
             }
             // A receiver-bearing lambda receives its own receiver explicitly;
-            // do not also forward the enclosing receiver as a closure capture.
+            // do not also forward the enclosing receiver unless the body has
+            // an explicit qualified-this binding to that outer receiver.
             if hasExplicitReceiver,
-               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+               !boundCaptures.contains(receiverSymbol)
             {
                 captures.removeAll { $0 == receiverSymbol }
             }
@@ -506,42 +524,9 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        func boxRawSuspendFunctionValue(_ valueExpr: KIRExprID) -> KIRExprID {
-            let valueType = arena.exprType(valueExpr) ?? typeForSymbolReference(symbol, sema: sema)
-            let nonNullType = sema.types.makeNonNullable(valueType)
-            guard case let .functionType(functionType) = sema.types.kind(of: nonNullType),
-                  functionType.isSuspend,
-                  case .symbolRef = arena.expr(valueExpr)
-            else {
-                return valueExpr
-            }
-
-            let arity = functionType.params.count
-                + (functionType.receiver == nil ? 0 : 1)
-            // The current generated Flow callback ABI uses a closure-first
-            // entry point for one-argument suspend values. Two-argument suspend
-            // values already use the raw `(arg1, arg2, outThrown)` ABI; boxing
-            // those values here would shift the first argument at invocation.
-            guard arity == 1 else {
-                return valueExpr
-            }
-
-            // A suspend lambda with an implicit closure parameter must cross the
-            // function-value ABI before a nested Flow collector invokes it.
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let boxedExpr = arena.appendTemporary(type: valueType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_create_\(arity)"),
-                arguments: [valueExpr, zeroExpr],
-                result: boxedExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return boxedExpr
-        }
-
+        // Keep suspend callables in their raw-thunk or boxed-closure form;
+        // kk_suspend_function_invoke handles both, while re-boxing a raw thunk
+        // would add a closure parameter that its entry point does not accept.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .local,
            semanticSymbol.flags.contains(.mutable)
@@ -563,9 +548,59 @@ extension LambdaLowerer {
                     instructions: &instructions
                 )
             }
+            // KSP-491: a delegated local (`var value by IntProp()`) also has no
+            // `localValue` -- its storage is the delegate instance, tracked
+            // separately below -- but it must NOT fall into the deferred-init
+            // seed path just below: that would fabricate a bogus zero-valued
+            // capture cell that shadows the real delegate storage, so reads
+            // inside the closure silently see 0/null instead of calling
+            // getValue (this regressed delegate_local_lambda_capture.kt when
+            // first introduced -- caught by CI, not by any local test run).
+            if let delegateStorage = driver.ctx.localDelegateStorage(for: symbol) {
+                return delegateStorage
+            }
+            // STDLIB-592 definite assignment: a `var` declared without an
+            // initializer has no `localValue` yet if this closure's own body is
+            // that local's first-ever write (e.g. `var r: Int; once { r = 3 }`
+            // under a `callsInPlace(EXACTLY_ONCE/AT_LEAST_ONCE)` contract, which
+            // lets definite assignment treat that write as guaranteed). The cell
+            // must still exist for the closure to capture, or the write inside
+            // it and the read after the call both silently fall through to an
+            // unboxed, never-set slot -- seed it with a placeholder the same way
+            // `deferredLocalCaptureCellSeedValue`'s doc comment explains.
+            //
+            // Scoped to `isContractCallsInPlaceInitializedSymbol` on purpose: a
+            // `localValue` can also read as nil transiently for reasons that have
+            // nothing to do with deferred init (e.g. a same-lambda local mutated
+            // across while-loop iterations reached this same fallback and, before
+            // this guard existed, got a bogus zero-seeded cell that silently
+            // shadowed its real value -- regressed
+            // stdlib_kotlin_time_Duration_Duration_n.kt's `.let { }` fraction
+            // formatting, caught by CI). Only apply the seed when Sema itself
+            // recorded this exact symbol as guaranteed-initialized by some
+            // callsInPlace lambda.
+            if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol) {
+                let declaredType = driver.ctx.localDeclaredType(for: symbol)
+                    ?? typeForSymbolReference(symbol, sema: sema)
+                let seedValue = deferredLocalCaptureCellSeedValue(
+                    for: declaredType,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions
+                )
+                return emitMutableCaptureCellInitialization(
+                    driver: driver,
+                    symbol: symbol,
+                    currentValue: seedValue,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
         }
         if let localValue = driver.ctx.localValue(for: symbol) {
-            return boxRawSuspendFunctionValue(localValue)
+            return localValue
         }
         // KSP-491: a delegated local (`val x by lazy { ... }`/`by Prop()`) has
         // no `localValue` -- its storage is the delegate instance, tracked
@@ -591,6 +626,36 @@ extension LambdaLowerer {
         {
             return receiverExprID
         }
+        // KSP-CAP-001: object-literal member functions may capture an
+        // immutable stored property of their enclosing class. The enclosing
+        // receiver is still active while the object is constructed, so copy
+        // the property's value into the literal's capture field before the
+        // receiver switches to the literal itself.
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .property,
+           !semanticSymbol.flags.contains(.mutable),
+           !sema.symbols.propertyHasCustomGetter(for: symbol),
+           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+           sema.symbols.symbol(ownerSymbol)?.kind == .class,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+           ]
+        {
+            let symbolType = typeForSymbolReference(symbol, sema: sema)
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let valueExpr = arena.appendTemporary(type: symbolType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExprID, offsetExpr],
+                result: valueExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return valueExpr
+        }
         guard let semanticSymbol = sema.symbols.symbol(symbol),
               semanticSymbol.kind == .valueParameter
         else {
@@ -600,6 +665,6 @@ extension LambdaLowerer {
         let symbolType = typeForSymbolReference(symbol, sema: sema)
         let symbolExpr = arena.appendExpr(.symbolRef(symbol), type: symbolType)
         instructions.append(.constValue(result: symbolExpr, value: .symbolRef(symbol)))
-        return boxRawSuspendFunctionValue(symbolExpr)
+        return symbolExpr
     }
 }

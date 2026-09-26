@@ -155,11 +155,114 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // BUG-B/BUG-C: an enum value has no stored-field object layout
+            // (its KIR representation is a raw ordinal Int, only boxed for
+            // Any-erased contexts), so an implicit-receiver read of its
+            // built-in `name`/`ordinal` properties or of a constructor
+            // property falls through every `.class`/`.interface`-owner
+            // branch below and lands on the generic symbol-reference
+            // fallback near the end of this case -- silently wrong (reads an
+            // unwritten slot as 0) for an Int-typed property, and a SIGSEGV
+            // once codegen treats the bogus "pointer" as a String for a
+            // String-typed one. Mirror the explicit-receiver handling
+            // (`tryLowerEnumEntryPropertyRead` / the enum branch of
+            // `lowerStoredMemberPropertyReadValue` in
+            // CallLowerer+MemberPropertyReads.swift) here, before any of
+            // those generic branches can intercept the read.
+            if let symbol = sema.bindings.identifierSymbols[exprID]
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+               let symInfo = sema.symbols.symbol(symbol),
+               symInfo.kind == .property,
+               symInfo.name == interner.intern("name") || symInfo.name == interner.intern("ordinal"),
+               let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+               let receiverType = arena.exprType(receiverExprID),
+               let (_, receiverClassSym) = resolveClassTypeSymbol(
+                   sema.types.makeNonNullable(receiverType), sema: sema
+               ),
+               receiverClassSym.kind == .enumClass
+            {
+                let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                if symInfo.name == interner.intern("ordinal") {
+                    return emitNonThrowingCall(
+                        callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                        arg: receiverExprID,
+                        resultType: resultType,
+                        arena: arena,
+                        into: &instructions
+                    )
+                }
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: symInfo.name,
+                    arguments: [receiverExprID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if let symbol = sema.bindings.identifierSymbols[exprID]
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+               let symInfo = sema.symbols.symbol(symbol),
+               // `.field` is deliberately excluded: a bare reference to an
+               // enum *entry* itself (e.g. `NORTH` inside the companion
+               // object's `when (direction) { NORTH -> SOUTH; ... }`) also
+               // resolves to a `.field` symbol parented by the enum class,
+               // but it names a global entry constant, not an instance
+               // property -- routing it through the constructor-property
+               // placeholder below produced an unresolved
+               // `$enumConstructorProperty$<id>$NORTH` call.
+               symInfo.kind == .property,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+               sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+               let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+            {
+                let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                let result = arena.appendTemporary(type: resultType)
+                if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                let helperName = interner.intern(
+                    "$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(symInfo.name))"
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: helperName,
+                    arguments: [receiverExprID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // STDLIB-004: Implicit receiver member access (e.g. `length` inside
             // `run { length }` resolves as `this.length`).
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
                let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
+                // KSP-CAP-001: an enclosing immutable property captured by an
+                // object-literal member function is restored as a local value.
+                // It must take precedence over the implicit receiver member
+                // path, which would otherwise apply the enclosing property's
+                // field offset to the object literal receiver.
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   sema.symbols.symbol(symbol)?.kind == .property,
+                   !driver.ctx.isMutableCaptureBoxed(symbol),
+                   let localValue = driver.ctx.localValue(for: symbol)
+                {
+                    return localValue
+                }
                 let receiverType = arena.exprType(receiverExprID) ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
                 let memberStr = interner.resolve(memberName)
@@ -502,6 +605,42 @@ extension ExprLowerer {
                 if let localValue = driver.ctx.localValue(for: symbol) {
                     return localValue
                 }
+                // A bare companion/object property reference can resolve
+                // directly to the property symbol without being marked as an
+                // implicit-receiver member. Computed object properties still
+                // have a one-parameter getter ABI, so materialize the singleton
+                // receiver instead of leaving PropertyLoweringPass to emit a
+                // zero-argument getter call.
+                if let symInfo = sema.symbols.symbol(symbol),
+                   symInfo.kind == .property,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   sema.symbols.symbol(ownerSymbol)?.kind == .object,
+                   sema.symbols.propertyHasCustomGetter(for: symbol)
+                       || sema.symbols.extensionPropertyGetterAccessor(for: symbol) != nil
+                {
+                    let ownerType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    let receiver = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                    instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiver],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // Inline constant initializers only for immutable (val) properties.
                 // Mutable (var) properties must always load from global store at runtime.
                 if let symInfo = sema.symbols.symbol(symbol),
@@ -729,6 +868,23 @@ extension ExprLowerer {
                        return pk == nil || pk == .package || pk == .object
                    }()
                 {
+                    // BUG-274: this branch also covers a same-class-body
+                    // reference like `Companion.tag`, which Sema binds
+                    // directly to the property symbol -- collapsing the
+                    // "Companion" qualifier away entirely, unlike an
+                    // external `Comp.tag` access whose receiver still goes
+                    // through this function's class-name redirect and the
+                    // bare-object-reference fallback below (both guarded
+                    // there). Without this, that collapsing silently skips
+                    // the object's lazy clinit-equivalent.
+                    if let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                       sema.symbols.symbol(ownerSymbol)?.kind == .object
+                    {
+                        driver.emitObjectLazyInitGuardIfNeeded(
+                            objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                            instructions: &instructions
+                        )
+                    }
                     let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
                     instructions.append(.loadGlobal(result: id, symbol: symbol))
                     return wrapLateinitReadIfNeeded(
@@ -761,6 +917,24 @@ extension ExprLowerer {
                         thrownResult: nil
                     ))
                     return result
+                }
+                // BUG-274: this is the generic bare-name fallback -- reached
+                // for a real user `object`/`companion object` whenever it is
+                // referenced as a value in its own right (an explicit-receiver
+                // qualifier for a member call or property access, since
+                // both `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr`
+                // and `CallLowerer`'s member-call dispatch lower the receiver
+                // through here, or a plain value crossing an `Any`/interface
+                // boundary). Trigger the object's lazy clinit-equivalent
+                // before handing out its value, mirroring the JVM's
+                // clinit-on-first-access trigger. A no-op for any symbol
+                // that isn't a source-backed object (this compilation only
+                // ever registers one for those; see `objectLazyInit`).
+                if sema.symbols.symbol(symbol)?.kind == .object {
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: symbol, arena: arena, sema: sema,
+                        instructions: &instructions
+                    )
                 }
                 let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
                 instructions.append(.constValue(result: id, value: .symbolRef(symbol)))
@@ -2129,6 +2303,64 @@ extension ExprLowerer {
                     // vetoable-style delegate rejecting this write is
                     // observed correctly with no extra bookkeeping here.
                 } else if let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface,
+                          let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                          driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
+                          driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
+                {
+                    // Member property whose reads and writes both go through
+                    // accessors (delegated `var`, or custom getter AND custom
+                    // setter): there is no `fieldOffsets[symbol]` slot to do
+                    // the read-modify-write against — delegated storage is
+                    // keyed by `$delegate_<name>` — so the direct-field
+                    // branches below cannot handle it. Mirror the explicit
+                    // `o.x += v` path in lowerMemberCompoundAssignExpr: load
+                    // through `get`, compute, store through `set`.
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let loadedValue = arena.appendTemporary(type: propType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: loadedValue,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    func storeViaSetter(_ value: KIRExprID) {
+                        let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                        let setResultExprID = arena.appendTemporary(type: sema.types.unitType)
+                        instructions.append(.call(
+                            symbol: setterSymbol,
+                            callee: interner.intern("set"),
+                            arguments: [receiverExprID, value],
+                            result: setResultExprID,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeViaSetter(resultID)
+                        }
+                    } else {
+                        let resultID = appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: propType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        )
+                        storeViaSetter(resultID)
+                    }
+                } else if let symInfo = sema.symbols.symbol(symbol),
                           symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
                               let p = sema.symbols.parentSymbol(for: symbol)
                               let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
@@ -2576,6 +2808,11 @@ extension ExprLowerer {
             return unit
 
         case let .thisRef(label, _):
+            if let receiverSymbol = sema.bindings.identifierSymbol(for: exprID),
+               let receiverExprID = driver.ctx.localValue(for: receiverSymbol)
+            {
+                return receiverExprID
+            }
             if let label,
                let receiverExprID = driver.ctx.qualifiedThisReceiverExprID(for: label)
             {
@@ -2593,133 +2830,40 @@ extension ExprLowerer {
                 lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
-            let rhsID = lowerExpr(
-                rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
-            )
-            let result = arena.appendTemporary(type: boundType ?? boolType)
-            let rhsType = sema.bindings.exprTypes[rhsExpr]
-            // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
-            // gated on `rhsType == uintType` — but `rhsType` is the range's own type
-            // (e.g. UIntRange), never its element type, so that comparison was always
-            // false. UInt now falls through to the same `appendContainsCall` path as
-            // every other range, which resolves to the shared `__kk_range_contains`
-            // bridge (safe: UInt always fits the Int64 fields it operates on).
-            if let floatingPointCallee = floatingPointRangeContainsCallee(
-                for: rhsExpr,
-                value: lhsExpr,
+            return lowerContainsCheck(
+                exprID: exprID,
+                lhsID: lhsID,
+                lhsExpr: lhsExpr,
+                rhsExpr: rhsExpr,
+                negated: false,
+                boundType: boundType,
+                ast: ast,
                 sema: sema,
-                interner: interner
-            ) {
-                let floatingPointValueID = floatingPointRangeContainsValueID(
-                    lhsID,
-                    valueExpr: lhsExpr,
-                    callee: floatingPointCallee,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: floatingPointCallee,
-                    arguments: [rhsID, floatingPointValueID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else if let rhsType = rhsType,
-               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_ulong_range_contains"),
-                    arguments: [rhsID, lhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                appendContainsCall(
-                    exprID: exprID,
-                    elementID: lhsID,
-                    containerID: rhsID,
-                    resultID: result,
-                    sema: sema,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            return result
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
 
         case let .notInExpr(lhsExpr, rhsExpr, _):
             let lhsID = lowerExpr(
                 lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
-            let rhsID = lowerExpr(
-                rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
-            )
-            let notInRhsType = sema.bindings.exprTypes[rhsExpr]
-            let notInContainsCallee: String
-            // KSP-1523: see the `inExpr` case above — the analogous UInt branch here
-            // was gated on the same always-false `rhsType == uintType` check and has
-            // been folded away; UInt falls through to `appendContainsCall` below.
-            let floatingPointContainsCallee = floatingPointRangeContainsCallee(
-                for: rhsExpr,
-                value: lhsExpr,
+            return lowerContainsCheck(
+                exprID: exprID,
+                lhsID: lhsID,
+                lhsExpr: lhsExpr,
+                rhsExpr: rhsExpr,
+                negated: true,
+                boundType: boundType,
+                ast: ast,
                 sema: sema,
-                interner: interner
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
             )
-            if let floatingPointContainsCallee {
-                notInContainsCallee = interner.resolve(floatingPointContainsCallee)
-            } else if let notInRhsType = notInRhsType,
-               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
-                notInContainsCallee = "kk_ulong_range_contains"
-            } else {
-                notInContainsCallee = "kk_op_contains"
-            }
-            let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_ulong_range_contains"
-                || notInContainsCallee.hasPrefix("__kk_")
-            {
-                let floatingPointValueID: KIRExprID = if let floatingPointContainsCallee {
-                    floatingPointRangeContainsValueID(
-                        lhsID,
-                        valueExpr: lhsExpr,
-                        callee: floatingPointContainsCallee,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                } else {
-                    lhsID
-                }
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(notInContainsCallee),
-                    arguments: [rhsID, floatingPointValueID],
-                    result: containsResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                appendContainsCall(
-                    exprID: exprID,
-                    elementID: lhsID,
-                    containerID: rhsID,
-                    resultID: containsResult,
-                    sema: sema,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            let result = arena.appendTemporary(type: boundType ?? boolType)
-            let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
-            instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
-            instructions.append(.binary(op: .equal, lhs: containsResult, rhs: falseValue, result: result))
-            return result
 
         case let .destructuringDecl(names, _, initializer, _):
             // Lower: val (a, b) = expr  →  tmp = expr; a = tmp.component1(); b = tmp.component2()
@@ -2805,6 +2949,109 @@ extension ExprLowerer {
                 instructions: &instructions
             )
         }
+    }
+
+    /// Lowers `lhs in rhs` / `lhs !in rhs` given an already-lowered `lhsID`.
+    /// `when` branch conditions (`ControlFlowLowerer+WhenExpr.swift`) reuse the
+    /// subject's single lowering here instead of re-lowering `lhsExpr`, which
+    /// would re-evaluate a side-effecting subject once per `in`/`!in` branch.
+    func lowerContainsCheck(
+        exprID: ExprID,
+        lhsID: KIRExprID,
+        lhsExpr: ExprID,
+        rhsExpr: ExprID,
+        negated: Bool,
+        boundType: TypeID?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+        let rhsID = lowerExpr(
+            rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+        )
+        // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
+        // gated on `rhsType == uintType` — but `rhsType` is the range's own type
+        // (e.g. UIntRange), never its element type, so that comparison was always
+        // false. UInt now falls through to the same `appendContainsCall` path as
+        // every other range, which resolves to the shared `__kk_range_contains`
+        // bridge (safe: UInt always fits the Int64 fields it operates on).
+        let floatingPointCallee = floatingPointRangeContainsCallee(
+            for: rhsExpr, value: lhsExpr, sema: sema, interner: interner
+        )
+
+        if !negated {
+            let result = arena.appendTemporary(type: boundType ?? boolType)
+            if let floatingPointCallee {
+                let floatingPointValueID = floatingPointRangeContainsValueID(
+                    lhsID, valueExpr: lhsExpr, callee: floatingPointCallee,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: floatingPointCallee,
+                    arguments: [rhsID, floatingPointValueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                appendContainsCall(
+                    exprID: exprID,
+                    elementID: lhsID,
+                    containerID: rhsID,
+                    resultID: result,
+                    sema: sema,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            return result
+        }
+
+        let notInContainsCallee: String = if let floatingPointCallee {
+            interner.resolve(floatingPointCallee)
+        } else {
+            "kk_op_contains"
+        }
+        let containsResult = arena.appendTemporary(type: boolType)
+        if notInContainsCallee.hasPrefix("__kk_") {
+            let floatingPointValueID: KIRExprID = if let floatingPointCallee {
+                floatingPointRangeContainsValueID(
+                    lhsID, valueExpr: lhsExpr, callee: floatingPointCallee,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+            } else {
+                lhsID
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(notInContainsCallee),
+                arguments: [rhsID, floatingPointValueID],
+                result: containsResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        } else {
+            appendContainsCall(
+                exprID: exprID,
+                elementID: lhsID,
+                containerID: rhsID,
+                resultID: containsResult,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        let result = arena.appendTemporary(type: boundType ?? boolType)
+        let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
+        instructions.append(.binary(op: .equal, lhs: containsResult, rhs: falseValue, result: result))
+        return result
     }
 
     /// Emits a contains call instruction, dispatching to a user-defined operator fun contains

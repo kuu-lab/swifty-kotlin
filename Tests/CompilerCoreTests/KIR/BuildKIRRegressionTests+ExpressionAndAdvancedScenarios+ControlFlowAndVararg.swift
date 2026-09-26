@@ -232,5 +232,34 @@ extension BuildKIRRegressionTests {
         let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
         #expect(labelCount >= 3, "whenExpr with 2 branches + else needs at least 3 labels")
     }
+
+    // KUU: `in`/`!in` when-branch conditions used to re-lower the whole
+    // `.inExpr`/`.notInExpr` node, which re-lowers its embedded `lhs` (the
+    // when subject) from scratch — re-evaluating a side-effecting subject
+    // once per `in`/`!in` branch tested instead of once for the whole `when`.
+    @Test func testWhenExprInNotInBranchesEvaluateSubjectExactlyOnce() throws {
+        let source = """
+        fun subject(): Int = 5
+        fun classify(): String {
+            return when (subject()) {
+                in 1..3 -> "a"
+                !in 0..4 -> "b"
+                else -> "c"
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "classify", in: module, interner: ctx.interner)
+
+        let subjectCallCount = extractCallees(from: body, interner: ctx.interner)
+            .filter { $0 == "subject" }.count
+        #expect(
+            subjectCallCount == 1,
+            "when subject must be lowered once and reused across in/!in branches, got \(subjectCallCount) calls to subject()"
+        )
+    }
 }
 #endif
