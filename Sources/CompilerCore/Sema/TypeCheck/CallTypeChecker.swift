@@ -1698,6 +1698,7 @@ final class CallTypeChecker {
         }
 
         var candidates: [SymbolID]
+        var callImplicitReceiverType = ctx.implicitReceiverType
         var callInvisible: [SemanticSymbol] = []
         if let calleeName {
             let allCallCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -1712,6 +1713,45 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if candidates.isEmpty,
+               locals[calleeName] == nil,
+               let activeReceiverType = ctx.implicitReceiverType,
+               driver.helpers.collectMemberFunctionCandidates(
+                   named: calleeName,
+                   receiverType: sema.types.makeNonNullable(activeReceiverType),
+                   sema: sema,
+                   interner: interner
+               ).isEmpty
+            {
+                // The scope chain can contain an enclosing class's private
+                // method, but an anonymous object's symbol is not itself a
+                // member of that class for visibility checks. Resolve the
+                // method against the lexical receiver that owns it.
+                for lexicalReceiverType in ctx.outerReceiverTypes.reversed().map(\.type) {
+                    let outerType = sema.types.makeNonNullable(lexicalReceiverType)
+                    guard let outerClassSymbol = driver.helpers.nominalSymbol(
+                        of: outerType,
+                        types: sema.types
+                    ) else {
+                        continue
+                    }
+                    let outerCandidates = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: outerType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let outerContext = ctx.copying(enclosingClassSymbol: outerClassSymbol)
+                    let visibleOuterCandidates = outerContext.filterByVisibility(outerCandidates).visible
+                    guard !visibleOuterCandidates.isEmpty else {
+                        continue
+                    }
+                    candidates = visibleOuterCandidates
+                    callImplicitReceiverType = outerType
+                    callInvisible = []
+                    break
+                }
+            }
             if calleeName == knownNames.toList,
                let implicitReceiverType = ctx.implicitReceiverType
             {
@@ -2598,7 +2638,7 @@ final class CallTypeChecker {
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                implicitReceiverType: ctx.implicitReceiverType,
+                implicitReceiverType: callImplicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,

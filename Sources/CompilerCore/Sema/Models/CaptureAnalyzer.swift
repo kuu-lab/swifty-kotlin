@@ -119,6 +119,16 @@ struct CaptureAnalyzer {
                 {
                     captured.insert(receiverSymbol)
                 }
+                // A bare member call inside an object literal resolves to the
+                // enclosing class's member symbol. Preserve that class's
+                // implicit receiver as a capture so lowering can still pass
+                // the original `this` after the literal becomes active.
+                if let target = sema.bindings.callBinding(for: currentExprID)?.chosenCallee,
+                   let owner = sema.symbols.parentSymbol(for: target),
+                   outerSymbols.contains(owner)
+                {
+                    captured.insert(owner)
+                }
                 visit(callee)
                 for arg in args {
                     visit(arg.expr)
