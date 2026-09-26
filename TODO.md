@@ -2698,13 +2698,14 @@
     - `kotlin.ranges.LongRange.<init>` — constructor (Long, Long)  -- `constructor <init>(kotlin/Long, kotlin/Long)`
     - `kotlin.ranges.LongRange.Companion` — object kotlin.ranges.LongRange.Companion  -- `final object Companion {`
 
-- [ ] KSP-1309: kotlin.ranges.LongRange.LongRange の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1309: kotlin.ranges.LongRange.LongRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.LongRange` / receiver `LongRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/LongRange/LongRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_LongRange_LongRange_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_LongRange_LongRange_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_LongRange_LongRange_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-09-26）: `start`/`endInclusive`/`endExclusive`/`isEmpty` は KSP-708 で source-backed 済み。実残りの `equals`/`hashCode`/`toString` を upstream（Kotlin 2.3.10 `PrimitiveRanges.kt`）準拠の member override としてクラス本体に追加。member は extension に勝つため extension 実装（Instant 型）では `==`/virtual dispatch が束縛されず、member override を採用。監査の実装先 `ranges/LongRange/LongRange.kt` へのクラス移動は、bundled source がパス文字列順で処理されるため `ranges/LongRange/Companion/Companion.kt`（KSP-1310、`Companion` < `LongRange` で先に処理）の拡張 receiver `LongRange.Companion` が未解決となり不可と判明。クラス本体が存在する `ranges/LongRange.kt` に member を追加する `time/Instant.kt` + `Instant/Companion/Companion.kt` と同型の配置を採用した。対象シンボルの `__kk_*`/`kk_*` Runtime 関数・synthetic stub・RuntimeABISpec エントリ・name-string 特例は存在しないことを確認（変更なし）。併せて同 PR で `x is LongRange` 等が常に false を返していたランタイム欠陥を修正（`__kk_*_rangeTo` 系ファクトリで作る `RuntimeRangeBox` は `objectTypeByPointer` メタデータを持たないため `kk_op_is` nominalBase が 0 を返していた。primitive box と同様に range kind → nominal typeID を復元し、Kotlin 階層の `typeParents` 辺（`XRange → XProgression/ClosedRange/OpenEndRange`、`XProgression → Iterable`、`ClosedFloatingPointRange → ClosedRange`）を遅延登録する `registerRangeTypeEdgesOnce` を追加）。member equals の `other is LongRange` チェックはこの修正で成立する。
   - 未実装シンボル一覧:
     - `kotlin.ranges.LongRange.endExclusive` — val LongRange.endExclusive: Long  -- `final val endExclusive`
     - `kotlin.ranges.LongRange.endInclusive` — val LongRange.endInclusive: Long  -- `final val endInclusive`

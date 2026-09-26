@@ -54,6 +54,9 @@ struct MetadataState {
     /// Same idea as `reflectionTypeEdgesRegistered`, for the boxed-primitive
     /// `Number`/`Comparable` edges `RuntimePrimitiveNominalTypeIDs` installs.
     var primitiveTypeEdgesRegistered = false
+    /// Same idea, for the range/progression nominal edges
+    /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
+    var rangeTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
@@ -523,6 +526,7 @@ func kk_runtime_reset_metadata() {
         state.typeParents.removeAll(keepingCapacity: false)
         state.reflectionTypeEdgesRegistered = false
         state.primitiveTypeEdgesRegistered = false
+        state.rangeTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
