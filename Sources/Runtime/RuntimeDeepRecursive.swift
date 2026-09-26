@@ -204,6 +204,23 @@ private func runtimeRunDeepRecursiveTrampoline(
         case .startNew:
             let active = scope.currentFunction
             let child = kk_coroutine_continuation_new(active.functionID)
+            // KUU-642 diag: a freshly minted handle must not already be a key
+            // in any of the trampoline's live-frame maps. If it is, the
+            // allocator handed back the address of a frame this loop still
+            // believes is in flight -- the smoking gun for the "wrong sum"
+            // class of failure (see PR #7045 investigation).
+            precondition(
+                scope.entryPointOf[child] == nil,
+                "DR-DIAG startNew: child handle \(child) aliases a live entryPointOf frame (value=\(scope.value))"
+            )
+            precondition(
+                scope.parentOf[child] == nil,
+                "DR-DIAG startNew: child handle \(child) aliases a live parentOf frame (value=\(scope.value))"
+            )
+            precondition(
+                scope.continuationStateByHandle[child] == nil,
+                "DR-DIAG startNew: child handle \(child) aliases a live continuationStateByHandle frame (value=\(scope.value))"
+            )
             guard let childState = runtimeContinuationState(from: child) else {
                 return (0, 0)
             }
@@ -222,6 +239,14 @@ private func runtimeRunDeepRecursiveTrampoline(
                 continuation: child,
                 taskKey: taskKey
             )
+            // KUU-642 diag: when this step suspended, `runtimeParkDeepRecursiveCall`
+            // must have recorded *this* child as the frame to resume next.
+            if step.thrown == 0 && step.result == suspendedToken {
+                precondition(
+                    scope.cont == child,
+                    "DR-DIAG startNew: park wrote stale scope.cont=\(scope.cont) instead of child=\(child) (value=\(scope.value))"
+                )
+            }
             if step.thrown != 0 || step.result != suspendedToken {
                 scope.continuationStateByHandle.removeValue(forKey: child)
                 scope.parentOf.removeValue(forKey: child)
@@ -249,6 +274,20 @@ private func runtimeRunDeepRecursiveTrampoline(
                 else {
                     return (0, thrown)
                 }
+                // KUU-642 diag: the liveness registry must resolve `cont` to
+                // the exact same object our strong-ref cache holds. Any
+                // mismatch means something outside this cache aliased the
+                // handle -- the ARC-safety assumption behind the whole fix
+                // would be false.
+                guard let liveCheck = runtimeContinuationState(from: cont) else {
+                    preconditionFailure(
+                        "DR-DIAG resume: cont=\(cont) is cached but the liveness registry says it is NOT live"
+                    )
+                }
+                precondition(
+                    liveCheck === state,
+                    "DR-DIAG resume: liveness registry resolved a different object than the cache for cont=\(cont)"
+                )
                 let parent = scope.parentOf[cont] ?? 0
                 state.completion = Int64(value)
                 state.thrownException = thrown
@@ -258,6 +297,12 @@ private func runtimeRunDeepRecursiveTrampoline(
                     continuation: cont,
                     taskKey: taskKey
                 )
+                if step.thrown == 0 && step.result == suspendedToken {
+                    precondition(
+                        scope.cont == cont,
+                        "DR-DIAG resume: park wrote stale scope.cont=\(scope.cont) instead of cont=\(cont)"
+                    )
+                }
                 if step.thrown != 0 || step.result != suspendedToken {
                     scope.continuationStateByHandle.removeValue(forKey: cont)
                     scope.parentOf.removeValue(forKey: cont)
