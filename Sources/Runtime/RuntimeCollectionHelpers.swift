@@ -126,7 +126,7 @@ private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
 // These slots are the generated interface property getter slots in the current
 // bundled layout: `size`'s slot is `Collection`/`Map`'s own vtableSize (its
 // method-slot count), since KIRInterfacePropertyDispatch.swift lays property
-// getters out right after an interface's own method slots.
+// getters out right after an interface's own method slots, sorted by name.
 //
 // Collection's own vtable methods are isEmpty/contains/iterator/containsAll
 // (4 slots) -- KSP-960 (source-backing Collection.random/randomOrNull as
@@ -136,7 +136,26 @@ private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
 // own vtable method count (2 slots) is untouched by KSP-960, which only
 // changes Collection's synthetic member registration.
 private let runtimeCollectionSizeGetterSlot = 4
-private let runtimeMapSizeGetterSlot = 2
+// BUG-240: Map's property getter slots are `entries`/`keys`/`size`/`values`
+// sorted by name after the 2 method slots (isEmpty, get). `size` moved from 2
+// to 4 when keys/values/entries gained slots for delegated Map support.
+private let runtimeMapEntriesGetterSlot = 2
+private let runtimeMapKeysGetterSlot = 3
+private let runtimeMapSizeGetterSlot = 4
+private let runtimeMapValuesGetterSlot = 5
+// Map's own method slots are `isEmpty`/`get` in vtable order.
+private let runtimeMapIsEmptyMethodSlot = 0
+private let runtimeMapGetMethodSlot = 1
+
+private let runtimeMutableMapInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableMap"
+)
+// MutableMap's own method slots are `put`/`putAll`/`remove`/`clear` in vtable
+// order. Inherited Map members dispatch through the Map itable instead.
+private let runtimeMutableMapPutMethodSlot = 0
+private let runtimeMutableMapPutAllMethodSlot = 1
+private let runtimeMutableMapRemoveMethodSlot = 2
+private let runtimeMutableMapClearMethodSlot = 3
 
 /// Source-defined Collection/Map implementations expose `size` through the
 /// same dynamic interface-property getter table used by ordinary Kotlin code.
@@ -161,12 +180,15 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     return result
 }
 
+/// Looks up a Map interface property getter through the receiver's itable and
+/// calls it, returning the raw object handle. Nil when the receiver does not
+/// implement Map as a source-defined type (e.g. a plain runtime box).
 @inline(__always)
-func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+private func runtimeSourceMapProperty(_ rawValue: Int, getterSlot: Int) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(
         rawValue,
         Int(runtimeMapSizeInterfaceTypeID),
-        runtimeMapSizeGetterSlot
+        getterSlot
     )
     guard fnPtr != 0 else { return nil }
     let fn = unsafeBitCast(
@@ -176,7 +198,189 @@ func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
     var thrown = 0
     let result = fn(rawValue, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Map.size dispatch threw exception handle \(thrown)")
+        runtimeStructuredPanic("Map property dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, getterSlot: runtimeMapSizeGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapKeys(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, getterSlot: runtimeMapKeysGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, getterSlot: runtimeMapValuesGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapEntries(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, getterSlot: runtimeMapEntriesGetterSlot)
+}
+
+/// Calls a 1-argument interface method through the receiver's itable for
+/// source-defined implementations. Nil when the receiver is not a source type
+/// (e.g. a plain runtime box), letting callers keep their existing fallback.
+@inline(__always)
+private func runtimeSourceInterfaceCall1(
+    _ rawValue: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    arg: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, arg, &thrown)
+    if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        runtimeStructuredPanic("itable dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// Calls a 2-argument interface method through the receiver's itable.
+@inline(__always)
+private func runtimeSourceInterfaceCall2(
+    _ rawValue: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    arg1: Int,
+    arg2: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, arg1, arg2, &thrown)
+    if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        runtimeStructuredPanic("itable dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapIsEmpty(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapSizeInterfaceTypeID),
+        runtimeMapIsEmptyMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.isEmpty dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapGet(_ rawValue: Int, key: Int) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        interfaceTypeID: runtimeMapSizeInterfaceTypeID,
+        methodSlot: runtimeMapGetMethodSlot,
+        arg: key,
+        outThrown: nil
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapPut(
+    _ rawValue: Int,
+    key: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall2(
+        rawValue,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapPutMethodSlot,
+        arg1: key,
+        arg2: value,
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapPutAll(
+    _ rawValue: Int,
+    otherMapRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapPutAllMethodSlot,
+        arg: otherMapRaw,
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapRemove(
+    _ rawValue: Int,
+    key: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapRemoveMethodSlot,
+        arg: key,
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapClear(
+    _ rawValue: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMutableMapInterfaceTypeID),
+        runtimeMutableMapClearMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+            return result
+        }
+        runtimeStructuredPanic("MutableMap.clear dispatch threw exception handle \(thrown)")
     }
     return result
 }
