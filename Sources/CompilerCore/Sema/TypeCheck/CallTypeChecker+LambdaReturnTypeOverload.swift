@@ -518,7 +518,7 @@ extension CallTypeChecker {
             ? candidates
             : candidates.filter { sema.symbols.functionSignature(for: $0)?.receiverType == nil }
 
-        let narrowed = candidates.filter { candidate in
+        var narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
                   isCallableArityCompatible(signature: signature, argCount: args.count)
             else {
@@ -575,6 +575,25 @@ extension CallTypeChecker {
             }
             return true
         }
+
+        // Prune candidates whose declared receiver the call-site receiver can
+        // never satisfy: `onEach` is declared on `Sequence`, `Iterable`,
+        // `Map`, and `CharSequence`, but a `String` receiver can only ever
+        // select the `CharSequence` overload. Infeasible siblings still go
+        // through final resolution unchanged — leaving them in this set only
+        // corrupts the lambda's expected type with irreconcilable parameter
+        // shapes and leaves implicit `it` untyped.
+        let receiverFeasible = narrowed.filter { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return receiverConstraintIsFeasible(
+                signature: signature,
+                receiverType: effectiveReceiverType,
+                sema: sema
+            )
+        }
+        narrowed = receiverFeasible.isEmpty ? narrowed : receiverFeasible
 
         // A bare lambda literal is itself a function value. When overloads
         // differ between a function-typed parameter and an unconstrained type
@@ -678,6 +697,79 @@ extension CallTypeChecker {
         }
 
         return narrowed.isEmpty ? candidates : narrowed
+    }
+
+    /// Whether the call-site receiver can ever satisfy the candidate's declared
+    /// receiver. Used only to keep the lambda expected-type candidate set free
+    /// of same-named overloads that final resolution could never select.
+    private func receiverConstraintIsFeasible(
+        signature: FunctionSignature,
+        receiverType: TypeID?,
+        sema: SemaModule
+    ) -> Bool {
+        guard let receiverType,
+              let declaredReceiver = signature.receiverType
+        else {
+            return true
+        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        let nonNullDeclared = sema.types.makeNonNullable(declaredReceiver)
+        if case let .typeParam(receiverTypeParam) = sema.types.kind(of: nonNullDeclared) {
+            // Bare type-parameter receiver (`C : Iterable<T>`, `S : CharSequence`):
+            // judge feasibility by the parameter's upper bounds after
+            // substituting the receiver variable itself, so F-bounded contracts
+            // (`T : Comparable<T>`) still hold. Bounds that stay type parameters
+            // (`C : R`) constrain a different variable and are skipped.
+            let bounds = sema.symbols.typeParameterUpperBounds(for: receiverTypeParam.symbol)
+            guard !bounds.isEmpty else {
+                return true
+            }
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
+                return true
+            }
+            let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiver]
+            for bound in bounds {
+                let substitutedBound = sema.types.substituteTypeParameters(
+                    in: bound,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                let nonNullBound = sema.types.makeNonNullable(substitutedBound)
+                if case .typeParam = sema.types.kind(of: nonNullBound) {
+                    continue
+                }
+                if let boundClass = resolveClassType(nonNullBound, sema: sema),
+                   let actualClass = resolveClassType(nonNullReceiver, sema: sema)
+                {
+                    if actualClass.classSymbol != boundClass.classSymbol,
+                       !sema.types.isNominalSubtypeSymbol(
+                           actualClass.classSymbol,
+                           of: boundClass.classSymbol
+                       )
+                    {
+                        return false
+                    }
+                    continue
+                }
+                if !sema.types.isSubtype(nonNullReceiver, nonNullBound) {
+                    return false
+                }
+            }
+            return true
+        }
+        guard let declaredClass = resolveClassType(nonNullDeclared, sema: sema),
+              let actualClass = resolveClassType(nonNullReceiver, sema: sema)
+        else {
+            // Non-nominal actual receiver (e.g. primitive String) or an opaque
+            // declared receiver: fall back to the subtype oracle.
+            return sema.types.isSubtype(nonNullReceiver, nonNullDeclared)
+        }
+        return declaredClass.classSymbol == actualClass.classSymbol
+            || sema.types.isNominalSubtypeSymbol(
+                actualClass.classSymbol,
+                of: declaredClass.classSymbol
+            )
     }
 
     /// Applies explicit type arguments to a parameter type from a given signature.
@@ -1121,6 +1213,21 @@ extension CallTypeChecker {
             from: parameterCandidates,
             types: sema.types
         ) else {
+            // Candidates whose parameter type still mentions a type parameter
+            // (e.g. `Sequence<T>.onEach` seen through a `String` receiver) can
+            // never pin down a usable shape at this call site. When the
+            // fully-concrete subset agrees on one shape, use it -- the
+            // remaining candidates are infeasible or will unify to the same
+            // shape once final resolution binds their type parameters.
+            let concreteCandidates = parameterCandidates.filter {
+                !typeMentionsTypeParameter($0.originalType, sema: sema)
+            }
+            if let firstConcrete = concreteCandidates.first,
+               !concreteCandidates.isEmpty,
+               concreteCandidates.dropFirst().allSatisfy({ $0.originalType == firstConcrete.originalType })
+            {
+                return (firstConcrete.originalType, false, false, false)
+            }
             // The candidates disagree on this lambda's parameter shape, so no single
             // expected type can be pushed down. When every surviving candidate still
             // expects exactly one, genuinely concrete parameter type, a bare lambda
