@@ -172,29 +172,26 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
-    // MutableList.subList(...) must report MutableList<E> (assignable, and its
-    // `add` must work), not List<E>. KSwiftK's subList returns an independent
-    // snapshot copy rather than a live view backed by the parent list (a
-    // documented deviation from real Kotlin -- see the NOTE in
-    // Sources/CompilerCore/Stdlib/kotlin/collections/ListSliceTakeDrop.kt), so
-    // this only asserts the sublist's own mutability, not that mutating it is
-    // visible through the parent.
+    // MutableList.subList(...) is a live view backed by the parent list. Both
+    // element replacement and structural removal through the view must update
+    // the parent list as they do in the Kotlin stdlib.
     @Test
-    func testCodegenMutableListSubListReturnsIndependentlyMutableList() throws {
+    func testCodegenMutableListSubListMutatesParentList() throws {
         let source = """
         fun main() {
             val backing = mutableListOf(1, 2, 3, 4)
             val sub: MutableList<Int> = backing.subList(1, 3)
-            sub.add(99)
-            println(sub)
+            sub[0] = 99
+            println(backing)
+            sub.clear()
             println(backing)
         }
         """
 
         try assertKotlinOutput(
             source,
-            moduleName: "MutableListSubListCovariance",
-            expected: "[2, 3, 99]\n[1, 2, 3, 4]\n"
+            moduleName: "MutableListSubListView",
+            expected: "[1, 99, 3, 4]\n[1, 4]\n"
         )
     }
 

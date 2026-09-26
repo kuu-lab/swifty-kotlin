@@ -85,7 +85,7 @@ expr e@46:5#1 memberCall recv=e@46:5 callee=listIterator args=[] type=kotlin.col
 expr e@47:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable[kind=local]
 expr e@47:23 int(0) type=Int
 expr e@47:26 int(0) type=Int
-expr e@47:5#1 memberCall recv=e@47:5 callee=subList args=[_:e@47:23,_:e@47:26] type=kotlin.collections.MutableList<Int> call=kotlin.collections.subList[kind=fun;recv=kotlin.collections.List<T0>;params=Int,Int;gen=1]
+expr e@47:5#1 memberCall recv=e@47:5 callee=subList args=[_:e@47:23,_:e@47:26] type=kotlin.collections.MutableList<Int> call=kotlin.collections.MutableList.subList[kind=fun;recv=kotlin.collections.MutableList<T0>;params=Int,Int;gen=1]
 expr e@48:23 name(asList) type=kotlin.collections.List<Int> ref=__local_1.asList[kind=local]
 expr e@48:12 call callee=e@48:12#1 args=[_:e@48:23] type=Int call=golden.sema.acceptList[kind=fun;params=kotlin.collections.List<Int>]
 expr e@48:51 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable[kind=local]
