@@ -1360,7 +1360,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicInt.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
 
-- [ ] KSP-1088: kotlin.concurrent.AtomicInt.AtomicInt の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1088: kotlin.concurrent.AtomicInt.AtomicInt の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.AtomicInt` / receiver `AtomicInt`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicInt/AtomicInt.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1374,6 +1374,7 @@
     - `kotlin.concurrent.AtomicInt.getAndIncrement` — fun AtomicInt.getAndIncrement(): Int  -- `final fun getAndIncrement(): kotlin/Int`
     - `kotlin.concurrent.AtomicInt.toString` — fun AtomicInt.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicInt.value` — val AtomicInt.value: Int  -- `final var value`
+  - 完了根拠 (2026-09-26): `kotlin/concurrent/AtomicInt/AtomicInt.kt` に source-backed class 宣言へ移し、`compareAndExchange` / `getAndAdd` / `getAndDecrement` / `getAndIncrement` / `toString` / `var value` の 6 件を class member として実装した。各 member は `__kk_atomic_int_*` private external bridge に委譲し、`value` は `__kk_atomic_int_load` / `__kk_atomic_int_store` に接続する。残りの合成 stub（`AtomicInt(Int)` コンストラクタ、load/store/exchange/compareAndSet/fetch*/increment*/decrement* 系、`java.util.concurrent.atomic.AtomicInteger` 共有ブリッジ）は継続利用のため保持。name-string 特例は無し。
 
 - [~] KSP-1090: kotlin.concurrent.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.concurrent.AtomicIntArray` / receiver `AtomicIntArray`

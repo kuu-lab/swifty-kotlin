@@ -45,6 +45,9 @@ struct AtomicTopLevelSourceTests {
             "AtomicArray": ctx.sourceManager.fileID(
                 forPath: "__bundled_kotlin/concurrent/AtomicArray/AtomicArray.kt"
             ),
+            "AtomicInt": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicInt/AtomicInt.kt"
+            ),
             "AtomicIntArray": ctx.sourceManager.fileID(
                 forPath: "__bundled_kotlin/concurrent/AtomicIntArray/AtomicIntArray.kt"
             ),

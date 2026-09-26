@@ -14,9 +14,6 @@ package kotlin.concurrent
 import kotlin.internal.KsSymbolName
 
 @SinceKotlin("1.9")
-public class AtomicInt private constructor()
-
-@SinceKotlin("1.9")
 public class AtomicLong private constructor()
 
 @SinceKotlin("1.9")
