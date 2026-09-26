@@ -430,6 +430,16 @@ struct AnnotationSemanticTests {
 
                     fun caller(): Int = oldHidden() + sinceHidden()
 
+            """,
+
+            // testDeprecatedUuidLexicalOrderEmitsError
+            """
+            @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+            package sample41
+                    import kotlin.uuid.Uuid
+
+                    fun caller(): Comparator<Uuid> = Uuid.LEXICAL_ORDER
+
             """
         ]
 
@@ -850,6 +860,16 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.count == 2, "Expected two hidden deprecation diagnostics, got: \(sampleDiags)")
                 #expect(diagnostics.allSatisfy(isError), "Hidden-level deprecations should be errors, got: \(diagnostics)")
+            }
+            // testDeprecatedUuidLexicalOrderEmitsError
+            do {
+                let samplePath = paths[41]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for LEXICAL_ORDER, got: \(sampleDiags)")
+                #expect(diagnostics.allSatisfy(isError), "LEXICAL_ORDER should be a deprecation error, got: \(diagnostics)")
             }
 
         }
