@@ -474,6 +474,10 @@ public final class SymbolTable {
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
+    /// BUG-inner-outer: the synthetic `$outer` field holding an `inner
+    /// class`'s enclosing-instance link, keyed by the inner class's own
+    /// symbol. `nil` for every non-inner nominal.
+    private var outerInstanceFieldSymbols: [SymbolID: SymbolID] = [:]
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
@@ -1199,6 +1203,16 @@ public final class SymbolTable {
 
     public func companionObjectSymbol(for owner: SymbolID) -> SymbolID? {
         companionObjectSymbols[owner]
+    }
+
+    public func setOuterInstanceFieldSymbol(_ field: SymbolID, for innerClass: SymbolID) {
+        outerInstanceFieldSymbols[innerClass] = field
+    }
+
+    /// The `$outer` field symbol holding `innerClass`'s enclosing-instance
+    /// link, or `nil` when `innerClass` is not an `inner class`.
+    public func outerInstanceFieldSymbol(for innerClass: SymbolID) -> SymbolID? {
+        outerInstanceFieldSymbols[innerClass]
     }
 
     public func setObjectInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {

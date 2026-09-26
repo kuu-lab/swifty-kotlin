@@ -752,6 +752,24 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
+            // BUG-inner-outer: reserve the `$outer` field first, before any
+            // of this class's own type params/ctor/members get symbols, so
+            // it lands at the lowest SymbolID (and therefore the first own
+            // field slot LayoutSynthesis assigns) among Inner's children.
+            if nestedClass.isInner {
+                let outerFieldName = interner.intern("$outer")
+                let outerFieldSymbol = symbols.define(
+                    kind: .field,
+                    name: outerFieldName,
+                    fqName: nestedFQName + [outerFieldName],
+                    declSite: nestedClass.range,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(nestedSymbol, for: outerFieldSymbol)
+                symbols.setOuterInstanceFieldSymbol(outerFieldSymbol, for: nestedSymbol)
+            }
+
             if !nestedClass.typeParams.isEmpty {
                 types.setNominalTypeParameterVariances(
                     nestedClass.typeParams.map(\.variance),
