@@ -23,6 +23,25 @@ struct RuntimeSemaphoreTests {
         #expect(__kk_semaphore_availablePermits(handle) == 2)
     }
 
+    @Test func semaphoreReleaseBeyondPermitsThrowsIllegalStateException() throws {
+        let handle = __kk_semaphore_create(1)
+        #expect(handle != 0)
+        #expect(__kk_semaphore_availablePermits(handle) == 1)
+
+        var thrown = 0
+        #expect(kk_semaphore_release(handle, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(box.message == "The number of released permits cannot be greater than 1")
+        #expect(__kk_semaphore_availablePermits(handle) == 1)
+
+        thrown = 0
+        #expect(kk_semaphore_acquire(handle, 0) == 0)
+        #expect(kk_semaphore_release(handle, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_semaphore_availablePermits(handle) == 1)
+    }
+
     // KSP-677: Semaphore.withPermit is Kotlin source composing the c-soft
     // acquire()/release() kernel primitives, so its runtime coverage is the
     // acquire/tryAcquire/release paths in this suite.
@@ -58,4 +77,15 @@ struct RuntimeSemaphoreTests {
         #expect(waiterDone.wait(timeout: .now() + 2) == .success)
         #expect(__kk_semaphore_availablePermits(handle) == 1)
     }
+}
+
+private func requireThrownBox(_ thrown: Int) throws -> RuntimeThrowableBox {
+    let ptr = try #require(
+        UnsafeMutableRawPointer(bitPattern: thrown),
+        "thrown channel value is not a valid pointer"
+    )
+    return try #require(
+        tryCast(ptr, to: RuntimeThrowableBox.self),
+        "thrown value must be a RuntimeThrowableBox"
+    )
 }

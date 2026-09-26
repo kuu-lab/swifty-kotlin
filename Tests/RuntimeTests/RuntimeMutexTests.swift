@@ -65,6 +65,30 @@ struct RuntimeMutexTests {
         #expect(kk_mutex_unlock(handle) == 0)
     }
 
+    @Test func mutexUnlockOnUnlockedMutexThrowsIllegalStateException() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        var thrown = 0
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(box.message == "This mutex is not locked")
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        thrown = 0
+        #expect(kk_mutex_lock(handle, 0) == 0)
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        thrown = 0
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        let secondBox = try requireThrownBox(thrown)
+        #expect(secondBox.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(secondBox.message == "This mutex is not locked")
+    }
+
     // NOTE: pthread_mutex_t does not guarantee FIFO wake-up order on Linux, so
     // this test verifies only that multiple waiters can all acquire and release
     // the mutex without deadlock.  A strict ordering assertion would be flaky on
@@ -127,4 +151,15 @@ struct RuntimeMutexTests {
             #expect(a2 < r2, "waiter-2 must release after acquiring")
         }
     }
+}
+
+private func requireThrownBox(_ thrown: Int) throws -> RuntimeThrowableBox {
+    let ptr = try #require(
+        UnsafeMutableRawPointer(bitPattern: thrown),
+        "thrown channel value is not a valid pointer"
+    )
+    return try #require(
+        tryCast(ptr, to: RuntimeThrowableBox.self),
+        "thrown value must be a RuntimeThrowableBox"
+    )
 }
