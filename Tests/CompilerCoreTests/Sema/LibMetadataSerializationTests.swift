@@ -83,14 +83,14 @@ struct LibMetadataSerializationTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let diagnostics = DiagnosticEngine()
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
             options: ctx.options,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
             interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
 
         let used = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "used" })
@@ -170,7 +170,7 @@ struct LibMetadataSerializationTests {
         let types = TypeSystem()
         types.symbolTable = symbols
         let diagnostics = DiagnosticEngine()
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let phase = DataFlowSemaPhase()
         _ = phase.loadImportedLibrarySymbols(
             options: ctx.options,
@@ -178,7 +178,7 @@ struct LibMetadataSerializationTests {
             types: types,
             diagnostics: diagnostics,
             interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
         phase.registerSyntheticCollectionStubs(
             symbols: symbols,
@@ -228,14 +228,14 @@ struct LibMetadataSerializationTests {
         let types = TypeSystem()
         types.symbolTable = symbols
         let diagnostics = DiagnosticEngine()
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
             options: ctx.options,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
             interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
 
         let ownerFQName = ["kotlin", "KotlinVersion"].map(ctx.interner.intern)
@@ -1128,14 +1128,14 @@ struct LibMetadataSerializationTests {
             let types = TypeSystem()
             types.symbolTable = symbols
             let diagnostics = DiagnosticEngine()
-            var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+            let importedInlineFunctions = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &importedInlineFunctions
+                importedInlineFunctions: importedInlineFunctions
             )
             weakSymbols = symbols
             weakTypes = types

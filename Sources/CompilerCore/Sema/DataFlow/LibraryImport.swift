@@ -2020,7 +2020,7 @@ extension DataFlowSemaPhase {
             }
             return nil
         }
-        return parseImportedInlineFunction(
+        return Self.parseImportedInlineFunction(
             path: inlinePath,
             importedSymbol: symbol,
             signature: signature,
