@@ -42,6 +42,9 @@ struct AtomicTopLevelSourceTests {
         let package = ["kotlin", "concurrent"]
         let defaultSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/concurrent/Stdlib.kt")
         let sourceFileIDs = [
+            "AtomicArray": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicArray/AtomicArray.kt"
+            ),
             "AtomicIntArray": ctx.sourceManager.fileID(
                 forPath: "__bundled_kotlin/concurrent/AtomicIntArray/AtomicIntArray.kt"
             ),
@@ -106,20 +109,25 @@ struct AtomicTopLevelSourceTests {
             sema.types.nominalTypeParameterSymbols(for: classSymbol).first
         )
 
-        let load = try #require(
-            sema.symbols.lookupAll(fqName: classFQName + [interner.intern("load")]).first,
-            "Missing residual AtomicReference.load"
+        // KSP-1123: load/store/exchange/compareAndExchange/getAndSet/toString are
+        // source-backed receiver declarations in
+        // atomics/AtomicReference/AtomicReference.kt. The synthetic `value`
+        // property stays residual and keeps the shared __kk_atomic_ref_load link.
+        let value = try #require(
+            sema.symbols.lookupAll(fqName: classFQName + [interner.intern("value")]).first {
+                sema.symbols.symbol($0)?.kind == .property
+            },
+            "Missing residual AtomicReference.value"
         )
-        let loadInfo = try #require(sema.symbols.symbol(load))
-        let loadSignature = try #require(sema.symbols.functionSignature(for: load))
-        #expect(loadInfo.flags.contains(.synthetic))
-        #expect(sema.symbols.externalLinkName(for: load) == "__kk_atomic_ref_load")
-        #expect(loadSignature.typeParameterSymbols == [classTypeParameter])
-        guard case let .typeParam(returnType) = sema.types.kind(of: loadSignature.returnType) else {
-            Issue.record("AtomicReference.load should return the class T type parameter")
+        let valueInfo = try #require(sema.symbols.symbol(value))
+        #expect(valueInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: value) == "__kk_atomic_ref_load")
+        let valueTypeID = try #require(sema.symbols.propertyType(for: value))
+        guard case let .typeParam(valueType) = sema.types.kind(of: valueTypeID) else {
+            Issue.record("AtomicReference.value should be typed by the class T type parameter")
             return
         }
-        #expect(returnType.symbol == classTypeParameter)
+        #expect(valueType.symbol == classTypeParameter)
     }
 
     @Test

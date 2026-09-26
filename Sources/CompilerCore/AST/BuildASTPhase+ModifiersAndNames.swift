@@ -43,7 +43,14 @@ extension BuildASTPhase {
                 }
             }
             if depth.isAtTopLevel, let modifier = modifier(from: token) {
-                modifiers.insert(modifier)
+                // Qualified name segments (e.g. `internal` inside
+                // `@kotlin.internal.InlineOnly`) are not modifiers.
+                let isQualifiedNameSegment =
+                    (index > 0 && tokens[index - 1].kind == .symbol(.dot))
+                    || (index + 1 < tokens.count && tokens[index + 1].kind == .symbol(.dot))
+                if !isQualifiedNameSegment {
+                    modifiers.insert(modifier)
+                }
             }
             index += 1
         }

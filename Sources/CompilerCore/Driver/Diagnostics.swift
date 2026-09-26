@@ -64,6 +64,24 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
     }
 
+    /// Marks the current diagnostic count for `rollback(to:)`.
+    public func checkpoint() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.count
+    }
+
+    /// Drops diagnostics emitted after `checkpoint`, for speculative paths
+    /// that re-infer an expression and keep the original diagnostic when the
+    /// retry fails.
+    public func rollback(to checkpoint: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        if _diagnostics.count > checkpoint {
+            _diagnostics.removeSubrange(checkpoint...)
+        }
+    }
+
     public func emit(_ diagnostic: Diagnostic) {
         lock.lock()
         defer { lock.unlock() }

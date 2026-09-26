@@ -40,21 +40,10 @@ struct ConditionBranch: Equatable {
 }
 
 final class DataFlowAnalyzer {
-    /// Cached `BuiltinTypeNames` for the active interner. Builtin name
-    /// interning is compilation-invariant, so building it once avoids the
-    /// locked `interner.intern` calls being repeated on every type-argument
-    /// and `is`-check resolution (mirrors `TypeCheckDriver.builtinTypeNamesCache`).
-    private var builtinTypeNamesCache: (names: BuiltinTypeNames, interner: StringInterner)?
-
     init() {}
 
     private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        if let cached = builtinTypeNamesCache, cached.interner === interner {
-            return cached.names
-        }
-        let names = BuiltinTypeNames(interner: interner)
-        builtinTypeNamesCache = (names, interner)
-        return names
+        BuiltinTypeNames(interner: interner)
     }
 
     func branchOnCondition(
@@ -308,6 +297,7 @@ final class DataFlowAnalyzer {
     func branchOnWhenSubject(
         subjectSymbol: SymbolID,
         subjectType: TypeID,
+        subjectID: ExprID,
         conditionID: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -363,7 +353,7 @@ final class DataFlowAnalyzer {
         case let .isCheck(exprID, typeRefID, negated, _):
             return narrowedStateForIsCheck(
                 exprID: exprID, typeRefID: typeRefID, negated: negated,
-                subjectSymbol: subjectSymbol, conditionID: conditionID,
+                subjectSymbol: subjectSymbol, subjectID: subjectID, conditionID: conditionID,
                 base: base, ast: ast, sema: sema, interner: interner, scope: scope
             )
         default:
@@ -420,6 +410,7 @@ final class DataFlowAnalyzer {
         typeRefID: TypeRefID,
         negated: Bool,
         subjectSymbol: SymbolID,
+        subjectID: ExprID,
         conditionID _: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -427,11 +418,14 @@ final class DataFlowAnalyzer {
         interner: StringInterner,
         scope: Scope
     ) -> DataFlowState {
-        // Only narrow when the isCheck's expr refers to the when subject.
-        // This prevents incorrect narrowing for `when(x) { y is String -> ... }`.
-        if let checkedSymbol = sema.bindings.identifierSymbols[exprID],
-           checkedSymbol != subjectSymbol
-        {
+        // Only narrow when the isCheck's expr refers to the when subject. A
+        // bare `is Type` when-branch condition is always parsed as
+        // `.isCheck(expr: subject, ...)`, reusing the subject's own ExprID
+        // (BuildASTPhase+ExpressionParserControlFlow.parseWhenBranchCondition),
+        // so identity comparison here is reliable even for synthetic subjects
+        // (`this`, a lambda parameter) that never get an `identifierSymbols`
+        // binding for their own ExprID.
+        guard exprID == subjectID else {
             return base
         }
         guard !negated else { return base }

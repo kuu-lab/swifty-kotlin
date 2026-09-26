@@ -1809,7 +1809,16 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let resolvedPath = URL(fileURLWithPath: overridePath).standardized.path
         let paths = LLVMCAPIBindings.candidateLibraryPaths(environment: ["KSWIFTK_LLVM_DYLIB": overridePath])
         #expect(paths.first == resolvedPath)
-        #expect(paths.contains("libLLVM.dylib"))
+        // Every candidate must be a canonical absolute path; bare library names
+        // would defer to the dynamic loader's own (unverified) search path.
+        #expect(paths.allSatisfy { $0.hasPrefix("/") })
+
+        // Relative overrides resolve against the process's CWD, which another
+        // local user may influence, so they are rejected.
+        let relativePaths = LLVMCAPIBindings.candidateLibraryPaths(environment: [
+            "KSWIFTK_LLVM_DYLIB": "relative/dir/libLLVM.so",
+        ])
+        #expect(!relativePaths.contains { $0.hasSuffix("relative/dir/libLLVM.so") })
 
         // Non-existent paths are rejected and not added to candidates.
         let missing = "/tmp/does-not-exist-kswiftk-\(UUID().uuidString).dylib"
@@ -1818,20 +1827,26 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
     }
 
     @Test
-    func testLlvmBindingsCandidatePathsIncludeVersionedLibrariesFromLibraryPath() throws {
+    /// Generic library-search variables must not influence discovery: an
+    /// attacker-controlled writable directory earlier in one of them would
+    /// otherwise shadow the real libLLVM.
+    func testLlvmBindingsCandidatePathsIgnoreGenericLibrarySearchVariables() throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let versionedLibrary = tempDirectory.appendingPathComponent("libLLVM-18.so")
-        _ = FileManager.default.createFile(atPath: versionedLibrary.path, contents: Data())
+        let plantedLibrary = tempDirectory.appendingPathComponent("libLLVM-18.so")
+        _ = FileManager.default.createFile(atPath: plantedLibrary.path, contents: Data())
 
         let paths = LLVMCAPIBindings.candidateLibraryPaths(environment: [
             "LIBRARY_PATH": tempDirectory.path,
+            "LD_LIBRARY_PATH": tempDirectory.path,
+            "DYLD_LIBRARY_PATH": tempDirectory.path,
         ])
 
-        #expect(paths.contains(versionedLibrary.standardized.path))
+        #expect(!paths.contains(plantedLibrary.standardized.path))
+        #expect(!paths.contains { $0.hasPrefix(tempDirectory.standardized.path) })
     }
 
     @Test

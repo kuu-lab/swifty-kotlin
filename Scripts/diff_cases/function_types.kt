@@ -26,21 +26,25 @@ fun testFunctionVariance() {
     stringConsumer("test")
 }
 
-// 関数型の合成テスト - 一時的にコメントアウト（拡張関数が未実装のため）
-/*
+// 関数型の合成テスト。andThen/compose は kotlin-stdlib に存在しないため
+// （java.util.function.Function 由来であり kotlin.Function1 は継承しない）、
+// 関数型レシーバを持つ拡張関数として自分で定義する。BUG-C（拡張関数の
+// レシーバが関数型自体になれない不具合）修正により有効化。
+fun <A, B, C> ((A) -> B).andThen(g: (B) -> C): (A) -> C = { x -> g(this(x)) }
+fun <A, B, C> ((A) -> B).compose(g: (C) -> A): (C) -> B = { x -> this(g(x)) }
+
 fun testFunctionComposition() {
     val double: (Int) -> Int = { it * 2 }
-    val toString: (Int) -> String = { it.toString() }
-    
+    val toStringFn: (Int) -> String = { it.toString() }
+
     // andThen: f.andThen(g) = { x -> g(f(x)) }
-    val doubleThenToString = double.andThen(toString)
+    val doubleThenToString = double.andThen(toStringFn)
     println(doubleThenToString(5)) // "10"
-    
+
     // compose: f.compose(g) = { x -> f(g(x)) }
-    val toStringThenDouble = double.compose(toString)
-    // toStringThenDouble("5") // コンパイルエラー: StringをIntに変換できない
+    val lengthThenDouble = double.compose { s: String -> s.length }
+    println(lengthThenDouble("abc")) // 6
 }
-*/
 
 // 関数型のカリー化テスト - 一時的にコメントアウト（拡張関数が未実装のため）
 /*
@@ -105,8 +109,8 @@ fun testComplexFunctionTypes() {
 fun main() {
     testBasicFunctionTypes()
     testFunctionVariance()
-    // testFunctionComposition() // 一時的にコメントアウト
-    // testFunctionCurrying() // 一時的にコメントアウト
+    testFunctionComposition()
+    // testFunctionCurrying() // 一時的にコメントアウト（curried() は kotlin-stdlib に存在せず、多変数関数型の拡張実装は本PRの対象外）
     testHigherOrderFunctions()
     testComplexFunctionTypes()
     

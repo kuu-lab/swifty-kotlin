@@ -478,7 +478,6 @@ public final class SymbolTable {
     private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
-    private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
     private var enumEntryDispatchTargets: [SymbolID: [EnumEntryDispatchTarget]] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
@@ -829,14 +828,6 @@ public final class SymbolTable {
         overrideDefaultsBaseSymbols[symbol]
     }
 
-    public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {
-        enumEntryDispatchSymbols[functionSymbol] = dispatchSymbol
-    }
-
-    public func enumEntryDispatchSymbol(for functionSymbol: SymbolID) -> SymbolID? {
-        enumEntryDispatchSymbols[functionSymbol]
-    }
-
     public func setEnumEntryDispatchTargets(
         _ targets: [EnumEntryDispatchTarget],
         for dispatchSymbol: SymbolID
@@ -854,6 +845,12 @@ public final class SymbolTable {
 
     public func propertyType(for symbol: SymbolID) -> TypeID? {
         propertyTypes[symbol]
+    }
+
+    /// The property a synthetic getter/setter accessor symbol encodes, or nil
+    /// when `symbol` is a real member rather than a property accessor.
+    public func propertySymbol(forAccessor accessor: SymbolID) -> SymbolID? {
+        SyntheticSymbolScheme.decodedPropertyAccessor(accessor)?.property
     }
 
     public func setPropertyHasCustomGetter(_ value: Bool, for symbol: SymbolID) {
@@ -964,13 +961,14 @@ public final class SymbolTable {
         classDelegationForwardingMethodInfo[forwardingSymbol]
     }
 
-    /// CLASS-008: Synthetic forwarding property symbols created for class
-    /// delegation. Maps a class property to the delegated interface property
-    /// and the storage field holding the delegate instance.
+    /// CLASS-008: Synthetic forwarding property symbols created for class delegation.
+    /// Maps forwarding property symbol -> (interfaceSymbol, interfacePropertySymbol, fieldSymbol).
     private var classDelegationForwardingPropertyInfo: [SymbolID: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
 
+    /// CLASS-008: Per-class list of synthetic forwarding property symbols.
     private var classDelegationForwardingPropertiesByClass: [SymbolID: [SymbolID]] = [:]
 
+    /// CLASS-008: Record a synthetic forwarding property for class delegation.
     public func addClassDelegationForwardingProperty(
         _ forwardingSymbol: SymbolID,
         forClass classSymbol: SymbolID,
@@ -978,16 +976,16 @@ public final class SymbolTable {
         interfaceProperty interfacePropertySymbol: SymbolID,
         field fieldSymbol: SymbolID
     ) {
-        classDelegationForwardingPropertyInfo[forwardingSymbol] = (
-            interfaceSymbol, interfacePropertySymbol, fieldSymbol
-        )
+        classDelegationForwardingPropertyInfo[forwardingSymbol] = (interfaceSymbol, interfacePropertySymbol, fieldSymbol)
         classDelegationForwardingPropertiesByClass[classSymbol, default: []].append(forwardingSymbol)
     }
 
+    /// CLASS-008: Get synthetic forwarding property symbols for a class.
     public func classDelegationForwardingPropertySymbols(forClass classSymbol: SymbolID) -> [SymbolID] {
         classDelegationForwardingPropertiesByClass[classSymbol] ?? []
     }
 
+    /// CLASS-008: Get the info needed to emit the forwarding body for a synthetic property.
     public func classDelegationForwardingPropertyInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)? {
         classDelegationForwardingPropertyInfo[forwardingSymbol]
     }
@@ -1390,6 +1388,7 @@ public final class BindingTable {
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
+    public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
     /// Maps a secondary constructor's own symbol to the constructor symbol chosen
     /// by overload resolution for its `this(...)` / `super(...)` delegation call.
@@ -1404,6 +1403,18 @@ public final class BindingTable {
     public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// STDLIB-592 definite assignment: outer-scope symbols a lambda literal's body
+    /// unconditionally initializes, keyed by the lambda literal's own `ExprID`.
+    /// Populated by `inferLambdaLiteralExpr` and consumed by `applyContractEffects`
+    /// when the enclosing call's callee has a `callsInPlace(param, EXACTLY_ONCE/AT_LEAST_ONCE)`
+    /// contract on that lambda parameter.
+    public private(set) var contractCallsInPlaceInitializedSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// Cached union of `contractCallsInPlaceInitializedSymbolsByExpr`'s values,
+    /// computed once Sema has finished (mirrors `ExprLowerer.lambdaCapturedSymbols`).
+    /// Lets KIR lowering ask "is this symbol EVER guaranteed-initialized by some
+    /// callsInPlace lambda" without conflating it with any *other* reason a
+    /// mutable local's `localValue` might transiently read as unset.
+    private var cachedContractCallsInPlaceInitializedSymbolsUnion: Set<SymbolID>?
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
@@ -1496,6 +1507,12 @@ public final class BindingTable {
     /// Maps nameRef expression IDs to their member name when they were resolved
     /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
+    /// For calls that resolved on an *outer* implicit receiver (e.g. an
+    /// enclosing class's member called unqualified from an object literal's
+    /// member body), the enclosing function's receiver parameter symbol. KIR
+    /// lowering reads the receiver through the captured value of that symbol
+    /// instead of the innermost implicit receiver.
+    public private(set) var implicitReceiverOuterReceiverSymbols: [ExprID: SymbolID] = [:]
     /// Calls resolved through the ambient CoroutineScope of a coroutine builder
     /// need a runtime receiver even though the builder lambda keeps a no-receiver
     /// function ABI.
@@ -1507,6 +1524,14 @@ public final class BindingTable {
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
     public private(set) var unboundCallableRefs: Set<ExprID> = []
+    /// REFL-PRIMOP: primitive arithmetic operators (`Int.plus`/`times`, ...)
+    /// have no real member symbol -- CallTypeChecker's
+    /// `tryInferRegularMemberCallPrimitiveSpecials` binds a call's result
+    /// type directly from the receiver/argument types instead of resolving a
+    /// `plus`/`times` symbol. A callable reference to one (`Int::plus`) has
+    /// no symbol to bind either, so this records which raw binary operator
+    /// KIR lowering should synthesize a wrapper function around in its place.
+    public private(set) var primitiveOperatorCallableRefs: [ExprID: BinaryOp] = [:]
     /// KSP-CAP-001: outer local variables/parameters captured by an object
     /// literal's member function bodies, keyed by the object literal's
     /// synthesized class symbol. Populated during Sema so KIR lowering can
@@ -1541,6 +1566,10 @@ public final class BindingTable {
 
     public func bindLoopIteration(_ expr: ExprID, binding: LoopIterationBinding) {
         loopIterationBindings[expr] = binding
+    }
+
+    public func bindIndexedCompoundAssignOperator(_ expr: ExprID, binding: IndexedCompoundAssignOperatorBinding) {
+        indexedCompoundAssignOperatorBindings[expr] = binding
     }
 
     public func bindCallableTarget(_ expr: ExprID, target: CallableTarget) {
@@ -1580,6 +1609,21 @@ public final class BindingTable {
 
     public func destructuringComponentCallee(for expr: ExprID, index: Int) -> SymbolID? {
         destructuringComponentCallees[expr]?[index]
+    }
+
+    public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
+        contractCallsInPlaceInitializedSymbolsByExpr[expr] = symbols
+    }
+
+    public func contractCallsInPlaceInitializedSymbols(for expr: ExprID) -> [SymbolID] {
+        contractCallsInPlaceInitializedSymbolsByExpr[expr] ?? []
+    }
+
+    public func isContractCallsInPlaceInitializedSymbol(_ symbol: SymbolID) -> Bool {
+        if cachedContractCallsInPlaceInitializedSymbolsUnion == nil {
+            cachedContractCallsInPlaceInitializedSymbolsUnion = Set(contractCallsInPlaceInitializedSymbolsByExpr.values.joined())
+        }
+        return cachedContractCallsInPlaceInitializedSymbolsUnion?.contains(symbol) == true
     }
 
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {
@@ -1816,6 +1860,10 @@ public final class BindingTable {
         loopIterationBindings[expr]
     }
 
+    public func indexedCompoundAssignOperatorBinding(for expr: ExprID) -> IndexedCompoundAssignOperatorBinding? {
+        indexedCompoundAssignOperatorBindings[expr]
+    }
+
     public func callableTarget(for expr: ExprID) -> CallableTarget? {
         callableTargets[expr]
     }
@@ -2018,6 +2066,18 @@ public final class BindingTable {
         implicitReceiverMemberNames[expr] = name
     }
 
+    /// Record which captured outer receiver an unqualified member call
+    /// dispatches on. See `implicitReceiverOuterReceiverSymbols`.
+    public func markImplicitReceiverOuterReceiver(_ expr: ExprID, symbol: SymbolID) {
+        implicitReceiverOuterReceiverSymbols[expr] = symbol
+    }
+
+    /// The captured outer-receiver symbol an unqualified member call dispatches
+    /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
+    public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
+        implicitReceiverOuterReceiverSymbols[expr]
+    }
+
     public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {
         coroutineScopeImplicitReceiverCallExprs.insert(expr)
     }
@@ -2045,6 +2105,19 @@ public final class BindingTable {
     public func isUnboundCallableRef(_ expr: ExprID) -> Bool {
         unboundCallableRefs.contains(expr)
     }
+
+    /// Record which raw binary operator a primitive-operator callable
+    /// reference (`Int::plus`) should synthesize a wrapper function around
+    /// (REFL-PRIMOP).
+    public func bindPrimitiveOperatorCallableRef(_ expr: ExprID, op: BinaryOp) {
+        primitiveOperatorCallableRefs[expr] = op
+    }
+
+    /// Query the raw binary operator recorded for a primitive-operator
+    /// callable reference (REFL-PRIMOP).
+    public func primitiveOperatorCallableRef(for expr: ExprID) -> BinaryOp? {
+        primitiveOperatorCallableRefs[expr]
+    }
 }
 
 public final class SemaModule {
@@ -2057,7 +2130,11 @@ public final class SemaModule {
     /// arguments passed to a vararg parameter). Kept optional for lightweight
     /// unit-test sema modules that do not build a full source environment.
     public let interner: StringInterner?
-    public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// Imported inline bodies, resolved lazily: library import registers
+    /// descriptors (path + signature + name) per symbol, and the inline
+    /// lowering pass reads + parses each body on first expansion instead of
+    /// paying for every artifact up front.
+    public var importedInlineFunctions: ImportedInlineFunctionStore
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
     /// in the transient `BundledSyntheticStubRegistration` thread-local, which
@@ -2078,7 +2155,7 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
-        importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()
     ) {
         self.symbols = symbols
         self.types = types
@@ -2101,7 +2178,7 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
-        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore(),
         bundledIndex: BundledDeclarationIndex
     ) {
         self.symbols = symbols

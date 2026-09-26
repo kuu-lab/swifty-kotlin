@@ -59,6 +59,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
             ast: ast,
             sema: sema,
             semaCtx: semaCtx,
+            sourceManager: ctx.sourceManager,
             solver: solver,
             resolver: resolver,
             dataFlow: dataFlow,

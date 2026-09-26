@@ -261,5 +261,84 @@ struct RuntimeNumericHashCodeTests {
         _ = kk_array_set(object, 2, 1_800_000_000, nil)
         #expect(kk_any_hashCode(object, 0) == -1_207_120_857)
     }
+
+    // MARK: - Array.contentDeepHashCode (Int32-wrapped deep fold)
+
+    // KUU-631: __kk_array_contentDeepHashCode recurses into nested arrays
+    // like java.util.Arrays.deepHashCode, folding 31*acc + elementHash in
+    // 32-bit wrapping Int at every step. The accumulator used to be the
+    // host's 64-bit Int, which only agreed while the running total stayed
+    // inside Int32 range. Expected values are cross-checked against real
+    // kotlinc/JVM output.
+    @Test
+    func testContentDeepHashCodeWrapsAtInt32() {
+        func arrayOf(_ values: [Int]) -> Int {
+            let raw = kk_array_new(values.count)
+            for (index, value) in values.enumerated() {
+                _ = kk_array_set(raw, index, value, nil)
+            }
+            return raw
+        }
+
+        // arrayOf(arrayOf(1, 2), arrayOf(3, 4)) — kotlinc prints 32833.
+        let nested = arrayOf([arrayOf([1, 2]), arrayOf([3, 4])])
+        #expect(__kk_array_contentDeepHashCode(nested) == 32_833)
+        // Reordered content hashes differently: kotlinc prints 32863.
+        let reordered = arrayOf([arrayOf([1, 2]), arrayOf([4, 3])])
+        #expect(__kk_array_contentDeepHashCode(reordered) == 32_863)
+
+        // The 3-deep repro from the issue — combines overflow Int32
+        // mid-fold; kotlinc prints 32768128.
+        let deep = arrayOf([
+            arrayOf([arrayOf([1, 2]), arrayOf([3, 4])]),
+            arrayOf([arrayOf([5, 6]), arrayOf([7, 8])]),
+            arrayOf([arrayOf([9, 10]), arrayOf([11, 12])]),
+        ])
+        #expect(__kk_array_contentDeepHashCode(deep) == 32_768_128)
+
+        // Array(40) { it * 31 + 7 } — long flat fold wraps too; kotlinc
+        // prints 280475373.
+        let longFlat = arrayOf((0 ..< 40).map { $0 * 31 + 7 })
+        #expect(__kk_array_contentDeepHashCode(longFlat) == 280_475_373)
+    }
+
+    @Test
+    func testContentDeepHashCodeNestedAndStringElements() {
+        func arrayOf(_ values: [Int]) -> Int {
+            let raw = kk_array_new(values.count)
+            for (index, value) in values.enumerated() {
+                _ = kk_array_set(raw, index, value, nil)
+            }
+            return raw
+        }
+        func stringBox(_ value: String) -> Int {
+            registerRuntimeObject(RuntimeStringBox(value))
+        }
+
+        // Large element hashCodes overflow the combine within 2-3 elements;
+        // kotlinc prints -1928340619.
+        let strings = arrayOf([
+            stringBox("averylongstringvaluethathashesbig"),
+            stringBox("anotherlongstringvalueforthepair"),
+            stringBox("yetanotherstringtooverflow"),
+        ])
+        #expect(__kk_array_contentDeepHashCode(strings) == -1_928_340_619)
+
+        // arrayOf(intArrayOf(1..10), arrayOf("𐀀", "😀")) — the inner fold
+        // itself wraps, and supplementary-plane characters hash by UTF-16
+        // code units; kotlinc prints -134319553.
+        let mixed = arrayOf([
+            arrayOf([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            arrayOf([stringBox("𐀀"), stringBox("😀")]),
+        ])
+        #expect(__kk_array_contentDeepHashCode(mixed) == -134_319_553)
+
+        // Self-referencing arrays contribute 0 for the revisited handle
+        // rather than recursing forever (defensive — JVM raises
+        // StackOverflowError instead, so no kotlinc value to match).
+        let selfRef = kk_array_new(1)
+        _ = kk_array_set(selfRef, 0, selfRef, nil)
+        #expect(__kk_array_contentDeepHashCode(selfRef) == 31)
+    }
 }
 #endif

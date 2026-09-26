@@ -45,9 +45,10 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         knownArgumentTypes: [Int: TypeID],
         typeSystem: TypeSystem,
-        blameRange: SourceRange? = nil
+        blameRange: SourceRange? = nil,
+        implicitReceiverType: TypeID? = nil
     ) -> [TypeVarID: TypeID] {
-        guard !typeVarBySymbol.isEmpty, !knownArgumentTypes.isEmpty else {
+        guard !typeVarBySymbol.isEmpty else {
             return [:]
         }
         var constraints: [VariableConstraint] = []
@@ -56,6 +57,15 @@ extension OverloadResolver {
             constraints.append(contentsOf: decomposeSubtypeConstraint(
                 subtype: argType,
                 supertype: signature.parameterTypes[index],
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem,
+                blameRange: blameRange
+            ))
+        }
+        if let implicitReceiverType, let receiverType = signature.receiverType {
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: implicitReceiverType,
+                supertype: receiverType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: blameRange

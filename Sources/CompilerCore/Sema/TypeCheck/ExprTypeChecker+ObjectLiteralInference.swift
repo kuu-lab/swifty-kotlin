@@ -107,7 +107,14 @@ extension ExprTypeChecker {
                 return symbol.id
             }
         )
-        let captureOuterSymbols = outerSymbols.union(outerReceiverPropertySymbols)
+        // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
+        // reachable here: the enclosing object literal captured them, so a
+        // nested literal can capture them again through the same chain even
+        // though the enclosing member's `this` binding shadows them in
+        // `outerLocalsSnapshot`.
+        let captureOuterSymbols = outerSymbols
+            .union(outerReceiverPropertySymbols)
+            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
 
         let objectSymbol = sema.symbols.define(
             kind: .class,
@@ -286,10 +293,30 @@ extension ExprTypeChecker {
             objectScope: objectScope,
             ctx: ctx
         )
+        // An unqualified member call (or `this@Outer`) inside the object
+        // literal's member bodies can target the enclosing receiver — the
+        // innermost `outerReceiverTypes` entry. Its runtime value is the
+        // enclosing function's `this`, which the capture machinery stores
+        // into the object literal's fields like any other outer local.
+        // Attaching that symbol to the entry is what lets call resolution
+        // and capture analysis find it; entries without a symbol stay
+        // type-only (`this@Label` typing) as before.
+        var objectOuterReceiverTypes = ctx.outerReceiverTypes
+        if let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")] {
+            // The stack may name the same receiver under several labels (the
+            // class itself and each enclosing member function), so fill every
+            // entry whose type is the enclosing `this` type.
+            for index in objectOuterReceiverTypes.indices
+                where objectOuterReceiverTypes[index].type == thisBinding.type
+            {
+                objectOuterReceiverTypes[index].symbol = thisBinding.symbol
+            }
+        }
         let objectCtx = ctx.copying(
             scope: objectScope,
             implicitReceiverType: objectType,
-            enclosingClassSymbol: objectSymbol
+            enclosingClassSymbol: objectSymbol,
+            outerReceiverTypes: objectOuterReceiverTypes
         )
 
         for propertyDeclID in objectDecl.memberProperties {
@@ -433,7 +460,8 @@ extension ExprTypeChecker {
                 inBody: functionDecl.body,
                 ast: ast,
                 sema: sema,
-                outerSymbols: captureOuterSymbols
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
             ))
         }
 
@@ -459,7 +487,8 @@ extension ExprTypeChecker {
                     inBody: accessorBody,
                     ast: ast,
                     sema: sema,
-                    outerSymbols: captureOuterSymbols
+                    outerSymbols: captureOuterSymbols,
+                    skipNestedClosures: false
                 ))
             }
         }
@@ -467,6 +496,11 @@ extension ExprTypeChecker {
             var typesBySymbol: [SymbolID: TypeID] = [:]
             for binding in outerLocalsSnapshot.values {
                 typesBySymbol[binding.symbol] = binding.type
+            }
+            for outerReceiver in ctx.outerReceiverTypes {
+                if let symbol = outerReceiver.symbol {
+                    typesBySymbol[symbol] = outerReceiver.type
+                }
             }
             for capturedSymbol in capturedSymbols {
                 if let type = typesBySymbol[capturedSymbol]
