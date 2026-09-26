@@ -214,5 +214,109 @@ struct RuntimeAtomicRefArrayTests {
         let result = kk_atomic_ref_array_compareAndExchangeAt(0, 0, 0, 1)
         #expect(result == 0)
     }
+
+    // MARK: - Null sentinel & pointer safety (KUU-807)
+
+    @Test
+    func testCompareAndSetAtNullSentinelWithNonNullFailsWithoutCrash() {
+        let handle = kk_atomic_ref_array_new(2)
+        kk_atomic_ref_array_storeAt(handle, 0, runtimeNullSentinelInt)
+
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("world"))
+
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringRef, updateRef)
+        #expect(result == 0, "CAS must fail when slot contains null sentinel and expect is non-null")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt, "Slot must remain null sentinel")
+    }
+
+    @Test
+    func testCompareAndSetAtNonNullWithNullSentinelFailsWithoutCrash() {
+        let handle = kk_atomic_ref_array_new(2)
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("world"))
+        kk_atomic_ref_array_storeAt(handle, 0, stringRef)
+
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(result == 0, "CAS must fail when slot contains non-null and expect is null sentinel")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringRef, "Slot must remain unchanged")
+    }
+
+    @Test
+    func testCompareAndSetAtBothNullSentinelSucceeds() {
+        let handle = kk_atomic_ref_array_new(2)
+        kk_atomic_ref_array_storeAt(handle, 0, runtimeNullSentinelInt)
+
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(result == 1, "CAS must succeed when both slot and expect are null sentinel")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndSetAtZeroAndNullSentinelCrossMatches() {
+        let handle = kk_atomic_ref_array_new(2)
+        // Initial slot 0 is 0 (null)
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(result == 1, "CAS must succeed when slot is 0 and expect is null sentinel")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndExchangeAtReturnsPreviousNullSentinel() {
+        let handle = kk_atomic_ref_array_new(2)
+        kk_atomic_ref_array_storeAt(handle, 0, runtimeNullSentinelInt)
+
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("world"))
+
+        // Mismatched expected: returns previous null sentinel without updating
+        let oldMismatched = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, stringRef, updateRef)
+        #expect(oldMismatched == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+
+        // Matched expected: returns previous null sentinel and updates slot
+        let oldMatched = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(oldMatched == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndSetAtUnregisteredPointerFailsWithoutCrash() {
+        let handle = kk_atomic_ref_array_new(2)
+        let bogusPtr = 0x1234_5678
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+
+        let r1 = kk_atomic_ref_array_compareAndSetAt(handle, 0, bogusPtr, stringRef)
+        #expect(r1 == 0, "Unregistered expect pointer must fail safely")
+
+        kk_atomic_ref_array_storeAt(handle, 0, bogusPtr)
+        let r2 = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringRef, stringRef)
+        #expect(r2 == 0, "Unregistered slot pointer must fail safely")
+    }
+
+    @Test
+    func testCompareAndSetAtStringBoxesWithSameContentSucceeds() {
+        let handle = kk_atomic_ref_array_new(2)
+        let stringA = registerRuntimeObject(RuntimeStringBox("same_content"))
+        let stringB = registerRuntimeObject(RuntimeStringBox("same_content"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("new_content"))
+
+        #expect(stringA != stringB, "String boxes should have distinct pointer identities")
+
+        kk_atomic_ref_array_storeAt(handle, 0, stringA)
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringB, updateRef)
+        #expect(result == 1, "CAS must succeed for distinct string boxes with identical contents")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testNullSentinelReceiverSafety() {
+        #expect(kk_atomic_ref_array_loadAt(runtimeNullSentinelInt, 0) == 0)
+        #expect(kk_atomic_ref_array_storeAt(runtimeNullSentinelInt, 0, 1) == 0)
+        #expect(kk_atomic_ref_array_compareAndSetAt(runtimeNullSentinelInt, 0, 0, 1) == 0)
+        #expect(kk_atomic_ref_array_compareAndExchangeAt(runtimeNullSentinelInt, 0, 0, 1) == 0)
+    }
 }
 #endif
