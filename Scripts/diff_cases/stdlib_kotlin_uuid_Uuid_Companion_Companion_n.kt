@@ -3,11 +3,11 @@
 import kotlin.uuid.Uuid
 import kotlin.time.Instant
 
-// LEXICAL_ORDER is intentionally not exercised here: it is
-// @DeprecatedSinceKotlin(errorSince = "2.4"), so referencing it fails to
-// compile against the real kotlinc 2.4+ reference used by this diff harness.
-// It is still covered by the Sema golden test, since kswiftc targets Kotlin
-// 2.3.10 semantics, where the same reference is only a deprecation warning.
+// LEXICAL_ORDER is intentionally not exercised here: kswiftc rejects it as a
+// deprecation ERROR (pinned DeprecationLevel.ERROR, matching kotlinc 2.4.x),
+// while the CI-pinned kotlinc 2.3.10 still accepts it with a warning because
+// its stdlib gates the error at errorSince = "2.4". The Sema golden test pins
+// the emitted error diagnostic.
 fun main() {
     println("size constants: ${Uuid.SIZE_BITS == 128 && Uuid.SIZE_BYTES == 16}")
     println("nil: ${Uuid.NIL.toString() == "00000000-0000-0000-0000-000000000000"}")

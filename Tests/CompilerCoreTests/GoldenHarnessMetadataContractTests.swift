@@ -88,6 +88,9 @@ struct GoldenHarnessMetadataContractTests {
     private static let errorDiagnosticCaseBasenames: Set<String> = [
         "collection_firstNotNullOfOrNull.kt",
         "deprecated_annotation.kt",
+        // DeprecationLevel.HIDDEN fixture for KUU-855: intentional error
+        // diagnostics for hidden-level and hiddenSince-reached deprecation.
+        "deprecated_hidden_annotation.kt",
         "expect_actual.kt",
         "generate_sequence_noarg.kt",
         "inner_class.kt",
@@ -110,6 +113,9 @@ struct GoldenHarnessMetadataContractTests {
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "stdlib_kotlin_native_SymbolName_n_n.kt",
+        // Uuid.LEXICAL_ORDER is pinned DeprecationLevel.ERROR (KUU-855), so
+        // the case's useLexicalOrder intentionally emits a deprecation error.
+        "stdlib_kotlin_uuid_Uuid_Companion_Companion_n.kt",
         "use_site_variance.kt",
         "variance_violation.kt",
     ]

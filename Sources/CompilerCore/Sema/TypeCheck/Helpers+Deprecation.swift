@@ -54,6 +54,7 @@ extension TypeCheckHelpers {
     private enum DeprecatedLevel {
         case warning
         case error
+        case hidden
     }
 
     private struct DeprecatedArguments {
@@ -73,6 +74,9 @@ extension TypeCheckHelpers {
     ///
     /// - `@Deprecated("msg")` or `@Deprecated("msg", level = WARNING)` -> warning
     /// - `@Deprecated("msg", level = ERROR)` -> error
+    /// - `@Deprecated("msg", level = HIDDEN)` -> error; the declaration still
+    ///   resolves (lookup hiding is not modelled), so the deprecated diagnostic
+    ///   stands in for kotlinc's "unresolved reference".
     func checkDeprecation(
         for symbolID: SymbolID,
         sema: SemaModule,
@@ -105,15 +109,20 @@ extension TypeCheckHelpers {
             KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
         }).map { parseDeprecatedSinceKotlinArguments($0.arguments, stringValue: stringValue) }
 
-        // An explicit @Deprecated(level = ERROR) remains authoritative.  The
-        // SinceKotlin metadata only refines the default warning level used by
-        // the stdlib as the target compiler version advances.
-        let severity: DeprecatedSeverity = if parsed.level == .error {
+        // An explicit @Deprecated(level = ERROR/HIDDEN) remains authoritative.
+        // The SinceKotlin metadata only refines the default warning level used
+        // by the stdlib as the target compiler version advances.
+        let severity: DeprecatedSeverity = switch parsed.level {
+        case .error:
             .error
-        } else if let sinceArguments {
-            deprecatedSeverity(for: sinceArguments)
-        } else {
-            .warning
+        case .hidden:
+            .hidden
+        case .warning:
+            if let sinceArguments {
+                deprecatedSeverity(for: sinceArguments)
+            } else {
+                .warning
+            }
         }
         guard severity != .none else {
             return
@@ -130,7 +139,7 @@ extension TypeCheckHelpers {
             codeActions = []
         }
 
-        if severity == .error {
+        if severity == .error || severity == .hidden {
             diagnostics.error(
                 "KSWIFTK-SEMA-DEPRECATED",
                 deprecationMessage,
@@ -225,6 +234,7 @@ extension TypeCheckHelpers {
         case none
         case warning
         case error
+        case hidden
     }
 
     private func parseDeprecatedSinceKotlinArguments(
@@ -269,6 +279,9 @@ extension TypeCheckHelpers {
     }
 
     private func deprecatedSeverity(for arguments: DeprecatedSinceKotlinArguments) -> DeprecatedSeverity {
+        if let hiddenSince = arguments.hiddenSince, kotlinApiVersion >= hiddenSince {
+            return .hidden
+        }
         if let errorSince = arguments.errorSince, kotlinApiVersion >= errorSince {
             return .error
         }
@@ -277,9 +290,7 @@ extension TypeCheckHelpers {
         }
         // A SinceKotlin annotation keeps the declaration available without a
         // deprecation diagnostic until its first visible threshold is reached.
-        // Lookup hiding based on hiddenSince is outside this helper and remains
-        // unsupported, so hiddenSince-only metadata keeps the historical warning.
-        if arguments.warningSince != nil || arguments.errorSince != nil {
+        if arguments.warningSince != nil || arguments.errorSince != nil || arguments.hiddenSince != nil {
             return .none
         }
         return .warning
@@ -306,10 +317,12 @@ extension TypeCheckHelpers {
         let normalized = raw.replacingOccurrences(of: " ", with: "")
         let levelName = normalized.split(separator: ".").last.map(String.init)?.uppercased() ?? normalized.uppercased()
         return switch levelName {
+        case "WARNING":
+            .warning
         case "ERROR":
             .error
-        case "WARNING", "HIDDEN":
-            .warning
+        case "HIDDEN":
+            .hidden
         default:
             nil
         }
