@@ -99,14 +99,16 @@ extension ExprTypeChecker {
                 guard symbol.kind == .property,
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
-                      sema.symbols.symbol(ownerSymbol)?.kind == .class,
-                      !symbol.flags.contains(.mutable)
+                      sema.symbols.symbol(ownerSymbol)?.kind == .class
                 else {
                     return nil
                 }
                 return symbol.id
             }
         )
+        let mutableOuterReceiverPropertySymbols = Set(outerReceiverPropertySymbols.filter {
+            sema.symbols.symbol($0)?.flags.contains(.mutable) == true
+        })
         // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
         // reachable here: the enclosing object literal captured them, so a
         // nested literal can capture them again through the same chain even
@@ -270,7 +272,6 @@ extension ExprTypeChecker {
             }
             propertySymbolsByDecl[propertyDeclID] = propertySymbol
         }
-
         let objectType = sema.types.make(.classType(ClassType(
             classSymbol: objectSymbol,
             args: [],
@@ -491,6 +492,30 @@ extension ExprTypeChecker {
                     skipNestedClosures: false
                 ))
             }
+        }
+        // Mutable outer receiver properties must keep addressing the enclosing
+        // instance. Capturing their current values would turn writes into writes
+        // to the anonymous object's copy, so capture the receiver once instead.
+        let capturesMutableOuterProperty = capturedSymbols.contains {
+            mutableOuterReceiverPropertySymbols.contains($0)
+        }
+        capturedSymbols.subtract(mutableOuterReceiverPropertySymbols)
+        if capturesMutableOuterProperty,
+           let currentDeclSymbol = ctx.currentDeclSymbol,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           let receiverOwnerSymbol = ctx.enclosingClassSymbol ?? driver.helpers.nominalSymbol(
+               of: sema.types.makeNonNullable(implicitReceiverType),
+               types: sema.types
+           )
+        {
+            let receiverCaptureSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
+            capturedSymbols.insert(receiverCaptureSymbol)
+            sema.bindings.bindCapturedLocalType(receiverCaptureSymbol, type: implicitReceiverType)
+            sema.bindings.bindObjectLiteralCapturedReceiver(
+                objectSymbol,
+                receiverSymbol: receiverCaptureSymbol,
+                ownerSymbol: receiverOwnerSymbol
+            )
         }
         if !capturedSymbols.isEmpty {
             var typesBySymbol: [SymbolID: TypeID] = [:]

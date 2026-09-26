@@ -38,6 +38,9 @@ final class KIRLoweringContext {
     /// to the object literal itself, but `this@Outer` must still use the
     /// enclosing receiver value.
     private var qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID] = [:]
+    /// Captured enclosing class instances keyed by their nominal owner. Used
+    /// while lowering anonymous object members that access mutable outer fields.
+    private var capturedOuterReceiverExprsByOwner: [SymbolID: KIRExprID] = [:]
     private var contextReceiverValueStack: [[ContextReceiverValue]] = []
     var currentFunctionSymbol: SymbolID?
     /// Set while lowering a lambda body that is passed to a non-crossinline
@@ -113,6 +116,7 @@ final class KIRLoweringContext {
         let currentImplicitReceiverExprID: KIRExprID?
         let currentImplicitReceiverSymbol: SymbolID?
         let qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID]
+        let capturedOuterReceiverExprsByOwner: [SymbolID: KIRExprID]
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
@@ -132,6 +136,7 @@ final class KIRLoweringContext {
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
             qualifiedThisReceiverExprsByLabel: qualifiedThisReceiverExprsByLabel,
+            capturedOuterReceiverExprsByOwner: capturedOuterReceiverExprsByOwner,
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
@@ -151,6 +156,7 @@ final class KIRLoweringContext {
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
         qualifiedThisReceiverExprsByLabel = snapshot.qualifiedThisReceiverExprsByLabel
+        capturedOuterReceiverExprsByOwner = snapshot.capturedOuterReceiverExprsByOwner
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
@@ -183,6 +189,7 @@ final class KIRLoweringContext {
         // labeled `this` inside the next body cannot resolve to a stale
         // exprID from an unrelated context.
         qualifiedThisReceiverExprsByLabel.removeAll(keepingCapacity: true)
+        capturedOuterReceiverExprsByOwner.removeAll(keepingCapacity: true)
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
@@ -289,6 +296,14 @@ final class KIRLoweringContext {
 
     func setQualifiedThisReceiver(_ exprID: KIRExprID, for label: InternedString) {
         qualifiedThisReceiverExprsByLabel[label] = exprID
+    }
+
+    func capturedOuterReceiverExprID(for owner: SymbolID) -> KIRExprID? {
+        capturedOuterReceiverExprsByOwner[owner]
+    }
+
+    func setCapturedOuterReceiver(_ exprID: KIRExprID, for owner: SymbolID) {
+        capturedOuterReceiverExprsByOwner[owner] = exprID
     }
 
     func restoreImplicitReceiver(symbol: SymbolID?, exprID: KIRExprID?) {

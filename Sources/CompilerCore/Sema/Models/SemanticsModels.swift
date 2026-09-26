@@ -1537,6 +1537,9 @@ public final class BindingTable {
     /// synthesized class symbol. Populated during Sema so KIR lowering can
     /// materialize each captured symbol as an instance field.
     public private(set) var objectLiteralCaptureSymbolsByOwner: [SymbolID: [SymbolID]] = [:]
+    /// Mutable outer receiver properties are accessed through the enclosing
+    /// instance, so object literals that use them capture that receiver here.
+    public private(set) var objectLiteralCapturedReceiversByOwner: [SymbolID: (receiverSymbol: SymbolID, ownerSymbol: SymbolID)] = [:]
     /// Static type of a captured local/parameter symbol at the point it was
     /// captured, keyed by the captured symbol itself. `LocalBindings` (where
     /// this type normally lives) is a Sema-only, transient structure, so KIR
@@ -1731,6 +1734,18 @@ public final class BindingTable {
 
     public func objectLiteralCaptureSymbols(for owner: SymbolID) -> [SymbolID] {
         objectLiteralCaptureSymbolsByOwner[owner] ?? []
+    }
+
+    public func bindObjectLiteralCapturedReceiver(
+        _ owner: SymbolID,
+        receiverSymbol: SymbolID,
+        ownerSymbol: SymbolID
+    ) {
+        objectLiteralCapturedReceiversByOwner[owner] = (receiverSymbol, ownerSymbol)
+    }
+
+    public func objectLiteralCapturedReceiver(for owner: SymbolID) -> (receiverSymbol: SymbolID, ownerSymbol: SymbolID)? {
+        objectLiteralCapturedReceiversByOwner[owner]
     }
 
     public func bindCapturedLocalType(_ symbol: SymbolID, type: TypeID) {
