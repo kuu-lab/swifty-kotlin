@@ -416,6 +416,20 @@ struct AnnotationSemanticTests {
 
                     fun caller(): Int = sinceError() + sinceWarning() + sinceFuture() + sinceFutureWarningOnly()
 
+            """,
+
+            // testDeprecatedHiddenLevelEmitsErrorAndHiddenSincePromotes
+            """
+            package sample40
+                    @Deprecated("Use replacement", level = DeprecationLevel.HIDDEN)
+                    fun oldHidden(): Int = 1
+
+                    @Deprecated("Use replacement")
+                    @DeprecatedSinceKotlin(warningSince = "1.0", hiddenSince = "2.0")
+                    fun sinceHidden(): Int = 2
+
+                    fun caller(): Int = oldHidden() + sinceHidden()
+
             """
         ]
 
@@ -826,6 +840,16 @@ struct AnnotationSemanticTests {
                 #expect(diagnostics.contains(where: { $0.message.contains("sinceWarning") }))
                 #expect(!diagnostics.contains(where: { $0.message.contains("sinceFuture") }))
                 #expect(!diagnostics.contains(where: { $0.message.contains("sinceFutureWarningOnly") }))
+            }
+            // testDeprecatedHiddenLevelEmitsErrorAndHiddenSincePromotes
+            do {
+                let samplePath = paths[40]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 2, "Expected two hidden deprecation diagnostics, got: \(sampleDiags)")
+                #expect(diagnostics.allSatisfy(isError), "Hidden-level deprecations should be errors, got: \(diagnostics)")
             }
 
         }
