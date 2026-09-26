@@ -978,28 +978,6 @@ final class CallLowerer {
                     interner: interner,
                     instructions: &instructions
                 )
-                // BUG-141: register interface property getters into the itable.
-                appendObjectItablePropertyGetterRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    sema: sema,
-                    cache: driver.ctx.nominalDispatchCache,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                // Setter counterpart: register interface property setters
-                // into the itable so a write through an interface-typed
-                // receiver can dispatch to them.
-                appendObjectItablePropertySetterRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    sema: sema,
-                    cache: driver.ctx.nominalDispatchCache,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
                 appendObjectVtableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,

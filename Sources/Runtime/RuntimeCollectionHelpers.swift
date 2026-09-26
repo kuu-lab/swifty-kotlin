@@ -120,7 +120,7 @@ let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
 )
-private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
+private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
 // These slots are the generated interface property getter slots in the current
@@ -136,7 +136,14 @@ private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
 // own vtable method count (2 slots) is untouched by KSP-960, which only
 // changes Collection's synthetic member registration.
 private let runtimeCollectionSizeGetterSlot = 4
-private let runtimeMapSizeGetterSlot = 2
+// Map properties are ordered alphabetically after Map's two methods:
+// entries, keys, size, values.
+private let runtimeMapEntriesGetterSlot = 2
+private let runtimeMapKeysGetterSlot = 3
+private let runtimeMapSizeGetterSlot = 4
+private let runtimeMapValuesGetterSlot = 5
+private let runtimeMapIsEmptyMethodSlot = 0
+private let runtimeMapGetMethodSlot = 1
 
 /// Source-defined Collection/Map implementations expose `size` through the
 /// same dynamic interface-property getter table used by ordinary Kotlin code.
@@ -163,10 +170,37 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
 
 @inline(__always)
 func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+    guard let result = runtimeSourceMapProperty(
+        rawValue,
+        methodSlot: runtimeMapSizeGetterSlot
+    ) else {
+        return nil
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapProperty(_ rawValue: Int, methodSlot: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeMapInterfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map property dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapIsEmpty(_ rawValue: Int) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(
         rawValue,
-        Int(runtimeMapSizeInterfaceTypeID),
-        runtimeMapSizeGetterSlot
+        Int(runtimeMapInterfaceTypeID),
+        runtimeMapIsEmptyMethodSlot
     )
     guard fnPtr != 0 else { return nil }
     let fn = unsafeBitCast(
@@ -176,9 +210,44 @@ func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
     var thrown = 0
     let result = fn(rawValue, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Map.size dispatch threw exception handle \(thrown)")
+        runtimeStructuredPanic("Map.isEmpty dispatch threw exception handle \(thrown)")
     }
     return result
+}
+
+@inline(__always)
+func runtimeSourceMapGet(_ rawValue: Int, key: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapInterfaceTypeID),
+        runtimeMapGetMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, key, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.get dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapEntries(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapEntriesGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapKeys(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapKeysGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapValuesGetterSlot)
 }
 
 @inline(__always)
