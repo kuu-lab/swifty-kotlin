@@ -11,7 +11,7 @@ symbol fq=golden.sema.atomicIntReceiverMembers[kind=fun;params=] kind=function v
 file fstdlib_kotlin_concurrent_atomics_AtomicInt_AtomicInt_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
   decl golden.sema.atomicIntReceiverMembers[kind=fun;params=] fun atomicIntReceiverMembers sym=golden.sema.atomicIntReceiverMembers[kind=fun;params=]
 expr e@8:28 int(10) type=Int
-expr e@8:18 call callee=e@8:18#1 args=[_:e@8:28] type=kotlin.concurrent.AtomicInt call=kotlin.concurrent.AtomicInt.<init>[kind=ctor;params=Int]
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:28] type=kotlin.concurrent.AtomicInt call=kotlin.concurrent.atomics.AtomicInt[kind=fun;params=Int]
 expr e@8:5 localDecl atomic mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.atomic[kind=local]
 expr e@9:18 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
 expr e@9:18#1 memberCall recv=e@9:18 callee=load args=[] type=Int call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
@@ -43,7 +43,7 @@ expr e@16:50 int(16) type=Int
 expr e@16:20#1 memberCall recv=e@16:20 callee=compareAndExchange args=[_:e@16:46,_:e@16:50] type=Int call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int,Int]
 expr e@16:5 localDecl compared mutable=0 type=_ init=e@16:20#1 type=Unit ref=__local_7.compared[kind=local]
 expr e@17:19 name(atomic) type=kotlin.concurrent.AtomicInt ref=__local_0.atomic[kind=local]
-expr e@17:19#1 memberCall recv=e@17:19 callee=value args=[] type=Int call=kotlin.concurrent.atomics.value.$get[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@17:19#1 memberCall recv=e@17:19 callee=value args=[] type=Int ref=kotlin.concurrent.AtomicInt.value[kind=prop]
 expr e@17:5 localDecl current mutable=0 type=_ init=e@17:19#1 type=Unit ref=__local_8.current[kind=local]
 expr e@18:14 name(loaded) type=Int ref=__local_1.loaded[kind=local]
 expr e@18:22 name(exchanged) type=Int ref=__local_2.exchanged[kind=local]

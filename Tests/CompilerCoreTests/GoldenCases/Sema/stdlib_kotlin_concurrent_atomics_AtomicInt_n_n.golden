@@ -1,0 +1,17 @@
+symbol fq=__local_0.zeroValue[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicInt
+symbol fq=__local_1.intValue[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicInt
+symbol fq=golden.sema.atomicIntConstructorSemantics[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+file fstdlib_kotlin_concurrent_atomics_AtomicInt_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicIntConstructorSemantics[kind=fun;params=] fun atomicIntConstructorSemantics sym=golden.sema.atomicIntConstructorSemantics[kind=fun;params=]
+expr e@8:31 int(0) type=Int
+expr e@8:21 call callee=e@8:21#1 args=[_:e@8:31] type=kotlin.concurrent.AtomicInt call=kotlin.concurrent.atomics.AtomicInt[kind=fun;params=Int]
+expr e@8:5 localDecl zeroValue mutable=0 type=_ init=e@8:21 type=Unit ref=__local_0.zeroValue[kind=local]
+expr e@9:30 int(42) type=Int
+expr e@9:20 call callee=e@9:20#1 args=[_:e@9:30] type=kotlin.concurrent.AtomicInt call=kotlin.concurrent.atomics.AtomicInt[kind=fun;params=Int]
+expr e@9:5 localDecl intValue mutable=0 type=_ init=e@9:20 type=Unit ref=__local_1.intValue[kind=local]
+expr e@10:12 name(zeroValue) type=kotlin.concurrent.AtomicInt ref=__local_0.zeroValue[kind=local]
+expr e@10:12#1 memberCall recv=e@10:12 callee=load args=[] type=Int call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@10:31 name(intValue) type=kotlin.concurrent.AtomicInt ref=__local_1.intValue[kind=local]
+expr e@10:31#1 memberCall recv=e@10:31 callee=load args=[] type=Int call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@10:12#2 binary(add) lhs=e@10:12#1 rhs=e@10:31#1 type=Int
+expr e@10:5 return value=e@10:12#2 type=Nothing

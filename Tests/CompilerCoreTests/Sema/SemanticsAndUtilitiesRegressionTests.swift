@@ -13,6 +13,8 @@ struct SemanticsAndUtilitiesRegressionTests {
             """
             package sample0
 
+                    @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
                     import kotlin.concurrent.atomics.AtomicInt
 
                     fun main() {
