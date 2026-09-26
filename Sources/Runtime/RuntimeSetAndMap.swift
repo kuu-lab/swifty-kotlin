@@ -540,7 +540,7 @@ public func kk_map_size(_ mapRaw: Int) -> Int {
 @_cdecl("__kk_map_get")
 public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMapGet(mapRaw, key: key) ?? runtimeNullSentinelInt
     }
     guard let index = map.index(ofRawKey: key) else {
         return runtimeNullSentinelInt
@@ -637,6 +637,9 @@ public func kk_mutable_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw
 @_cdecl("__kk_map_is_empty")
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
+        if let sourceResult = runtimeSourceMapIsEmpty(mapRaw) {
+            return sourceResult
+        }
         if let sourceSize = runtimeSourceMapSize(mapRaw) {
             return sourceSize == 0 ? 1 : 0
         }
@@ -648,7 +651,8 @@ public func kk_map_is_empty(_ mapRaw: Int) -> Int {
 @_cdecl("__kk_map_entries")
 public func kk_map_entries(_ mapRaw: Int) -> Int {
     guard runtimeMapBox(from: mapRaw) != nil else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
+        return runtimeSourceMapEntries(mapRaw)
+            ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
     // MutableMap.entries is a mutable view. Keep this set handle connected to
     // the map so MutableIterable.removeAll/retainAll can remove through its
@@ -659,7 +663,8 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
 @_cdecl("__kk_map_keys")
 public func kk_map_keys(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
+        return runtimeSourceMapKeys(mapRaw)
+            ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
     return registerRuntimeObject(
         RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(map.keyValues))
@@ -669,7 +674,8 @@ public func kk_map_keys(_ mapRaw: Int) -> Int {
 @_cdecl("__kk_map_values")
 public func kk_map_values(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return runtimeSourceMapValues(mapRaw)
+            ?? registerRuntimeObject(RuntimeListBox(elements: []))
     }
     return registerRuntimeObject(RuntimeListBox(values: map.entryValues))
 }

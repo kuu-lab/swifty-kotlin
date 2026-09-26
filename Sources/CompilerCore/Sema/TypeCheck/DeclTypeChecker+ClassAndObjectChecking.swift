@@ -162,10 +162,10 @@ extension DeclTypeChecker {
 
     func typeCheckClassDelegation(
         _ classDecl: ClassDecl,
-        symbol _: SymbolID,
+        symbol: SymbolID,
         ctx: TypeInferenceContext,
-        solver _: ConstraintSolver,
-        diagnostics _: DiagnosticEngine
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
     ) {
         let sema = ctx.sema
         let delegatedEntries = classDecl.superTypeEntries.filter { $0.delegateExpression != nil }
@@ -205,12 +205,38 @@ extension DeclTypeChecker {
                     )
                 }
             }
-            _ = driver.inferExpr(
+            let expectedDelegateType: TypeID? = sema.symbols
+                .delegatedInterfaces(forClass: symbol)
+                .first(where: { interfaceSymbol in
+                    sema.symbols.classDelegationExpr(
+                        forClass: symbol,
+                        interface: interfaceSymbol
+                    ) == expr
+                })
+                .flatMap { interfaceSymbol in
+                    sema.symbols.classDelegationField(
+                        forClass: symbol,
+                        interface: interfaceSymbol
+                    )
+                }
+                .flatMap { sema.symbols.propertyType(for: $0) }
+
+            let delegateType = driver.inferExpr(
                 expr,
                 ctx: delegationCtx,
                 locals: &locals,
-                expectedType: nil
+                expectedType: expectedDelegateType
             )
+            if let expectedDelegateType {
+                driver.emitSubtypeConstraint(
+                    left: delegateType,
+                    right: expectedDelegateType,
+                    range: ctx.ast.arena.exprRange(expr),
+                    solver: solver,
+                    sema: sema,
+                    diagnostics: diagnostics
+                )
+            }
         }
     }
 

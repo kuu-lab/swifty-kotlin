@@ -300,6 +300,62 @@ struct KIRBuildClassLoweringTests {
         )
     }
 
+    @Test func testMapInterfaceDelegationResolvesDirectMembersAndMapDispatch() throws {
+        let source = """
+        class CustomMap : Map<String, Int> by mapOf("k" to 1)
+
+        fun readMap(map: Map<String, Int>): Int {
+            val value = map["k"] ?: 0
+            return map.keys.size + value + if (map.isEmpty()) 1 else 0
+        }
+
+        fun main(): Int {
+            val m = CustomMap()
+            return readMap(m) + (m["k"] ?: 0)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let classSymbol = try #require(
+            sema.symbols.lookup(fqName: [ctx.interner.intern("CustomMap")])
+        )
+
+        let forwardingMethodNames = sema.symbols
+            .classDelegationForwardingMethodSymbols(forClass: classSymbol)
+            .compactMap { sema.symbols.symbol($0)?.name }
+            .map(ctx.interner.resolve)
+        #expect(forwardingMethodNames.contains("isEmpty"))
+        #expect(forwardingMethodNames.contains("get"))
+
+        let forwardingPropertyNames = sema.symbols
+            .classDelegationForwardingPropertySymbols(forClass: classSymbol)
+            .compactMap { sema.symbols.symbol($0)?.name }
+            .map(ctx.interner.resolve)
+        for propertyName in ["entries", "keys", "size", "values"] {
+            #expect(forwardingPropertyNames.contains(propertyName))
+        }
+
+        let readMap = try #require(findAllKIRFunctions(in: module).first { function in
+            ctx.interner.resolve(function.name) == "readMap"
+        })
+        let readMapCallees = extractCallees(from: readMap.body, interner: ctx.interner)
+        #expect(readMapCallees.contains("__kk_map_is_empty"))
+        #expect(readMapCallees.contains("__kk_map_get"))
+        #expect(readMapCallees.contains("__kk_map_keys"))
+
+        let main = try #require(findAllKIRFunctions(in: module).first { function in
+            ctx.interner.resolve(function.name) == "main"
+        })
+        #expect(extractCallees(from: main.body, interner: ctx.interner).contains("get"))
+    }
+
     private func delegationTargetSymbols(
         in body: [KIRInstruction],
         interner: StringInterner

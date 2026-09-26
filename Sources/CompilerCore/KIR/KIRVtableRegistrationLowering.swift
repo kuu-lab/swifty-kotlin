@@ -1036,7 +1036,12 @@ func kirItableMethodEntries(
     sema: SemaModule,
     interner: StringInterner
 ) -> [(methodSymbol: SymbolID, methodSlot: Int)] {
-    var methods = interfaceLayout.vtableSlots
+    // Property getter slots are registered separately below. Keep them out of
+    // the method table so runtime itables do not receive duplicate entries
+    // when a source-backed interface exposes both kinds of slots.
+    var methods = interfaceLayout.vtableSlots.filter {
+        sema.symbols.symbol($0.key)?.kind == .function
+    }
     let mutableIterableFQName = ["kotlin", "collections", "MutableIterable"].map(interner.intern)
     guard let symbol = sema.symbols.symbol(interfaceSymbol),
           symbol.fqName == mutableIterableFQName

@@ -915,8 +915,14 @@ extension DataFlowSemaPhase {
                 guard !classMethodKeys.contains(key),
                       let ifaceSig = symbols.functionSignature(for: methodSym.id)
                 else { continue }
+                let forwardingSig = substituteDelegatedInterfaceSignature(
+                    ifaceSig,
+                    classSymbol: classSymbol,
+                    interfaceSymbol: interfaceSymbol,
+                    types: types
+                )
                 synthesizeForwardingMethod(
-                    methodSym: methodSym, ifaceSig: ifaceSig,
+                    methodSym: methodSym, ifaceSig: forwardingSig,
                     classDecl: classDecl, classSymbol: classSymbol, classFQName: classFQName,
                     interfaceSymbol: interfaceSymbol, fieldSymbol: fieldSymbol,
                     symbols: symbols, types: types, interner: interner
@@ -938,8 +944,51 @@ extension DataFlowSemaPhase {
                     interfaceSymbol: interfaceSymbol, fieldSymbol: fieldSymbol,
                     symbols: symbols, types: types, interner: interner
                 )
+                classPropertyNames.insert(propSym.name)
             }
         }
+    }
+
+    private func substituteDelegatedInterfaceType(
+        _ type: TypeID,
+        classSymbol: SymbolID,
+        interfaceSymbol: SymbolID,
+        types: TypeSystem
+    ) -> TypeID {
+        let classTypeArgs = types.nominalTypeParameterSymbols(for: classSymbol).map {
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        guard let interfaceTypeArgs = types.liftedNominalSupertypeArgs(
+            from: classSymbol,
+            childArgs: classTypeArgs,
+            to: interfaceSymbol
+        ) else {
+            return type
+        }
+        let interfaceTypeParameterSymbols = types.nominalTypeParameterSymbols(for: interfaceSymbol)
+        let typeVarBySymbol = types.makeTypeVarBySymbol(interfaceTypeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, typeParameterSymbol) in interfaceTypeParameterSymbols.enumerated() {
+            guard index < interfaceTypeArgs.count,
+                  let typeVariable = typeVarBySymbol[typeParameterSymbol]
+            else {
+                continue
+            }
+            switch interfaceTypeArgs[index] {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                substitution[typeVariable] = inner
+            case .star:
+                substitution[typeVariable] = types.nullableAnyType
+            }
+        }
+        guard !substitution.isEmpty else {
+            return type
+        }
+        return types.substituteTypeParameters(
+            in: type,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
     private func synthesizeForwardingMethod(
@@ -1007,6 +1056,72 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Resolve the interface's nominal type parameters in a delegated method
+    /// before exposing the method on the concrete delegating class. Without
+    /// this substitution, `Map<String, Int>.get` is copied as `get(K): V?`,
+    /// so direct `CustomMap["key"]` lookup cannot match the synthetic method.
+    private func substituteDelegatedInterfaceSignature(
+        _ signature: FunctionSignature,
+        classSymbol: SymbolID,
+        interfaceSymbol: SymbolID,
+        types: TypeSystem
+    ) -> FunctionSignature {
+        let classTypeArgs = types.nominalTypeParameterSymbols(for: classSymbol).map {
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        guard let interfaceTypeArgs = types.liftedNominalSupertypeArgs(
+            from: classSymbol,
+            childArgs: classTypeArgs,
+            to: interfaceSymbol
+        ) else {
+            return signature
+        }
+
+        let interfaceTypeParameterSymbols = types.nominalTypeParameterSymbols(for: interfaceSymbol)
+        let typeVarBySymbol = types.makeTypeVarBySymbol(interfaceTypeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, typeParameterSymbol) in interfaceTypeParameterSymbols.enumerated() {
+            guard index < interfaceTypeArgs.count,
+                  let typeVariable = typeVarBySymbol[typeParameterSymbol]
+            else {
+                continue
+            }
+            switch interfaceTypeArgs[index] {
+            case let .invariant(type), let .out(type), let .in(type):
+                substitution[typeVariable] = type
+            case .star:
+                substitution[typeVariable] = types.nullableAnyType
+            }
+        }
+        guard !substitution.isEmpty else {
+            return signature
+        }
+
+        func substitute(_ type: TypeID) -> TypeID {
+            types.substituteTypeParameters(
+                in: type,
+                substitution: substitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+        return FunctionSignature(
+            receiverType: signature.receiverType.map(substitute),
+            parameterTypes: signature.parameterTypes.map(substitute),
+            returnType: substitute(signature.returnType),
+            isSuspend: signature.isSuspend,
+            canThrow: signature.canThrow,
+            valueParameterSymbols: signature.valueParameterSymbols,
+            valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+            valueParameterIsVararg: signature.valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+            typeParameterSymbols: signature.typeParameterSymbols,
+            reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+            typeParameterUpperBounds: signature.typeParameterUpperBounds,
+            typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+            classTypeParameterCount: signature.classTypeParameterCount
+        )
+    }
+
     /// Mirrors `synthesizeForwardingMethod` for a delegated interface
     /// property: gives the class its own `val`/`var` symbol (so member
     /// lookup on the class stops at this property instead of falling
@@ -1040,7 +1155,16 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(classSymbol, for: forwardingSymbol)
         let propType = symbols.propertyType(for: propSym.id) ?? types.anyType
-        symbols.setPropertyType(propType, for: forwardingSymbol)
+        symbols.setPropertyType(
+            substituteDelegatedInterfaceType(
+                propType,
+                classSymbol: classSymbol,
+                interfaceSymbol: interfaceSymbol,
+                types: types
+            ),
+            for: forwardingSymbol
+        )
+        symbols.setPropertyHasCustomGetter(true, for: forwardingSymbol)
 
         symbols.addClassDelegationForwardingProperty(
             forwardingSymbol,
