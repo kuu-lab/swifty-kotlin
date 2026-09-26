@@ -123,6 +123,13 @@ private func runtimeRangeList(_ elements: [Int]) -> Int {
     registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
+/// Builds an erased `List<T>` from raw range elements: kinds whose scalar
+/// collides with the null sentinel or loses type identity are boxed so
+/// generic consumers recover the primitive.
+private func runtimeRangeElementList(_ elements: [Int], kind: RuntimeRangeKind) -> Int {
+    runtimeRangeList(elements.map { runtimeRangeErasedElement($0, kind: kind) })
+}
+
 private func runtimeRangeValues<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> [Int] {
     var elements: [Int] = []
     _ = Kind.traverse(range) { value, _ in
@@ -133,7 +140,7 @@ private func runtimeRangeValues<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range
 }
 
 private func runtimeRangeToList<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
-    runtimeRangeList(runtimeRangeValues(Kind.self, range))
+    runtimeRangeElementList(runtimeRangeValues(Kind.self, range), kind: range.kind)
 }
 
 private func runtimeRangeForEach<Kind: RuntimeRangeHOFKind>(
@@ -246,7 +253,7 @@ private func runtimeRangeFilter<Kind: RuntimeRangeHOFKind>(
         }
         return true
     }
-    return runtimeRangeList(filtered)
+    return runtimeRangeElementList(filtered, kind: range.kind)
 }
 
 private func runtimeRangeFilterIndexed<Kind: RuntimeRangeHOFKind>(
@@ -270,7 +277,7 @@ private func runtimeRangeFilterIndexed<Kind: RuntimeRangeHOFKind>(
         }
         return true
     }
-    return runtimeRangeList(filtered)
+    return runtimeRangeElementList(filtered, kind: range.kind)
 }
 
 private func runtimeRangeReduce<Kind: RuntimeRangeHOFKind>(
@@ -416,13 +423,13 @@ private func runtimeRangeChunked<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ rang
     _ = Kind.traverse(range) { value, _ in
         currentChunk.append(value)
         if currentChunk.count == size {
-            chunks.append(runtimeRangeList(currentChunk))
+            chunks.append(runtimeRangeElementList(currentChunk, kind: range.kind))
             currentChunk.removeAll(keepingCapacity: true)
         }
         return true
     }
     if !currentChunk.isEmpty {
-        chunks.append(runtimeRangeList(currentChunk))
+        chunks.append(runtimeRangeElementList(currentChunk, kind: range.kind))
     }
     return runtimeRangeList(chunks)
 }
@@ -442,7 +449,7 @@ private func runtimeRangeWindowed<Kind: RuntimeRangeHOFKind>(
         let end = Swift.min(start + size, values.count)
         let window = Array(values[start..<end])
         if window.count == size || (partialWindows != 0 && !window.isEmpty) {
-            windows.append(runtimeRangeList(window))
+            windows.append(runtimeRangeElementList(window, kind: range.kind))
         }
         start += step
     }
@@ -459,7 +466,7 @@ private func runtimeRangeTake<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: 
         taken += 1
         return true
     }
-    return runtimeRangeList(elements)
+    return runtimeRangeElementList(elements, kind: range.kind)
 }
 
 private func runtimeRangeDrop<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox, _ n: Int) -> Int {
@@ -473,7 +480,7 @@ private func runtimeRangeDrop<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: 
         }
         return true
     }
-    return runtimeRangeList(elements)
+    return runtimeRangeElementList(elements, kind: range.kind)
 }
 
 private func runtimeRangeAverage<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
@@ -495,7 +502,7 @@ private func runtimeRangeSorted<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range
     if range.step < 0 {
         elements.reverse()
     }
-    return runtimeRangeList(elements)
+    return runtimeRangeElementList(elements, kind: range.kind)
 }
 
 extension RuntimeRangeHOFKind {
@@ -605,11 +612,11 @@ extension RuntimeRangeHOFKind {
     }
 
     static func firstOrNull(_ range: RuntimeRangeBox) -> Int {
-        isEmpty(range) ? runtimeNullSentinelInt : range.first
+        isEmpty(range) ? runtimeNullSentinelInt : runtimeRangeErasedElement(range.first, kind: range.kind)
     }
 
     static func lastOrNull(_ range: RuntimeRangeBox) -> Int {
-        isEmpty(range) ? runtimeNullSentinelInt : range.last
+        isEmpty(range) ? runtimeNullSentinelInt : runtimeRangeErasedElement(range.last, kind: range.kind)
     }
 
     /// `Progression.first()` / `last()`: throw on empty, unlike the `first`/`last` properties.
