@@ -27,7 +27,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache? = nil
     ) -> LibraryImportDeferredWork {
         // Imported function bounds may refer to java.io.Closeable before the
@@ -250,12 +250,10 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
+                importedInlineFunctions: importedInlineFunctions,
                 pendingSupertypeEdges: &pendingSupertypeEdges,
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName,
                 phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
@@ -276,12 +274,10 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
+                importedInlineFunctions: importedInlineFunctions,
                 pendingSupertypeEdges: &pendingSupertypeEdges,
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName,
                 phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
@@ -340,6 +336,18 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+
+        // Bind the resolution context for deferred inline-body parses only
+        // after every binding has been applied, so a lazy parse resolves
+        // callees against the final link-name and FQ-name maps — exactly the
+        // maps the eager parse observed.
+        importedInlineFunctions.bindParseContext(
+            types: types,
+            interner: interner,
+            diagnostics: diagnostics,
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
+        )
 
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
@@ -849,6 +857,32 @@ extension DataFlowSemaPhase {
                 symbols.setObjectInitializerSymbol(initSymbol, for: ownerSymbol)
             }
 
+            if record.kind == .object,
+               let linkName = record.objectLazyInitializerLinkName,
+               !linkName.isEmpty
+            {
+                let name = interner.intern(linkName)
+                let fqName = record.fqName + [interner.intern("__object_lazy_init")]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setObjectLazyInitializerSymbol(initSymbol, for: ownerSymbol)
+            }
+
             if let linkName = record.companionInitializerLinkName,
                !linkName.isEmpty,
                symbols.companionObjectSymbol(for: ownerSymbol) != nil
@@ -908,11 +942,20 @@ extension DataFlowSemaPhase {
         let valueParameterIsVararg: [Bool]
         let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
+        /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
+        /// decoded from metadata, `nil` where the parameter has none.
+        let valueParameterCallsInPlaceKinds: [InvocationKind?]
         let canThrow: Bool
         let valueParameterNames: [String]
         let reifiedTypeParameterIndices: Set<Int>
         let typeSignature: String?
         let typeParameterUpperBoundsSignatures: [[String]]
+        /// The callable's type parameters in declaration order, encoded as
+        /// `T<rawID>` tokens (including any leading owner type parameters of
+        /// member callables). Present on artifacts emitted by compilers that
+        /// serialize `callTParams`; empty for older artifacts, where the
+        /// structural scan plus the phantom-count fallback apply instead.
+        let callableTypeParameterSignatures: [String]
         let defaultStubExternalLinkName: String?
         let externalLinkName: String?
         let declaredFieldCount: Int?
@@ -927,6 +970,7 @@ extension DataFlowSemaPhase {
         let itableSlots: [ImportedITableSlotEntry]
         let objectInitializerLinkName: String?
         let companionInitializerLinkName: String?
+        let objectLazyInitializerLinkName: String?
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
@@ -967,11 +1011,13 @@ extension DataFlowSemaPhase {
             valueParameterIsVararg: [Bool] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
+            valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
             reifiedTypeParameterIndices: Set<Int> = [],
             typeSignature: String? = nil,
             typeParameterUpperBoundsSignatures: [[String]] = [],
+            callableTypeParameterSignatures: [String] = [],
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
@@ -986,6 +1032,7 @@ extension DataFlowSemaPhase {
         itableSlots: [ImportedITableSlotEntry] = [],
         objectInitializerLinkName: String? = nil,
         companionInitializerLinkName: String? = nil,
+        objectLazyInitializerLinkName: String? = nil,
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
@@ -1020,11 +1067,13 @@ extension DataFlowSemaPhase {
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+            self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
             self.typeSignature = typeSignature
             self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
+            self.callableTypeParameterSignatures = callableTypeParameterSignatures
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
             self.declaredFieldCount = declaredFieldCount
@@ -1039,6 +1088,7 @@ extension DataFlowSemaPhase {
             self.itableSlots = itableSlots
         self.objectInitializerLinkName = objectInitializerLinkName
         self.companionInitializerLinkName = companionInitializerLinkName
+        self.objectLazyInitializerLinkName = objectLazyInitializerLinkName
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
@@ -1149,12 +1199,10 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID],
         phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
@@ -1172,11 +1220,9 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            importedInlineFunctions: &importedInlineFunctions,
+            importedInlineFunctions: importedInlineFunctions,
             cache: cache,
             isStdlibArtifact: isStdlibArtifact,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName,
             phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
         )
         applyImportedValueClassMetadata(
@@ -1248,11 +1294,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool = false,
-        externalLinkNameToSymbol: [String: SymbolID] = [:],
-        importedSymbolByFQName: [String: SymbolID] = [:],
         phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
@@ -1328,12 +1372,9 @@ extension DataFlowSemaPhase {
                 binding,
                 symbol: symbol,
                 signature: signature,
-                types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName
+                importedInlineFunctions: importedInlineFunctions
             )
             return
         }
@@ -1513,12 +1554,9 @@ extension DataFlowSemaPhase {
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
         signature: FunctionSignature,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        importedInlineFunctions: ImportedInlineFunctionStore
     ) {
         let record = binding.record
         guard record.isInline,
@@ -1529,15 +1567,26 @@ extension DataFlowSemaPhase {
         }
 
         let fileName = MetadataEncoder.inlineKIRFileName(for: record.mangledName)
-        let inlinePath = URL(fileURLWithPath: inlineDir)
+        let inlineDirURL = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
+        let inlinePathURL = inlineDirURL
             .appendingPathComponent(fileName)
-            .standardized
-            .path
-        let inlineDirResolved = URL(fileURLWithPath: inlineDir).standardized.path
-        guard inlinePath.hasPrefix(inlineDirResolved + "/") else {
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        let inlinePath = inlinePathURL.path
+        let inlineDirResolved = inlineDirURL.path
+        guard inlinePath.hasPrefix(inlineDirResolved.hasSuffix("/") ? inlineDirResolved : inlineDirResolved + "/") else {
             diagnostics.error(
                 "KSWIFTK-LIB-0019",
                 "Inline KIR path for '\(record.mangledName)' escapes inline directory",
+                range: nil
+            )
+            return
+        }
+        let inlineAttributes = try? FileManager.default.attributesOfItem(atPath: inlinePath)
+        guard inlineAttributes?[.type] as? FileAttributeType == .typeRegular else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0019",
+                "Inline KIR path for '\(record.mangledName)' is missing or is not a regular file",
                 range: nil
             )
             return
@@ -1559,19 +1608,20 @@ extension DataFlowSemaPhase {
             }
             return
         }
-        guard let inlineFunction = parseImportedInlineFunction(
-            path: inlinePath,
-            importedSymbol: symbol,
-            signature: signature,
-            types: types,
-            interner: interner,
-            diagnostics: diagnostics,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
-        ) else {
-            return
-        }
-        importedInlineFunctions[symbol] = inlineFunction
+        // Defer the read + KIR parse to first expansion: most imported inline
+        // bodies are never spliced into a caller, so parsing ~every artifact
+        // at import is wasted work. The descriptor carries what the lazy
+        // parse needs that the symbol table cannot rebuild here — the
+        // resolved path, the signature captured at binding time, and the
+        // declared name (`record.fqName.last` is what `nameB64` serializes).
+        importedInlineFunctions.register(
+            ImportedInlineFunctionStore.Descriptor(
+                path: inlinePath,
+                signature: signature,
+                name: record.fqName.last ?? interner.intern("_")
+            ),
+            for: symbol
+        )
     }
 
     private func applyImportedValueClassMetadata(

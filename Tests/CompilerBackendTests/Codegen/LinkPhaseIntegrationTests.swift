@@ -6,6 +6,88 @@ import Testing
 @Suite(.serialized)
 struct LinkPhaseIntegrationTests {
     @Test
+    func testLinkPhaseDoesNotCollectObjectSymlinkOutsideLibrary() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libraryDir = baseDir.appendingPathExtension("kklib")
+        let objectsDir = libraryDir.appendingPathComponent("objects")
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: objectsDir, withIntermediateDirectories: true)
+        let outsideObject = baseDir.appendingPathComponent("external.o")
+        try Data().write(to: outsideObject)
+        try fm.createSymbolicLink(
+            at: objectsDir.appendingPathComponent("external.o"),
+            withDestinationURL: outsideObject
+        )
+        let manifest = #"{"formatVersion":1,"moduleName":"ExternalObject","objects":["objects/external.o"]}"#
+        try manifest.write(to: libraryDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let linkedObjects = LinkPhase().discoverLibraryObjects(searchPaths: [libraryDir.path])
+        #expect(linkedObjects.isEmpty)
+    }
+
+    @Test
+    func testImportedObjectAndCompanionLazyInitializersRunThroughKklib() throws {
+        let librarySource = """
+        package extdemo
+
+        object ExternalObject {
+            var initCount = 0
+            init { initCount += 1 }
+            val value = 41
+        }
+
+        class ExternalClass {
+            companion object {
+                var initCount = 0
+                init { initCount += 1 }
+                val value = 42
+            }
+        }
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "ExternalLazyInit") { libraryPath in
+            let appSource = """
+            import extdemo.ExternalClass
+            import extdemo.ExternalObject
+
+            val objectValue = ExternalObject.value
+            val companionValue = ExternalClass.value
+
+            fun main() {
+                println(objectValue)
+                println(companionValue)
+                println(ExternalObject.initCount)
+                println(ExternalClass.initCount)
+            }
+            """
+
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .path
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ExternalLazyInitApp",
+                    emit: .executable,
+                    outputPath: outputPath,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+                try LoweringPhase().run(appCtx)
+                try CodegenPhase().run(appCtx)
+                assertLinkSucceeds(appCtx)
+
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(
+                    result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
+                        "41\n42\n1\n1\n"
+                )
+            }
+        }
+    }
+
+    @Test
     func testLinkPhaseAutoLinksKotlinLibraryObjectForCrossModuleCall() throws {
         let librarySource = """
         package extdemo
@@ -23,9 +105,14 @@ struct LinkPhaseIntegrationTests {
             try LoweringPhase().run(libraryCtx)
             try CodegenPhase().run(libraryCtx)
 
+            // Observe the cross-module result on stdout: `main`'s own value is
+            // never the process status (see
+            // `testEntryWrapperDiscardsNonUnitMainResult`).
             let appSource = """
             import extdemo.plus
-            fun main() = plus(41)
+            fun main() {
+                println(plus(41))
+            }
             """
             try withTemporaryFile(contents: appSource) { appPath in
                 let outputPath = FileManager.default.temporaryDirectory
@@ -44,15 +131,8 @@ struct LinkPhaseIntegrationTests {
                 assertLinkSucceeds(appCtx)
 
                 #expect(FileManager.default.fileExists(atPath: outputPath))
-                do {
-                    _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                    Issue.record("Expected non-zero exit")
-                    return
-                } catch let CommandRunnerError.nonZeroExit(failed) {
-                    #expect(failed.exitCode == 42)
-                } catch {
-                    Issue.record("Unexpected error: \(error)")
-                }
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(result.stdout.trimmingCharacters(in: .newlines) == "42")
             }
         }
     }
@@ -133,6 +213,136 @@ struct LinkPhaseIntegrationTests {
         }
     }
 
+    /// `main`'s own value must never reach the process status.
+    ///
+    /// kotlinc does not recognise a `main` whose return type is not `Unit` as
+    /// an entry point at all, so it emits a jar without a `Main-Class`.
+    /// KSwiftK keeps accepting such a `main` — rejecting it is not an option
+    /// while `runBlocking`/`coroutineScope`/`Deferred.await` are modelled as
+    /// returning `Any`, which makes every `fun main() = runBlocking { ... }`
+    /// non-`Unit` regardless of its body — but the value is discarded, which
+    /// is what a Kotlin program observes: a non-zero status comes only from
+    /// `exitProcess` or an unhandled exception. The entry wrapper used to
+    /// truncate the entry function's `i64` result into `main`'s `i32` ABI, so
+    /// `fun main(): Int = 42` exited 42, and a boxed result leaked the low
+    /// bits of a heap pointer — a different status on each run of one binary.
+    @Test
+    func testEntryWrapperDiscardsNonUnitMainResult() throws {
+        let cases: [(module: String, source: String, expectedStdout: String)] = [
+            (
+                "IntMainExitStatus",
+                """
+                fun main(): Int = 42
+                """,
+                ""
+            ),
+            (
+                // A boxed result is the shape whose leaked status varied
+                // run-to-run, so this case is checked more than once below.
+                "BoxedMainExitStatus",
+                """
+                fun main(): Any {
+                    println("ran")
+                    return "boxed"
+                }
+                """,
+                "ran\n"
+            ),
+        ]
+
+        for testCase in cases {
+            try withTemporaryFile(contents: testCase.source) { path in
+                let out = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: out) }
+                let ctx = makeCompilationContext(
+                    inputs: [path],
+                    moduleName: testCase.module,
+                    emit: .executable,
+                    outputPath: out
+                )
+                try runToKIR(ctx)
+                try LoweringPhase().run(ctx)
+                try CodegenPhase().run(ctx)
+                assertLinkSucceeds(ctx)
+
+                for attempt in 1...3 {
+                    do {
+                        let result = try CommandRunner.run(executable: out, arguments: [])
+                        #expect(result.exitCode == 0)
+                        #expect(result.stdout == testCase.expectedStdout)
+                    } catch let CommandRunnerError.nonZeroExit(failed) {
+                        Issue.record(
+                            """
+                            \(testCase.module) run \(attempt) exited \(failed.exitCode); \
+                            expected 0 because main's value is not the exit status.
+                            """
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// The coroutine shape from the original report: `coroutineScope` and
+    /// `Deferred.await` are modelled as returning `Any`, so a `try` whose body
+    /// is a `coroutineScope { ... }` widens `main` to `Any` and used to leak a
+    /// boxed pointer into the exit status.
+    @Test
+    func testEntryWrapperDiscardsCoroutineMainResult() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        suspend fun boom(): Int {
+            throw RuntimeException("boom")
+        }
+
+        fun main() = runBlocking {
+            try {
+                coroutineScope {
+                    val a = async { 10 }
+                    val b = async { boom() }
+                    a.await()
+                    b.await()
+                }
+            } catch (e: Throwable) {
+                println(e.message)
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let out = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CoroutineMainExitStatus",
+                emit: .executable,
+                outputPath: out
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            for attempt in 1...3 {
+                do {
+                    let result = try CommandRunner.run(executable: out, arguments: [])
+                    #expect(result.exitCode == 0)
+                    #expect(result.stdout.trimmingCharacters(in: .newlines) == "boom")
+                } catch let CommandRunnerError.nonZeroExit(failed) {
+                    Issue.record(
+                        """
+                        Coroutine main run \(attempt) exited \(failed.exitCode); \
+                        expected 0 because main's value is not the exit status.
+                        """
+                    )
+                }
+            }
+        }
+    }
+
     @Test
     func testLinkPhaseAutoLinksKklibManifestObjectsAndDeduplicates() throws {
         let fm = FileManager.default
@@ -183,8 +393,17 @@ struct LinkPhaseIntegrationTests {
             encoding: .utf8
         )
 
+        // `plus` comes from the hand-written object in the manifest and carries no
+        // Kotlin type information (`metadata.bin` declares `symbols=0`), so its
+        // result cannot be printed — `println` would render the raw value as
+        // "null". Route it through `exitProcess`, the only way a Kotlin program
+        // picks a process status: `main`'s own value is discarded by the entry
+        // wrapper (see `testEntryWrapperDiscardsNonUnitMainResult`).
         let appSource = """
-        fun main() = plus(41)
+        import kotlin.system.exitProcess
+        fun main() {
+            exitProcess(plus(41))
+        }
         """
         try withTemporaryFile(contents: appSource) { appPath in
             let outputPath = workspaceDir.appendingPathComponent("AppExecutable").path
@@ -203,8 +422,7 @@ struct LinkPhaseIntegrationTests {
             #expect(fm.fileExists(atPath: outputPath))
             do {
                 _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                Issue.record("Expected non-zero exit")
-                return
+                Issue.record("Expected exitProcess(plus(41)) to exit with 42")
             } catch let CommandRunnerError.nonZeroExit(failed) {
                 #expect(failed.exitCode == 42)
             } catch {

@@ -111,6 +111,14 @@ struct BuildKIRRegressionTests {
                 println(v)
             }
             """,
+            """
+            package buildkir.lower3
+            fun mainLower3() {
+                val a: Any = 5
+                val b: Any = 5
+                println(a != b)
+            }
+            """,
         ]
 
         let ctx = makeContextFromSources(sources)
@@ -269,8 +277,16 @@ struct BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main5", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
+        let binaryOps = body.compactMap { instruction -> KIRBinaryOp? in
+            guard case let .binary(op, _, _, _) = instruction else {
+                return nil
+            }
+            return op
+        }
 
-        #expect(callees.contains("kk_op_ne"))
+        // `!=` stays a binary op here (like `==`): OperatorLoweringPass resolves
+        // it to kk_structural_ne for reference types or kk_op_ne for primitives.
+        #expect(binaryOps.contains(.notEqual))
         #expect(callees.contains("kk_op_lt"))
         #expect(callees.contains("kk_op_le"))
         #expect(callees.contains("kk_op_gt"))
@@ -502,7 +518,7 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "mainLower0", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-        #expect(callees.contains("kk_box_long_nonnull"))
+        #expect(callees.contains("kk_box_long_nonnull_static"))
     }
     @Test func testLocalDeclDoesNotBoxWhenDeclaredTypeMatchesInitializer() throws {
         let ctx = try sharedBuildKIRLoweredCtx()
@@ -518,8 +534,21 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "mainLower2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_box_int"))
-        #expect(callees.contains("kk_box_long_nonnull"))
+        #expect(callees.contains("kk_box_int_static"))
+        #expect(callees.contains("kk_box_long_nonnull_static"))
+    }
+
+    /// `!=` on reference-typed operands must use structural equality: the raw
+    /// word-compare `kk_op_ne` treats two distinct boxes of the same value as
+    /// "not equal", which broke `AbstractList.equals` on boxed elements.
+    @Test func testNotEqualOnAnyLowersToStructuralCall() throws {
+        let ctx = try sharedBuildKIRLoweredCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "mainLower3", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+        #expect(callees.contains("kk_structural_ne"))
+        #expect(!callees.contains("kk_op_ne"))
     }
 }
 #endif

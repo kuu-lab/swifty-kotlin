@@ -38,6 +38,59 @@ Sequence 拡張は引き続き実働経路として保持している。残る A
 それぞれ MIGRATION-PROP-001、STDLIB-CINTEROP-FN-046、HTTP surface の所有タスクで
 扱うため今回の削除対象から除外した。
 
+## 継続監査（DEADCODE-014、2026-09-23）
+
+現行 HEAD（`59dd246ff`）で `Scripts/dead_code_audit.sh --self-test` を再実行し、
+#6881 マージコミット（`a3f3a4b12`、2026-09-16 後状態）の worktree で同じ監査を
+再現してリスト差分を取った。
+
+| 指標 | 2026-09-16 (#6881) | 2026-09-23 (HEAD) |
+|---|---|---|
+| Runtime `@_cdecl` export | 1,665 | 1,702（+78 追加 / −41 削除） |
+| compiler-unreachable | 136 | 130 |
+| A: 完全到達不能 | 14 | 14（変化なし） |
+| B: テストのみ | 82 | 76（−7 +1） |
+| runtime-internal のみ | 40 | 40（変化なし） |
+
+self-test は 4/4 PASS。セルフテスト fixture の既知誤分類（静的 emit、2 段階
+prefix、fatalError 自己言及、Swift 名別名）はいずれも再発していない。
+
+**B 減少の内訳**（全て source-backed 移行または本線配線による正当な減少）:
+
+- `kk_freezable_atomic_ref_{load,store,compareAndSet,compareAndSwap,is_frozen}` —
+  #6914 で FreezableAtomicReference が Kotlin ソース実装へ移行し、bridge・spec・
+  テストごと削除
+- `kk_cpointer_new` — DetachedObjectGraph 実装（#6893）で compiler emit 経路へ配線
+- `kk_instant_from_epoch_seconds` — kotlin.time stdlib API（#6932）で同様に配線
+
+**B 増加**: `kk_object_release`（#7039、ARCH-016）。retained box の明示解放
+オーナーとして新設され、compiler emit 側の配線待ちで意図的にテストのみの状態。
+
+**A 候補 14 件の見直し** — いずれも前回の延期理由が現行 HEAD で再確認でき、
+本サイクルも削除しない:
+
+- `__kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility}` — bundled
+  stdlib に KProperty 系（`kotlin/KProperty*.kt`・`properties/Delegates.kt`）は
+  存在するが、完全メタデータ（isConst / isLateinit / visibility）の Kotlin 側
+  消費者が未実装。MIGRATION-PROP 系作業で配線予定のまま
+- `kk_cinterop_writeBits` — `kotlinx.cinterop` は `StableRef.kt` のみで
+  `writeBits` 消費 API が未実装（STDLIB-CINTEROP-FN 系の後続タスク待ち）
+- `kk_http_*` 9 件 — `RuntimeNetwork.swift` の HTTP クライアントは Linear で
+  現在有効なセキュリティ改善対象（KUU-805/817）として所有されている surface。
+  Kotlin 側 HTTP stdlib がまだ無く、新規 stdlib 配線時に必要になる設定・
+  応答メタデータ関数のため保持
+
+**他監査軸の再確認**:
+
+- tracked `.c/.h/.cc/.cpp` — 2 件（`Sources/RuntimeCAtomics/`）。#7121 で
+  kotlin.concurrent.Atomic* の NSLock ストレージを C `stdatomic` セルへ置換した
+  SwiftPM C ターゲット。`kkrt_atomic_*` は `static inline` のため本監査の
+  `@_cdecl` 範囲外だが dead ではない
+- `DiagnosticRegistry` — 現行 99 descriptor、全て Sources 内に production
+  発行箇所あり（発行 0 のコードなし）
+- `SKIP-DIFF (DEBT-DIFF-007)` — 10 タグ（2026-09-16 計測と同数、DEBT-DIFF-007 の
+  所有タスクで継続中）
+
 ## 検出手法
 
 識別子トークン頻度解析（`Sources` / `Tests` / `Scripts` / `Package.swift` / `*.kt` 横断）で「宣言されているが参照ゼロ」のシンボルを抽出し、以下の到達経路を順に除外して確定した。

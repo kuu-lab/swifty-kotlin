@@ -189,12 +189,31 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 }
 
 @inline(__always)
+func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
+    let raw = runtimePairNew(firstValue: key, secondValue: value)
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
     let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key
+    }
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
+func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeValue) -> Int {
+    let raw = registerRuntimeObject(RuntimePairBox(firstValue: key, secondValue: value))
+    if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
+        pairBox.mutableMapRaw = mapRaw
+        pairBox.mutableMapKey = key.legacyRawValue
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     return raw
@@ -387,6 +406,34 @@ func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeVal
         return RuntimeValue(charScalar: kk_unbox_char(rawValue))
     }
     return RuntimeValue(raw: rawValue)
+}
+
+/// Preserves the representation of values crossing a generic collection ABI.
+/// Primitive `Char` values are boxed at this boundary so a later generic
+/// consumer can recover the character instead of treating its UTF-16 scalar as
+/// an `Int`.
+@inline(__always)
+func runtimeValueFromCollectionABI(_ rawValue: Int) -> RuntimeValue {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: pointer))
+          }),
+          let charBox = tryCast(pointer, to: RuntimeCharBox.self)
+    else {
+        return RuntimeValue(raw: rawValue)
+    }
+    return RuntimeValue(charScalar: charBox.value)
+}
+
+/// Converts a tagged value to the legacy raw ABI representation used by
+/// collection iterator/accessor entry points. `Char` is the one primitive whose
+/// type identity must survive this conversion for generic collection consumers.
+@inline(__always)
+func runtimeCollectionABIValue(_ value: RuntimeValue) -> Int {
+    if value.tag == RuntimeValue.charTag {
+        return kk_box_char(value.payload0)
+    }
+    return value.legacyRawValue
 }
 
 func runtimeIterableElements(from rawValue: Int) -> [Int]? {
@@ -682,11 +729,6 @@ let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<I
 }
 
 let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: iterRaw), iter.index < iter.elements.count else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no next element."))
-        return 0
-    }
     return kk_list_iterator_next(iterRaw, outThrown)
 }
 
@@ -718,6 +760,9 @@ private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutable
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
+    if kk_range_hasNext(iterRaw) == 0 {
+        return runtimeThrowIteratorExhausted(outThrown)
+    }
     return kk_range_next(iterRaw)
 }
 
@@ -733,8 +778,7 @@ private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePo
 }
 
 private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_map_iterator_next(iterRaw)
+    return kk_map_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMutableMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -743,8 +787,7 @@ private let runtimeMutableMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMu
 }
 
 private let runtimeMutableMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_mutable_map_iterator_next(iterRaw)
+    return kk_mutable_map_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMutableMapIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -872,6 +915,14 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             return bitPattern == rawSide
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
+    }
+    let lhsRange = lhsIsObjectPointer ? runtimeRangeBox(from: lhs) : nil
+    let rhsRange = rhsIsObjectPointer ? runtimeRangeBox(from: rhs) : nil
+    if lhsRange != nil || rhsRange != nil {
+        guard let lhsRange, let rhsRange else {
+            return false
+        }
+        return runtimeRangesEqual(lhsRange, rhsRange)
     }
     if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
         return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
@@ -1144,6 +1195,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if let override = runtimeAnyToStringOverride(elem),
+       let pointer = extractString(from: override)
+    {
+        return pointer
+    }
     if runtimeIsUnitBox(elem) {
         return "kotlin.Unit"
     }
@@ -1237,7 +1293,12 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
-        return sbBox.value
+        return sbBox.stringValue
+    }
+    // kotlin.concurrent(.atomics).AtomicReference.toString() renders the
+    // current value, matching the JDK AtomicReference it is modelled on.
+    if let atomicRefBox = tryCast(ptr, to: AtomicRefBox.self) {
+        return runtimeElementToString(atomicRefBox.load())
     }
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
@@ -1283,6 +1344,16 @@ typealias RuntimeCollectionLambda4 = @convention(c) (Int, Int, Int, Int, Int, Un
 /// Writes a thrown payload when the caller provided an out-thrown slot.
 func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
     outThrown?.pointee = value
+}
+
+/// Sets `NoSuchElementException` on the thrown channel. Used by iterator `next()`
+/// after the iteration is exhausted so callers do not observe a silent `0`.
+func runtimeThrowIteratorExhausted(
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    message: String = "Iterator contains no more elements."
+) -> Int {
+    runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: message))
+    return 0
 }
 
 /// Normalizes truthiness for predicates from raw/boxed Boolean values.
@@ -1622,7 +1693,10 @@ private enum RuntimeComparableScalarValue {
     case floating(Double)
 }
 
-private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
+/// Kotlin `Double.compare` / `Float.compare` total order: NaN is greater than
+/// every non-NaN, and `-0.0` sorts before `0.0`. Shared by collection
+/// comparisons and `kk_compare_any` (generic `Comparable` `minOf`/`maxOf`).
+func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
     if lhs.isNaN {
         return rhs.isNaN ? 0 : 1
     }

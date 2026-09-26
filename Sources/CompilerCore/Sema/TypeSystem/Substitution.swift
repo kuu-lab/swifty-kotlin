@@ -46,12 +46,49 @@ public extension TypeSystem {
             let suspendPrefix = functionType.isSuspend ? "suspend " : ""
             let params = functionType.params.map(renderType).joined(separator: ", ")
             let retType = renderType(functionType.returnType)
+            let core = "\(contextPrefix)\(suspendPrefix)\(receiverPrefix)(\(params)) -> \(retType)"
             let suffix = nullabilitySuffix(functionType.nullability)
-            return "\(contextPrefix)\(suspendPrefix)\(receiverPrefix)(\(params)) -> \(retType)\(suffix)"
+            // A nullable function type needs its own parens so it stays
+            // distinct from a non-nullable function returning a nullable
+            // value: `((Int) -> Int)?` vs. `(Int) -> Int?`. Only the
+            // function type's own nullability triggers this — the return
+            // type's suffix is already inside `retType`.
+            return functionType.nullability == .nonNull ? "\(core)\(suffix)" : "(\(core))\(suffix)"
         case let .kClassType(kClassType):
             return "KClass<\(renderType(kClassType.argument))>\(nullabilitySuffix(kClassType.nullability))"
         case let .intersection(parts):
             return parts.map(renderType).joined(separator: " & ")
+        }
+    }
+
+    /// Renders well-known inference types without leaking internal symbol IDs
+    /// into user-facing constraint diagnostics.
+    internal func renderConstraintType(_ type: TypeID) -> String {
+        switch kind(of: type) {
+        case let .classType(classType) where classType.classSymbol == numberClassSymbol:
+            return "Number\(nullabilitySuffix(classType.nullability))"
+        case let .classType(classType) where classType.classSymbol == comparableInterfaceSymbol:
+            let args = classType.args.isEmpty
+                ? ""
+                : "<" + classType.args.map(renderConstraintTypeArg).joined(separator: ", ") + ">"
+            return "Comparable\(args)\(nullabilitySuffix(classType.nullability))"
+        case let .intersection(parts):
+            return parts.map(renderConstraintType).joined(separator: " & ")
+        default:
+            return renderType(type)
+        }
+    }
+
+    private func renderConstraintTypeArg(_ arg: TypeArg) -> String {
+        switch arg {
+        case let .invariant(type):
+            renderConstraintType(type)
+        case let .out(type):
+            "out \(renderConstraintType(type))"
+        case let .in(type):
+            "in \(renderConstraintType(type))"
+        case .star:
+            "*"
         }
     }
 

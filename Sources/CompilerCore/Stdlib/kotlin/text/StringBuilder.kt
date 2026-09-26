@@ -18,7 +18,7 @@ public class StringBuilder : Appendable, CharSequence {
 
     override operator fun get(index: Int): Char {
         checkElementIndex(index)
-        return toString()[index]
+        return __kk_string_builder_get(index)
     }
 
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
@@ -287,14 +287,33 @@ public class StringBuilder : Appendable, CharSequence {
         __kk_string_builder_clear()
 
     fun reverse(): StringBuilder {
+        val length = this.length
+        if (length <= 1) return this
+
         val current = toString()
-        var result = ""
-        var index = current.length - 1
-        while (index >= 0) {
-            result = result + current[index]
-            index -= 1
+        val chars = CharArray(length)
+        var index = 0
+        while (index < length) {
+            chars[index] = current[length - 1 - index]
+            index += 1
         }
-        return resetTo(result)
+
+        // KUU-641: restore valid surrogate pairs swapped by the unit reversal,
+        // matching Kotlin/JVM AbstractStringBuilder.reverse().
+        index = 0
+        while (index < length - 1) {
+            val first = chars[index]
+            val second = chars[index + 1]
+            if (first.isLowSurrogate() && second.isHighSurrogate()) {
+                chars[index] = second
+                chars[index + 1] = first
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+
+        return clear().append(chars)
     }
 
     fun deleteCharAt(index: Int): StringBuilder {
@@ -490,6 +509,9 @@ public class StringBuilder : Appendable, CharSequence {
 
     @KsSymbolName("__kk_string_builder_toString")
     private external fun __kk_string_builder_toString(): String
+
+    @KsSymbolName("__kk_string_builder_get")
+    private external fun __kk_string_builder_get(index: Int): Char
 
     @KsSymbolName("__kk_string_builder_length_prop")
     private external fun __kk_string_builder_length(): Int

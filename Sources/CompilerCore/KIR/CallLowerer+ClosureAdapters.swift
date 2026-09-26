@@ -340,9 +340,11 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Suspend callables are lowered through coroutine launcher/invoke paths,
-        // not the ordinary kk_function_create_N function-value ABI.
-        guard !functionType.isSuspend else {
+        // Receiver-bearing callables cannot cross the kk_function_create_N ABI
+        // (it has no receiver slot; see materializeEscapingCallableValue), and a
+        // suspend callable's leading param is the receiver rather than a
+        // closureRaw, so receiver-bearing suspend values always stay raw.
+        if functionType.isSuspend, functionType.receiver != nil {
             return loweredArgID
         }
 
@@ -360,11 +362,24 @@ extension CallLowerer {
             )
         }
 
+        // Suspend callables are lowered through coroutine launcher/invoke paths
+        // whose raw-thunk entry is `(args..., outThrown)`; boxing one of those
+        // thunks would prepend a closure parameter its entry point does not
+        // accept. A collection-HOF lambda's thunk is closure-first instead
+        // (`(closureRaw, args..., outThrown)`), so it must still cross the
+        // kk_function_create_N ABI: kk_suspend_function_invoke dispatches
+        // through kk_function_invoke, which supplies the closure argument only
+        // for boxed values.
+        if functionType.isSuspend, callableInfo?.hasClosureParam != true {
+            return loweredArgID
+        }
+
         guard var resolvedCallableInfo = callableInfo else {
             return loweredArgID
         }
 
-        if !resolvedCallableInfo.hasClosureParam,
+        if !functionType.isSuspend,
+           !resolvedCallableInfo.hasClosureParam,
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,
@@ -1038,20 +1053,31 @@ extension CallLowerer {
             )
         }
 
-        // kotlin.DeepRecursiveFunction { block } — expand the callable argument
-        // to (fnPtr, closureRaw) so runtime can retain both the entry point and
-        // the captured environment. Multi-capture lambdas are packed into a
-        // closure object, reusing the same adapter strategy as collection HOFs.
-        if externalLinkName == "__kk_deep_recursive_function_new", loweredArguments.count == 1 {
-            return makeCollectionHOFExpandedArguments(
-                loweredArgID: loweredArguments[0],
-                argExprID: originalArgs[0].expr,
-                adaptOnlyWhenCapturing: true,
+        // DeepRecursiveFunction keeps the original suspend lambda so coroutine
+        // rewrite can find loweredBySymbol. Captures travel as closureRaw.
+        if externalLinkName == "__kk_deep_recursive_function_new",
+           let loweredArgID = loweredArguments.last
+        {
+            var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+            if callableInfo == nil,
+               case let .symbolRef(symbol)? = arena.expr(loweredArgID),
+               let function = arena.function(for: symbol)
+            {
+                callableInfo = KIRCallableValueInfo(
+                    symbol: function.symbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
+                    hasClosureParam: function.params.count >= 3
+                )
+            }
+            let closureRaw = makeClosureRawOrBoxedArgument(
+                callableInfo: callableInfo,
                 sema: sema,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
+            return Array(loweredArguments.dropLast()) + [loweredArgID, closureRaw]
         }
 
         return loweredArguments

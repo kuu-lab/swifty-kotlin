@@ -1,0 +1,33 @@
+symbol fq=golden.sema.accepted[kind=prop] kind=property vis=public flags=mutable type=Int
+symbol fq=golden.sema.late[kind=prop] kind=property vis=public flags=mutable type=String
+symbol fq=golden.sema.observed[kind=prop] kind=property vis=public flags=mutable type=String
+symbol fq=golden.sema.readValues[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+file fstdlib_kotlin_properties_Delegates_Delegates_n package=golden.sema
+  decl golden.sema.observed[kind=prop] property observed var=1 sym=golden.sema.observed[kind=prop]
+  decl golden.sema.accepted[kind=prop] property accepted var=1 sym=golden.sema.accepted[kind=prop]
+  decl golden.sema.late[kind=prop] property late var=1 sym=golden.sema.late[kind=prop]
+  decl golden.sema.readValues[kind=fun;params=] fun readValues sym=golden.sema.readValues[kind=fun;params=]
+expr e@5:25 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates[kind=obj]
+expr e@5:46 string(initial) type=String
+expr e@6:28 name(old) type=String ref=s-0
+expr e@6:36 name(new) type=String ref=s-1
+expr e@6:13 stringTemplate[lit(changed from ),expr(e@6:28),lit( to ),expr(e@6:36)] type=String
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@5:57 lambda params=[prop,old,new] body=e@6:5 label=observable type=(kotlin.reflect.KProperty<*>, String, String) -> Unit
+expr e@5:25#1 memberCall recv=e@5:25 callee=observable args=[_:e@5:46,_:e@5:57] type=kotlin.properties.ReadWriteProperty<Any?, String> call=kotlin.properties.Delegates.observable[kind=fun;recv=kotlin.properties.Delegates;params=T0,fn{p=kotlin.reflect.KProperty<*>,T0,T0;ret=Unit};gen=1] targs=[String]
+expr e@9:22 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates[kind=obj]
+expr e@9:41 int(0) type=Int
+expr e@10:5 name(new) type=Int ref=s-2
+expr e@10:12 int(0) type=Int
+expr e@10:5#1 binary(greaterOrEqual) lhs=e@10:5 rhs=e@10:12 type=Boolean
+expr e@9:44 lambda params=[prop,old,new] body=e@10:5#1 label=vetoable type=(kotlin.reflect.KProperty<*>, Int, Int) -> Boolean
+expr e@9:22#1 memberCall recv=e@9:22 callee=vetoable args=[_:e@9:41,_:e@9:44] type=kotlin.properties.ReadWriteProperty<Any?, Int> call=kotlin.properties.Delegates.vetoable[kind=fun;recv=kotlin.properties.Delegates;params=T0,fn{p=kotlin.reflect.KProperty<*>,T0,T0;ret=Boolean};gen=1] targs=[Int]
+expr e@13:21 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates[kind=obj]
+expr e@13:21#1 memberCall recv=e@13:21 callee=notNull args=[] type=kotlin.properties.ReadWriteProperty<Any?, String> call=kotlin.properties.Delegates.notNull[kind=fun;recv=kotlin.properties.Delegates;params=;gen=1] targs=[String]
+expr e@16:12 string(set) type=String
+expr e@16:5 localAssign late value=e@16:12 type=Unit ref=golden.sema.late[kind=prop]
+expr e@17:14 name(observed) type=String ref=golden.sema.observed[kind=prop]
+expr e@17:24 name(accepted) type=Int ref=golden.sema.accepted[kind=prop]
+expr e@17:34 name(late) type=String ref=golden.sema.late[kind=prop]
+expr e@17:12 stringTemplate[expr(e@17:14),lit(/),expr(e@17:24),lit(/),expr(e@17:34)] type=String
+expr e@17:5 return value=e@17:12 type=Nothing

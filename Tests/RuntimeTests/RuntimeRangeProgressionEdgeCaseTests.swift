@@ -330,8 +330,8 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_range_count(progression) == 4)
         let list = kk_long_range_toList(progression)
         #expect(kk_list_size(list) == 4)
-        #expect(kk_list_get(list, 0) == 10)
-        #expect(kk_list_get(list, 3) == 1)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == 10)
+        #expect(kk_unbox_long(kk_list_get(list, 3)) == 1)
     }
 
     @Test func longProgression_stepZeroThrows() {
@@ -535,10 +535,10 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     @Test func uLongRange_downTo_iterationOrder() {
         // (5UL downTo 1UL) -> 5,4,3,2,1
         let range = __kk_ulong_downTo(5, 1)
-        let list = kk_ulong_range_toList(range)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: range)!)
         #expect(kk_list_size(list) == 5)
-        #expect(kk_list_get(list, 0) == 5)
-        #expect(kk_list_get(list, 4) == 1)
+        #expect(kk_unbox_ulong(kk_list_get(list, 0)) == 5)
+        #expect(kk_unbox_ulong(kk_list_get(list, 4)) == 1)
     }
 
     @Test func uLongRange_downTo_step3_lastAligned() {
@@ -547,14 +547,6 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_range_first(range) == 10)
         #expect(kk_range_last(range) == 1)
         #expect(kk_range_count(range) == 4)
-    }
-
-    @Test func uLongRange_reversed() {
-        let r = __kk_ulong_rangeTo(1, 5)
-        let rev = kk_ulong_range_reversed(r)
-        #expect(kk_range_first(rev) == 5)
-        #expect(kk_range_last(rev) == 1)
-        #expect(kk_range_count(rev) == 5)
     }
 
     @Test func uLongProgressionFromClosedRange_stepZeroThrows() {
@@ -574,10 +566,10 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         let bigStart = Int(bitPattern: UInt(4_294_967_295))   // UInt32.max
         let bigEnd = Int(bitPattern: UInt(4_294_967_298))
         let r = __kk_ulong_rangeTo(bigStart, bigEnd)
-        let list = kk_ulong_range_toList(r)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: r)!)
         #expect(kk_list_size(list) == 4)
-        #expect(kk_list_get(list, 0) == bigStart)
-        #expect(kk_list_get(list, 3) == bigEnd)
+        #expect(kk_unbox_ulong(kk_list_get(list, 0)) == bigStart)
+        #expect(kk_unbox_ulong(kk_list_get(list, 3)) == bigEnd)
     }
 
     @Test func uLongRange_untilHighValues() {
@@ -586,10 +578,10 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         let end = Int(bitPattern: UInt.max - 1)
         let range = __kk_op_ulong_rangeUntil(start, end)
         #expect(kk_range_count(range) == 2)
-        let list = kk_ulong_range_toList(range)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: range)!)
         #expect(kk_list_size(list) == 2)
-        #expect(kk_list_get(list, 0) == start)
-        #expect(kk_list_get(list, 1) == Int(bitPattern: UInt.max - 2))
+        #expect(kk_unbox_ulong(kk_list_get(list, 0)) == start)
+        #expect(kk_unbox_ulong(kk_list_get(list, 1)) == Int(bitPattern: UInt.max - 2))
     }
 
     // MARK: - ClosedRange contract (IntRange)

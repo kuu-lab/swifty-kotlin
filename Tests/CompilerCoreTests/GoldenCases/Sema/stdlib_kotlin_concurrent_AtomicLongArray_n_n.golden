@@ -1,0 +1,12 @@
+symbol fq=golden.sema.atomicLongArrayFromSize.$0.size[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayFromSize[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.concurrent.AtomicLongArray
+symbol fq=golden.sema.atomicLongArrayFromStorage.$1.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayFromStorage[kind=fun;params=kotlin.LongArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.LongArray] ret=kotlin.concurrent.AtomicLongArray
+file fstdlib_kotlin_concurrent_AtomicLongArray_n_n package=golden.sema annotations=[@file:OptIn(kotlin.ExperimentalStdlibApi::class),@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.atomicLongArrayFromSize[kind=fun;params=Int] fun atomicLongArrayFromSize sym=golden.sema.atomicLongArrayFromSize[kind=fun;params=Int]
+  decl golden.sema.atomicLongArrayFromStorage[kind=fun;params=kotlin.LongArray] fun atomicLongArrayFromStorage sym=golden.sema.atomicLongArrayFromStorage[kind=fun;params=kotlin.LongArray]
+expr e@8:75 name(size) type=Int ref=golden.sema.atomicLongArrayFromSize.$0.size[kind=vparam]
+expr e@8:59 call callee=e@8:59#1 args=[_:e@8:75] type=kotlin.concurrent.AtomicLongArray
+expr e@9:86 name(values) type=kotlin.LongArray ref=golden.sema.atomicLongArrayFromStorage.$1.values[kind=vparam]
+expr e@9:70 call callee=e@9:70#1 args=[_:e@9:86] type=kotlin.concurrent.AtomicLongArray
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=9:86 msg=Type constraint could not be satisfied.

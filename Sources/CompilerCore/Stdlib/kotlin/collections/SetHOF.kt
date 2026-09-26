@@ -1,5 +1,9 @@
 package kotlin.collections
 
+import kotlin.comparisons.naturalOrder
+import kotlin.comparisons.reverseOrder
+import kotlin.internal.mergeSortWith
+
 // KSP-704: the `Set<out E>` interface declaration moved to Set.kt.
 
 // Set HOF implementations migrated from Swift Runtime
@@ -45,7 +49,7 @@ fun <T, R> Set<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
 /**
  * Performs the given [action] on each element.
  */
-fun <T> Set<T>.forEach(action: (T) -> Unit) {
+inline fun <T> Set<T>.forEach(action: (T) -> Unit) {
     for (element in this) {
         action(element)
     }
@@ -382,14 +386,8 @@ public infix fun <T> Set<T>.subtract(other: Iterable<T>): Set<T> {
  * Returns a list of all elements sorted according to their natural sort order.
  */
 public fun <T : Comparable<T>> Set<T>.sorted(): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) {
-        var insertAt = result.size
-        while (insertAt > 0 && result[insertAt - 1].compareTo(element) > 0) {
-            insertAt -= 1
-        }
-        result.add(insertAt, element)
-    }
+    val result = this.toMutableList()
+    result.mergeSortWith(naturalOrder())
     return result
 }
 
@@ -397,14 +395,8 @@ public fun <T : Comparable<T>> Set<T>.sorted(): List<T> {
  * Returns a list of all elements sorted descending according to their natural sort order.
  */
 public fun <T : Comparable<T>> Set<T>.sortedDescending(): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) {
-        var insertAt = result.size
-        while (insertAt > 0 && result[insertAt - 1].compareTo(element) < 0) {
-            insertAt -= 1
-        }
-        result.add(insertAt, element)
-    }
+    val result = this.toMutableList()
+    result.mergeSortWith(reverseOrder())
     return result
 }
 

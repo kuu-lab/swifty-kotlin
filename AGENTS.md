@@ -62,6 +62,8 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases            # 全ケース
 
 CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
 
+CI の O2 差分レーン（`kotlinc Diff O2`）は PR ではバックエンド関連パス（`Sources/CompilerBackend`・`CompilerCore/{KIR,Lowering,Driver,Stdlib}`・`Runtime`・`RuntimeABI`・`KSwiftKCLI`・`Scripts/diff_cases`・diff スクリプト等）の変更時のみ走る。merge_group / workflow_dispatch では常時実行。全件の O2 スイープは `.github/workflows/nightly-o2-diff.yml` が毎晩実行する（失敗 artifact 名は `kotlinc-diff-o2-nightly-*`、PR 側は `kotlinc-diff-regression-*-O2-*`）。
+
 ### リファクタ PR のゲート
 
 RF 系リファクタ PR でも、ローカルの動作確認は上記の最小スコープで良い（全体は CI に任せる）。全体を回す必要があるとき（明示的な依頼 / CI 失敗の再現）のコマンドは以下。

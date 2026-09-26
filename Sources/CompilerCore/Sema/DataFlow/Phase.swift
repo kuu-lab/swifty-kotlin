@@ -3,6 +3,10 @@ import Foundation
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
+    func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
+        BuiltinTypeNames(interner: interner)
+    }
+
     init() {}
 
     func run(_ ctx: CompilationContext) throws {
@@ -52,6 +56,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
         predeclareBundledSetHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        predeclareBundledMapHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -231,6 +240,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        patchSourceBackedNativeUnhandledExceptionHookContract(
+            symbols: symbols,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
         // KSP-704: the Set/MutableSet nominal headers are only predeclared
         // before residual registration; their type parameters become available
         // when the complete bundled headers are collected. Register the
@@ -286,6 +300,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // KSP-1333: same covariant List contract for KTypeParameter.upperBounds.
+        patchKTypeParameterUpperBoundsType(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         initializeSourceBackedCloseableTypes(
             symbols: symbols,
             types: types,
@@ -318,6 +338,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // ARCH-021: body type checking and later KIR lowering must use the
+        // same exact compiler-owned SymbolIDs. Resolve after all headers and
+        // validation-created symbols are present, but before body analysis.
+        sema.wellKnownSymbols = WellKnownSymbols(
+            symbols: symbols,
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager
+        )
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
@@ -339,12 +367,12 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+    ) -> (ImportedInlineFunctionStore, LibraryImportDeferredWork) {
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
         return (importedInlineFunctions, deferredWork)
     }
@@ -572,6 +600,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
+        // KUU-655: after delegation forwarders exist (so a `by`-delegated
+        // interface method's forwarder inherits its defaults too), before
+        // vtable/itable layout (layout only keys off arity/suspend, not
+        // default flags, so ordering relative to it doesn't matter).
+        inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
         synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
         attachCompilerMetadataAnnotations(
             symbols: symbols,

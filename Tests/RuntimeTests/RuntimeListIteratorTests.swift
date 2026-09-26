@@ -3,6 +3,18 @@ import Foundation
 import Testing
 @testable import Runtime
 
+private let kuu477IteratorHasNext: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, outThrown in
+    outThrown?.pointee = 0
+    return 1
+}
+
+private let kuu477IteratorNext: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, outThrown in
+    outThrown?.pointee = 0
+    return 42
+}
+
 /// STDLIB-538: Comprehensive tests for ListIterator.hasPrevious() and previous() methods
 @Suite(.serialized)
 final class RuntimeListIteratorTests {
@@ -355,7 +367,9 @@ final class RuntimeListIteratorTests {
         let result4 = kk_list_iterator_hasPrevious(iterHandle)
         #expect(result4 == 1) // kk_box_bool(1) == 1
 
-        #expect(kk_list_iterator_next(iterHandle) == 0) // Should be at end, returns 0
+        var exhaustedThrown = 0
+        #expect(kk_list_iterator_next(iterHandle, &exhaustedThrown) == 0)
+        #expect(exhaustedThrown != 0)
         let result5 = kk_list_iterator_hasPrevious(iterHandle)
         #expect(result5 == 1) // Should still have previous at end
 
@@ -505,6 +519,37 @@ final class RuntimeListIteratorTests {
         #expect(indexedAdd(indexedIterHandle, 6, &thrown) == 0)
         #expect(thrown == 0)
         #expect(indexedList.elements == [4, 6, 5])
+    }
+
+    // KUU-477: generic Iterator dispatch must resolve the registered interface
+    // slot instead of assuming that Iterator occupies slot zero.
+    @Test
+    func testGenericIteratorDispatchResolvesNonZeroInterfaceSlot() {
+        let iteratorRaw = kk_object_new(1, 0)
+        let iteratorTypeID = Int(runtimeStableNominalTypeID(
+            fqName: "kotlin.collections.Iterator"
+        ))
+        let iteratorInterfaceSlot = 1
+
+        _ = kk_object_register_itable_iface(iteratorRaw, iteratorTypeID, iteratorInterfaceSlot)
+        _ = kk_object_register_itable_method(
+            iteratorRaw,
+            iteratorInterfaceSlot,
+            0,
+            unsafeBitCast(kuu477IteratorHasNext, to: Int.self)
+        )
+        _ = kk_object_register_itable_method(
+            iteratorRaw,
+            iteratorInterfaceSlot,
+            1,
+            unsafeBitCast(kuu477IteratorNext, to: Int.self)
+        )
+
+        var thrown = 0
+        #expect(kk_iterator_hasNext(iteratorRaw, &thrown) == 1)
+        #expect(thrown == 0)
+        #expect(kk_iterator_next(iteratorRaw, &thrown) == 42)
+        #expect(thrown == 0)
     }
 }
 #endif

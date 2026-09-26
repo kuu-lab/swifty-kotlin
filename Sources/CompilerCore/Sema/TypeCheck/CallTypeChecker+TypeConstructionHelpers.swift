@@ -450,6 +450,7 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
+        applyContractCallsInPlaceEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let sema = ctx.sema
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return
@@ -507,5 +508,44 @@ extension CallTypeChecker {
             locals: &locals,
             sema: sema
         )
+    }
+
+    /// STDLIB-592 definite assignment: when `chosen` declares
+    /// `contract { callsInPlace(param, EXACTLY_ONCE) }` (or `AT_LEAST_ONCE`) for one
+    /// of its lambda parameters, the argument lambda's body is guaranteed to run to
+    /// completion at least once as part of this call. Fold the outer-scope locals
+    /// that lambda body unconditionally initialized (recorded by
+    /// `inferLambdaLiteralExpr`) back into the call site's own definite-assignment
+    /// state -- the same way a plain sequential block would.
+    /// `AT_MOST_ONCE`/`UNKNOWN` do not guarantee the lambda runs at all, so they are
+    /// skipped.
+    private func applyContractCallsInPlaceEffects(
+        chosen: SymbolID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        let effects = sema.symbols.contractCallsInPlaceEffects(for: chosen)
+        guard !effects.isEmpty,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return
+        }
+        for effect in effects {
+            guard effect.kind == .exactlyOnce || effect.kind == .atLeastOnce,
+                  let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+                  args.indices.contains(parameterIndex)
+            else {
+                continue
+            }
+            let initializedSymbols = Set(
+                sema.bindings.contractCallsInPlaceInitializedSymbols(for: args[parameterIndex].expr)
+            )
+            guard !initializedSymbols.isEmpty else { continue }
+            for (name, local) in locals where !local.isInitialized && initializedSymbols.contains(local.symbol) {
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
+            }
+        }
     }
 }
