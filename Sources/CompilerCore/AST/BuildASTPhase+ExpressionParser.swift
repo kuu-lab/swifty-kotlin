@@ -14,6 +14,18 @@ extension BuildASTPhase {
             angle == 0 && paren == 0
         }
 
+        /// True when not nested inside an unclosed `(`/`[`/`{` group.
+        /// Deliberately excludes `angle`, matching `hasUnclosedStatementDelimiter`
+        /// (`BuildASTPhase+BodyParsing.swift`): an unmatched `<`/`>` from a
+        /// comparison operator (`x < 0`) is indistinguishable at this token-depth
+        /// level from a generic type-argument list, so it must not block a
+        /// statement-boundary decision — otherwise every later top-level `;` or
+        /// newline in the same body is wrongly treated as still "inside brackets"
+        /// and gets merged into the wrong statement.
+        var isBracketBraceParenTopLevel: Bool {
+            paren == 0 && bracket == 0 && brace == 0
+        }
+
         mutating func track(_ kind: TokenKind) {
             switch kind {
             case .symbol(.lessThan): angle += 1
@@ -222,6 +234,15 @@ extension BuildASTPhase {
                 let range = mergeRanges(token.range, astArena.exprRange(operand), fallback: token.range)
                 return astArena.appendExpr(.unaryExpr(op: .not, operand: operand, range: range))
             case .symbol(.minus):
+                if let next = peek(1),
+                   case let .intLiteral(text) = next.kind,
+                   isIntMinMagnitudeLiteral(text)
+                {
+                    _ = consume()
+                    _ = consume()
+                    let range = mergeRanges(token.range, next.range, fallback: token.range)
+                    return astArena.appendExpr(.intLiteral(Int64(Int32.min), range))
+                }
                 _ = consume()
                 guard let operand = parsePrefixUnary() else { return nil }
                 let range = mergeRanges(token.range, astArena.exprRange(operand), fallback: token.range)
@@ -239,6 +260,19 @@ extension BuildASTPhase {
             default:
                 return parsePostfixOrPrimary()
             }
+        }
+
+        private func isIntMinMagnitudeLiteral(_ text: String) -> Bool {
+            let normalized = text.replacingOccurrences(of: "_", with: "")
+            let lower = normalized.lowercased()
+            let magnitude: UInt64? = if lower.hasPrefix("0x") {
+                UInt64(normalized.dropFirst(2), radix: 16)
+            } else if lower.hasPrefix("0b") {
+                UInt64(normalized.dropFirst(2), radix: 2)
+            } else {
+                UInt64(normalized, radix: 10)
+            }
+            return magnitude == UInt64(Int32.max) + 1
         }
 
         func mergeRanges(_ lhs: SourceRange?, _ rhs: SourceRange?, fallback: SourceRange) -> SourceRange {

@@ -7,9 +7,9 @@
 
 package kotlin.collections
 
-import kotlin.comparisons.minOf as comparisonMinOf
-import kotlin.comparisons.compareValues
 import kotlin.comparisons.reverseOrder
+import kotlin.comparisons.naturalOrder
+import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
 import kotlin.random.Random
 
@@ -1356,78 +1356,28 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
 // KSP-993: Iterable sorting remains source-backed and materializes exactly
 // once before applying stable in-place sorting to the mutable result.
 public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
-    val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (compareValues(result[j + 1], result[j]) < 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
-    return result
+    return sortedWith(naturalOrder<T>())
 }
 
 public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
     val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
+    result.stableSortBySelector(selector, false)
     return result
 }
 
 public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
     val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
+    result.stableSortBySelector(selector, true)
     return result
 }
 
 public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
-    return sortedWith(reverseOrder())
+    return sortedWith(reverseOrder<T>())
 }
 
 public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
     val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (comparator.compare(result[j + 1], result[j]) < 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
+    result.stableSortWith(comparator)
     return result
 }
 

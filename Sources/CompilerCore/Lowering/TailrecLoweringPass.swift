@@ -5,6 +5,8 @@ let tailrecLoopLabelBase: Int32 = 9000
 
 final class TailrecLoweringPass: LoweringPass {
     static let name = "TailrecLowering"
+    static let requiredStage: KIRStage = .raw
+    static let producedStage: KIRStage = .tailrecLowered
 
     private struct TailrecFunctionIdentity {
         let symbol: SymbolID

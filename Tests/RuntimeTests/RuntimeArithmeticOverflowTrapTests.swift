@@ -30,16 +30,17 @@ struct RuntimeArithmeticOverflowTrapTests {
         let list = makeList([1, 2, 3, 4, 5])
 
         // size = Int.max -> single chunk containing all elements
-        let maxChunked = kk_list_bridge_chunked(list, Int.max)
+        var thrown = 0
+        let maxChunked = kk_list_bridge_chunked(list, Int.max, &thrown)
+        #expect(thrown == 0)
         let maxChunks = extractListOfLists(maxChunked)
         #expect(maxChunks.count == 1)
         #expect(maxChunks.first == [1, 2, 3, 4, 5])
 
-        // size = Int.min -> clamped to 1, 5 chunks of 1 element
-        let minChunked = kk_list_bridge_chunked(list, Int.min)
-        let minChunks = extractListOfLists(minChunked)
-        #expect(minChunks.count == 5)
-        #expect(minChunks == [[1], [2], [3], [4], [5]])
+        // size = Int.min -> IllegalArgumentException instead of a trap
+        thrown = 0
+        _ = kk_list_bridge_chunked(list, Int.min, &thrown)
+        #expect(thrown != 0)
     }
 
     @Test
@@ -58,28 +59,34 @@ struct RuntimeArithmeticOverflowTrapTests {
         #expect(maxChunks.count == 1)
         #expect(maxChunks.first == [10, 20, 30])
 
-        let resMin = kk_list_bridge_chunked_transform(list, Int.min, fnPtr, 0, &thrown)
-        #expect(thrown == 0)
-        let minChunks = extractListOfLists(resMin)
-        #expect(minChunks.count == 3)
+        thrown = 0
+        _ = kk_list_bridge_chunked_transform(list, Int.min, fnPtr, 0, &thrown)
+        #expect(thrown != 0)
     }
 
     @Test
     func testListWindowedWithExtremeSizeAndStepDoesNotTrap() {
         let list = makeList([1, 2, 3, 4, 5])
 
+        var thrown = 0
+
         // size = Int.max, step = Int.max, partialWindows = false -> empty
-        let emptyWin = kk_list_bridge_windowed(list, Int.max, Int.max, 0)
+        let emptyWin = kk_list_bridge_windowed(list, Int.max, Int.max, 0, &thrown)
+        #expect(thrown == 0)
         #expect(extractListOfLists(emptyWin).isEmpty)
 
         // size = Int.max, step = Int.max, partialWindows = true -> single window with all elements
-        let partialWin = kk_list_bridge_windowed(list, Int.max, Int.max, 1)
+        thrown = 0
+        let partialWin = kk_list_bridge_windowed(list, Int.max, Int.max, 1, &thrown)
+        #expect(thrown == 0)
         let partialWindows = extractListOfLists(partialWin)
         #expect(partialWindows.count == 1)
         #expect(partialWindows.first == [1, 2, 3, 4, 5])
 
         // size = 2, step = Int.max -> 1 window
-        let stepMaxWin = kk_list_bridge_windowed(list, 2, Int.max, 0)
+        thrown = 0
+        let stepMaxWin = kk_list_bridge_windowed(list, 2, Int.max, 0, &thrown)
+        #expect(thrown == 0)
         let stepMaxWindows = extractListOfLists(stepMaxWin)
         #expect(stepMaxWindows.count == 1)
         #expect(stepMaxWindows.first == [1, 2])

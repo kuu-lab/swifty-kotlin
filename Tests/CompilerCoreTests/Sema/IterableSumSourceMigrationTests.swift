@@ -220,6 +220,48 @@ struct IterableSumSourceMigrationTests {
         #expect(receiverClass.classSymbol == listSymbol)
     }
 
+    @Test
+    func concreteSetSumOfBindsToExactIterableSource() throws {
+        let source = """
+        fun main() {
+            println(setOf(3, 1, 2).sumOf { it })
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let sumOfCallID = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id),
+                  ctx.interner.resolve(callee) == "sumOf",
+                  let range = ast.arena.exprRange(id),
+                  range.start.file == userFileID
+            else {
+                return nil
+            }
+            return id
+        }.first)
+        let binding = try #require(sema.bindings.callBinding(for: sumOfCallID))
+        let chosen = try #require(sema.symbols.symbol(binding.chosenCallee))
+        let fileID = try #require(sema.symbols.sourceFileID(for: binding.chosenCallee))
+        #expect(ctx.sourceManager.path(of: fileID) == sourcePath)
+        #expect(ctx.interner.resolve(chosen.name) == "sumOf")
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+        let receiver = try #require(sema.symbols.functionSignature(for: binding.chosenCallee)?.receiverType)
+        let iterableFQName = ["kotlin", "collections", "Iterable"].map(ctx.interner.intern)
+        let iterableSymbol = try #require(sema.symbols.lookup(fqName: iterableFQName))
+        guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+            Issue.record("Expected Iterable receiver type for concrete Set.sumOf binding.")
+            return
+        }
+        #expect(receiverClass.classSymbol == iterableSymbol)
+    }
+
     /// KSP-994 regression: `Deferred<T>.await()` can't recover `T` statically
     /// (Deferred has no class-level type parameter), so piping a
     /// `List<Deferred<Int>>` through `.map { it.await() }` erases the mapped

@@ -257,9 +257,6 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
@@ -294,9 +291,6 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     let ignoreCase = ignoreCaseRaw != 0
     let limit = limitRaw
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
@@ -436,19 +430,16 @@ public func __kk_string_codePointCount_range(
     )
 }
 
+// KUU-634: CharArray elements are UTF-16 code units, so decode them through
+// the UTF-16 helper — surrogate pairs recombine and isolated surrogates
+// survive via the marker representation (the old scalar loop dropped them).
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {
         return runtimeMakeStringRaw("")
     }
-    var scalars = String.UnicodeScalarView()
-    for i in 0..<box.elements.count {
-        let charValue = kk_unbox_char(box.elements[i])
-        if let scalar = UnicodeScalar(charValue) {
-            scalars.append(scalar)
-        }
-    }
-    return runtimeMakeStringRaw(String(scalars))
+    let units = box.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(units))
 }
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source

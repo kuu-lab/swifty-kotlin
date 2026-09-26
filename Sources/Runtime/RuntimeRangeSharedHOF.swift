@@ -10,7 +10,6 @@ protocol RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (_ value: Int, _ index: Int) -> Bool) -> Bool
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool
     static func doubleValue(_ value: Int) -> Double
-    static func sortValues(_ values: inout [Int])
     static func firstMatch(
         _ range: RuntimeRangeBox,
         _ fnPtr: Int,
@@ -40,10 +39,6 @@ enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func doubleValue(_ value: Int) -> Double {
         Double(value)
-    }
-
-    static func sortValues(_ values: inout [Int]) {
-        values.sort()
     }
 
     static func firstMatch(
@@ -89,10 +84,6 @@ enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func doubleValue(_ value: Int) -> Double {
         Double(UInt(bitPattern: value))
-    }
-
-    static func sortValues(_ values: inout [Int]) {
-        values.sort { UInt(bitPattern: $0) < UInt(bitPattern: $1) }
     }
 
     static func firstMatch(
@@ -448,14 +439,14 @@ private func runtimeRangeWindowed<Kind: RuntimeRangeHOFKind>(
     var windows: [Int] = []
     var start = 0
     while start < values.count {
-        let end = (values.count - start <= size) ? values.count : (start + size)
+        let end = start + Swift.min(size, values.count - start)
         let window = Array(values[start..<end])
         if window.count == size || (partialWindows != 0 && !window.isEmpty) {
             windows.append(runtimeRangeList(window))
         }
-        let (next, overflow) = start.addingReportingOverflow(step)
+        let (nextStart, overflow) = start.addingReportingOverflow(step)
         if overflow { break }
-        start = next
+        start = nextStart
     }
     return runtimeRangeList(windows)
 }
@@ -501,7 +492,11 @@ private func runtimeRangeAverage<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ rang
 
 private func runtimeRangeSorted<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
     var elements = runtimeRangeValues(Kind.self, range)
-    Kind.sortValues(&elements)
+    // Traversal yields the progression monotonically: ascending for a
+    // positive step, descending for a negative step.
+    if range.step < 0 {
+        elements.reverse()
+    }
     return runtimeRangeList(elements)
 }
 
@@ -619,6 +614,19 @@ extension RuntimeRangeHOFKind {
         isEmpty(range) ? runtimeNullSentinelInt : range.last
     }
 
+    /// `Progression.first()` / `last()`: throw on empty, unlike the `first`/`last` properties.
+    static func firstOrLastOrThrow(
+        _ range: RuntimeRangeBox,
+        wantLast: Bool,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        guard !isEmpty(range) else {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Progression is empty.")
+            return 0
+        }
+        return wantLast ? range.last : range.first
+    }
+
     static func any(
         _ range: RuntimeRangeBox,
         _ fnPtr: Int,
@@ -685,6 +693,20 @@ func runtimeRangeEntry<Kind: RuntimeRangeHOFKind>(
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in \(functionName)")
     }
     return body(range)
+}
+
+@inline(__always)
+func runtimeRangeFirstOrLastOrThrow<Kind: RuntimeRangeHOFKind>(
+    _: Kind.Type,
+    _ rangeRaw: Int,
+    wantLast: Bool,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    return runtimeRangeEntry(Kind.self, rangeRaw, functionName: functionName) { range in
+        Kind.firstOrLastOrThrow(range, wantLast: wantLast, outThrown)
+    }
 }
 
 @inline(__always)

@@ -13,7 +13,7 @@ public extension RuntimeABISpec {
             section: "Char"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_rangeTo",
+            name: "__kk_char_rangeTo",
             parameters: [
                 RuntimeABIParameter(name: "startValue", type: .intptr),
                 RuntimeABIParameter(name: "endValue", type: .intptr),

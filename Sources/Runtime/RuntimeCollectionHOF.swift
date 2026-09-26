@@ -316,15 +316,21 @@ public func kk_list_bridge_zip_transform(
 }
 
 @_cdecl("__kk_list_chunked")
-public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int) -> Int {
+public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return runtimeExceptionCaughtSentinel
+    }
     var chunks: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
+        let end = i + min(size, elements.count - i)
         let chunk = Array(elements[i ..< end])
         chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
         i = end
@@ -337,13 +343,19 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let estimatedChunks = elements.isEmpty ? 0 : (elements.count / clampedSize + (elements.count % clampedSize == 0 ? 0 : 1))
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return runtimeExceptionCaughtSentinel
+    }
+    let estimatedChunks = elements.count / size + (elements.count % size == 0 ? 0 : 1)
     var result: [Int] = []
     result.reserveCapacity(estimatedChunks)
     var i = 0
     while i < elements.count {
-        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
+        let end = i + min(size, elements.count - i)
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0
@@ -355,24 +367,52 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
+private func validateListWindowedArguments(
+    size: Int,
+    step: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Bool {
+    outThrown?.pointee = 0
+    if size <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size must be positive, but was \(size)"
+        )
+        return false
+    }
+    if step <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "step must be positive, but was \(step)"
+        )
+        return false
+    }
+    return true
+}
+
 @_cdecl("__kk_list_windowed")
-public func kk_list_bridge_windowed(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+public func kk_list_bridge_windowed(
+    _ listRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
     let partial = partialWindows != 0
     var windows: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
-        if !partial && end - i < clampedSize { break }
+        let end = i + min(size, elements.count - i)
+        if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        let (next, overflow) = i.addingReportingOverflow(clampedStep)
+        let (nextStart, overflow) = i.addingReportingOverflow(step)
         if overflow { break }
-        i = next
+        i = nextStart
     }
     return registerRuntimeObject(RuntimeListBox(elements: windows))
 }
@@ -387,17 +427,18 @@ public func kk_list_bridge_windowed_transform(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
     let partial = partialWindows != 0
     var result: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = (elements.count - i <= clampedSize) ? elements.count : (i + clampedSize)
-        if !partial && end - i < clampedSize { break }
+        let end = i + min(size, elements.count - i)
+        if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
         var thrown = 0
@@ -409,9 +450,9 @@ public func kk_list_bridge_windowed_transform(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
-        let (next, overflow) = i.addingReportingOverflow(clampedStep)
+        let (nextStart, overflow) = i.addingReportingOverflow(step)
         if overflow { break }
-        i = next
+        i = nextStart
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
@@ -470,12 +511,16 @@ public func kk_indexing_iterable_hasNext(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("kk_indexing_iterable_next")
-public func kk_indexing_iterable_next(_ iterRaw: Int) -> Int {
+public func kk_indexing_iterable_next(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: iterRaw),
           let iter = tryCast(ptr, to: RuntimeIndexingIteratorBox.self),
           iter.index < iter.values.count
     else {
-        return 0
+        return runtimeThrowIteratorExhausted(outThrown)
     }
     let idx = iter.index
     let elem = iter.values[idx]

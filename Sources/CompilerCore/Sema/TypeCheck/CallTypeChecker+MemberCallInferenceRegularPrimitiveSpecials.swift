@@ -106,9 +106,8 @@ extension CallTypeChecker {
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     // UByte/UShort arithmetic promotes to UInt in Kotlin stdlib
                     uintType
-                } else if receiverForCheck == intType || rhsType == intType || receiverForCheck == charType
-                           || receiverForCheck == byteType || rhsType == byteType
-                           || receiverForCheck == shortType || rhsType == shortType
+                } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
+                    && (rhsType == intType || rhsType == byteType || rhsType == shortType)
                 {
                     intType
                 } else {
@@ -137,7 +136,8 @@ extension CallTypeChecker {
                     ulongType
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     uintType
-                } else if receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType {
+                } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
+                    && (rhsType == intType || rhsType == byteType || rhsType == shortType) {
                     intType
                 } else {
                     nil
@@ -159,7 +159,9 @@ extension CallTypeChecker {
                     ulongType
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     uintType
-                } else if receiverForCheck == intType {
+                } else if receiverForCheck == intType,
+                    rhsType == intType || rhsType == byteType || rhsType == shortType
+                {
                     intType
                 } else {
                     nil

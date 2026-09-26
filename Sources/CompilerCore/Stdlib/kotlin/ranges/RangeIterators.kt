@@ -6,10 +6,12 @@ package kotlin.ranges
 // ULongProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (kk_range_iterator, kk_range_hasNext, kk_range_next)
-//   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator,
+//   Sources/Runtime/RuntimeRangeLongRange.swift (__kk_long_range_iterator,
 //   __kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 //   Sources/Runtime/RuntimeRangeUIntULongRange.swift
 //   (__kk_uint_range_iterator, __kk_uint_range_hasNext, __kk_uint_range_next)
+//   Sources/Runtime/RuntimeRangeLongRange.swift
+//   (__kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 // See RangeMembership.kt for the contains()/isEmpty() half of this migration.
 //
 // KSP-452 removed the `for (x in range)` lowering special case, so plain range
@@ -35,6 +37,7 @@ internal class IntProgressionIterator(first: Int, last: Int, private val step: I
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): Int {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
         hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -51,6 +54,7 @@ internal class LongProgressionIterator(first: Long, last: Long, private val step
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): Long {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
         hasNextValue = if (step > 0L) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -67,6 +71,7 @@ internal class CharProgressionIterator(first: Char, last: Char, private val step
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): Char {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
         hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -77,8 +82,9 @@ internal class CharProgressionIterator(first: Char, last: Char, private val step
 
 public operator fun IntRange.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
 public operator fun IntProgression.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
-public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step)
-// LongProgression.step is modelled as Int (LongRange.step is Long); widen it here.
+public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step.toLong())
+// The Kotlin LongRange contract uses Long for step while this compiler's
+// residual LongProgression.step property is modelled as Int, so widen it here.
 public operator fun LongProgression.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step.toLong())
 public operator fun CharRange.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
 public operator fun CharProgression.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
@@ -91,6 +97,7 @@ internal class UIntProgressionIterator(first: UInt, last: UInt, private val step
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): UInt {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step.toUInt()
         hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
@@ -102,14 +109,15 @@ internal class UIntProgressionIterator(first: UInt, last: UInt, private val step
 internal class ULongProgressionIterator(first: ULong, last: ULong, private val step: Int) : Iterator<ULong> {
     private val finalElement: ULong = last
     private var nextValue: ULong = first
-    private var hasNextValue: Boolean = if (step > 0L) first <= last else if (step < 0L) first >= last else false
+    private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
 
     override fun hasNext(): Boolean = hasNextValue
 
     override fun next(): ULong {
+        if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step.toULong()
-        hasNextValue = if (step > 0L) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
         nextValue = candidate
         return value
     }

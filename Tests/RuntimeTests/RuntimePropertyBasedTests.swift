@@ -15,8 +15,9 @@ struct RuntimePropertyBasedTests {
     // sequence to drive this file's own property-based test infrastructure —
     // it has nothing to do with testing kotlin.random.Random itself (which is
     // now real Kotlin source, not backed by SeededRandomBox). Using
-    // SeededRandomBox directly (still `@testable`-visible; it survives as
-    // SecureRandom's internal PRNG) instead of the deleted
+    // SeededRandomBox directly (still `@testable`-visible as the deterministic
+    // PRNG behind seeded Random paths; SecureRandom deliberately no longer
+    // uses it — KUU-790) instead of the deleted
     // kk_random_create_seeded/kk_random_nextLong bridge keeps the exact same
     // sequence this file always generated.
     private func seededSamples(seed: Int, count: Int) -> [Int] {

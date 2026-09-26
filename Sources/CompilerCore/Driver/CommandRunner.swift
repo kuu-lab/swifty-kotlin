@@ -122,58 +122,13 @@ package enum CommandRunner {
             // relative entry can be influenced by the process's CWD; neither
             // is trustworthy, so require an absolute path.
             guard directoryPath.hasPrefix("/") else { continue }
-            guard isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
+            guard TrustedFileSystem.isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
             let candidate = directoryPath + "/" + name
             if fileManager.isExecutableFile(atPath: candidate) {
                 return candidate
             }
         }
         return fallback
-    }
-
-    /// A directory is trusted for executable resolution only when it exists, is
-    /// a directory, is not writable by group or others, and is owned by `root`
-    /// or the current user. This rejects directories another local user could
-    /// use to plant a malicious binary.
-    private static func isTrustedDirectory(_ path: String, fileManager: FileManager) -> Bool {
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return false
-        }
-        if isSymbolicLink(path, fileManager: fileManager) {
-            let parentPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
-            guard parentPath != path, isTrustedDirectory(parentPath, fileManager: fileManager) else {
-                return false
-            }
-        }
-        // Resolve symlinks so we inspect the target directory's attributes
-        // rather than the link's (symlinks always report 0o777 permissions,
-        // e.g. /bin -> /usr/bin on modern Debian/Ubuntu).
-        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        guard let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath) else {
-            return false
-        }
-        guard let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value else {
-            return false
-        }
-        let groupWrite: UInt16 = 0o020
-        let otherWrite: UInt16 = 0o002
-        if permissions & (groupWrite | otherWrite) != 0 {
-            return false
-        }
-        // Fail closed: if ownership can't be determined, treat the directory as
-        // untrusted rather than assuming it is safe.
-        guard let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value else {
-            return false
-        }
-        if owner != 0 && owner != getuid() {
-            return false
-        }
-        return true
-    }
-
-    private static func isSymbolicLink(_ path: String, fileManager: FileManager) -> Bool {
-        (try? fileManager.destinationOfSymbolicLink(atPath: path)) != nil
     }
 
     /// Runs a command and records its wall-clock time as a sub-phase in the

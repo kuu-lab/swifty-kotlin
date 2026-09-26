@@ -71,13 +71,6 @@ struct RuntimeRangeHOFTests {
     }
 
     @Test
-    func testULongRangeNoArgOrIndexedHOFs() {
-        let range = __kk_ulong_rangeTo(1, 4)
-        #expect(kk_ulong_range_firstOrNull(range) == 1)
-        #expect(kk_ulong_range_lastOrNull(range) == 4)
-    }
-
-    @Test
     func testUIntRangeTakeAndDropNegativeCountThrows() {
         let range = __kk_uint_rangeTo(1, 5)
         var takeThrown: Int = 0
@@ -511,6 +504,13 @@ struct RuntimeRangeHOFTests {
     @Test
     func testLongRangeSortedProducesAscendingList() {
         let range = __kk_op_downTo(4, 1)
+        let sorted = kk_long_range_sorted(range)
+        #expect(listElements(sorted) == [1, 2, 3, 4])
+    }
+
+    @Test
+    func testLongRangeSortedOnAscendingRangeKeepsOrder() {
+        let range = kk_long_rangeTo(1, 4)
         let sorted = kk_long_range_sorted(range)
         #expect(listElements(sorted) == [1, 2, 3, 4])
     }

@@ -100,6 +100,10 @@ struct GoldenHarnessMetadataContractTests {
         // cross-module under `.kklib` artifact loading (PR: golden-stdlib-artifact) —
         // an intentional parity fix versus bundled-source injection, not a regression.
         "stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt",
+        // Same artifact-mode parity as AtomicIntArray: AtomicLongArray's
+        // internal (LongArray) factory is invisible cross-module under `.kklib`
+        // loading, so the storage call falls to the synthetic Int factory (KSP-1093).
+        "stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt",
         "stdlib_kotlin_collections_Map_iterator.kt",
         "stdlib_kotlin_collections_Map_min.kt",
         "stdlib_kotlin_collections_n_build.kt",

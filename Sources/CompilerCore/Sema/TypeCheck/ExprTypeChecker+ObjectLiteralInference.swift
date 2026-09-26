@@ -71,6 +71,51 @@ extension ExprTypeChecker {
         let outerLocalsSnapshot = locals
         let outerSymbols = Set(outerLocalsSnapshot.values.map(\.symbol))
 
+        // KSP-CAP-001: an object-literal member function can also resolve a
+        // bare name through the enclosing class receiver. Include stored
+        // properties owned by that receiver (and its class supertypes) in the
+        // capture set so the member function does not later read the same
+        // field offset from the object literal's own receiver.
+        var outerReceiverOwners: Set<SymbolID> = []
+        var pendingOuterReceiverOwners: [SymbolID] = []
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            pendingOuterReceiverOwners.append(enclosingClassSymbol)
+        } else if let implicitReceiverType = ctx.implicitReceiverType,
+                  let receiverSymbol = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(implicitReceiverType),
+                      types: sema.types
+                  )
+        {
+            pendingOuterReceiverOwners.append(receiverSymbol)
+        }
+        while let ownerSymbol = pendingOuterReceiverOwners.popLast() {
+            guard outerReceiverOwners.insert(ownerSymbol).inserted else {
+                continue
+            }
+            pendingOuterReceiverOwners.append(contentsOf: sema.symbols.directSupertypes(for: ownerSymbol))
+        }
+        let outerReceiverPropertySymbols = Set(
+            sema.symbols.allSymbols().compactMap { symbol -> SymbolID? in
+                guard symbol.kind == .property,
+                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
+                      outerReceiverOwners.contains(ownerSymbol),
+                      sema.symbols.symbol(ownerSymbol)?.kind == .class,
+                      !symbol.flags.contains(.mutable)
+                else {
+                    return nil
+                }
+                return symbol.id
+            }
+        )
+        // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
+        // reachable here: the enclosing object literal captured them, so a
+        // nested literal can capture them again through the same chain even
+        // though the enclosing member's `this` binding shadows them in
+        // `outerLocalsSnapshot`.
+        let captureOuterSymbols = outerSymbols
+            .union(outerReceiverPropertySymbols)
+            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+
         let objectSymbol = sema.symbols.define(
             kind: .class,
             name: objectDecl.name,
@@ -204,6 +249,25 @@ extension ExprTypeChecker {
                 sema.symbols.setSourceFileID(ctx.currentFileID, for: backingFieldSymbol)
                 sema.symbols.setBackingFieldSymbol(backingFieldSymbol, for: propertySymbol)
             }
+
+            // BUG-267: mirror `MemberHeaderCollection`'s delegate-storage
+            // rule — a `by`-delegated property stores the delegate instance
+            // in its own `$delegate_<name>` field; the property symbol itself
+            // gets no storage slot.
+            if propertyDecl.delegateExpression != nil {
+                let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                let delegateStorageSymbol = sema.symbols.define(
+                    kind: .field,
+                    name: delegateStorageName,
+                    fqName: [objectDecl.name, delegateStorageName],
+                    declSite: propertyDecl.range,
+                    visibility: .private,
+                    flags: []
+                )
+                sema.symbols.setParentSymbol(objectSymbol, for: delegateStorageSymbol)
+                sema.symbols.setSourceFileID(ctx.currentFileID, for: delegateStorageSymbol)
+                sema.symbols.setDelegateStorageSymbol(delegateStorageSymbol, for: propertySymbol)
+            }
             propertySymbolsByDecl[propertyDeclID] = propertySymbol
         }
 
@@ -229,10 +293,30 @@ extension ExprTypeChecker {
             objectScope: objectScope,
             ctx: ctx
         )
+        // An unqualified member call (or `this@Outer`) inside the object
+        // literal's member bodies can target the enclosing receiver — the
+        // innermost `outerReceiverTypes` entry. Its runtime value is the
+        // enclosing function's `this`, which the capture machinery stores
+        // into the object literal's fields like any other outer local.
+        // Attaching that symbol to the entry is what lets call resolution
+        // and capture analysis find it; entries without a symbol stay
+        // type-only (`this@Label` typing) as before.
+        var objectOuterReceiverTypes = ctx.outerReceiverTypes
+        if let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")] {
+            // The stack may name the same receiver under several labels (the
+            // class itself and each enclosing member function), so fill every
+            // entry whose type is the enclosing `this` type.
+            for index in objectOuterReceiverTypes.indices
+                where objectOuterReceiverTypes[index].type == thisBinding.type
+            {
+                objectOuterReceiverTypes[index].symbol = thisBinding.symbol
+            }
+        }
         let objectCtx = ctx.copying(
             scope: objectScope,
             implicitReceiverType: objectType,
-            enclosingClassSymbol: objectSymbol
+            enclosingClassSymbol: objectSymbol,
+            outerReceiverTypes: objectOuterReceiverTypes
         )
 
         for propertyDeclID in objectDecl.memberProperties {
@@ -299,6 +383,27 @@ extension ExprTypeChecker {
                 )
             }
 
+            // BUG-267: type-check `by` delegate expressions through the same
+            // convention path named classes use (`DeclTypeChecker.typeCheck
+            // PropertyDecl`). This binds the delegate expression's identifiers,
+            // resolves and records the delegate's getValue/setValue (and
+            // provideDelegate) operator symbols for KIR lowering, and can
+            // infer the property type from getValue's return type.
+            if let delegateExpr = propertyDecl.delegateExpression {
+                inferredType = driver.declChecker.typeCheckDelegate(
+                    delegateExpr,
+                    isVar: propertyDecl.isVar,
+                    fallbackRange: propertyDecl.range,
+                    symbol: propertySymbol,
+                    inferredPropertyType: declaredType ?? inferredType,
+                    ctx: objectCtx,
+                    locals: &locals,
+                    diagnostics: ctx.semaCtx.diagnostics,
+                    delegateBody: propertyDecl.delegateBody,
+                    delegateBodyParams: propertyDecl.delegateBodyParams
+                )
+            }
+
             let finalType: TypeID
             if let declaredType {
                 finalType = declaredType
@@ -355,7 +460,8 @@ extension ExprTypeChecker {
                 inBody: functionDecl.body,
                 ast: ast,
                 sema: sema,
-                outerSymbols: outerSymbols
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
             ))
         }
 
@@ -364,14 +470,16 @@ extension ExprTypeChecker {
         // references needs a capture field too. Property *initializers* are
         // excluded on purpose: those are lowered inline in the enclosing
         // function (see `lowerStoredObjectLiteralExpr`), where the local is
-        // still directly in scope.
+        // still directly in scope. BUG-267: a delegate body (`lazy { ... }`)
+        // is also lowered as a standalone KIR function via
+        // `lowerDelegateLambdaBody`, so it needs the same capture treatment.
         for propertyDeclID in objectDecl.memberProperties {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else {
                 continue
             }
-            for accessorBody in [propertyDecl.getter?.body, propertyDecl.setter?.body] {
+            for accessorBody in [propertyDecl.getter?.body, propertyDecl.setter?.body, propertyDecl.delegateBody] {
                 guard let accessorBody, accessorBody != .unit else {
                     continue
                 }
@@ -379,7 +487,8 @@ extension ExprTypeChecker {
                     inBody: accessorBody,
                     ast: ast,
                     sema: sema,
-                    outerSymbols: outerSymbols
+                    outerSymbols: captureOuterSymbols,
+                    skipNestedClosures: false
                 ))
             }
         }
@@ -388,8 +497,15 @@ extension ExprTypeChecker {
             for binding in outerLocalsSnapshot.values {
                 typesBySymbol[binding.symbol] = binding.type
             }
+            for outerReceiver in ctx.outerReceiverTypes {
+                if let symbol = outerReceiver.symbol {
+                    typesBySymbol[symbol] = outerReceiver.type
+                }
+            }
             for capturedSymbol in capturedSymbols {
-                if let type = typesBySymbol[capturedSymbol] {
+                if let type = typesBySymbol[capturedSymbol]
+                    ?? sema.symbols.propertyType(for: capturedSymbol)
+                {
                     sema.bindings.bindCapturedLocalType(capturedSymbol, type: type)
                 }
             }
@@ -416,8 +532,13 @@ extension ExprTypeChecker {
             // KSP-CAP-018: key the slot by the backing field when the property
             // has one, mirroring `LayoutSynthesis.synthesizeLayoutForNominal`
             // and every `backingFieldSymbol(for:) ?? propertySymbol` lookup on
-            // the lowering side.
-            let storageSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            // the lowering side. BUG-267: a delegated property's slot is keyed
+            // by its `$delegate_<name>` storage symbol instead — the property
+            // symbol itself holds no storage (same as `LayoutSynthesis` does
+            // for named-class delegated members).
+            let storageSymbol = sema.symbols.delegateStorageSymbol(for: propertySymbol)
+                ?? sema.symbols.backingFieldSymbol(for: propertySymbol)
+                ?? propertySymbol
             guard fieldOffsets[storageSymbol] == nil else {
                 continue
             }

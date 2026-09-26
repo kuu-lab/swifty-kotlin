@@ -511,11 +511,42 @@ public struct ImportDecl: Sendable, Codable {
     public let range: SourceRange
     public let path: [InternedString]
     public let alias: InternedString?
+    public let isWildcard: Bool
 
-    public init(range: SourceRange, path: [InternedString], alias: InternedString? = nil) {
+    private enum CodingKeys: String, CodingKey {
+        case range
+        case path
+        case alias
+        case isWildcard
+    }
+
+    public init(
+        range: SourceRange,
+        path: [InternedString],
+        alias: InternedString? = nil,
+        isWildcard: Bool = false
+    ) {
         self.range = range
         self.path = path
         self.alias = alias
+        self.isWildcard = isWildcard
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        path = try container.decode([InternedString].self, forKey: .path)
+        alias = try container.decodeIfPresent(InternedString.self, forKey: .alias)
+        // Older frontend caches did not record whether an import was wildcard.
+        isWildcard = try container.decodeIfPresent(Bool.self, forKey: .isWildcard) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(range, forKey: .range)
+        try container.encode(path, forKey: .path)
+        try container.encodeIfPresent(alias, forKey: .alias)
+        try container.encode(isWildcard, forKey: .isWildcard)
     }
 }
 

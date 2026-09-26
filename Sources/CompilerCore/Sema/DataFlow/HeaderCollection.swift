@@ -396,6 +396,70 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-703: make the source-backed map nominals available before the
+    /// collection residual registry runs. The normal header pass later fills
+    /// these symbols with their complete Kotlin declarations.
+    func predeclareBundledMapHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let kotlinCollectionsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let bundledMapFileNominals = [
+            "Map.kt": "Map",
+            "MutableMap.kt": "MutableMap",
+        ]
+
+        for file in ast.sortedFiles where
+            sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+        {
+            let basename = sourceManager.path(of: file.fileID)
+                .split(separator: "/")
+                .last
+                .map(String.init) ?? ""
+            guard let nominalName = bundledMapFileNominals[basename],
+                  file.packageFQName == kotlinCollectionsPackage
+            else {
+                continue
+            }
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            let nominalSymbolName = interner.intern(nominalName)
+            guard file.topLevelDecls.contains(where: { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return classDecl.name == nominalSymbolName
+                case let .interfaceDecl(interfaceDecl):
+                    return interfaceDecl.name == nominalSymbolName
+                default:
+                    return false
+                }
+            }), symbols.lookup(fqName: kotlinCollectionsPackage + [nominalSymbolName]) == nil
+            else {
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1520: make the source-backed Comparator nominal available to early
     /// synthetic registrations without creating a duplicate declaration.
     func predeclareBundledComparatorHeaders(
@@ -1763,6 +1827,7 @@ extension DataFlowSemaPhase {
                     if !alreadyExists {
                         var aliasFlags = semanticSymbol.flags
                         aliasFlags.insert(.synthetic)
+                        aliasFlags.insert(.extensionMemberAlias)
                         let aliasSymbol = symbols.define(
                             kind: .function,
                             name: semanticSymbol.name,
@@ -1919,7 +1984,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                interner: interner
             )
 
         case let .typeAliasDecl(typeAliasDecl):
@@ -2007,6 +2073,9 @@ extension DataFlowSemaPhase {
             // KSP-1305: mirror the IntProgression staged source-shell treatment
             // for LongProgression's nominal and Companion.
             || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
+            // KSP-1313: mirror the staged progression source-shell treatment
+            // for UIntProgression's nominal and Companion.
+            || resolvedFQName == ["kotlin", "ranges", "UIntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are

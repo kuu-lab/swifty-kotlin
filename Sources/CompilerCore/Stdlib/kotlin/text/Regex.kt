@@ -35,7 +35,12 @@ public class Regex {
     @KsSymbolName("__kk_regex_find_flat")
     public external fun find(input: String): MatchResult?
 
-    public fun find(input: CharSequence, startIndex: Int = 0): MatchResult? {
+    // Keep the CharSequence API as explicit arity overloads. The String bridge
+    // above and a defaulted source-backed parameter can otherwise be exposed as
+    // one unstable candidate shape when the call is imported from a .kklib.
+    public fun find(input: CharSequence): MatchResult? = find(input, 0)
+
+    public fun find(input: CharSequence, startIndex: Int): MatchResult? {
         val source = input.regexInputString()
         require(startIndex >= 0 && startIndex <= source.length) {
             "Start index out of bounds: $startIndex"
@@ -46,7 +51,9 @@ public class Regex {
     @KsSymbolName("__kk_regex_findAll_flat")
     public external fun findAll(input: String): List<MatchResult>
 
-    public fun findAll(input: CharSequence, startIndex: Int = 0): Sequence<MatchResult> {
+    public fun findAll(input: CharSequence): Sequence<MatchResult> = findAll(input, 0)
+
+    public fun findAll(input: CharSequence, startIndex: Int): Sequence<MatchResult> {
         val source = input.regexInputString()
         require(startIndex >= 0 && startIndex <= source.length) {
             "Start index out of bounds: $startIndex"
@@ -119,28 +126,28 @@ public class Regex {
         return result.toString()
     }
 
+    // Constructor parameter `pattern` is not a property; naming this
+    // `= pattern` would bind to that parameter slot (uninitialized / null)
+    // instead of the `Regex.pattern` extension.
+    public override fun toString(): String = __kkRegexPattern(this)
+
     public fun split(input: String, limit: Int = 0): List<String> {
-        require(limit >= 0) { "Limit must be non-negative, but was $limit" }
+        requireNonNegativeLimit(limit)
         if (limit == 0) {
             return __kk_split_regex(input, this)
         }
         val result = ArrayList<String>()
-        var lastEnd = 0
+        var lastStart = 0
         var count = 0
-        val matches = findAll(input)
-        for (match in matches) {
+        for (match in findAll(input)) {
             if (count >= limit - 1) {
                 break
             }
-            val start = match.range.first
-            if (start < lastEnd) {
-                continue
-            }
-            result.add(input.substring(lastEnd, start))
-            lastEnd = match.range.last + 1
+            result.add(input.substring(lastStart, match.range.first))
+            lastStart = match.range.last + 1
             count++
         }
-        result.add(input.substring(lastEnd, input.length))
+        result.add(input.substring(lastStart, input.length))
         return result
     }
 
@@ -149,9 +156,10 @@ public class Regex {
 
     public fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> =
         split(input.regexInputString(), limit).asSequence()
-
-    override fun toString(): String = __kkRegexPattern(this)
 }
+
+internal fun requireNonNegativeLimit(limit: Int) =
+    require(limit >= 0) { "Limit must be non-negative, but was $limit" }
 
 @KsSymbolName("__kk_string_replace_regex")
 private external fun __kk_replace_regex(input: String, regex: Regex, replacement: String): String

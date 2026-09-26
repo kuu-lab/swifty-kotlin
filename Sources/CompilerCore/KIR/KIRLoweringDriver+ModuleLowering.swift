@@ -72,23 +72,31 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
 
-        emitSyntheticTopLevelExternalPropertyInitializers(
-            arena: arena,
-            sema: sema,
-            interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
-        )
-
+        // Object and companion handles must exist before any top-level
+        // initializer can trigger their lazy bodies. Keep these allocation-only
+        // calls ahead of user-visible property initialization.
+        var orderedTopLevelInitInstructions: KIRLoweringEmitContext = []
         appendCompanionInitializerCalls(
             arena: arena, sema: sema,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         appendImportedLibraryInitializerCalls(
             arena: arena,
             sema: sema,
             interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
+        )
+
+        orderedTopLevelInitInstructions.appendRelocatingLabels(
+            contentsOf: allTopLevelInitInstructions
+        )
+
+        emitSyntheticTopLevelExternalPropertyInitializers(
+            arena: arena,
+            sema: sema,
+            interner: compilationCtx.interner,
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         postProcessTopLevelInitializersAndDelegates(
@@ -96,7 +104,7 @@ extension KIRLoweringDriver {
             sema: sema,
             compilationCtx: compilationCtx,
             arena: arena,
-            allTopLevelInitInstructions: allTopLevelInitInstructions,
+            allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
         let module = KIRModule(files: files, arena: arena)
@@ -275,6 +283,15 @@ extension KIRLoweringDriver {
         if let companionDeclID = interfaceDecl.companionObject {
             ifaceNestedObjects.append(companionDeclID)
         }
+        // BUG-274: register the companion's lazy-init entry before lowering
+        // this interface's own (default-body) member functions, which can
+        // reference the companion -- see the matching comment in
+        // `lowerTopLevelClassDecl`.
+        var declIDs = synthesizeCompanionInitializerIfNeeded(
+            companionDeclID: interfaceDecl.companionObject,
+            ownerSymbol: symbol,
+            shared: shared
+        )
         let (directMembers, allDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: interfaceDecl.memberFunctions,
             memberProperties: interfaceDecl.memberProperties,
@@ -285,13 +302,8 @@ extension KIRLoweringDriver {
             isInterfaceContext: true
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
-        var declIDs = [kirID]
+        declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
-        declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
-            companionDeclID: interfaceDecl.companionObject,
-            ownerSymbol: symbol,
-            shared: shared
-        ))
         return declIDs
     }
 

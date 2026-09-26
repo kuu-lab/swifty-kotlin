@@ -108,6 +108,23 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
+    func testBoxedDurationHashCodeMatchesLongXorFold() {
+        // 5 seconds = 5_000_000_000 ns. `toInt()` is 705_032_704; Long.hashCode
+        // xor-fold is 705_032_705. Duration.hashCode() and the boxed/Any path
+        // must agree on the xor-fold (KUU-645).
+        let fiveSeconds = 5_000_000_000
+        let boxed = registerRuntimeObject(RuntimeDurationBox(nanoseconds: Int64(fiveSeconds)))
+        #expect(kk_any_hashCode(boxed, 0) == kk_any_hashCode(fiveSeconds, 8))
+        #expect(kk_any_hashCode(boxed, 0) == 705_032_705)
+
+        let zero = registerRuntimeObject(RuntimeDurationBox(nanoseconds: 0))
+        #expect(kk_any_hashCode(zero, 0) == kk_any_hashCode(0, 8))
+
+        let infinite = registerRuntimeObject(RuntimeDurationBox(nanoseconds: Int64.max))
+        #expect(kk_any_hashCode(infinite, 0) == kk_any_hashCode(Int(Int64.max), 8))
+    }
+
+    @Test
     func testResultHashCodeUsesWrappedValue() {
         let intResult = runtimeResultSuccess(registerRuntimeObject(RuntimeIntBox(1)))
         let stringResult = runtimeResultSuccess(registerRuntimeObject(RuntimeStringBox("abc")))
@@ -192,6 +209,136 @@ struct RuntimeNumericHashCodeTests {
     func testStringHashCodeUsesUTF16CodeUnits() {
         let emoji = registerRuntimeObject(RuntimeStringBox("😀"))
         #expect(kk_any_hashCode(emoji, 0) == 1_772_899)
+
+        // The fold wraps at Int32 like Kotlin Int arithmetic: a BMP string
+        // long enough to overflow must not leak the untruncated 64-bit
+        // running total (kotlinc: "abcdef".hashCode() == -1424385949).
+        let wrapped = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        #expect(kk_any_hashCode(wrapped, 0) == -1_424_385_949)
+    }
+
+    // MARK: - Pair/Triple/object structural hash (Int32-wrapped accumulation)
+
+    // KUU-632: these branches combine element hashCodes with 31*acc+h. The
+    // combine must wrap as Kotlin Int (Int32) at every step — the same
+    // contract the List/Set/Map branches above already follow. Expected
+    // values below are cross-checked against real kotlinc/JVM output; the
+    // element hashCodes are large enough that the combine overflows Int32
+    // mid-computation.
+    @Test
+    func testPairHashCodeWrapsAtInt32() {
+        // Pair("abcdef", "ghijkl") — kotlinc prints 1841790624.
+        let first = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        let second = registerRuntimeObject(RuntimeStringBox("ghijkl"))
+        let pair = kk_pair_new(first, second)
+        #expect(kk_any_hashCode(pair, 0) == 1_841_790_624)
+
+        // Raw Int elements hash as themselves; 31 * 2_000_000_000 overflows
+        // Int32 on the very first combine.
+        let intPair = kk_pair_new(2_000_000_000, 1_500_000_000)
+        #expect(kk_any_hashCode(intPair, 0) == -924_509_440)
+    }
+
+    @Test
+    func testTripleHashCodeWrapsAtInt32() {
+        // Triple("abcdef", "ghijkl", "mnopqr") = 31*(31*h1 + h2) + h3 with
+        // a wrap at each step — kotlinc prints 191550019.
+        let first = registerRuntimeObject(RuntimeStringBox("abcdef"))
+        let second = registerRuntimeObject(RuntimeStringBox("ghijkl"))
+        let third = registerRuntimeObject(RuntimeStringBox("mnopqr"))
+        let triple = kk_triple_new(first, second, third)
+        #expect(kk_any_hashCode(triple, 0) == 191_550_019)
+    }
+
+    @Test
+    func testObjectFallbackHashCodeWrapsAtInt32() {
+        // Non-data-class RuntimeObjectBox: hash starts at classID, then
+        // folds each slot as 31*hash + element. These elements overflow
+        // Int32 mid-fold.
+        let object = kk_object_new(3, 12_345)
+        _ = kk_array_set(object, 0, 2_000_000_000, nil)
+        _ = kk_array_set(object, 1, 1_900_000_000, nil)
+        _ = kk_array_set(object, 2, 1_800_000_000, nil)
+        #expect(kk_any_hashCode(object, 0) == -1_207_120_857)
+    }
+
+    // MARK: - Array.contentDeepHashCode (Int32-wrapped deep fold)
+
+    // KUU-631: __kk_array_contentDeepHashCode recurses into nested arrays
+    // like java.util.Arrays.deepHashCode, folding 31*acc + elementHash in
+    // 32-bit wrapping Int at every step. The accumulator used to be the
+    // host's 64-bit Int, which only agreed while the running total stayed
+    // inside Int32 range. Expected values are cross-checked against real
+    // kotlinc/JVM output.
+    @Test
+    func testContentDeepHashCodeWrapsAtInt32() {
+        func arrayOf(_ values: [Int]) -> Int {
+            let raw = kk_array_new(values.count)
+            for (index, value) in values.enumerated() {
+                _ = kk_array_set(raw, index, value, nil)
+            }
+            return raw
+        }
+
+        // arrayOf(arrayOf(1, 2), arrayOf(3, 4)) — kotlinc prints 32833.
+        let nested = arrayOf([arrayOf([1, 2]), arrayOf([3, 4])])
+        #expect(__kk_array_contentDeepHashCode(nested) == 32_833)
+        // Reordered content hashes differently: kotlinc prints 32863.
+        let reordered = arrayOf([arrayOf([1, 2]), arrayOf([4, 3])])
+        #expect(__kk_array_contentDeepHashCode(reordered) == 32_863)
+
+        // The 3-deep repro from the issue — combines overflow Int32
+        // mid-fold; kotlinc prints 32768128.
+        let deep = arrayOf([
+            arrayOf([arrayOf([1, 2]), arrayOf([3, 4])]),
+            arrayOf([arrayOf([5, 6]), arrayOf([7, 8])]),
+            arrayOf([arrayOf([9, 10]), arrayOf([11, 12])]),
+        ])
+        #expect(__kk_array_contentDeepHashCode(deep) == 32_768_128)
+
+        // Array(40) { it * 31 + 7 } — long flat fold wraps too; kotlinc
+        // prints 280475373.
+        let longFlat = arrayOf((0 ..< 40).map { $0 * 31 + 7 })
+        #expect(__kk_array_contentDeepHashCode(longFlat) == 280_475_373)
+    }
+
+    @Test
+    func testContentDeepHashCodeNestedAndStringElements() {
+        func arrayOf(_ values: [Int]) -> Int {
+            let raw = kk_array_new(values.count)
+            for (index, value) in values.enumerated() {
+                _ = kk_array_set(raw, index, value, nil)
+            }
+            return raw
+        }
+        func stringBox(_ value: String) -> Int {
+            registerRuntimeObject(RuntimeStringBox(value))
+        }
+
+        // Large element hashCodes overflow the combine within 2-3 elements;
+        // kotlinc prints -1928340619.
+        let strings = arrayOf([
+            stringBox("averylongstringvaluethathashesbig"),
+            stringBox("anotherlongstringvalueforthepair"),
+            stringBox("yetanotherstringtooverflow"),
+        ])
+        #expect(__kk_array_contentDeepHashCode(strings) == -1_928_340_619)
+
+        // arrayOf(intArrayOf(1..10), arrayOf("𐀀", "😀")) — the inner fold
+        // itself wraps, and supplementary-plane characters hash by UTF-16
+        // code units; kotlinc prints -134319553.
+        let mixed = arrayOf([
+            arrayOf([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            arrayOf([stringBox("𐀀"), stringBox("😀")]),
+        ])
+        #expect(__kk_array_contentDeepHashCode(mixed) == -134_319_553)
+
+        // Self-referencing arrays contribute 0 for the revisited handle
+        // rather than recursing forever (defensive — JVM raises
+        // StackOverflowError instead, so no kotlinc value to match).
+        let selfRef = kk_array_new(1)
+        _ = kk_array_set(selfRef, 0, selfRef, nil)
+        #expect(__kk_array_contentDeepHashCode(selfRef) == 31)
     }
 }
 #endif

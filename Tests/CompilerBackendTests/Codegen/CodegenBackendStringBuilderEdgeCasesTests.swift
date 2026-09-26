@@ -148,6 +148,12 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
                 toString()
             }
             println(implicit)
+
+            // KUU-641: insertRange must accept any CharSequence, not only String.
+            val dst = StringBuilder("abc")
+            val src = StringBuilder("XYZ")
+            dst.insertRange(1, src, 0, 2)
+            println(dst.toString())
         }
         """
 
@@ -159,6 +165,49 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
                 aXYb
                 01ab
                 WIFrust
+                aXYbc
+                """
+                + "\n"
+        )
+    }
+
+    // KUU-641: StringBuilder.reverse() must keep UTF-16 surrogate pairs intact.
+    @Test
+    func testCodegenStringBuilderReversePreservesSurrogatePairs() throws {
+        let source = """
+        fun main() {
+            val paired = StringBuilder("a\\uD800\\uDC00b")
+            paired.reverse()
+            println(paired[0] == 'b')
+            println(paired[1] == '\\uD800')
+            println(paired[2] == '\\uDC00')
+            println(paired[3] == 'a')
+
+            val unpaired = StringBuilder("\\uDC00\\uD800")
+            unpaired.reverse()
+            println(unpaired[0] == '\\uD800')
+            println(unpaired[1] == '\\uDC00')
+
+            println(StringBuilder("abc").reverse().toString())
+            println(StringBuilder("x").reverse().toString())
+            println(StringBuilder("").reverse().toString().length)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderReverseSurrogatePairs",
+            expected:
+                """
+                true
+                true
+                true
+                true
+                true
+                true
+                cba
+                x
+                0
                 """
                 + "\n"
         )

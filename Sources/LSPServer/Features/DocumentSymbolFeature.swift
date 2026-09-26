@@ -10,7 +10,7 @@ public enum DocumentSymbolFeature {
         else {
             return []
         }
-        guard let file = ast.files.first(where: { $0.fileID == fileID }) else {
+        guard let file = ast.file(for: fileID) else {
             return []
         }
         let interner = analysis.context.interner

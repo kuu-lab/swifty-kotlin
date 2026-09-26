@@ -397,7 +397,14 @@ struct LibMetadataImportIntegrationTests {
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         try kirbin.write(to: inlineDir.appendingPathComponent("HugeParams.kirbin"), atomically: true, encoding: .utf8)
 
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        // The artifact is only parsed when a call site expands to it, so the
+        // app must actually call `foo` — and the diagnostic lands during
+        // lowering, not import.
+        let appSource = """
+        import lib.foo
+        fun main() { foo() }
+        """
+        try withTemporaryFile(contents: appSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "HugeInlineApp",
@@ -405,9 +412,82 @@ struct LibMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0020", in: ctx)
         }
+    }
+
+    @Test func testImportedCallableAndFunctionTypeAritiesAreBounded() throws {
+        let callableContext = try compileWithImportedMetadata(
+            """
+            symbols=4
+            function AtLimit fq=lib.AtLimit schema=v1 arity=1024
+            function HugeRecord fq=lib.HugeRecord schema=v1 arity=2000000000
+            function NegativeRecord fq=lib.NegativeRecord schema=v1 arity=-1
+            function OverflowRecord fq=lib.OverflowRecord schema=v1 arity=999999999999999999999999999
+            """,
+            moduleName: "BoundedCallableArityApp"
+        )
+        assertArityDiagnosticCount(3, in: callableContext)
+
+        let functionContext = try compileWithImportedMetadata(
+            """
+            symbols=1
+            function HugeFunctionType fq=lib.HugeFunctionType schema=v1 arity=0 sig=F2000000000<I,U>
+            """,
+            moduleName: "BoundedFunctionTypeArityApp"
+        )
+        assertArityDiagnosticCount(1, in: functionContext)
+
+        let contextReceiverContext = try compileWithImportedMetadata(
+            """
+            symbols=1
+            function HugeContextType fq=lib.HugeContextType schema=v1 arity=0 sig=F0<C2000000000<I>,I>
+            """,
+            moduleName: "BoundedContextArityApp"
+        )
+        assertArityDiagnosticCount(1, in: contextReceiverContext)
+    }
+
+    private func compileWithImportedMetadata(_ metadata: String, moduleName: String) throws -> CompilationContext {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "\(moduleName)",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin"
+        }
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: moduleName,
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            result = ctx
+        }
+        return try #require(result)
+    }
+
+    private func assertArityDiagnosticCount(_ expectedCount: Int, in ctx: CompilationContext) {
+        assertHasDiagnostic("KSWIFTK-LIB-0024", in: ctx)
+        let arityDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0024" }
+        #expect(arityDiagnostics.count == expectedCount)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0003" })
     }
 
     /// KSP-461: an unparsable instruction used to be dropped silently, leaving the
@@ -442,6 +522,21 @@ struct LibMetadataImportIntegrationTests {
         assertNoDiagnostic("KSWIFTK-LIB-0023", in: ctx)
     }
 
+    @Test func testInlineKIRSymlinkOutsideLibraryIsRejected() throws {
+        let outsideKIR = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kirbin")
+        try "version=2\nparams=0\nsuspend=false\nbody:\nreturnValue value=_\n"
+            .write(to: outsideKIR, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: outsideKIR) }
+
+        let ctx = try compileWithInlineKIRBody(
+            moduleName: "ExternalInline",
+            body: "returnValue value=_",
+            externalKIRURL: outsideKIR
+        )
+        assertHasDiagnostic("KSWIFTK-LIB-0019", in: ctx)
+    }
+
     private func base64(_ value: String) -> String {
         Data(value.utf8).base64EncodedString()
     }
@@ -450,7 +545,8 @@ struct LibMetadataImportIntegrationTests {
     /// then compiles a trivial program against it.
     private func compileWithInlineKIRBody(
         moduleName: String,
-        body: String
+        body: String,
+        externalKIRURL: URL? = nil
     ) throws -> CompilationContext {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -484,10 +580,21 @@ struct LibMetadataImportIntegrationTests {
 
         try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
-        try kirbin.write(to: inlineDir.appendingPathComponent("InlineBody.kirbin"), atomically: true, encoding: .utf8)
+        let inlineKIRURL = inlineDir.appendingPathComponent("InlineBody.kirbin")
+        if let externalKIRURL {
+            try fm.createSymbolicLink(at: inlineKIRURL, withDestinationURL: externalKIRURL)
+        } else {
+            try kirbin.write(to: inlineKIRURL, atomically: true, encoding: .utf8)
+        }
 
+        // Deferred import only reads the artifact when `foo` is expanded,
+        // so the app calls it and the parse diagnostics land in lowering.
+        let appSource = """
+        import lib.foo
+        fun main() { foo() }
+        """
         var result: CompilationContext!
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        try withTemporaryFile(contents: appSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: moduleName + "App",
@@ -495,6 +602,7 @@ struct LibMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
             result = ctx
         }
         return result

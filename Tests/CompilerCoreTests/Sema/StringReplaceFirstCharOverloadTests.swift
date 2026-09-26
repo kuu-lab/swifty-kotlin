@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-/// KUU-568: String.replaceFirstChar keeps both Char and CharSequence transform overloads.
+/// KUU-568 / KUU-654: String.replaceFirstChar keeps both Char and CharSequence transform overloads.
 @Suite
 struct StringReplaceFirstCharOverloadTests {
     private let sourcePath = "__bundled_kotlin/text/StringCaseConversion.kt"
@@ -71,6 +71,9 @@ struct StringReplaceFirstCharOverloadTests {
         fun uppercase(value: String): String = value.replaceFirstChar { it.uppercase() }
         fun uppercaseChar(value: String): String = value.replaceFirstChar { it.uppercaseChar() }
         fun titlecase(value: String): String = value.replaceFirstChar(Char::titlecase)
+        fun lowercase(value: String): String = value.replaceFirstChar { it.lowercase() }
+        fun lowercaseChar(value: String): String = value.replaceFirstChar { it.lowercaseChar() }
+        fun multiChar(value: String): String = value.replaceFirstChar { "YY" }
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
@@ -109,9 +112,12 @@ struct StringReplaceFirstCharOverloadTests {
             charSequenceType,
             sema.types.charType,
             charSequenceType,
+            charSequenceType,
+            sema.types.charType,
+            charSequenceType,
         ]
 
-        #expect(calls.count == expectedTransformReturnTypes.count, "Expected three replaceFirstChar calls")
+        #expect(calls.count == expectedTransformReturnTypes.count, "Expected six replaceFirstChar calls")
         for (call, expectedReturnType) in zip(calls, expectedTransformReturnTypes) {
             let binding = try #require(sema.bindings.callBinding(for: call))
             let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))

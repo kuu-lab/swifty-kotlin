@@ -28,6 +28,11 @@ func nominalRangeElementType(
 }
 
 struct TypeCheckHelpers {
+    /// Per-compilation memoization for opt-in requirement derivation and
+    /// annotation-class resolution (see `OptInResolutionCache`). A class, so
+    /// copies of this struct and every `driver.helpers` call site share it.
+    let optInResolutionCache = OptInResolutionCache()
+
     private func syntheticCoroutineNominalType(
         packageName: [InternedString],
         shortName: String,
@@ -60,8 +65,21 @@ struct TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let visLabel = symbol.visibility == .protected ? "protected" : "private"
-        let code = symbol.visibility == .protected ? "KSWIFTK-SEMA-0041" : "KSWIFTK-SEMA-0040"
+        let visLabel: String
+        let code: String
+        switch symbol.visibility {
+        case .private:
+            visLabel = "private"
+            code = "KSWIFTK-SEMA-0040"
+        case .protected:
+            visLabel = "protected"
+            code = "KSWIFTK-SEMA-0041"
+        case .internal:
+            visLabel = "internal in the bundled stdlib module"
+            code = "KSWIFTK-SEMA-0044"
+        case .public:
+            return
+        }
         diagnostics.error(code, "Cannot access '\(name)': it is \(visLabel).", range: range)
     }
 
@@ -72,7 +90,19 @@ struct TypeCheckHelpers {
 
     func isStableLocalSymbol(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID) else {
-            return false
+            // A symbol ID outside the registered table is either `.invalid`
+            // (-1), a genuinely unknown/out-of-range ID, or one of the
+            // synthetic per-binding schemes that deliberately never register
+            // a table entry -- lambda parameters
+            // (ExprTypeChecker+NameLambdaAndCallableRefInference's per-lambda
+            // negative IDs) and the extension/implicit-receiver `this`
+            // (SyntheticSymbolScheme.receiverParameterSymbol). Both schemes
+            // stay well below -1 (SyntheticSymbolScheme documents its bands
+            // as <= -10000; the lambda-parameter band starts past -1_000_000),
+            // and both name bindings that Kotlin never allows reassigning, so
+            // they are stable. Anything else (including -1 and other
+            // out-of-range IDs) is treated conservatively as unstable.
+            return symbolID.rawValue < -1
         }
         switch symbol.kind {
         case .valueParameter, .local:

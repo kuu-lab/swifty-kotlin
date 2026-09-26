@@ -29,7 +29,7 @@ extension DataFlowSemaPhase {
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
         let sourceManager = ctx.sourceManager
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let ownerFQName = owner.fqName
@@ -93,7 +93,16 @@ extension DataFlowSemaPhase {
                 newFlags: memberFlags
             )
             // Kotlin: interface functions without a body are implicitly abstract.
-            if symbols.symbol(ownerSymbol)?.kind == .interface, funDecl.body == .unit {
+            // Bundled stdlib interfaces also use body-less functions as runtime
+            // bridge declarations. An external function or a function carrying
+            // @KsSymbolName has an implementation outside the Kotlin body, so it
+            // must remain available as the interface's default implementation.
+            let hasRuntimeBridge = funDecl.modifiers.contains(.external)
+                || hasCompilerAnnotation(.ksSymbolName, on: funDecl.annotations)
+            if symbols.symbol(ownerSymbol)?.kind == .interface,
+               funDecl.body == .unit,
+               !hasRuntimeBridge
+            {
                 memberFlags.insert(.abstractType)
             }
 
@@ -533,7 +542,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                interner: interner
             )
 
             // Materialize a backing field symbol for properties with custom accessors
@@ -642,7 +652,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> SymbolID {
         let reusableSyntheticSymbol: SymbolID? = {
-            guard let file = ast.files.first(where: { $0.fileID == sourceFileID }) else {
+            guard let file = ast.file(for: sourceFileID) else {
                 return nil
             }
             return reusableSyntheticDeclarationSymbol(
@@ -712,7 +722,7 @@ extension DataFlowSemaPhase {
         guard let decl = ast.arena.decl(declID) else {
             return
         }
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let anyType = types.anyType

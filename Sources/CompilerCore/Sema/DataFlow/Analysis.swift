@@ -42,6 +42,10 @@ struct ConditionBranch: Equatable {
 final class DataFlowAnalyzer {
     init() {}
 
+    private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
+        BuiltinTypeNames(interner: interner)
+    }
+
     func branchOnCondition(
         _ conditionID: ExprID,
         base: DataFlowState,
@@ -293,6 +297,7 @@ final class DataFlowAnalyzer {
     func branchOnWhenSubject(
         subjectSymbol: SymbolID,
         subjectType: TypeID,
+        subjectID: ExprID,
         conditionID: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -305,7 +310,7 @@ final class DataFlowAnalyzer {
         }
         switch conditionExpr {
         case let .nameRef(name, _):
-            if name == BuiltinTypeNames(interner: interner).null {
+            if name == builtinTypeNames(interner: interner).null {
                 var vars = base.variables
                 vars[subjectSymbol] = VariableFlowState(
                     possibleTypes: [subjectType],
@@ -348,7 +353,7 @@ final class DataFlowAnalyzer {
         case let .isCheck(exprID, typeRefID, negated, _):
             return narrowedStateForIsCheck(
                 exprID: exprID, typeRefID: typeRefID, negated: negated,
-                subjectSymbol: subjectSymbol, conditionID: conditionID,
+                subjectSymbol: subjectSymbol, subjectID: subjectID, conditionID: conditionID,
                 base: base, ast: ast, sema: sema, interner: interner, scope: scope
             )
         default:
@@ -405,6 +410,7 @@ final class DataFlowAnalyzer {
         typeRefID: TypeRefID,
         negated: Bool,
         subjectSymbol: SymbolID,
+        subjectID: ExprID,
         conditionID _: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -412,11 +418,14 @@ final class DataFlowAnalyzer {
         interner: StringInterner,
         scope: Scope
     ) -> DataFlowState {
-        // Only narrow when the isCheck's expr refers to the when subject.
-        // This prevents incorrect narrowing for `when(x) { y is String -> ... }`.
-        if let checkedSymbol = sema.bindings.identifierSymbols[exprID],
-           checkedSymbol != subjectSymbol
-        {
+        // Only narrow when the isCheck's expr refers to the when subject. A
+        // bare `is Type` when-branch condition is always parsed as
+        // `.isCheck(expr: subject, ...)`, reusing the subject's own ExprID
+        // (BuildASTPhase+ExpressionParserControlFlow.parseWhenBranchCondition),
+        // so identity comparison here is reliable even for synthetic subjects
+        // (`this`, a lambda parameter) that never get an `identifierSymbols`
+        // binding for their own ExprID.
+        guard exprID == subjectID else {
             return base
         }
         guard !negated else { return base }
@@ -488,7 +497,7 @@ final class DataFlowAnalyzer {
         else {
             return false
         }
-        return name == BuiltinTypeNames(interner: interner).null
+        return name == builtinTypeNames(interner: interner).null
     }
 
     private func resolveLocalVariable(
@@ -613,6 +622,26 @@ final class DataFlowAnalyzer {
             )
         case .any(.nullable):
             return false
+        default:
+            return false
+        }
+    }
+
+    /// Whether a non-exhaustive `when` over `subjectType` is an error even when
+    /// the `when` is used as a statement (its value discarded). Kotlin only
+    /// enforces exhaustiveness unconditionally — regardless of expression vs.
+    /// statement position — for `Boolean` and sealed/enum subjects; any other
+    /// subject type (`Byte`, `Int`, `String`, a non-sealed class, ...) is only
+    /// required to be exhaustive when the `when`'s value is actually used.
+    func subjectRequiresStatementExhaustiveness(subjectType: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: subjectType) {
+        case .primitive(.boolean, _):
+            return true
+        case let .classType(classType):
+            guard let classSymbol = sema.symbols.symbol(classType.classSymbol) else {
+                return false
+            }
+            return classSymbol.kind == .enumClass || classSymbol.flags.contains(.sealedType)
         default:
             return false
         }
@@ -835,7 +864,7 @@ final class DataFlowAnalyzer {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID? {
-        return BuiltinTypeNames(interner: interner).resolveBuiltinType(name, types: types)
+        return builtinTypeNames(interner: interner).resolveBuiltinType(name, types: types)
     }
 
     private func enumEntryNames(for enumSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {

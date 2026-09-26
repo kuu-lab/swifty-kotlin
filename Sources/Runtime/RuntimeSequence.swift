@@ -280,8 +280,8 @@ final class SequenceTraversalState {
     var limitReached = false
     var takeCounts: [Int: Int] = [:]
     var dropCounts: [Int: Int] = [:]
-    var distinctSeen: [Int: [Int]] = [:]
-    var distinctBySeen: [Int: [Int]] = [:]
+    var distinctSeen: [Int: Set<RuntimeElementKey>] = [:]
+    var distinctBySeen: [Int: Set<RuntimeElementKey>] = [:]
     var zipIndices: [Int: Int] = [:]
     var chunkedBuffers: [Int: [Int]] = [:]
 }
@@ -442,12 +442,13 @@ private func runtimeSequenceTransformElement(
             yield: yield
         )
     case .distinctStep:
-        var seen = state.distinctSeen[stepIndex] ?? []
-        if seen.contains(where: { runtimeValuesEqual($0, element) }) {
+        // Mutating through the dictionary subscript avoids a COW copy of the
+        // stored set on every element.
+        guard state.distinctSeen[stepIndex, default: []]
+            .insert(RuntimeElementKey(value: element)).inserted
+        else {
             return
         }
-        seen.append(element)
-        state.distinctSeen[stepIndex] = seen
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -465,12 +466,11 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        var seen = state.distinctBySeen[stepIndex] ?? []
-        if seen.contains(where: { runtimeValuesEqual($0, key) }) {
+        guard state.distinctBySeen[stepIndex, default: []]
+            .insert(RuntimeElementKey(value: key)).inserted
+        else {
             return
         }
-        seen.append(key)
-        state.distinctBySeen[stepIndex] = seen
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -752,7 +752,7 @@ private func runtimeSequenceTransformElement(
         }
     case .shuffledStep:
         return
-    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -873,7 +873,7 @@ func runtimeTraverseSequenceWithState(
     }
     let transformSteps = seq.steps.filter {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             false
         default:
             true
@@ -909,6 +909,25 @@ func runtimeTraverseSequenceWithState(
         case let .valueSource(sourceValues):
             for value in sourceValues {
                 emit(value.legacyRawValue)
+                if state.stop { break }
+            }
+            if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
+                runtimeSequenceFlushChunkedTransforms(
+                    transformSteps,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: yield
+                )
+            }
+            return
+        case let .pullSource(produce):
+            // Lazy pull-source (e.g. `useLines` lines from a live reader):
+            // draw one element at a time so short-circuiting operations only
+            // pull what they need and memory stays bounded.
+            while true {
+                if state.stop { break }
+                guard let element = produce() else { break }
+                emit(element)
                 if state.stop { break }
             }
             if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
@@ -1103,6 +1122,12 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     case let .lazyBuilder(coroutine):
         // STDLIB-563: Materialize the lazy coroutine into an element array.
         return coroutine.materializeAll()
+    case let .pullSource(produce):
+        var elements: [Int] = []
+        while let element = produce() {
+            elements.append(element)
+        }
+        return elements
     default:
         return nil
     }
@@ -1329,7 +1354,7 @@ private func evaluateSequence(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             return false
         default:
             return true
@@ -1405,7 +1430,7 @@ private func evaluateSequence(
     // Apply transformation steps in order
     for step in seq.steps {
         switch step {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             break
         case let .mapStep(fnPtr, closureRaw):
             elements = applyMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
@@ -1511,7 +1536,7 @@ private func evaluateSequenceValues(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             return false
         default:
             return true
@@ -2548,10 +2573,15 @@ public func kk_sequence_single(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<
         return 0
     }
     guard count == 1 else {
-        let message = count == 0
-            ? kEmptySequenceNoSuchElement
-            : "NoSuchElementException: Sequence has more than one element."
-        outThrown?.pointee = runtimeAllocateThrowable(message: message)
+        if count == 0 {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(
+                message: kEmptySequenceNoSuchElement
+            )
+        } else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Sequence has more than one element."
+            )
+        }
         return 0
     }
     return result
@@ -2783,7 +2813,7 @@ public func kk_sequence_elementAtOrNull(_ seqRaw: Int, _ index: Int) -> Int {
 public func kk_sequence_elementAt(_ seqRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     guard elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "Sequence index \(index) out of bounds for length \(elements.count)."
         )
         return runtimeNullSentinelInt
@@ -3277,12 +3307,12 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
             buffer.append(elem)
             elementIndex += 1
             // Emit windows whose start position we've passed
-            while nextWindowStart < elementIndex && elementIndex - nextWindowStart >= clampedSize {
+            while nextWindowStart <= elementIndex - clampedSize {
                 let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
                 let windowList = RuntimeListBox(elements: window)
                 windows.append(registerRuntimeObject(windowList))
-                let (next, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
-                nextWindowStart = overflow ? Int.max : next
+                let (advancedStart, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+                nextWindowStart = overflow ? Int.max : advancedStart
             }
             return true
         }
@@ -3290,23 +3320,23 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
         let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
         buffer = elements
         elementIndex = elements.count
-        while nextWindowStart < elementIndex && elementIndex - nextWindowStart >= clampedSize {
+        while nextWindowStart <= elementIndex - clampedSize {
             let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
             let windowList = RuntimeListBox(elements: window)
             windows.append(registerRuntimeObject(windowList))
-            let (next, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
-            nextWindowStart = overflow ? Int.max : next
+            let (advancedStart, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+            nextWindowStart = overflow ? Int.max : advancedStart
         }
     }
     // Handle partial windows at the end
     if includePartial {
         while nextWindowStart < elementIndex {
-            let end = (elementIndex - nextWindowStart <= clampedSize) ? elementIndex : (nextWindowStart + clampedSize)
+            let end = nextWindowStart + min(clampedSize, elementIndex - nextWindowStart)
             let window = Array(buffer[nextWindowStart..<end])
             let windowList = RuntimeListBox(elements: window)
             windows.append(registerRuntimeObject(windowList))
-            let (next, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
-            nextWindowStart = overflow ? Int.max : next
+            let (advancedStart, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+            nextWindowStart = overflow ? Int.max : advancedStart
         }
     }
     let resultSeq = RuntimeSequenceBox(steps: [.source(elements: windows)])
