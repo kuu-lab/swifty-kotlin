@@ -366,7 +366,36 @@ struct TypeCheckHelpers {
         }
         // BUG-167: A class implementing `Iterable<T>` iterates over `T` even when
         // its `iterator()` override carries no `operator` flag of its own.
-        return iterableSupertypeElementType(for: iterableType, sema: sema, interner: interner)
+        if let supertypeElement = iterableSupertypeElementType(for: iterableType, sema: sema, interner: interner) {
+            return supertypeElement
+        }
+        // `CharSequence.iterator()` is a `kotlin.text` package-level extension,
+        // not an interface member, so the member-candidate walks above never see
+        // it; every CharSequence subtype iterates `Char` through that extension.
+        if isCharSequenceSubtype(iterableType, sema: sema, interner: interner) {
+            return sema.types.charType
+        }
+        return nil
+    }
+
+    /// Whether `type` is a subtype of the `kotlin.CharSequence` interface.
+    private func isCharSequenceSubtype(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("CharSequence"),
+        ]) else {
+            return false
+        }
+        let charSequenceType = sema.types.make(.classType(ClassType(
+            classSymbol: charSequenceSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(sema.types.makeNonNullable(type), charSequenceType)
     }
 
     /// Element type lifted from the `kotlin.collections.Iterable<T>` supertype of

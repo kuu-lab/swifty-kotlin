@@ -3398,7 +3398,7 @@
     - `kotlin.text.indices` — val CharSequence.indices  -- `final val kotlin.text/indices`
   - 実装・focused確認済み（2026-09-08）：`StringHOF.kt` に Kotlin 2.3.10 と同じ source-backed getter を追加。Sema worker で `kotlin.text.indices.$get` / `IntRange` を確認し、String・StringBuilder・空文字列・UTF-16 surrogate・length getter が一度だけ呼ばれる custom CharSequence の Native 実行を kotlinc と比較した。専用 evidence は `/tmp/swifty-todo50-01a07dee/evidence/ksp1382`。全体 Swift/Golden/diff G は未実行のため完了化しない。
 
-- [ ] KSP-1383: kotlin.text.CharSequence.iterator-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1383: kotlin.text.CharSequence.iterator-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `iterator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3407,6 +3407,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.iterator` — fun CharSequence.iterator(): CharIterator  -- `final fun (kotlin/CharSequence).kotlin.text/iterator(): kotlin.collections/CharIterator`
+  - 完了根拠（2026-09-26）: source-backed 実装自体は既存だった（`CharSequenceCharIterator` + `operator fun CharSequence.iterator()`、KSP-409 で `StringCollectionConversions.kt` に着地）ため、監査指定の `StringHOF.kt` へ移動した。同時に `nextChar()` の枯渇時例外を `NoSuchElementException` 先行チェックから upstream 準拠の `source[index]` 委譲（受信側 `get` が `StringIndexOutOfBoundsException` を投げる = kotlinc の `get(index++)` と同等）に修正 — diff ケースが reference 側の `StringIndexOutOfBoundsException` で差分を検出し確定させた。bridge/stub 監査: このシンボルに対応する `__kk_*` / `kk_*` bridge・synthetic stub・RuntimeABI entry・CallTypeChecker/CallLowerer name-string 特例は存在せず削除対象なし。Sema golden（`stdlib_kotlin_text_CharSequence_iterator.{kt,golden}`）は Sema スイートのみ `UPDATE_GOLDEN=1` で再生成し他ケース差分なし、単体 diff は green。
+  - 付随バグ修正（同 PR）: `TypeCheckHelpers.iterableElementType` が CharSequence 派生型の for-in 要素型を `Any` にフォールバックさせていた問題を修正（`kotlin.text.iterator` は package-level extension のため member-candidate walk では見えず、`Iterable` supertype 経路にも乗らない）。CharSequence 派生型に `Char` を返す `isCharSequenceSubtype` 句を追加し、`for (c in charSequence)` での `c.code` / `println(c)` 文字出力が kotlinc parity に戻ることを Sema golden と diff ケースで固定。
 
 - [x] KSP-1384: kotlin.text.CharSequence.last-family の未実装 stdlib API を実装する（5 件）
   - 完了根拠（2026-09-16 再確認）: 5 API の source-backed 実装は PR #6698（`429027e71`、KSP-1378 の KSP-1384 変更 `7afb87a1e`）で `StringQuery.kt` に着地済み。Sema golden（`stdlib_kotlin_text_CharSequence_last.{kt,golden}`）と kotlinc diff ケースも同 PR に含まれ、String / StringBuilder / custom CharSequence、UTF-16 code unit、空文字列、predicate、captured / safe-call / non-local return を固定している。今回の HEAD で artifact 指定の単一 Sema worker と `DIFF_COMPILE_TIMEOUT=600` の専用 diff を再実行し、いずれも reference parity（diff `total=1 failed=0 passed=1`）を確認した（既定 120 秒では共有環境の candidate compile timeout）。
