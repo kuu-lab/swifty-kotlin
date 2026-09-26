@@ -385,16 +385,15 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
                 "A failed compareAndExchange must retain the stored value")
     }
 
-    // The same marshal asymmetry for String: a `load()` result re-boxed via
-    // the flat-string bridge is a fresh RuntimeStringBox for the same text.
-    @Test func compareAndExchangeMatchesReboxedStringHandle() throws {
+    // The same marshal asymmetry for String: two RuntimeStringBox handles
+    // carrying the same text (the stored cell vs a freshly boxed expect)
+    // must still CAS-match. The flat-string bridge now dedups, so this
+    // constructs two distinct boxes directly instead of relying on a
+    // distinct flat round-trip handle.
+    @Test func compareAndExchangeMatchesReboxedStringHandle() {
         let current = registerRuntimeObject(RuntimeStringBox("aaa"))
-        var length = 0
-        var byteCount = 0
-        var hash = 0
-        let data = try #require(kk_string_to_flat(current, &length, &byteCount, &hash))
-        let expect = kk_string_from_flat(data, length, byteCount, hash)
-        #expect(expect != current, "The flat round trip must yield a distinct handle")
+        let expect = registerRuntimeObject(RuntimeStringBox("aaa"))
+        #expect(expect != current, "Independently boxed equal strings must be distinct handles")
         let update = registerRuntimeObject(RuntimeStringBox("bbb"))
         let atomicRef = kk_atomic_ref_create(current)
         let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
