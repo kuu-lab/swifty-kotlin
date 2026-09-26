@@ -22,7 +22,7 @@ public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSeque
 }
 
 public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
-    return if (this.length == 0 || this.toString().isBlank()) defaultValue() else this
+    return if (isBlank()) defaultValue() else this
 }
 
 public fun CharSequence?.isNullOrEmpty(): Boolean {
