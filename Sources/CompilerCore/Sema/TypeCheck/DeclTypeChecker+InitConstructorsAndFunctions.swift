@@ -526,6 +526,17 @@ extension DeclTypeChecker {
             if driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: ctx.interner) {
                 sema.bindings.markRangeSymbol(syntheticThisSymbol)
             }
+            // A named `context(name: Type)` parameter addresses the same value as
+            // the first context receiver: alias it to the receiver parameter so
+            // `name.member` resolves identically to `this.member`. Member functions
+            // keep their owner as the signature receiver, so the alias only applies
+            // to context declarations whose receiver came from the context clause.
+            if ctx.enclosingClassSymbol == nil,
+               signature.receiverType != nil,
+               let contextParamName = function.contextReceiverNames.first.flatMap({ $0 })
+            {
+                locals[contextParamName] = (receiverType, syntheticThisSymbol, false, true)
+            }
         }
 
         let functionScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)

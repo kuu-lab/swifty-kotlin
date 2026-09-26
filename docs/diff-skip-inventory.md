@@ -38,7 +38,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 10 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。詳細は該当節） |
+| DEBT-DIFF-007 | 2 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し現行2件（`kclass_members.kt`・`platform_time_conversion.kt`）へ。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
 | DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
@@ -277,18 +277,18 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 - **ハーネス側の修正(1件)**: `Scripts/diff_kotlinc.sh` に `KOTLINC_TEST_JAR`(`kotlin-test.jar` 自動解決、`KOTLINC_STDLIB_JAR`/`KOTLINC_REFLECT_JAR` と同じ仕組み)を追加。`test_framework_basic.kt` の ref 側失敗は `kotlin.test.*` が reference のクラスパスに無いだけで、候補側(kswiftc)は元々正しく動いていた。
 - **コンパイラ本体の修正(1件、DEBT-DIFF-007 調査の副産物)**: `error_parameters.kt` の triage 中に、`varargFun(name = "bad", 1, 2)`(named引数の後に来る positional 引数が、宣言順序上その named引数より前にある vararg パラメータへ逆流して束縛される)を kswiftc が誤って受理する実バグを発見・修正した。`Sources/CompilerCore/Sema/Resolution/Resolution+TypeConstraints.swift` の `buildParameterMapping` に `maxBoundParamIndex`(そこまでに束縛済みの最大パラメータ index)を追加し、named引数の後の positional 引数が vararg パラメータへ束縛される際に「宣言順序が逆行していないか」を検証するよう修正(回帰は `error_parameters.kt` の golden ケースで固定、既存の `OverloadResolverTests` 79件は無回帰を確認済み)。
 
-以下、現行タグ10件を分類ごとに記載する（2026-09-16 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
+以下、現行タグ2件を分類ごとに記載する（2026-09-23 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
 
-### グループ2: enum/data class/interface(残り5件)
+### グループ2: enum/data class/interface(残り0件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `context_receivers.kt` | kotlinc 2.4 の named `context(name: Type)` 構文に kswiftc パーサーが未対応(旧・匿名 context 型リストのみ対応)で、Sema も最初の context 型を extension receiver に読み替えるだけでネストしたスコープに伝播しない | context parameter の設計を要する中規模タスク(クイックパッチ不可) |
-| `data_class_inheritance.kt` | 意図的な負テスト(コメントで明言)だが、ネストしたクラス(`Container.Outer : Inner`)が `validateSupertypesAreOpen` の対象外になっている点は独立した実バグ | 診断golden(DEBT-DIFF-006の`error_type_inference.kt`と同方針)へ移設し、ネストクラスのopen検証漏れは別途調査 |
-| `data_class_inheritance_valid.kt` | `if (other !is BaseEntity) return false` のようなガード節後、`other` の smart-cast 状態が後続コードへ伝播しない(`ControlFlowTypeChecker.inferIfExpr` は else 無しの分岐の flowState をブロック内の後続文へ引き継がない設計)。広範囲に影響しうる一般的なcorrectnessギャップ。2ファイル(L17/L44)がdata class ctorのval/var欠落という別ミスも持つ | `ExprTypeChecker.blockExpr` の逐次処理が現状 statement ごとに同じ `ctx` を使い回しており、Nothing型分岐後のflowStateを次のstatementへ運んでいない。`inferExpr`/`inferIfExpr` の戻り値契約を拡張する必要がある中規模タスク |
+| ~~`context_receivers.kt`~~ | 解除済み（2026-09-23、named `context(name: Type)`/`context(_: Type)` の `name:` プレフィックスをパースで受理し(`declarationContextReceivers`/`parseContextReceiverItem`)、`FunDecl.contextReceiverNames` に保持、body チェッカーが `ctx` を先頭 context receiver の synthetic receiver symbol へ束縛。テストは Kotlin 2.3 必須の named 形式へ書き換え。残ギャップ: メンバー関数の context receiver は signature.receiverType が owner 型に上書きされるため未モデル化、`ctx` 束縛も member では無効 → KUU-842） | — |
+| ~~`data_class_inheritance.kt`~~ | 解除済み（2026-09-23、意図的な負テストを Diagnostics golden `Tests/CompilerCoreTests/GoldenCases/Diagnostics/data_class_inheritance.kt` へ移設。副産物として `validateSupertypesAreOpen` がネストクラスの supertype を見落とすバグを `enclosingClassScopes` で修正） | — |
+| ~~`data_class_inheritance_valid.kt`~~ | 解除済み（2026-09-23、ガード節 `if (x !is T) return` 後の smart-cast flowState 伝播を修正） | — |
 | ~~`enum_basic.kt`~~ | 解除済み（2026-09-16、collection HOF lambda の enum 引数を `kk_unbox_int` で正規化。`entries.find`/`values().find` と enum constructor property の組み合わせを回帰テスト・diff で確認） | — |
-| `enum_edge_cases.kt`(未解除、範囲縮小) | 同じく values()/entries 側は2026-07-29修正で解消。残るブロッカーは、entry 固有 body を持つ enum 定数(`C { override fun toString() = "C-special" }`)を `ComplexEnum.C` の形で参照すると `Ambiguous overload resolution` + `Unresolved member function 'C'` になる別バグ(未調査) | entry-specific body を持つ enum 定数の `EnumClass.ENTRY` 参照を調査 |
-| `generic_typealias.kt` | `typealias A = B` / `typealias B = A` の循環定義が使用箇所でしか検出されず(`Helpers+TypeAliasExpansion.swift`)、未使用ならコンパイルが通ってしまう | 宣言済み typealias 全件に対する eager cycle check を追加 |
+| ~~`enum_edge_cases.kt`~~ | 解除済み（2026-09-23、entry-specific body を持つ enum 定数の `toString` dispatch を修正：`enumEntryToStringDispatchSymbol` + `EnumEntryBodyHeaders` で generic-supertype 基底の entry も登録、CallLowerer/EnumNameAccess/ConsolePrint の3 emit パスで dispatch 解決） | — |
+| ~~`generic_typealias.kt`~~ | 解除済み（2026-09-23、宣言済み typealias 全件に eager cycle check `validateTypeAliasCycles`(`TypeAliasCycleValidation.swift`)を追加。循環 alias を使用箇所ではなく宣言で拒否し kotlinc と同じく両辺コンパイルエラー。負テストのため diff_cases から削除し Diagnostics golden `typealias_recursive` へ移設） | — |
 | ~~`comparable_interface.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：ローカル generic 関数・nullable 比較を実kotlinc互換に修正） | — |
 | ~~`interface_conflict_resolution.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：concrete 親クラスを持つ多重 interface 実装で明示的 override を追加） | — |
 | ~~`override_variance.kt` / `override_variance_advanced.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`throws` 節・`protected fun` in interface・`= Unit` 等の無効構文を除去） | — |
@@ -297,11 +297,11 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 上表の `enum_basic.kt`/`enum_edge_cases.kt` の root cause として記載されていた、(1) enum が明示的 companion object を持つと `values()`/`valueOf()`/`entries` の合成がスキップされる、(2) `EnumEntries<T>` が空マーカーで `.size`/`.forEach` 等が解決できない、の2点を実装・修正した(`HeaderCollection.swift`, `HeaderHelpers+SyntheticEnumStubs.swift`, `DataEnumSealedSynthesisPass+EnumSynthesis.swift`, `CompilerKnownNames.swift`。回帰は `Tests/CompilerCoreTests/Sema/EnumAPISurfaceInventoryTests.swift`、`Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests+EnumEntriesEdgeCases.swift`、新規 `Scripts/diff_cases/enum_values_and_entries.kt`)。`enum_entries_function.kt`(`enumEntries<Color>()` トップレベル関数版)はこの修正で candidate 側が通るようになり、ref 側の残エラーが `import kotlin.enums.enumEntries` 欠落という test input mistake だったため、import を追加して `SKIP-DIFF` を解除した。さらに2026-09-16、collection HOF lambda の enum 引数を入口で `kk_unbox_int` に正規化する実装を追加し、`enum_basic.kt` の `entries.find`/`values().find` と enum constructor property の組み合わせを解消した。`enum_edge_cases.kt` は entry-specific body の参照バグで依然ブロック中。
 
-### グループ3: common stdlib gap(残り1件)
+### グループ3: common stdlib gap(残り0件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `advanced_type_inference.kt` | `@ExperimentalTypeInference` を関数に直接付与(本来はアノテーションクラスへのメタ注釈のみ許可)しているのを kswiftc は許してしまう。修正後は `buildList`/`buildMap` の generic 型引数forwardingで別途詰まる | `@ExperimentalTypeInference` 誤用チェック追加、`buildList`/`buildMap` のgeneric forwarding調査 |
+| ~~`advanced_type_inference.kt`~~ | 解除済み（2026-09-23、テスト入力の書き換え：`@ExperimentalTypeInference` の関数直付与(アノテーションクラス専用メタ注釈の誤用で ref もコンパイルエラー)を除去し、`collect`/`collectMap` の呼び出しを lambda 本体推論非依存の明示型引数 `collect<Int>`/`collectMap<Int, String>` へ変更、`buildMap` 戻り値の `Map<out K, out V>` は `as Map<K, V>` で縮退、`yieldAll(numbers)` のオーバーロード曖昧さは `for`-loop `yield` で回避。残ギャップ: lambda 本体からの型引数推論(@OverloadResolutionByLambdaReturnType 相当)は KUU-844 へ起票) | — |
 | ~~`list_binary_search_compare.kt`~~ | 解除済み（2026-08-18、テスト入力の書き換え：ローカル data class `Person` をトップレベルへ移動、`List<Comparable<*>>` への型整合） | — |
 | ~~`array_hof.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`flatMap` transform の戻り値を `Array` から `Iterable` 互換に修正） | — |
 | ~~`bitwise_operators.kt` / `char_operations.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：型不一致比較の明示変換、`Char.rangeTo()` ドット呼び出しを `..` 演算子/`digitToIntOrNull()` 等実kotlinc互換に修正） | — |
@@ -312,12 +312,12 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | ~~`string_chunked_windowed.kt` / `windowed_step_partial.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：transform 内 `CharSequence` の `uppercase()` 呼び出しを `toString().uppercase()` に統一、不要な windowed 呼び出しを削除） | — |
 | ~~`string_materialization.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`toSortedSet()` Char boxing 問題と `CharIterator` 未実装箇所をテストから除外） | — |
 
-### グループ4: coroutine Flow(残り2件)
+### グループ4: coroutine Flow(残り0件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `flow_advanced_operators.kt` | `.transform { it * 10 }`が`emit()`を呼ばずmapのように誤用(real Kotlinでも無効)。修正後は`Flow.zip`/`Flow.combine`が同名の`Collection.zip`/`combine`と衝突し"Ambiguous overload resolution"になる実バグが残る | テストの`transform`誤用を修正。`Flow.zip`/`combine`のオーバーロード衝突は別途調査(`Helpers.swift:457`付近) |
-| `flow_error_handling.kt` | `onErrorReturn`/`onErrorResume`(real Kotlinでは`ERROR`レベルでdeprecated、`catch{emit()}`/`catch{emitAll()}`推奨)をkswiftcが誤って受理。修正すると`onCompletion`(非推奨でない実オペレーター)が未実装で失敗する | テストを`catch{}`形式に書き換え。`Flow.onCompletion`を実装 |
+| ~~`flow_advanced_operators.kt`~~ | 解除済み（2026-09-23、テスト入力の書き換え：`.transform { it * 10 }`の`emit()`無し誤用を`.map`へ、`delayEach`(Kotlin 2.3 で deprecated-to-error)を `.onEach { delay(1) }` へ、timing 依存で ref でも不安定だった `.conflate()`/`.debounce(1)`/`.sample(1)` を除去。stdlib 側は `flatMapConcat`/`flatMapMerge`/`flatMapLatest`/`takeWhile`/`dropWhile`/`onEach`/`flowOn`/`buffer`/`sample`/`conflate` を eager suspend オペレーターとして `Flow.kt` に実装） | — |
+| ~~`flow_error_handling.kt`~~ | 解除済み（2026-09-23、テスト入力の書き換え：kotlinx.flow に存在しない `onErrorReturn`/`onErrorResume` を `try/catch` + `emptyFlow`/fallback flow の `toList()` で実kotlinc互換に書き換え、`onCompletion` の action を `cause: Throwable?` 明示型付き lambda に。stdlib 側は `catch`/`onCompletion`/`retry`/`retryWhen` を eager suspend オペレーターとして `Flow.kt` に実装） | — |
 
 ### グループ5: reflection(残り1件)
 
