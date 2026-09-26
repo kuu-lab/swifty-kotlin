@@ -402,6 +402,14 @@ extension CallLowerer {
             ) {
                 return listMember
             }
+            if let progressionMember = runtimeBackedULongProgressionMemberCallee(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) {
+                return progressionMember
+            }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
                !externalLinkName.isEmpty
             {

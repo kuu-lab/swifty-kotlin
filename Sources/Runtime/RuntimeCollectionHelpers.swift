@@ -1196,6 +1196,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
+        return runtimeRangeToString(range)
+    }
     if let override = runtimeAnyToStringOverride(elem),
        let pointer = extractString(from: override)
     {
