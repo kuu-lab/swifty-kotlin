@@ -268,6 +268,12 @@ public extension RuntimeABISpec {
                 ]
             ),
         ]
+        + [
+            "kk_nullable_primitive_eq",
+            "kk_nullable_primitive_ne",
+        ].map {
+            bridgeSpec($0, section: "Operator", params: ["nullableRaw", "peerRaw", "peerIsNullable"], isThrowing: false)
+        }
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =
         collectionBridgeBase

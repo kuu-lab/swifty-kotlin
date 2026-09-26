@@ -130,11 +130,12 @@ extension CallSupportLowerer {
 
     func builtinBinaryRuntimeCallee(for op: BinaryOp, interner: StringInterner) -> InternedString? {
         switch op {
-        // `.notEqual` intentionally has no entry: it falls through to the raw
-        // `.binaryOp` path, where OperatorLoweringPass picks `kk_structural_ne`
-        // for reference-typed operands and `kk_op_ne` for primitives. Routing
-        // `!=` through `kk_op_ne` here compared object handles by raw word
-        // value, so two distinct boxes of the same value compared "not equal".
+        // `.notEqual` intentionally has no entry (same as `.equal`): both fall
+        // through to the raw `.binaryOp` path, where OperatorLoweringPass picks
+        // `kk_structural_ne` for reference-typed / nullable-primitive operands
+        // and `kk_op_ne` for primitives. Routing `!=` through `kk_op_ne` here
+        // compared object handles by raw word value, so two distinct boxes of
+        // the same value compared "not equal".
         // `===`/`!==` are raw word-equality comparisons — the same primitive
         // already used for data-object identity checks (see
         // appendSyntheticDataObjectEqualsIfNeeded). Reference-typed operands are
