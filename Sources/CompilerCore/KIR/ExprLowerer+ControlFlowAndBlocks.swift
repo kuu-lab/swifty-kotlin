@@ -2754,6 +2754,18 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
+        case let .localNominalDecl(declID, _):
+            return driver.objectLiteralLowerer.lowerLocalNominalDeclExpr(
+                exprID,
+                declID: declID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+
         case let .whenExpr(subject, branches, elseExpr, _):
             return driver.controlFlowLowerer.lowerWhenExpr(
                 exprID,

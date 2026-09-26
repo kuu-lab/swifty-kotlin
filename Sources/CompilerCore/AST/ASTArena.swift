@@ -311,6 +311,7 @@ public final class ASTArena: @unchecked Sendable {
              let .objectLiteral(_, _, range),
              let .callableRef(_, _, range),
              let .localFunDecl(_, _, _, _, _, range),
+             let .localNominalDecl(_, range),
              let .blockExpr(_, _, range),
              let .superRef(_, range),
              let .thisRef(_, range),

@@ -257,6 +257,11 @@ extension BuildASTPhase {
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
+        if let expr = Self.parseLocalNominalDeclExpr(
+            from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
+        ) {
+            return expr
+        }
         if let expr = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
@@ -401,7 +406,7 @@ extension BuildASTPhase {
         switch kind {
         case .statement, .propertyDecl, .loopStmt,
              .ifExpr, .whenExpr, .tryExpr, .callExpr,
-             .funDecl:
+             .funDecl, .classDecl, .objectDecl:
             true
         default:
             false
