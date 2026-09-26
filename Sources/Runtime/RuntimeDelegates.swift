@@ -43,6 +43,10 @@ private func runtimeTagCallableRef(
             isSuspend: isSuspend
         )
     }
+    runtimeRegisterKCallableItableIfNeeded(
+        rawValue: callable,
+        typeID: kind == .function ? kFunctionRuntimeTypeID : kPropertyRuntimeTypeID
+    )
     return callable
 }
 

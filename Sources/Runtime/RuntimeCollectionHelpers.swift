@@ -533,6 +533,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
 func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     let raw = registerRuntimeObject(box)
     runtimeRegisterObjectType(rawValue: raw, classID: typeID)
+    runtimeRegisterKCallableItableIfNeeded(rawValue: raw, typeID: typeID)
     return raw
 }
 
