@@ -29,7 +29,7 @@ extension DataFlowSemaPhase {
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
         let sourceManager = ctx.sourceManager
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let ownerFQName = owner.fqName
@@ -652,7 +652,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> SymbolID {
         let reusableSyntheticSymbol: SymbolID? = {
-            guard let file = ast.files.first(where: { $0.fileID == sourceFileID }) else {
+            guard let file = ast.file(for: sourceFileID) else {
                 return nil
             }
             return reusableSyntheticDeclarationSymbol(
@@ -722,7 +722,7 @@ extension DataFlowSemaPhase {
         guard let decl = ast.arena.decl(declID) else {
             return
         }
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let anyType = types.anyType

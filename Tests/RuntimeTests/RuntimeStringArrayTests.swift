@@ -489,19 +489,27 @@ struct RuntimeStringArrayTests {
         #expect(concatFlatValue("Hello, ", "World!") == "Hello, World!")
     }
 
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil buffer. String templates and `+`/`String?.plus` must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type, instead of silently treating it as "" (which hid an
+    // uninitialized-field bug behind output that merely looked wrong
+    // instead of null -- see superclass_init_uninitialized_string.kt).
+
     @Test
-    func testStringConcatFlatWithNilDataLeftReturnsRightOnly() {
-        #expect(concatFlatValue(nil, "World") == "World")
+    func testStringConcatFlatWithNilDataLeftRendersNullPrefix() {
+        #expect(concatFlatValue(nil, "World") == "nullWorld")
     }
 
     @Test
-    func testStringConcatFlatWithNilDataRightReturnsLeftOnly() {
-        #expect(concatFlatValue("Hello", nil) == "Hello")
+    func testStringConcatFlatWithNilDataRightRendersNullSuffix() {
+        #expect(concatFlatValue("Hello", nil) == "Hellonull")
     }
 
     @Test
-    func testStringConcatFlatBothNilDataReturnsEmptyString() {
-        #expect(concatFlatValue(nil, nil) == "")
+    func testStringConcatFlatBothNilDataReturnsNullNull() {
+        #expect(concatFlatValue(nil, nil) == "nullnull")
     }
 
     // MARK: - kk_string_compareTo_flat
@@ -1642,6 +1650,47 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatSupportsPreviousArgumentReuseFlag() {
+        func format(_ template: String, _ args: [Int]) -> String {
+            flatStringReturnValueNoThrow(template, intArg: makeRuntimeArray(args), using: __kk_string_format_flat)
+        }
+
+        // `java.util.Formatter` `<` flag: reuse the argument selected by the
+        // previous specifier without consuming the ordinary index.
+        #expect(format("%s %<s", [rawFromRuntimeString("x")]) == "x x")
+        #expect(format("%d|%03d|%<d", [7, 8]) == "7|008|8")
+        #expect(format("%1$s %<s", [rawFromRuntimeString("a")]) == "a a")
+        #expect(format("%s %s %<s %<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+            rawFromRuntimeString("c"),
+        ]) == "a b b b")
+        #expect(format("%s %<s %s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+        ]) == "a a b")
+        #expect(format("%2$s %s %<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+            rawFromRuntimeString("c"),
+        ]) == "b a a")
+        #expect(format("%d %<05d %<d", [42]) == "42 00042 42")
+        #expect(format("%s %<d", [7]) == "7 7")
+        #expect(format("%s|%<5s|%-<5s", [rawFromRuntimeString("x")]) == "x|    x|x    ")
+
+        // The `<` flag overrides an explicit `%n$` index, matching
+        // `java.util.Formatter`.
+        #expect(format("%s %2$<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+        ]) == "a a")
+
+        // No previous specifier: Java throws MissingFormatArgumentException;
+        // KSwiftK falls back to the same null rendering as a missing argument.
+        #expect(format("%<s", [rawFromRuntimeString("x")]) == "null")
+    }
+
+    @Test
     func testStringFormatSupportsBooleanSpecifiers() {
         let args = makeRuntimeArray([
             kk_box_bool(1),
@@ -1833,6 +1882,51 @@ struct RuntimeStringArrayTests {
             using: __kk_string_format_locale_flat
         )
         #expect(formatted == "3.5")
+    }
+
+    @Test
+    func testStringFormatRejectsIntMaxPrecisionWithoutTrap() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([boxDouble(1.5)])
+        let formattedMax = flatStringReturnValueNoThrow("%.9223372036854775807f", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedMax.contains("%"))
+
+        let formattedOverflowDigits = flatStringReturnValueNoThrow("%.99999999999999999999f", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedOverflowDigits.contains("%"))
+    }
+
+    @Test
+    func testStringFormatRejectsLargeWidthWithoutAllocationFailure() {
+        let args = makeRuntimeArray([42])
+        let formattedMax = flatStringReturnValueNoThrow("%9223372036854775807d", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedMax.contains("%"))
+
+        let formattedExceeded = flatStringReturnValueNoThrow("%100001d", intArg: args, using: __kk_string_format_flat)
+        #expect(formattedExceeded.contains("%"))
+    }
+
+    @Test
+    func testStringFormatEnforcesCumulativeBudgetAcrossMultipleSpecifiers() {
+        let str = rawFromRuntimeString("x")
+        let args = makeRuntimeArray([str, str])
+        let formatted = flatStringReturnValueNoThrow("%60000s%60000s", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted.count <= 100_000)
+        #expect(formatted.count == 60_000)
+    }
+
+    @Test
+    func testStringFormatExactBoundaryHandling() {
+        let str = rawFromRuntimeString("x")
+        let args1 = makeRuntimeArray([str])
+        let formattedWidthBoundary = flatStringReturnValueNoThrow("%100000s", intArg: args1, using: __kk_string_format_flat)
+        #expect(formattedWidthBoundary.count == 100_000)
+        #expect(formattedWidthBoundary.hasSuffix("x"))
+
+        let args2 = makeRuntimeArray([str, str])
+        let formattedBudgetBoundary = flatStringReturnValueNoThrow("%50000s%50000s", intArg: args2, using: __kk_string_format_flat)
+        #expect(formattedBudgetBoundary.count == 100_000)
     }
 
     @Test

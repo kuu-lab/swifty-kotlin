@@ -388,6 +388,79 @@ private func propagateRegexReplacementTemplateError(
     return 0
 }
 
+/// Maps each named capture group declared by `regexBox` to its numeric group
+/// index in `result`, by matching the named range to a numbered group range.
+private func namedCaptureGroupIndexMap(
+    from result: NSTextCheckingResult,
+    regexBox: RuntimeRegexBox
+) -> [String: Int] {
+    var namedGroups: [String: Int] = [:]
+    for name in regexBox.namedGroupNames {
+        let namedRange = result.range(withName: name)
+        guard namedRange.location != NSNotFound else { continue }
+        for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
+            namedGroups[name] = groupIndex
+            break
+        }
+    }
+    return namedGroups
+}
+
+/// Kotlin/Java replacement strings expand `${name}` (and `${n}`) to capture
+/// groups. `NSRegularExpression.replacementString` only understands `$n`, so
+/// rewrite the Kotlin form before handing the template to Foundation.
+private func expandNamedGroupReferences(in template: String, namedGroups: [String: Int]) -> String {
+    var result = ""
+    var index = template.startIndex
+    while index < template.endIndex {
+        let character = template[index]
+        if character == "\\" {
+            result.append(character)
+            let next = template.index(after: index)
+            guard next < template.endIndex else { break }
+            result.append(template[next])
+            index = template.index(after: next)
+            continue
+        }
+        if character == "$" {
+            let afterDollar = template.index(after: index)
+            if afterDollar < template.endIndex, template[afterDollar] == "{" {
+                let nameStart = template.index(after: afterDollar)
+                if let closing = template[nameStart...].firstIndex(of: "}") {
+                    let name = String(template[nameStart..<closing])
+                    if let groupIndex = replacementGroupIndex(name, namedGroups: namedGroups) {
+                        result.append("$\(groupIndex)")
+                        index = template.index(after: closing)
+                        continue
+                    }
+                }
+            }
+        }
+        result.append(character)
+        index = template.index(after: index)
+    }
+    return result
+}
+
+private func replacementGroupIndex(_ name: String, namedGroups: [String: Int]) -> Int? {
+    if let number = Int(name), number >= 0 {
+        return number
+    }
+    return namedGroups[name]
+}
+
+private func applyRegexReplacementTemplate(
+    _ regex: NSRegularExpression,
+    match: NSTextCheckingResult,
+    in str: String,
+    template: String,
+    regexBox: RuntimeRegexBox
+) -> String {
+    let namedGroups = namedCaptureGroupIndexMap(from: match, regexBox: regexBox)
+    let expanded = expandNamedGroupReferences(in: template, namedGroups: namedGroups)
+    return regex.replacementString(for: match, in: str, offset: 0, template: expanded)
+}
+
 /// `inputUTF16Count` may carry the caller's already-computed UTF-16 length of
 /// `str`; omitting it recomputes it once here.
 private func makeMatchResult(from result: NSTextCheckingResult, in str: String, regexBox: RuntimeRegexBox? = nil, inputUTF16Count: Int? = nil) -> RuntimeMatchResultBox {
@@ -421,16 +494,8 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
     var namedGroups: [String: Int] = [:]
     var namedGroupNames: Set<String> = []
     if let regexBox = regexBox {
-        let names = regexBox.namedGroupNames
-        namedGroupNames = Set(names)
-        for name in names {
-            let namedRange = result.range(withName: name)
-            guard namedRange.location != NSNotFound else { continue }
-            for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
-                namedGroups[name] = groupIndex
-                break
-            }
-        }
+        namedGroupNames = Set(regexBox.namedGroupNames)
+        namedGroups = namedCaptureGroupIndexMap(from: result, regexBox: regexBox)
     }
 
     // UTF-16 offset of the match end position for next() iteration
@@ -686,7 +751,13 @@ public func kk_string_replace_regex(
     for match in matches {
         guard let matchRange = Range(match.range, in: str) else { continue }
         result.append(String(str[lastEnd ..< matchRange.lowerBound]))
-        let templateResult = regexBox.regex.replacementString(for: match, in: str, offset: 0, template: replacement)
+        let templateResult = applyRegexReplacementTemplate(
+            regexBox.regex,
+            match: match,
+            in: str,
+            template: replacement,
+            regexBox: regexBox
+        )
         result.append(templateResult)
         lastEnd = matchRange.upperBound
     }
@@ -1207,7 +1278,13 @@ public func kk_string_replaceFirst_regex(
             outThrown: outThrown
         )
     }
-    let templateResult = regexBox.regex.replacementString(for: match, in: str, offset: 0, template: replacement)
+    let templateResult = applyRegexReplacementTemplate(
+        regexBox.regex,
+        match: match,
+        in: str,
+        template: replacement,
+        regexBox: regexBox
+    )
     var result = str
     result.replaceSubrange(matchRange, with: templateResult)
     return regexMakeStringRaw(result)

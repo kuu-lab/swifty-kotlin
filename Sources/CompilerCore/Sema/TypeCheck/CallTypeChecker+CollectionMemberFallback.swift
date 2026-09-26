@@ -1392,9 +1392,11 @@ extension CallTypeChecker {
             return nil
         }
         var queue: [SymbolID] = roots
+        var queueHead = 0
         var visited: Set<SymbolID> = []
-        while !queue.isEmpty {
-            let owner = queue.removeFirst()
+        while queueHead < queue.count {
+            let owner = queue[queueHead]
+            queueHead += 1
             guard visited.insert(owner).inserted,
                   let ownerSymbol = sema.symbols.symbol(owner)
             else {

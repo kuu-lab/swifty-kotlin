@@ -1,5 +1,47 @@
 
 extension LocalDeclTypeChecker {
+    /// When the sole shape-matching get()/set() candidate expects a non-Int
+    /// integer primitive (Long, UInt, ULong, Byte, Short) at `parameterIndex`
+    /// and `indexExpr` is a bare integer literal, Kotlin contextualizes the
+    /// literal to that parameter type instead of defaulting it to Int —
+    /// mirroring the analogous adaptation already applied to the assigned
+    /// value below (`setValueExpectedType`). Without this, `b[0]` against
+    /// `operator fun get(position: Long)` infers the literal as Int,
+    /// overload resolution then rejects the only candidate (Int is not a
+    /// subtype of Long), and both Sema and KIR lowering silently fall back
+    /// to treating `b` as a raw built-in array.
+    func contextualIntegerLiteralExpectedType(
+        candidates: [SymbolID],
+        parameterIndex: Int,
+        indexExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard driver.callChecker.isContextualizableIntegerLiteral(indexExpr, ast: ast) else {
+            return nil
+        }
+        var paramTypes: [TypeID] = []
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count > parameterIndex
+            else {
+                continue
+            }
+            paramTypes.append(sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
+        }
+        guard paramTypes.count == 1,
+              case let .primitive(primitive, _) = sema.types.kind(of: paramTypes[0])
+        else {
+            return nil
+        }
+        switch primitive {
+        case .long, .uint, .ulong, .byte, .short:
+            return paramTypes[0]
+        default:
+            return nil
+        }
+    }
+
     func inferIndexedAccessExpr(
         _ id: ExprID,
         receiverExpr: ExprID,
@@ -84,8 +126,15 @@ extension LocalDeclTypeChecker {
         // Infer all index expressions without forcing Int.
         // Int constraint is only applied in the built-in array fallback.
         var indexTypes: [TypeID] = []
-        for indexExpr in indices {
-            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        for (position, indexExpr) in indices.enumerated() {
+            let literalExpectedType = contextualIntegerLiteralExpectedType(
+                candidates: getCandidates,
+                parameterIndex: position,
+                indexExpr: indexExpr,
+                ast: ast,
+                sema: sema
+            )
+            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType)
             indexTypes.append(indexType)
         }
 
@@ -286,8 +335,15 @@ extension LocalDeclTypeChecker {
         // Infer all index expressions without forcing Int.
         // Int constraint is only applied in the built-in array fallback.
         var indexTypes: [TypeID] = []
-        for indexExpr in indices {
-            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        for (position, indexExpr) in indices.enumerated() {
+            let literalExpectedType = contextualIntegerLiteralExpectedType(
+                candidates: setCandidates,
+                parameterIndex: position,
+                indexExpr: indexExpr,
+                ast: ast,
+                sema: sema
+            )
+            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType)
             indexTypes.append(indexType)
         }
 

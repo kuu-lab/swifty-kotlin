@@ -44,6 +44,10 @@ extension BuildASTPhase.ExpressionParser {
                 statements.append(localDecl)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
                 statements.append(localAssign)
+            } else if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
+                from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
+            ) {
+                statements.append(nominalDecl)
             } else if let expr = BuildASTPhase.ExpressionParser(
                 tokens: group, interner: interner, astArena: astArena, diagnostics: diagnostics
             ).parse() {
@@ -54,7 +58,7 @@ extension BuildASTPhase.ExpressionParser {
         var trailingExpr: ExprID?
         if let lastID = statements.last, let lastExpr = astArena.expr(lastID) {
             switch lastExpr {
-            case .localDecl, .localAssign, .memberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl:
+            case .localDecl, .localAssign, .memberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl, .localNominalDecl:
                 break
             default:
                 trailingExpr = statements.removeLast()

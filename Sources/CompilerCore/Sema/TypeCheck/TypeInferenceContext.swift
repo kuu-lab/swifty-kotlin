@@ -38,7 +38,11 @@ struct TypeInferenceContext: CustomStringConvertible {
     var initializingPropertySymbol: SymbolID?
     var enclosingClassSymbol: SymbolID?
     let visibilityChecker: VisibilityChecker
-    var outerReceiverTypes: [(label: InternedString, type: TypeID)]
+    /// `symbol` is the enclosing function's receiver parameter when the entry's
+    /// runtime value is reachable through capture (e.g. the enclosing `this`
+    /// captured into an object literal's fields); `nil` entries participate in
+    /// `this@Label` typing only.
+    var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
     /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
     /// When true, the current scope is a builder DSL lambda body (STDLIB-002).
@@ -95,7 +99,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// nominal runtime type. Keep that lookup on the context so callers do not
     /// duplicate the AST scan.
     var currentASTFile: ASTFile? {
-        ast.sortedFiles.first { $0.fileID == currentFileID }
+        ast.file(for: currentFileID)
     }
 
     func withLambdaLabel(_ label: InternedString) -> TypeInferenceContext {
@@ -144,7 +148,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         flowState: DataFlowState? = nil,
         currentDeclSymbol: SymbolID?? = nil,
         enclosingClassSymbol: SymbolID?? = nil,
-        outerReceiverTypes: [(label: InternedString, type: TypeID)]? = nil,
+        outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]? = nil,
         contextReceiverTypes: [TypeID]? = nil
     ) -> TypeInferenceContext {
         var copy = self
@@ -182,13 +186,23 @@ struct TypeInferenceContext: CustomStringConvertible {
 
     func withOuterReceiver(label: InternedString, type: TypeID) -> TypeInferenceContext {
         var copy = self
-        copy.outerReceiverTypes = outerReceiverTypes + [(label: label, type: type)]
+        copy.outerReceiverTypes = outerReceiverTypes + [(label: label, type: type, symbol: nil)]
         return copy
     }
 
     func resolveQualifiedThis(label: InternedString) -> TypeID? {
         for entry in outerReceiverTypes.reversed() where entry.label == label {
             return entry.type
+        }
+        return nil
+    }
+
+    /// The receiver parameter symbol attached to a `this@Label` entry, when the
+    /// enclosing `this` is materializable through capture. See
+    /// `outerReceiverTypes`.
+    func resolveQualifiedThisReceiverSymbol(label: InternedString) -> SymbolID? {
+        for entry in outerReceiverTypes.reversed() where entry.label == label {
+            return entry.symbol
         }
         return nil
     }

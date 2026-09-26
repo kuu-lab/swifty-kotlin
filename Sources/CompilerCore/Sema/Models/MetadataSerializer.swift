@@ -28,11 +28,27 @@ package struct MetadataRecord {
     /// Upper-bound type signatures for callable type parameters, in declaration order.
     /// Empty entries preserve alignment when only a later type parameter is bounded.
     package let typeParameterUpperBoundsSignatures: [[String]]
+    /// Type parameter references of a callable in declaration order, encoded as
+    /// `T<rawID>` tokens (e.g. `T5023`) matching the encoding used inside type
+    /// signatures. For member callables this is the full list, including the
+    /// leading owner (class) type parameters. It preserves the declared order
+    /// for parameters that never appear in the decoded signature ("phantom"
+    /// parameters referenced only inside the body via explicit type arguments
+    /// to other generic calls) and disambiguates parameters across overloads
+    /// that share one FQ name.
+    package let callableTypeParameterSignatures: [String]
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
     /// contain a non-local return when the callable is inline-expanded.
     package let valueParameterAllowsNonLocalReturn: [Bool]
+    /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect,
+    /// `nil` where the parameter has none. Lets definite-assignment analysis see
+    /// bundled-stdlib contracts (e.g. `run`/`let`/`apply`/`also`/`with`) even when
+    /// the stdlib is loaded from a precompiled `.kklib` rather than re-typechecked
+    /// from source, since `recordContractEffects` never runs against a decoded
+    /// symbol's (nonexistent) AST body.
+    package let valueParameterCallsInPlaceKinds: [InvocationKind?]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
     /// Whether the function/constructor is declared `throws`.
@@ -60,6 +76,8 @@ package struct MetadataRecord {
     let objectInitializerLinkName: String?
     /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
     let companionInitializerLinkName: String?
+    /// Link name of the guarded object/companion body initializer.
+    let objectLazyInitializerLinkName: String?
     /// Link name of the precompiled enum static initializer (e.g. `__enum_static_init_*`).
     package let enumStaticInitLinkName: String?
 
@@ -136,9 +154,11 @@ package struct MetadataRecord {
         receiverOwnerFQName: String? = nil,
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
+        callableTypeParameterSignatures: [String] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
+        valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
@@ -155,6 +175,7 @@ package struct MetadataRecord {
         itableSlots: String? = nil,
         objectInitializerLinkName: String? = nil,
         companionInitializerLinkName: String? = nil,
+        objectLazyInitializerLinkName: String? = nil,
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
@@ -188,9 +209,11 @@ package struct MetadataRecord {
         self.receiverOwnerFQName = receiverOwnerFQName
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
+        self.callableTypeParameterSignatures = callableTypeParameterSignatures
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+        self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -207,6 +230,7 @@ package struct MetadataRecord {
         self.itableSlots = itableSlots
         self.objectInitializerLinkName = objectInitializerLinkName
         self.companionInitializerLinkName = companionInitializerLinkName
+        self.objectLazyInitializerLinkName = objectLazyInitializerLinkName
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
@@ -353,6 +377,7 @@ package final class MetadataEncoder {
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
+        objectLazyInitializerLinkNames: [SymbolID: String] = [:],
         enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
@@ -459,6 +484,17 @@ package final class MetadataEncoder {
                 {
                     return false
                 }
+                // KSP-1093: AtomicLongArray(LongArray) is an internal storage
+                // constructor. Keep it in the stdlib object for the public
+                // initializer factory, but do not export it to consumers.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.visibility != .public,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "concurrent", "AtomicLongArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
+                }
                 // STDLIB-SHARED-016: Compiler-generated enum static helpers
                 // (values/valueOf/entries) for non-public enum classes are not part
                 // of the stdlib surface and cannot be resolved on the consumer side.
@@ -509,6 +545,7 @@ package final class MetadataEncoder {
                 includedSymbolIDs: exportedSymbolIDs,
                 objectInitializerLinkNames: objectInitializerLinkNames,
                 companionInitializerLinkNames: companionInitializerLinkNames,
+                objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
                 enumStaticInitLinkNames: enumStaticInitLinkNames
             )
             records.append(built)
@@ -752,6 +789,7 @@ package final class MetadataEncoder {
         includedSymbolIDs: Set<SymbolID>? = nil,
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
+        objectLazyInitializerLinkNames: [SymbolID: String] = [:],
         enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> MetadataRecord {
         let mangler = NameMangler()
@@ -847,9 +885,11 @@ package final class MetadataEncoder {
         var receiverOwnerFQName: String?
         var typeSignature: String?
         var typeParameterUpperBoundsSignatures: [[String]] = []
+        var callableTypeParameterSignatures: [String] = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
+        var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
         var canThrow = false
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
@@ -867,6 +907,12 @@ package final class MetadataEncoder {
             isOperator = symbol.flags.contains(.operatorFunction)
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
+            let callsInPlaceEffects = symbols.contractCallsInPlaceEffects(for: symbol.id)
+            if !callsInPlaceEffects.isEmpty {
+                valueParameterCallsInPlaceKinds = signature.valueParameterSymbols.map { paramSymbol in
+                    callsInPlaceEffects.first { $0.parameterSymbol == paramSymbol }?.kind
+                }
+            }
             valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
             // KUU-655: an override with an inheritance link
             // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
@@ -917,6 +963,7 @@ package final class MetadataEncoder {
                     )
                 }
             }
+            callableTypeParameterSignatures = signature.typeParameterSymbols.map { "T\($0.rawValue)" }
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             // KUU-655: uses the (already override-corrected) local flag, not
             // `signature.valueParameterHasDefaultValues` directly, so an
@@ -1081,6 +1128,7 @@ package final class MetadataEncoder {
         var itableSlotsStr: String?
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
+        var objectLazyInitializerLinkName: String?
         var enumStaticInitLinkName: String?
         var nominalTypeParametersSignature: String?
         var nominalSupertypeSignatures: [String] = []
@@ -1134,6 +1182,9 @@ package final class MetadataEncoder {
                 objectInitializerLinkName = objectInitializerLinkNames[symbol.id]
             }
             companionInitializerLinkName = companionInitializerLinkNames[symbol.id]
+            if symbol.kind == .object {
+                objectLazyInitializerLinkName = objectLazyInitializerLinkNames[symbol.id]
+            }
             if symbol.kind == .enumClass {
                 enumStaticInitLinkName = enumStaticInitLinkNames[symbol.id]
             }
@@ -1186,9 +1237,11 @@ package final class MetadataEncoder {
             receiverOwnerFQName: receiverOwnerFQName,
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
+            callableTypeParameterSignatures: callableTypeParameterSignatures,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
@@ -1205,6 +1258,7 @@ package final class MetadataEncoder {
             itableSlots: itableSlotsStr,
             objectInitializerLinkName: objectInitializerLinkName,
             companionInitializerLinkName: companionInitializerLinkName,
+            objectLazyInitializerLinkName: objectLazyInitializerLinkName,
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
@@ -1390,6 +1444,18 @@ package final class MetadataEncoder {
                     let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
                     fields.append("default=\(mask)")
                 }
+                if record.valueParameterCallsInPlaceKinds.contains(where: { $0 != nil }) {
+                    let mask = record.valueParameterCallsInPlaceKinds.map { kind -> String in
+                        switch kind {
+                        case nil: "-"
+                        case .atMostOnce: "M"
+                        case .atLeastOnce: "A"
+                        case .exactlyOnce: "E"
+                        case .unknown: "U"
+                        }
+                    }.joined()
+                    fields.append("callsInPlace=\(mask)")
+                }
                 if record.canThrow {
                     fields.append("canThrow=1")
                 }
@@ -1407,6 +1473,9 @@ package final class MetadataEncoder {
                    let encodedBounds = encodeMetadataTypeParameterUpperBounds(record.typeParameterUpperBoundsSignatures)
                 {
                     fields.append("typeBounds=\(encodedBounds)")
+                }
+                if !record.callableTypeParameterSignatures.isEmpty {
+                    fields.append("callTParams=\(record.callableTypeParameterSignatures.joined(separator: ","))")
                 }
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
@@ -1485,6 +1554,9 @@ package final class MetadataEncoder {
                 }
                 if let companionInitLink = record.companionInitializerLinkName, !companionInitLink.isEmpty {
                     fields.append("companionInitLink=\(companionInitLink)")
+                }
+                if let objectLazyInitLink = record.objectLazyInitializerLinkName, !objectLazyInitLink.isEmpty {
+                    fields.append("objectLazyInitLink=\(objectLazyInitLink)")
                 }
                 if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
                     fields.append("enumStaticInitLink=\(enumStaticInitLink)")
@@ -1872,9 +1944,11 @@ final class MetadataDecoder {
                 receiverOwnerFQName: rec.receiverOwnerFQName,
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
+                callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
+                valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
                 reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
@@ -1891,6 +1965,7 @@ final class MetadataDecoder {
                 itableSlots: rec.itableSlots,
                 objectInitializerLinkName: rec.objectInitializerLinkName,
                 companionInitializerLinkName: rec.companionInitializerLinkName,
+                objectLazyInitializerLinkName: rec.objectLazyInitializerLinkName,
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isOpenClass: rec.isOpenClass,
@@ -1929,9 +2004,11 @@ final class MetadataDecoder {
         var isOverride: Bool = false
         var receiverOwnerFQName: String?
         var typeSignature: String?
+        var callableTypeParameterSignatures: [String] = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
+        var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
@@ -1948,6 +2025,7 @@ final class MetadataDecoder {
         var itableSlots: String?
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
+        var objectLazyInitializerLinkName: String?
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
@@ -1978,7 +2056,7 @@ final class MetadataDecoder {
         case "fq":
             record.fqName = value
         case "arity":
-            record.arity = Int(value) ?? 0
+            record.arity = Int(value) ?? Int.max
         case "suspend":
             record.isSuspend = value == "1" || value == "true"
         case "inline":
@@ -1995,6 +2073,16 @@ final class MetadataDecoder {
             record.valueParameterAllowsNonLocalReturn = value.map { $0 == "1" }
         case "default":
             record.valueParameterHasDefaultValues = value.map { $0 == "1" }
+        case "callsInPlace":
+            record.valueParameterCallsInPlaceKinds = value.map { char -> InvocationKind? in
+                switch char {
+                case "M": .atMostOnce
+                case "A": .atLeastOnce
+                case "E": .exactlyOnce
+                case "U": .unknown
+                default: nil
+                }
+            }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"
         case "paramNames":
@@ -2009,6 +2097,8 @@ final class MetadataDecoder {
             record.typeSignature = value.isEmpty ? nil : value
         case "typeBounds":
             record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
+        case "callTParams":
+            record.callableTypeParameterSignatures = value.split(separator: ",").map(String.init)
         case "link":
             record.externalLinkName = value.isEmpty ? nil : value
         case "fields":
@@ -2039,6 +2129,8 @@ final class MetadataDecoder {
             record.objectInitializerLinkName = value.isEmpty ? nil : value
         case "companionInitLink":
             record.companionInitializerLinkName = value.isEmpty ? nil : value
+        case "objectLazyInitLink":
+            record.objectLazyInitializerLinkName = value.isEmpty ? nil : value
         case "enumStaticInitLink":
             record.enumStaticInitLinkName = value.isEmpty ? nil : value
         case "dataClass":

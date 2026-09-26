@@ -1,4 +1,5 @@
 @testable import Runtime
+import Dispatch
 import Testing
 
 #if canImport(Darwin)
@@ -15,7 +16,9 @@ import Testing
 //   Memory    - __kk_runtime_getRuntime() stable singleton, totalMemory/freeMemory/maxMemory positive
 //   Pinned    - kk_pin_object returns non-zero handle, kk_pinned_get round-trips original raw value,
 //               kk_unpin_object returns original object raw, pinned object survives GC while pinned,
-//               repeated unpin on already-unpinned handle is safe (returns 0)
+//               repeated unpin on already-unpinned handle is safe (returns 0),
+//               multiple pins on one target are independent refcounts: unpinning one
+//               keeps the object rooted until the last pin is released (KUU-792)
 //   freeze    - kk_freeze_object returns same handle (positive return),
 //               repeated freeze is idempotent, isFrozen is stable across multiple queries,
 //               freeze propagation: freezing parent does NOT auto-freeze child (registry is flat),
@@ -395,6 +398,55 @@ struct RuntimeNativeRefPinnedTests {
             #expect(kk_pinned_get(pinB) == objectRaw)
             _ = kk_unpin_object(pinA)
             _ = kk_unpin_object(pinB)
+        }
+    }
+
+    /// Two independent pins on the same target: releasing one must not unroot
+    /// the object while the other pin is still held (KUU-792 use-after-free).
+    @Test func unpinningOneOfTwoPinsKeepsObjectRootedAcrossGC() {
+        withDummyNativeRefTypeInfo { ti in
+            let obj = kk_alloc(16, ti)
+            let objectRaw = Int(bitPattern: obj)
+            let pinA = kk_pin_object(objectRaw)
+            let pinB = kk_pin_object(objectRaw)
+            _ = kk_unpin_object(pinA)
+            kk_gc_collect()
+            // The remaining pin keeps the target rooted and resolvable.
+            #expect(kk_runtime_heap_object_count() == 1,
+                    "Object with a surviving pin must not be collected")
+            #expect(kk_pinned_get(pinB) == objectRaw)
+            // Only after the last independent pin is released does the object
+            // become collection-eligible.
+            _ = kk_unpin_object(pinB)
+            kk_gc_collect()
+            #expect(kk_runtime_heap_object_count() == 0,
+                    "Object must be collectible once its last pin is released")
+        }
+    }
+
+    /// Concurrent pin/unpin on the same target must neither underflow the
+    /// per-target refcount nor lose an update: with one anchor pin held
+    /// throughout, the object must survive every collection, and the refcount
+    /// must reach exactly zero once that last handle is released.
+    @Test func concurrentPinUnpinOnSameObjectTracksOutstandingHandles() {
+        withDummyNativeRefTypeInfo { ti in
+            let obj = kk_alloc(16, ti)
+            let objectRaw = Int(bitPattern: obj)
+            let anchorPin = kk_pin_object(objectRaw)
+            DispatchQueue.concurrentPerform(iterations: 512) { index in
+                if index % 64 == 0 {
+                    kk_gc_collect()
+                }
+                let handle = kk_pin_object(objectRaw)
+                _ = kk_unpin_object(handle)
+            }
+            #expect(kk_runtime_heap_object_count() == 1,
+                    "Anchor pin must keep the object rooted across concurrent pin/unpin + GC")
+            #expect(kk_pinned_get(anchorPin) == objectRaw)
+            _ = kk_unpin_object(anchorPin)
+            kk_gc_collect()
+            #expect(kk_runtime_heap_object_count() == 0,
+                    "Refcount must reach zero exactly when the last handle unpins")
         }
     }
 }

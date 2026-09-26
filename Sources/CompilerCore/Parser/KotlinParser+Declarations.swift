@@ -1,5 +1,10 @@
 extension KotlinParser {
     func parseDeclaration() -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: true)
+        }
+        defer { leaveNesting() }
+
         var modifierChildren: [SyntaxChild] = []
         var modifierRange = RangeAccumulator()
         if case .softKeyword(.context) = stream.peek().kind {

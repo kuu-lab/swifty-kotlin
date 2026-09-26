@@ -533,6 +533,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
 func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     let raw = registerRuntimeObject(box)
     runtimeRegisterObjectType(rawValue: raw, classID: typeID)
+    runtimeRegisterKCallableItableIfNeeded(rawValue: raw, typeID: typeID)
     return raw
 }
 
@@ -1294,6 +1295,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
+    }
+    // kotlin.concurrent(.atomics).AtomicReference.toString() renders the
+    // current value, matching the JDK AtomicReference it is modelled on.
+    if let atomicRefBox = tryCast(ptr, to: AtomicRefBox.self) {
+        return runtimeElementToString(atomicRefBox.load())
     }
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

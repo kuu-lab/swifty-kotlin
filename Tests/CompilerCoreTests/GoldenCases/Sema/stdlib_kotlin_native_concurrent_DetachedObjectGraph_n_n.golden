@@ -1,0 +1,18 @@
+symbol fq=golden.sema.detachedObjectGraphFromPointer.$0.pointer[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.detachedObjectGraphFromPointer[kind=fun;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?] ret=kotlin.native.concurrent.DetachedObjectGraph<String>
+symbol fq=golden.sema.detachedObjectGraphFromProducerWithMode[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.native.concurrent.DetachedObjectGraph<String>
+symbol fq=golden.sema.detachedObjectGraphFromProducer[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.native.concurrent.DetachedObjectGraph<String>
+file fstdlib_kotlin_native_concurrent_DetachedObjectGraph_n_n package=golden.sema annotations=[@file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class,kotlinx.cinterop.ExperimentalForeignApi::class),@file:Suppress("DEPRECATION_ERROR","INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.detachedObjectGraphFromProducer[kind=fun;params=] fun detachedObjectGraphFromProducer sym=golden.sema.detachedObjectGraphFromProducer[kind=fun;params=]
+  decl golden.sema.detachedObjectGraphFromProducerWithMode[kind=fun;params=] fun detachedObjectGraphFromProducerWithMode sym=golden.sema.detachedObjectGraphFromProducerWithMode[kind=fun;params=]
+  decl golden.sema.detachedObjectGraphFromPointer[kind=fun;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?] fun detachedObjectGraphFromPointer sym=golden.sema.detachedObjectGraphFromPointer[kind=fun;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?]
+expr e@14:27 string(value) type=String
+expr e@14:25 lambda params=[] body=e@14:27 label=DetachedObjectGraph type=() -> String
+expr e@14:5 call callee=e@14:5#1 args=[_:e@14:25] type=kotlin.native.concurrent.DetachedObjectGraph<String> call=kotlin.native.concurrent.DetachedObjectGraph.<init>[kind=ctor;recv=kotlin.native.concurrent.DetachedObjectGraph<T0>;params=kotlin.native.concurrent.TransferMode,fn{p=;ret=T0};gen=1] targs=[String]
+expr e@17:25 name(TransferMode) type=kotlin.native.concurrent.TransferMode ref=kotlin.native.concurrent.TransferMode[kind=enum]
+expr e@17:25#1 memberCall recv=e@17:25 callee=UNSAFE args=[] type=kotlin.native.concurrent.TransferMode ref=kotlin.native.concurrent.TransferMode.UNSAFE[kind=field]
+expr e@17:48 string(value) type=String
+expr e@17:46 lambda params=[] body=e@17:48 label=DetachedObjectGraph type=() -> String
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:25#1,_:e@17:46] type=kotlin.native.concurrent.DetachedObjectGraph<String> call=kotlin.native.concurrent.DetachedObjectGraph.<init>[kind=ctor;recv=kotlin.native.concurrent.DetachedObjectGraph<T0>;params=kotlin.native.concurrent.TransferMode,fn{p=;ret=T0};gen=1] targs=[String]
+expr e@20:25 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>? ref=golden.sema.detachedObjectGraphFromPointer.$0.pointer[kind=vparam]
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:25] type=kotlin.native.concurrent.DetachedObjectGraph<String> call=kotlin.native.concurrent.DetachedObjectGraph.<init>[kind=ctor;recv=kotlin.native.concurrent.DetachedObjectGraph<T0>;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?;gen=1] targs=[String]

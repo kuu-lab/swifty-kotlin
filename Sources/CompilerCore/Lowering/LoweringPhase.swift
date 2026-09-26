@@ -75,18 +75,11 @@ public final class LoweringPhase: CompilerPhase {
             interner: ctx.interner,
             sema: ctx.sema
         )
-        if let sema = ctx.sema {
-            // ARCH-029: indexed imports defer `.kir` body parsing. Resolve the
-            // bodies this module's call sites actually reach before the
-            // expansion index snapshots the imported table.
-            sema.resolveDemandedImportedInlineBodies?(module)
-            ImportedInlineKIRMaterializer.materialize(
-                importedFunctions: &sema.importedInlineFunctions,
-                arena: module.arena,
-                types: sema.types,
-                interner: ctx.interner
-            )
-        }
+        // ARCH-029: indexed imports keep some `.kir` bodies unregistered
+        // until a call site is seen. Register those demanded descriptors
+        // first; the inline pass then materializes each body on expansion
+        // via `ImportedInlineFunctionStore`.
+        ctx.sema?.resolveDemandedImportedInlineBodies?(module)
         module.scanFeatures()
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.

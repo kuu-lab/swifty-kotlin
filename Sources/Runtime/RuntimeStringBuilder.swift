@@ -186,11 +186,8 @@ public func __kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int
     runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
 }
 
-// BUG-172: Appendable overloads use direct native bridges because StringBuilder
-// instances bypass kk_object_new construction (see BUG-044 note above) and do not
-// register itable entries. Source-backed Appendable declarations retain these
-// explicit links so calls through the bare interface type do not require a
-// StringBuilder itable entry.
+// Retain the direct append bridge for existing runtime ABI callers. Kotlin
+// Appendable calls dispatch through source-backed implementations and itables.
 @_cdecl("__kk_string_builder_append_char")
 public func __kk_string_builder_append_char(_ sbRaw: Int, _ charRaw: Int) -> Int {
     runtimeStringBuilderAppend(sbRaw, value: runtimeCharacterFromRaw(charRaw))

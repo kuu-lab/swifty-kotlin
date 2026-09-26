@@ -451,6 +451,55 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testDuplicateNominalTypeParameterMetadataReportsLibraryDiagnostic() throws {
+        let metadata = """
+        symbols=2
+        class _ fq=ext.Box schema=v1 typeParamsSig=C0
+        class _ fq=ext.Box schema=v1 typeParamsSig=C0
+        """
+        try withKklibFixture(moduleName: "DuplicateNominal", metadata: metadata) { libraryPath in
+            try withTemporaryFile(contents: "fun main() = 0") { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "DuplicateNominalApp",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+
+                assertHasDiagnostic("KSWIFTK-LIB-0024", in: appCtx)
+                #expect(
+                    appCtx.diagnostics.diagnostics.contains { diagnostic in
+                        diagnostic.code == "KSWIFTK-LIB-0024" && diagnostic.message.contains("ext.Box")
+                    }
+                )
+                #expect(
+                    appCtx.sema?.symbols.allSymbols().allSatisfy { symbol in
+                        appCtx.interner.resolve(symbol.name) != "Box"
+                            || !symbol.flags.contains(.importedLibrary)
+                    } == true
+                )
+            }
+        }
+
+        let forgedMetadata = """
+        symbols=2
+        function _ fq=ext.Forged schema=v1 typeParamsSig=C0
+        function _ fq=ext.Forged schema=v1 typeParamsSig=C1
+        """
+        try withKklibFixture(moduleName: "ForgedNominalMetadata", metadata: forgedMetadata) { libraryPath in
+            let diagnostics = DiagnosticEngine()
+            let records = DataFlowSemaPhase().parseLibraryMetadata(
+                path: libraryPath + "/metadata.bin",
+                diagnostics: diagnostics,
+                interner: StringInterner()
+            )
+            #expect(records == nil)
+            #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0024" })
+        }
+    }
+
+    @Test
     func testLibraryMetadataRoundTripsContextFunctionTypeSignatures() throws {
         let source = """
         package metaexport

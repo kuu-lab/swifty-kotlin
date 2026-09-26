@@ -58,6 +58,120 @@ final class ObjectLiteralLowerer {
         return objectValue
     }
 
+    /// KUU-555: lowers a `class`/`object` declared as a block statement.
+    /// A local `object` materializes its singleton right at the declaration
+    /// site (exactly like an object literal) and binds it to the declared
+    /// name's symbol; a local `class` only emits its nominal/member/`<init>`
+    /// declarations — instances come from later `Local(...)` call exprs,
+    /// which take the normal constructor-call path in `CallLowerer`.
+    func lowerLocalNominalDeclExpr(
+        _ exprID: ExprID,
+        declID: DeclID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let unitExpr = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unitExpr, value: .unit))
+        guard let decl = ast.arena.decl(declID),
+              let ownerSymbol = sema.bindings.declSymbols[declID]
+        else {
+            return unitExpr
+        }
+        switch decl {
+        case let .objectDecl(objectDecl):
+            // Nested member/accessor function emissions reset the scope
+            // (`resetScopeForFunction`) while lowering their own bodies —
+            // restore the enclosing scope afterwards so this decl's own
+            // instance binding and any outer locals it captures survive.
+            let nominalScopeSnapshot = driver.ctx.saveScope()
+            let objectValue = lowerStoredObjectLiteralExpr(
+                    exprID,
+                    objectDecl: objectDecl,
+                    objectSymbol: ownerSymbol,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            driver.ctx.restoreScope(nominalScopeSnapshot)
+            // `Local` references lower as locals — bind the symbol to the
+            // materialized singleton value.
+            driver.ctx.setLocalValue(objectValue, for: ownerSymbol)
+
+        case let .classDecl(classDecl):
+            // Same scope protection as the object path: member and
+            // constructor body emissions below reset the scope.
+            let nominalScopeSnapshot = driver.ctx.saveScope()
+            defer { driver.ctx.restoreScope(nominalScopeSnapshot) }
+            guard ensureObjectLiteralNominalDecl(
+                exprID: exprID,
+                objectSymbol: ownerSymbol,
+                arena: arena
+            ) else {
+                break
+            }
+            let ownerFQName = sema.symbols.symbol(ownerSymbol)?.fqName ?? []
+            if !classDecl.memberFunctions.isEmpty {
+                let (_, allDecls) = driver.memberLowerer.lowerMemberDecls(
+                    memberFunctions: classDecl.memberFunctions,
+                    memberProperties: [],
+                    nestedClasses: [],
+                    nestedObjects: [],
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                for memberDeclID in allDecls {
+                    driver.ctx.appendGeneratedCallableDecl(memberDeclID)
+                }
+            }
+            lowerObjectLiteralPropertyAccessors(
+                classDecl.memberProperties,
+                ownerFQName: ownerFQName,
+                objectSymbol: ownerSymbol,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let initName = interner.intern("<init>")
+            let ctorFQName = ownerFQName + [initName]
+            if let ctorSymbol = sema.symbols.lookupAll(fqName: ctorFQName).first(where: {
+                sema.symbols.symbol($0)?.kind == .constructor
+            }) {
+                let ctorDecls = driver.lowerConstructor(
+                    ctorSymbol: ctorSymbol,
+                    ctorFQName: ctorFQName,
+                    classDecl: classDecl,
+                    ownerSymbol: ownerSymbol,
+                    shared: KIRLoweringSharedContext(
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers
+                    )
+                )
+                for ctorDeclID in ctorDecls {
+                    driver.ctx.appendGeneratedCallableDecl(ctorDeclID)
+                }
+            }
+
+        default:
+            break
+        }
+        return unitExpr
+    }
+
     private func lowerStoredObjectLiteralExpr(
         _ exprID: ExprID,
         objectDecl: ObjectDecl,
@@ -86,7 +200,8 @@ final class ObjectLiteralLowerer {
             // appendObjectItableMethodRegistrations registers these getters into
             // the interface itable so an interface-typed receiver can read them.
             lowerObjectLiteralPropertyAccessors(
-                objectDecl,
+                objectDecl.memberProperties,
+                ownerFQName: sema.symbols.symbol(objectSymbol)?.fqName ?? [objectDecl.name],
                 objectSymbol: objectSymbol,
                 ast: ast,
                 sema: sema,
@@ -228,7 +343,7 @@ final class ObjectLiteralLowerer {
                 _ = objectLiteralDelegateStorageSymbol(
                     for: propertySymbol,
                     propertyDecl: propertyDecl,
-                    objectDecl: objectDecl,
+                    ownerFQName: sema.symbols.symbol(objectSymbol)?.fqName ?? [objectDecl.name],
                     objectSymbol: objectSymbol,
                     sema: sema,
                     interner: interner
@@ -621,7 +736,8 @@ final class ObjectLiteralLowerer {
     /// one. The assignment path already lowered `obj.prop = v` to `call set`,
     /// so a custom setter used to fail at link time with an undefined `_set`.
     private func lowerObjectLiteralPropertyAccessors(
-        _ objectDecl: ObjectDecl,
+        _ memberProperties: [DeclID],
+        ownerFQName: [InternedString],
         objectSymbol: SymbolID,
         ast: ASTModule,
         sema: SemaModule,
@@ -629,11 +745,11 @@ final class ObjectLiteralLowerer {
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind]
     ) {
-        guard !objectDecl.memberProperties.isEmpty else {
+        guard !memberProperties.isEmpty else {
             return
         }
         var allDecls: [KIRDeclID] = []
-        for propertyDeclID in objectDecl.memberProperties {
+        for propertyDeclID in memberProperties {
             guard let propertySymbol = sema.bindings.declSymbols[propertyDeclID],
                   let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
@@ -652,7 +768,7 @@ final class ObjectLiteralLowerer {
                 let delegateStorageSymbol = objectLiteralDelegateStorageSymbol(
                     for: propertySymbol,
                     propertyDecl: propertyDecl,
-                    objectDecl: objectDecl,
+                    ownerFQName: ownerFQName,
                     objectSymbol: objectSymbol,
                     sema: sema,
                     interner: interner
@@ -730,6 +846,20 @@ final class ObjectLiteralLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     allDecls: &allDecls
                 )
+            } else if propertyDecl.isVar {
+                // Setter counterpart of the stored getter accessor above: a
+                // plain `var` (no custom setter body) still needs a real
+                // setter accessor function registered so a write through an
+                // interface-typed receiver can dispatch to this object
+                // literal's own storage, the same way its getter already does.
+                driver.memberLowerer.synthesizeStoredPropertySetterAccessor(
+                    propertySymbol: propertySymbol,
+                    ownerSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
             }
         }
         for declID in allDecls {
@@ -745,7 +875,7 @@ final class ObjectLiteralLowerer {
     private func objectLiteralDelegateStorageSymbol(
         for propertySymbol: SymbolID,
         propertyDecl: PropertyDecl,
-        objectDecl: ObjectDecl,
+        ownerFQName: [InternedString],
         objectSymbol: SymbolID,
         sema: SemaModule,
         interner: StringInterner
@@ -757,7 +887,7 @@ final class ObjectLiteralLowerer {
         let storageSymbol = sema.symbols.define(
             kind: .field,
             name: storageName,
-            fqName: [objectDecl.name, storageName],
+            fqName: ownerFQName + [storageName],
             declSite: propertyDecl.range,
             visibility: .private,
             flags: []

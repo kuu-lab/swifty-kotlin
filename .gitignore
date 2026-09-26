@@ -8,6 +8,8 @@ firebase-debug.log
 .DS_Store
 .build-codex-run/
 .artifacts/
+.ktor-build-cache/
+.ktor-build-out/
 .air/
 .claude/settings.local.json
 .claude/worktrees/
@@ -18,3 +20,4 @@ firebase-debug.log
 .idea/
 .vscode/
 .windsurf/
+.kswiftk-cache/

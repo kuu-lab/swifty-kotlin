@@ -5,6 +5,21 @@ fun main() {
     println(doubles.min())
     println(doubles.minOrNull())
 
+    val floats = sequenceOf(3.0f, 1.0f, 4.0f, 1.5f, 9.0f)
+    println(floats.min())
+    println(floats.minOrNull())
+
+    val withNaN = sequenceOf(1.0, Double.NaN, 2.0)
+    println(withNaN.min())
+
+    val ints = sequenceOf(3, 1, 4, 1, 5)
+    println(ints.min())
+    println(ints.minOrNull())
+
+    val words2 = sequenceOf("aaa", "b", "cc")
+    println(words2.min())
+    println(words2.minOrNull())
+
     val items = sequenceOf(Item("a", 2.0), Item("b", 5.0), Item("c", 1.0))
     println(items.minOf { it.score })
     println(items.minOfOrNull { it.score })
@@ -18,6 +33,7 @@ fun main() {
     println(words.minOfWithOrNull(cmp) { it.length })
 
     println(emptySequence<Double>().minOrNull())
+    println(emptySequence<Float>().minOrNull())
     try {
         emptySequence<Double>().min()
         println("no throw")

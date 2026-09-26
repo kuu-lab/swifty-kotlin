@@ -1,0 +1,23 @@
+symbol fq=__local_0.fromSize[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicArray<String?>
+symbol fq=__local_1.fromArray[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicArray<String>
+symbol fq=__local_2.first[kind=local] kind=local vis=private flags=_ type=String?
+symbol fq=golden.sema.atomicArrayConstructors.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayConstructors[kind=fun;params=kotlin.Array<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<String>] ret=Int
+file fstdlib_kotlin_concurrent_atomics_AtomicArray_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicArrayConstructors[kind=fun;params=kotlin.Array<String>] fun atomicArrayConstructors sym=golden.sema.atomicArrayConstructors[kind=fun;params=kotlin.Array<String>]
+expr e@8:40 int(3) type=Int
+expr e@8:20 call callee=e@8:20#1 args=[_:e@8:40] type=kotlin.concurrent.atomics.AtomicArray<String?> call=kotlin.concurrent.atomics.AtomicArray.<init>[kind=ctor;params=Int;gen=1] targs=[String]
+expr e@8:5 localDecl fromSize mutable=0 type=_ init=e@8:20 type=Unit ref=__local_0.fromSize[kind=local]
+expr e@9:33 name(values) type=kotlin.Array<String> ref=golden.sema.atomicArrayConstructors.$0.values[kind=vparam]
+expr e@9:21 call callee=e@9:21#1 args=[_:e@9:33] type=kotlin.concurrent.atomics.AtomicArray<String> call=kotlin.concurrent.atomics.AtomicArray[kind=fun;params=kotlin.Array<T0>;gen=1] targs=[String]
+expr e@9:5 localDecl fromArray mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.fromArray[kind=local]
+expr e@10:26 name(fromArray) type=kotlin.concurrent.atomics.AtomicArray<String> ref=__local_1.fromArray[kind=local]
+expr e@10:43 int(0) type=Int
+expr e@10:26#1 memberCall recv=e@10:26 callee=loadAt args=[_:e@10:43] type=String? call=kotlin.concurrent.atomics.AtomicArray.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0?>;params=Int;gen=1] targs=[String]
+expr e@10:5 localDecl first mutable=0 type=String? init=e@10:26#1 type=Unit ref=__local_2.first[kind=local]
+expr e@11:12 name(fromSize) type=kotlin.concurrent.atomics.AtomicArray<String?> ref=__local_0.fromSize[kind=local]
+expr e@11:12#1 memberCall recv=e@11:12 callee=size args=[] type=Int ref=kotlin.concurrent.atomics.AtomicArray.size[kind=prop]
+expr e@11:28 name(fromArray) type=kotlin.concurrent.atomics.AtomicArray<String> ref=__local_1.fromArray[kind=local]
+expr e@11:28#1 memberCall recv=e@11:28 callee=size args=[] type=Int ref=kotlin.concurrent.atomics.AtomicArray.size[kind=prop]
+expr e@11:12#2 binary(add) lhs=e@11:12#1 rhs=e@11:28#1 type=Int
+expr e@11:5 return value=e@11:12#2 type=Nothing

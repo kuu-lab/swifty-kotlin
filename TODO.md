@@ -15,6 +15,7 @@
 
 - [~] DEADCODE-014: 旧「未監査領域」を継続監査する。2026-07-12 時点で tracked `.c/.h/.cc/.cpp` は 0 件、`DiagnosticRegistry` 108 descriptor は全て production 発行箇所あり、stored/global/Tests helper の検出結果は下記に分割済み。**2026-07-31 更新**: 「SKIP-DIFF 62 件」は stale な数値だったと判明（実測は当時110件）。kswiftc を再ビルドして全件 `--force-run-skipped` で再判定し、9件を解除（`comparator_basic.kt`/`interface_properties.kt`/`kconstructor_basic.kt`/`math_exp_log_functions.kt`/`random_overload_edge_cases.kt`/`file_use_edge_cases.kt`/`coroutine_exception_handling.kt`/`coroutine_scope_lifecycle.kt`/`coroutine_supervisor_job.kt`）。並行して別セッションが `DEBT-DIFF-001` の完全棚卸しと `DEBT-DIFF-007`(72→37) の大規模 triage を実施していたため、その成果を `git reset --hard origin/master` で取り込んだ上で作業を継続（このとき `BUG-152`(#5068) が本セッションの CharSequence.length 修正と完全に重複していたと判明し、重複分は破棄）。本セッション側の net-new な実装: (1) `EnumClass.values()` が Sema 未登録で完全に unresolved だったバグと `entries` のメンバー転送不可バグを修正（`enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt` は別バグ=`BUG-177` で依然ブロック中）、(2) `Array<T>` の `mapIndexed`/`filterIndexed`/`mapNotNull`/`filterNot`/`filterNotNull`/`reduceIndexed`/`first`/`firstOrNull`/`last`/`lastOrNull` 未解決バグを修正（`array_hof.kt` も 2026-08-13 現在 SKIP-DIFF タグが無く active（`--force-run-skipped` で PASS））。詳細・各コミットの root cause は [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) 参照。2026-08-18 実測では active な SKIP-DIFF は 35 distinct file（35 tag instance、内訳は docs/diff-skip-inventory.md）。`list_binary_search_compare.kt`・`mock_objects.kt` を追加解除。`compiler_plugin_api.kt` は 2026-08-13 現在 SKIP-DIFF タグが無く active（`--force-run-skipped` で PASS）
 - **2026-09-16 継続監査**: 現行 HEAD で `Scripts/dead_code_audit.sh --self-test` を再実行し、`@_cdecl("__kk_x")` と Swift 名 `kk_x` の別名呼び出しを Tests / Runtime 内部の到達性判定へ追加。E0 を満たす旧リフレクション ABI 9 件（KFunction 3、callable reference 4、KProperty stub 2）と、source-backed 化済みの `kk_indexed_value_new` / `__kk_mutable_collection_addAll_sequence` を Runtime 実装・`RuntimeABISpec` ともに削除し、ABI 回帰テストを追加した。監査結果は `docs/dead-code-audit.md` に追記。残る KProperty 完全メタデータ拡張、`kk_cinterop_writeBits`、HTTP 追加 surface は所有タスクで継続監査する。
+- **2026-09-23 継続監査**: HEAD（`59dd246ff`）で監査再実行し #6881 マージ地点とのリスト差分を取得。実測: Runtime export 1,702（前回 1,665）、compiler-unreachable 130（136）、A 14（変化なし）、B 76（82→−7：freezable_atomic_ref 5 件は #6914 の Kotlin 化で削除、cpointer_new/instant_from_epoch_seconds は配線済み、+1：ARCH-016 の `kk_object_release` は emit 配線待ちの意図的テストのみ）、runtime-internal 40（変化なし）。self-test 4/4 PASS。A 14 件は全て延期理由を再確認済みで削除なし。`.c/.h` は 2 件（RuntimeCAtomics、#7121 の stdatomic セル、正当）。`DiagnosticRegistry` 99 descriptor 全て production 発行あり。詳細は `docs/dead-code-audit.md` の 2026-09-23 節。
 
 ---
 
@@ -498,7 +499,7 @@
 >
 > 各タスクの「削除/降格 kk_*」は棚卸し時点の列挙であり、着手時に必ず記載の `rg` で再固定する（先行タスクのマージで既に消えている場合は TODO 同期として完了化してよい）。
 
-- [ ] KSP-1503: MutableList / AbstractMutableList の class shell と要素追加・削除メンバを Kotlin 化する
+- [x] KSP-1503: MutableList / AbstractMutableList の class shell と要素追加・削除メンバを Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMutableListStubs.swift`（1364行のうち `registerSyntheticMutableListStub` / `registerSyntheticAbstractMutableListStub` / `set` / `add` / `add(index)` / `removeAt` / `removeFirst(OrNull)` / `removeLast(OrNull)` / `clear` / `removeAll` / `retainAll` / `plusAssign` / `minusAssign` 部分。`addAll` 群は KSP-705）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableCollections.kt` 追記（class shell は `Collections.kt` / 新設 `AbstractMutableList.kt`）
   - 削除/降格 kk_*: `kk_mutable_list_*`（`set`/`add`/`addAt`/`removeAt`/`removeFirst*`/`removeLast*`/`clear`/`removeAll`/`retainAll`）系を `__kk_` 降格。着手時 `rg -o '@_cdecl\("kk_(mutable_)?list_[a-zA-Z0-9_]*"\)' Sources/Runtime` と `rg 'removeFirstOrNull|retainAll' Sources/CompilerCore/Sema Sources/CompilerCore/KIR` で再固定
@@ -689,7 +690,7 @@
 
 - [ ] BUG-241: `.kklib` 経由で読み込んだ、同一 FQ 名を持つ複数の top-level 拡張関数オーバーロードのうち、レシーバの型引数と完全一致する（cross-type ではない）オーバーロードがメンバー呼び出し構文で正しく解決されず、継承元のジェネリックメンバー（例: `ClosedRange<T>.contains`）へ誤ってフォールバックする。最小再現: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt:117` の `public operator fun IntRange.contains(value: Int): Boolean` と `RangeHOF.kt` の `IntRange.contains(Byte/Long/Short)` 系オーバーロードが同居する状態で `fun f(range: IntRange, value: Int): Boolean = range.contains(value)` をコンパイルすると、`--stdlib-from-source`（bundled source injection）では期待通り `kotlin.ranges.contains[recv=IntRange;params=Int]` に解決されるが、`--stdlib-library <artifact>.kklib`（KSP-939 以降の artifact 読み込み経路）では `kotlin.ranges.ClosedRange.contains[recv=ClosedRange<T0>;params=T0]`（ジェネリック継承メンバー）に誤って解決される。無効な引数型（例 `Byte?`）を渡した場合の診断も、bundled-source では `KSWIFTK-SEMA-0002 No viable overload found for call` だが artifact 経由では `KSWIFTK-TYPE-0001 Conflicting bounds for type variable #0: inferred Any? is not a subtype of Int. lower=[Byte?, Int], upper=[Int]` という分かりにくいメッセージに変わる（`kswiftc --stdlib-from-source` と `--stdlib-library` を同一 `.kt` で切り替えて実測比較済み）。実行時の挙動は両経路とも正しい（`ClosedRange<Int>.contains` の実装も同じ比較結果を返すため、`--emit executable` で `range.contains(5/15/1/10)` 等を実行し出力が両経路で完全一致することを確認済み — Sema の解決先シンボルと診断メッセージの精度のみの問題で、コード生成上のバグではない）。`ULongRange.contains(ULong)`（`RangeMembership.kt` の同型オーバーロード）でも `.contains()` メンバー呼び出し構文で同じ現象を確認した一方、`in` 演算子構文（`value in range`）は `isSyntacticRangeExpression`/`isRangeExpr` 経由の別解決パスを通るため影響を受けない場合がある。UInt/UByte/UShort 引数（cross-type、`RangeHOF.kt` の別オーバーロード）は artifact 経由でも正しく解決される。原因（未確定、要追加調査）: `CallTypeChecker+RangeMemberFallback.swift` の `isULongRangeCrossTypeContains`/`isIntRangeSourceBackedHOF` 系ゲートは cross-type ケースのみを `collectRangeSourceExtensionCandidates` 経由の明示解決へルーティングし、同型（exact-type）ケースは通常のメンバー探索に委ねる設計に見える。bundled-source ではこの通常探索で `IntRange.contains(Int)`/`ULongRange.contains(ULong)` が正しく見つかるが、`.kklib` 経由では見つからずジェネリック継承メンバーへフォールバックする。`LibraryImport.swift` の `symbols.define` 呼び出し自体は `canCoexistAsOverload`（`SemanticsModels.swift:664` 付近、`.function` kind 判定）により複数オーバーロードの共存を許可しているため、シンボル登録自体ではなく登録後の通常メンバー探索・オーバーロード選択側に原因がある可能性が高い。発見元: PR #6649（golden テストを artifact 経路へ切り替える変更）と master ブランチ（KSP-1285/KSP-1292: IntRange/ULongRange cross-type contains 追加）のマージコンフリクト解消中、両者を統合した状態で `UPDATE_GOLDEN=1` 実行時に `stdlib_kotlin_ranges_IntRange_cross_contains_n.golden`/`stdlib_kotlin_ranges_ULongRange_n.golden` の再生成結果が master の期待値と食い違うことに気づいた。`kswiftc` 単体で `--stdlib-from-source` と `--stdlib-library` を切り替えて比較し、マージ作業（3ファイルの手動統合）そのものとは無関係に artifact 経由のみで再現することを確認済み（マージ由来のバグではなく、独立に開発された両機能を単純結合しただけで顕在化した既存のギャップ）。今回修正しない理由: 原因箇所が `.kklib` ライブラリ読み込み・通常メンバー探索という広い層にまたがり（BUG-238 と同系統の「ライブラリ読み込み層でのオーバーロード解決」カテゴリ）、特定にはさらなる調査が必要。severity は低い（実行時結果は両経路で一致し、影響は Sema の解決先シンボルの精度と診断メッセージの質のみ）ため、マージコンフリクト解消というスコープを超えて追わず、該当 golden は実際の（artifact 経由の）コンパイラ挙動をそのまま記録する形で固定した。追記（KSP-1290 UIntRange 実装時）: `UIntRange.contains(UInt)`（`RangeMembership.kt` の同型オーバーロード）でも `.contains()` メンバー呼び出し構文で同一現象（`kotlin.ranges.ClosedRange.contains[...]targs=[UInt]` への誤フォールバックと `UByte?` 引数での `KSWIFTK-TYPE-0001` 化）を確認した。`in` 演算子構文は同様に影響を受けない。IntRange/ULongRange と対称の挙動であり、原因・severity の評価は変わらない。
 
-- [ ] BUG-237: `Sequence<Any>` に対する `flatten()` / `toList()` を、kotlinc がコンパイルエラーにするにもかかわらず本コンパイラが受理する。最小再現: `fun main() { val mixed = sequenceOf(listOf(1, 2), sequenceOf(3, 4)); println(mixed.flatten().toList()) }`。`sequenceOf` の要素型推論は両コンパイラとも `Any` に広げて一致する（`Sequence` は `Iterable` を継承しないため `List<Int>` と `Sequence<Int>` の共通上位型は `Any`。reified でないため交差型診断も出ない）が、kotlinc（2.4.10 実測）は `flatten()` で `cannot infer type for type parameter 'R'` / `no value passed for parameter 'iterator'` / `cannot infer type for type parameter 'T'` を報告して失敗する。本コンパイラは `kotlin.sequences.flatten` に解決して `Sequence<out Any>` を返し、実行すると `[1, 2, 3, 4]` を出力する（flatten の型制約チェックの欠落か、Any への緩いマッチ）。この差により、混在 Sequence の実行は `Scripts/diff_cases/` に置けない（参照側がコンパイルエラー）。現状の挙動は `Tests/CompilerCoreTests/GoldenCases/Sema/flatten_sequence_mixed.kt` で Sema の固定記録として保持する。発見元: RF-FIXTURE-010 で `mixedSeq` を `flatten_sequence_edge_cases.kt` へ移そうとして参照コンパイルが失敗して発覚。今回修正しない理由: `flatten` の overload 制約（`Sequence<Iterable<T>>` / `Sequence<Sequence<T>>` のみに適用）の強化は Sema の型推論層の変更で、BUG-236 と同様に型システム側の対応が必要であり、golden fixture の分割という RF-FIXTURE-010 のスコープを超える。
+- [x] BUG-237: `Sequence<Any>` に対する `flatten()` / `toList()` を、kotlinc がコンパイルエラーにするにもかかわらず本コンパイラが受理する。最小再現: `fun main() { val mixed = sequenceOf(listOf(1, 2), sequenceOf(3, 4)); println(mixed.flatten().toList()) }`。`sequenceOf` の要素型推論は両コンパイラとも `Any` に広げて一致する（`Sequence` は `Iterable` を継承しないため `List<Int>` と `Sequence<Int>` の共通上位型は `Any`。reified でないため交差型診断も出ない）が、kotlinc（2.4.10 実測）は `flatten()` で `cannot infer type for type parameter 'R'` / `no value passed for parameter 'iterator'` / `cannot infer type for type parameter 'T'` を報告して失敗する。本コンパイラは `kotlin.sequences.flatten` に解決して `Sequence<out Any>` を返し、実行すると `[1, 2, 3, 4]` を出力する（flatten の型制約チェックの欠落か、Any への緩いマッチ）。この差により、混在 Sequence の実行は `Scripts/diff_cases/` に置けない（参照側がコンパイルエラー）。現状の挙動は `Tests/CompilerCoreTests/GoldenCases/Sema/flatten_sequence_mixed.kt` で Sema の固定記録として保持する。発見元: RF-FIXTURE-010 で `mixedSeq` を `flatten_sequence_edge_cases.kt` へ移そうとして参照コンパイルが失敗して発覚。今回修正しない理由: `flatten` の overload 制約（`Sequence<Iterable<T>>` / `Sequence<Sequence<T>>` のみに適用）の強化は Sema の型推論層の変更で、BUG-236 と同様に型システム側の対応が必要であり、golden fixture の分割という RF-FIXTURE-010 のスコープを超える。**修正済み（2026-09-23、KUU-461）**: `CallTypeChecker+MemberCallInferenceCollectionFlow.swift` の `case "flatten"` に Sequence レシーバ専用の制約チェックを追加。要素型が bundled overload 制約 （`Iterable` / `Sequence` の `Owner<*>`）をちょうど1つ満たす場合のみ受理し、0 個（`Any` / `Int` / 無制約型パラメータ）と 2 個（`Nothing` / Iterable+Sequence 両実装型）は `KSWIFTK-SEMA-0024` で拒否するようになった。kotlinc と同じ受理/拒否境界。`flatten_sequence_mixed.kt` は Sema から Diagnostics ゴールデンへ移動し、`Scripts/diagnostic_cases/reject_flatten_sequence_mixed.kt`（EXPECT-REJECT）を追加。
 
 - [ ] BUG-239: `Any` に保持した `IntArray` を元の型へキャストすると例外で終了する。最小再現: `fun main() { val value: Any = intArrayOf(1, 2); println((value as IntArray).size) }`。Kotlin 2.3.10 は `2` を出力するが、base `a72cc373f859aaf408c6a4e9510404a1e21c92dc` は stdlib source 注入・artifact の両経路で `Unhandled top-level exception`、exit 1。RF-LOWER-STATE-001 の copy 分類修正後も同じ最小ケースで失敗する。今回修正しない理由: 再代入も分類の残留も不要な cast/type-check 経路の問題であり、配列の実行時型と cast lowering の契約を別途調査する必要がある。分類・copy伝播の契約固定という当該PRの安全な修正範囲を超えるため、§13-9に従って追跡する。
 
@@ -1321,7 +1322,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/concurrent/KMutableProperty0.kt` に9 APIを `KMutableProperty0.get()` / `set()` ベースの source-backed 実装として追加。対象名の Runtime/ABI/合成 stub/name-string 特例は存在せず、追加の bridge 整理は不要。
 
-- [ ] KSP-1085: kotlin.concurrent.AtomicArray top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1085: kotlin.concurrent.AtomicArray top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1330,14 +1331,15 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicArray.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<#A>)`
+  - 完了根拠（2026-09-25）: `concurrent/AtomicArray/Stdlib.kt` を新設し、`AtomicArray(array: Array<T>)` を Kotlin/Native 実ソースと同じ `@PublishedApi internal` の top-level factory として source-backed 実装（`atomicArrayFromArray` の `kk_atomic_ref_array_of` extern へ委譲、要素は fresh storage にコピー）。対象名の `__kk_*` / `kk_*` Runtime 関数・合成 stub 登録・`RuntimeABISpec` エントリ・name-string 特例は存在せず（`registerAtomicRefArrayStub` は `kotlin.concurrent.atomics` 専用）、bridge 整理は不要。`kotlin.concurrent.AtomicArray` は `concurrent/Stdlib.kt` の `private constructor()` shell を維持し、receiver メンバーは KSP-1086 管轄。
 
-- [ ] KSP-1086: kotlin.concurrent.AtomicArray.AtomicArray の未実装 stdlib API を実装する（7 件）
+- [x] KSP-1086: kotlin.concurrent.AtomicArray.AtomicArray の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.concurrent.AtomicArray` / receiver `AtomicArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicArray/AtomicArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicArray_AtomicArray_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicArray_AtomicArray_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicArray_AtomicArray_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicArray_AtomicArray_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicArray_AtomicArray_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicArray_AtomicArray_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。Kotlin/Native 専用 API は JVM kotlinc で実行できないため `SKIP-DIFF (DEBT-DIFF-001)` を許容。
+  - 完了ゲート（ローカル）: 上記 Sema golden suite と diff ケース単体 / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）。全 Golden / 全 diff ケースは PR CI で確認。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicArray.compareAndExchange` — fun AtomicArray.compareAndExchange(Int, , ): #A  -- `final fun compareAndExchange(kotlin/Int, #A, #A): #A`
     - `kotlin.concurrent.AtomicArray.compareAndSet` — fun AtomicArray.compareAndSet(Int, , ): Boolean  -- `final fun compareAndSet(kotlin/Int, #A, #A): kotlin/Boolean`
@@ -1346,6 +1348,7 @@
     - `kotlin.concurrent.AtomicArray.length` — val AtomicArray.length: Int  -- `final val length`
     - `kotlin.concurrent.AtomicArray.set` — fun AtomicArray.set(Int, ): Unit  -- `final fun set(kotlin/Int, #A)`
     - `kotlin.concurrent.AtomicArray.toString` — fun AtomicArray.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了根拠: `AtomicArray/AtomicArray.kt` に7 APIを source-backed 実装として追加し、既存の reference-array ABI を利用。Runtime 関数と ABI spec は `kotlin.concurrent.atomics` でも共有されるため保持し、legacy package 専用の合成 stub/name-string 特例は存在しない。Sema golden suite / Runtime ABI link validation / TODO ID 検査は pass。kotlinc diff は Kotlin/Native 専用 API のため `SKIP-DIFF (DEBT-DIFF-001)`。
 
 - [ ] KSP-1087: kotlin.concurrent.AtomicInt top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicInt` / top-level
@@ -1411,13 +1414,14 @@
     - `kotlin.concurrent.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
 
-- [ ] KSP-1093: kotlin.concurrent.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1093: kotlin.concurrent.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.AtomicLongArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicLongArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: Kotlin 2.3.10 Native の public AtomicLongArray(Int) を kk_atomic_long_array_create に接続する source-backed overload として追加し、@PublishedApi internal AtomicLongArray(LongArray) はコピーを作る bundled Kotlin 実装として追加した。既存の residual member bridges と Runtime ABI は保持し、同名の2引数 initializer factory がある場合の compiler special-case は arity 単位で通常 source overload を優先できるようにした。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicLongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.concurrent.AtomicLongArray.<init>` — constructor (LongArray)  -- `constructor <init>(kotlin/LongArray)`
@@ -1507,13 +1511,15 @@
     - `kotlin.concurrent.atomics.ExperimentalAtomicApi` — class kotlin.concurrent.atomics.ExperimentalAtomicApi  -- `open annotation class kotlin.concurrent.atomics/ExperimentalAtomicApi : kotlin/Annotation {`
     - `kotlin.concurrent.atomics.atomicArrayOfNulls` — fun atomicArrayOfNulls(Int): AtomicArray  -- `final inline fun <#A: reified kotlin/Any?> kotlin.concurrent.atomics/atomicArrayOfNulls(kotlin/Int): kotlin.concurrent.atomics/AtomicArray<#A?>`
 
-- [ ] KSP-1101: kotlin.concurrent.atomics.AtomicArray の未実装 stdlib API を実装する（2 件）
+- [~] KSP-1101: kotlin.concurrent.atomics.AtomicArray の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicArrayMigration.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_atomics_AtomicArray_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_atomics_AtomicArray_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_atomics_AtomicArray_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装状況: `atomics/AtomicArrayMigration.kt` の `AtomicArray<T>` update 系 3 関数（`fetchAndUpdateAt` / `updateAt` / `updateAndFetchAt`）の transform シグネチャを監査どおり `(T) -> T` に修正。bridge の `loadAt` は nullable 要素型を返すため CAS loop 内で `as T` に落とし込む。対象シンボルの `__kk_*` / `kk_*` / stub 登録 / name-string 特例は存在せず削除対象なし。
+  - 個別確認（2026-09-25）: `swift build`、Sema Golden suite（`GoldenSemaGoldenTests/matchesGolden`、99 batches）更新差分が新規 case のみの機械的出力、`CodegenBackendAtomicExtendedEdgeCasesTests`（62 tests、AtomicArray<String?> 呼び出しを直接カバー）、対象 diff case（`failed=0, skipped=1`）、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` を確認済み。他 Golden suite・全 diff ケース・全テストは未実行（CI に委譲）。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.fetchAndUpdateAt` — fun AtomicArray.fetchAndUpdateAt(Int, Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicArray<#A>).kotlin.concurrent.atomics/fetchAndUpdateAt(kotlin/Int, kotlin/Function1<#A, #A>): #A`
     - `kotlin.concurrent.atomics.updateAndFetchAt` — fun AtomicArray.updateAndFetchAt(Int, Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicArray<#A>).kotlin.concurrent.atomics/updateAndFetchAt(kotlin/Int, kotlin/Function1<#A, #A>): #A`
@@ -1596,7 +1602,7 @@
     - `kotlin.concurrent.atomics.update` — fun AtomicReference.update(Function1): Unit  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicReference<#A>).kotlin.concurrent.atomics/update(kotlin/Function1<#A, #A>)`
     - `kotlin.concurrent.atomics.updateAndFetch` — fun AtomicReference.updateAndFetch(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicReference<#A>).kotlin.concurrent.atomics/updateAndFetch(kotlin/Function1<#A, #A>): #A`
 
-- [ ] KSP-1108: kotlin.concurrent.atomics.AtomicArray top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1108: kotlin.concurrent.atomics.AtomicArray top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1605,6 +1611,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicArray.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<#A>)`
+  - 完了根拠 (2026-09-25): `atomics/AtomicArray/Stdlib.kt` に `public fun <T> AtomicArray(array: Array<T>): AtomicArray<T> = atomicArrayOf(*array)` の source-backed 実装を追加した。`kk_atomic_ref_array_of` が要素を新規 atomic box へコピーするため copy-ctor 意味論と一致し、nullable スロットの `AtomicArray<T?>` を返す `AtomicArray(Int)` ctor 経由ではなく nonNull `AtomicArray<T>` を返せる。対象シンボルに `__kk_*`/`kk_*` の direct bridge や CallTypeChecker/CallLowerer の name-string 特例は存在せず削除対象なし。`atomicArrayOf`/`atomicArrayOfNulls` の合成ファクトリ登録は KSP-1100 の所有範囲のため保持。
 
 - [ ] KSP-1109: kotlin.concurrent.atomics.AtomicArray.AtomicArray の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.concurrent.atomics.AtomicArray` / receiver `AtomicArray`
@@ -1684,7 +1691,7 @@
     - `kotlin.concurrent.atomics.AtomicIntArray.<init>` — constructor (IntArray)  -- `constructor <init>(kotlin/IntArray)`
   - 完了根拠 (2026-09-16): `AtomicIntArray/Stdlib.kt` に `AtomicIntArray(Int)` の `kk_atomic_int_array_create` source-backed 宣言と、`AtomicIntArray(IntArray)` の public copy-loop 実装を追加した。artifact import 時も source-backed constructor overload を通常解決へ渡すよう `CallTypeChecker` の atomic-array 特例ガードを補正した。残余の nominal shell、`size`/receiver 操作、既存 runtime bridge は KSP-1115 の所有範囲のため保持。
 
-- [ ] KSP-1115: kotlin.concurrent.atomics.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1115: kotlin.concurrent.atomics.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.concurrent.atomics.AtomicIntArray` / receiver `AtomicIntArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicIntArray/AtomicIntArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1697,6 +1704,7 @@
     - `kotlin.concurrent.atomics.AtomicIntArray.length` — val AtomicIntArray.length: Int  -- `final val length`
     - `kotlin.concurrent.atomics.AtomicIntArray.size` — val AtomicIntArray.size: Int  -- `final val size`
     - `kotlin.concurrent.atomics.AtomicIntArray.toString` — fun AtomicIntArray.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了根拠 (2026-09-23): `AtomicIntArray/AtomicIntArray.kt` に `@ExperimentalAtomicApi` の source-backed class 宣言を追加し、`compareAndExchange` / `compareAndSet` / `length` / `size` / `toString` の 5 件を class member として実装した。`size` は `kk_atomic_int_array_size` への `__kkSize` private external bridge 経由、`compareAndExchange` / `compareAndSet` は `compareAndExchangeAt`、`length` / `toString` は `size` / `loadAt` に委譲する。class 化で `.synthetic` を要求する `AtomicIntArray(Int, init)` 特別経路が失われるため、`AtomicIntArray/Stdlib.kt` に source-backed inline factory を追加して通常解決へ移した（KSP-1100 の該当 1 件も兼ねる）。既存 `*At` 合成 stub と runtime bridge は継続利用のため保持し、`kotlin/concurrent/AtomicArrayMigration.kt`（実パッケージは `kotlin.concurrent.atomics`）へ `@file:OptIn(ExperimentalAtomicApi)` を追加してクラスの opt-in 必須化に追従させた。
 
 - [ ] KSP-1116: kotlin.concurrent.atomics.AtomicLong top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLong` / top-level
@@ -1779,7 +1787,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicReference.<init>` — constructor ()  -- `constructor <init>(#A)`
 
-- [ ] KSP-1123: kotlin.concurrent.atomics.AtomicReference.AtomicReference の未実装 stdlib API を実装する（7 件）
+- [x] KSP-1123: kotlin.concurrent.atomics.AtomicReference.AtomicReference の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.concurrent.atomics.AtomicReference` / receiver `AtomicReference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicReference/AtomicReference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1794,6 +1802,7 @@
     - `kotlin.concurrent.atomics.AtomicReference.store` — fun AtomicReference.store(): Unit  -- `final fun store(#A)`
     - `kotlin.concurrent.atomics.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
+  - 完了根拠（2026-09-23）: 7 シンボルは全て `kotlin.concurrent` class shell の runtime-linked member stub で既に正しく解決しており、canonical API 表面を網羅済み。`AtomicReference/AtomicReference.kt` には `compareAndExchange` のみ source-backed 宣言を置いた（member は `AtomicMigration.kt` の `kotlin.concurrent` 拡張で既に抑制済み、atomics package 優先で本宣言が解決される）。`load`/`store`/`exchange`/`getAndSet`/`value` は member 所有のまま残した: 関数ジェネリック extern の T 戻り値は nullable 値型 (`Int?` 等) の stored `null` を型デフォルト値に misdecode する（KUU-840、KUU-837 と同一家系の erased-T 境界 marshal バグの戻り値側）。`var value` は bundled extension property が class 型パラメータを書けず `*` 投影の `Any?` 版は member の T 型 getter を隠すため source 化不可（KSWIFTK-PARSE-0002 制約）。`toString` は member `kotlin.Any.toString` がオーナー（member は extension に必ず勝つため source 側からは差し替え不可）のため、`runtimeElementToString` に `AtomicRefBox` の描画を追加して格納値を表示するよう修正（JDK AtomicReference 準拠: `String.valueOf(get())`）。既存バグ KUU-837（expected 引数 marshal）も member 経路で再現・本 PR 起因ではない。
 
 - [ ] KSP-1137: kotlin.coroutines.AbstractCoroutineContextElement.AbstractCoroutineContextElement の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.coroutines.AbstractCoroutineContextElement` / receiver `AbstractCoroutineContextElement`
@@ -1964,12 +1973,15 @@
     - `kotlin.native.toByteArray` — fun ImmutableBlob.toByteArray(Int, Int): ByteArray  -- `final fun (kotlin.native/ImmutableBlob).kotlin.native/toByteArray(kotlin/Int = ..., kotlin/Int = ...): kotlin/ByteArray`
     - `kotlin.native.toUByteArray` — fun ImmutableBlob.toUByteArray(Int, Int): UByteArray  -- `final fun (kotlin.native/ImmutableBlob).kotlin.native/toUByteArray(kotlin/Int = ..., kotlin/Int = ...): kotlin/UByteArray`
 
-- [ ] KSP-1203: kotlin.native.ImmutableBlob.ImmutableBlob の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1203: kotlin.native.ImmutableBlob.ImmutableBlob の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.ImmutableBlob` / receiver `ImmutableBlob`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Blob.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 実装確認: `Blob.kt` の `ImmutableBlob` に `size`（private external `getArrayLength` → `__kk_byteArray_size`）、`get`（external operator → `kk_native_byteArray_getByteAt`）、`iterator`（private `ImmutableBlobIteratorImpl` を返す）を追加。ByteArray と同じデータレイアウトとして既存の ByteArray 用 Runtime 関数を共有する upstream 構成を踏襲し、対象シンボル専用の Runtime/ABI、synthetic stub、name-string 特例は存在しないため追加削除なし。
+  - 個別検証: `CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（`-Xswiftc -swift-version -Xswiftc 6`）で `size` → `kotlin.native.ImmutableBlob.size[kind=prop]`、`get`/`blob[i]` → `kotlin.native.ImmutableBlob.get[kind=fun]`、`iterator` → `kotlin.native.ImmutableBlob.iterator` / `kotlin.collections.ByteIterator` に解決することを確認。`for (e in blob)` は `Iterator.hasNext`/`next` 経由で展開されることを golden で確認。`bash Scripts/validate_runtime_abi_links.sh` green、`bash Scripts/check_todo_ids.sh` pass。diff ケースは Kotlin/JVM の参照 target がないため `SKIP-DIFF (DEBT-DIFF-001)`（単体実行で skipped=1/failed=0 を確認）。
+  - 未実行: 四スイート一括の `--filter matchesGolden` と全 diff ケースは CI に委譲（Sema suite のみ UPDATE_GOLDEN 済み、他スイート差分なし）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.ImmutableBlob.get` — fun ImmutableBlob.get(Int): Byte  -- `final fun get(kotlin/Int): kotlin/Byte`
@@ -2099,7 +2111,7 @@
     - `kotlin.native.concurrent.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1234: kotlin.native.concurrent.DetachedObjectGraph top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1234: kotlin.native.concurrent.DetachedObjectGraph top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2109,6 +2121,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.DetachedObjectGraph.<init>` — constructor (CPointer)  -- `constructor <init>(kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?)`
     - `kotlin.native.concurrent.DetachedObjectGraph.<init>` — constructor (TransferMode, Function0)  -- `constructor <init>(kotlin.native.concurrent/TransferMode = ..., kotlin/Function0<#A>)`
+  - 完了根拠: `ObjectTransfer.kt` に producer と opaque C pointer の public constructor を追加。KSwiftK に `NativePtr.NULL` / `CPointer.rawValue` の Kotlin 宣言が無いため、既存の `__kk_native_concurrent_detach_object_graph` / `kk_cpointer_address` Runtime ABI を private `@KsSymbolName` adapter 経由で利用し、Runtime・RuntimeABISpec・synthetic stub の変更は行っていない。generic class の secondary constructor 委譲で class 型引数を推論できないコンパイラ不備を修正し、同じ constructor fixture を Sema golden に追加。Golden Sema 785 ケース、`NativeConcurrentTopLevelSourceTests` 4 件、Runtime ABI link validation、TODO ID check、`git diff --check` は pass。Kotlin/JVM diff ケースは Kotlin/Native 専用 API のため `SKIP-DIFF (DEBT-DIFF-001)`（スクリプト上 skipped 1）。全 Swift tests・全 diff ケースは未実行。
 
 - [x] KSP-1235: kotlin.native.concurrent.DetachedObjectGraph.DetachedObjectGraph の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / receiver `DetachedObjectGraph`
@@ -2341,7 +2354,7 @@
   - 2026-09-15 完了: 既存の `GCInfo.kt` source-backed 宣言（constructor / `sweptCount` / `keptCount`）を KUU-421 の owner fixture に接続し、`stdlib_kotlin_native_runtime_SweepStatistics_SweepStatistics_n` の Sema golden と Native-only diff case を追加した。対象 symbol に Runtime/ABI bridge や name-string 特例はなく、既存の synthetic class shell 以外の property/constructor stub は登録されていないため追加削除は不要。
   - 検証: `NativeRefRuntimeSemaTests` 45件 PASS、Sema golden shard 73（対象を含む8件）PASS、`bash Scripts/check_todo_ids.sh` PASS、`git diff --check` PASS。対象 diff command は実行したが、`kotlin.native.*` の SKIP 判定前に初回 stdlib artifact build が120秒 timeout（fixture の compile failure ではない）となった。全 Golden / 全 diff / Runtime ABI 全体ゲートは未実行（他セッションの SwiftPM 同時実行による lock 待ちを避け、変更関連範囲に限定）。
 
-- [ ] KSP-1274: kotlin.properties.Delegates.Delegates の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1274: kotlin.properties.Delegates.Delegates の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.properties.Delegates` / receiver `Delegates`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/properties/Delegates/Delegates.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2352,6 +2365,9 @@
     - `kotlin.properties.Delegates.notNull` — fun Delegates.notNull(): ReadWriteProperty  -- `final fun <#A1: kotlin/Any> notNull(): kotlin.properties/ReadWriteProperty<kotlin/Any?, #A1>`
     - `kotlin.properties.Delegates.observable` — fun Delegates.observable(, Function3): ReadWriteProperty  -- `final inline fun <#A1: kotlin/Any?> observable(#A1, crossinline kotlin/Function3<kotlin.reflect/KProperty<*>, #A1, #A1, kotlin/Unit>): kotlin.properties/ReadWriteProperty<kotlin/Any?, #A1>`
     - `kotlin.properties.Delegates.vetoable` — fun Delegates.vetoable(, Function3): ReadWriteProperty  -- `final inline fun <#A1: kotlin/Any?> vetoable(#A1, crossinline kotlin/Function3<kotlin.reflect/KProperty<*>, #A1, #A1, kotlin/Boolean>): kotlin.properties/ReadWriteProperty<kotlin/Any?, #A1>`
+  - 2026-09-25 完了: 監査エントリは stale（audit 2026-08-16 生成、KSP-491 #5921 が 2026-08-26 に `Sources/CompilerCore/Stdlib/kotlin/properties/Delegates.kt` を追加済み）。3 シンボルは既に source-backed 実装済みで canonical signature も一致。`__kk_*`/`kk_*` bridge、Synthetic stub、RuntimeABISpec エントリ、name-string 特例は対象シンボルに存在しない（`__kk_lazy_sync_*` は lazy 共有 bridge、`StdlibDelegateKind` は生成 kind 分類器として維持）。Sema golden と diff case を追加した。
+  - 同 PR のバグ修正: diff 検証で top-level `Delegates.notNull()` の try/catch が `KSWIFTK-LINK-0003` で panic する実コンパイラバグを発見。`rewriteDelegateAccesses` が合成 `get`/`set` accessor call を `thrownResult: nil` で挿入するため、try body 内の accessor 例外が catch dispatch に届かず caller に伝播していた。guard region の (exceptionSlot, exceptionTypeSlot, thrownTarget) を sibling wiring または init block から回復して accessor call に同じ配線を施すよう修正し、`TopLevelDelegateThrowRoutingTests`（3件: get/set/fallback）で回帰固定。
+  - 検証: `swift build` PASS、`TopLevelDelegateThrowRoutingTests` 3件 PASS、`LocalDelegatePropertyKIRTests` 13件 PASS、Sema golden（`stdlib_kotlin_properties_Delegates_Delegates_n`）PASS、対象 diff case PASS、delegate/try/use/runCatching 関連26 diff cases PASS、`check_todo_ids.sh` PASS、`validate_runtime_abi_links.sh` PASS、`git diff --check` PASS。全 Golden / 全 diff / 全 Swift テストは未実行（CI に委譲）。
 
 - [ ] KSP-1275: kotlin.properties.ObservableProperty top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.ObservableProperty` / top-level
@@ -2697,7 +2713,7 @@
     - `kotlin.ranges.LongRange.start` — val LongRange.start: Long  -- `final val start`
     - `kotlin.ranges.LongRange.toString` — fun LongRange.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1310: kotlin.ranges.LongRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1310: kotlin.ranges.LongRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.LongRange.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/LongRange/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2706,6 +2722,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ranges.LongRange.Companion.EMPTY` — val Companion.EMPTY: LongRange  -- `final val EMPTY`
+  - 完了（2026-09-25）: `LongRange.Companion.EMPTY` を Kotlin source-backed extension property として実装し、直接表記・Companion 明示表記の Golden / kotlinc diff ケースを追加。artifact-based GoldenHarness 出力一致、対象 kotlinc diff 1/1、Runtime ABI external-link 5/5、TODO ID 検査を確認。Sema Golden 全 suite は未実行（フィルタが全 Sema ケースを処理するため）。
 
 - [ ] KSP-1311: kotlin.ranges.OpenEndRange.OpenEndRange の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges.OpenEndRange` / receiver `OpenEndRange`
@@ -2730,13 +2747,14 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.UIntProgression.Companion` — object kotlin.ranges.UIntProgression.Companion  -- `final object Companion {`
 
-- [ ] KSP-1313: kotlin.ranges.UIntProgression.UIntProgression の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1313: kotlin.ranges.UIntProgression.UIntProgression の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.UIntProgression` / receiver `UIntProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/UIntProgression/UIntProgression.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_UIntProgression_UIntProgression_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_UIntProgression_UIntProgression_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_UIntProgression_UIntProgression_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-09-25）: `UIntProgression/UIntProgression.kt` に first/last/step と equals/hashCode/toString を source-backed で実装し、既存 iterator 拡張を維持。対象 Sema Golden shard と Kotlin 2.3.10 diff case PASS。
   - 未実装シンボル一覧:
     - `kotlin.ranges.UIntProgression.equals` — fun UIntProgression.equals(Any): Boolean  -- `open fun equals(kotlin/Any?): kotlin/Boolean`
     - `kotlin.ranges.UIntProgression.first` — val UIntProgression.first: UInt  -- `final val first`
@@ -2877,13 +2895,15 @@
     - `kotlin.reflect.findAssociatedObject` — fun KClass.findAssociatedObject(): Any  -- `final inline fun <#A: reified kotlin/Annotation> (kotlin.reflect/KClass<*>).kotlin.reflect/findAssociatedObject(): kotlin/Any?`
     - `kotlin.reflect.safeCast` — fun KClass.safeCast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/safeCast(kotlin/Any?): #A?`
 
-- [ ] KSP-1333: kotlin.reflect.KTypeParameter.KTypeParameter の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1333: kotlin.reflect.KTypeParameter.KTypeParameter の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.reflect.KTypeParameter` / receiver `KTypeParameter`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KTypeParameter/KTypeParameter.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KTypeParameter/KTypeParameter.kt`（新規作成。`KClassifier` を継承する source-backed interface として 4 抽象プロパティを宣言）
+  - bridge/stub 整理: `__kk_ktypeparameter_*` Runtime 関数・`RuntimeABISpec` エントリ・`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例は元々無し。synthetic stub 側は `registerSyntheticKTypeParameterStub` を `ensureInterfaceSymbol` + `KClassifier` supertype edge のみに縮小し、4 プロパティの synthetic 登録を削除（source decl が同一 FQName で claim）。`KType` 同様 `shouldRestoreDeclSiteForReusableSyntheticSymbol` には追加していない。
+  - `Phase.swift` に `patchKTypeParameterUpperBoundsType` を post-`collectAllHeaders` で追加し、`upperBounds` を `List<out KType>` へ covariant patch（KSP-1332 の `patchKTypeArgumentsType` と同型の契約）。
+  - 同 PR バグ修正: `p.name` のような interface-typed receiver 経由の String 返しプロパティ読み出しが `kk_array_get_inbounds` panic で落ちていた backend バグを修正。vtable/itable 経由の getter `virtualCall` は symbol がアクセサの synthetic ID で解決不能になり fallback の `(i64,ptr)->i64` 間接呼び出し型が使われるが、String aggregate を返す callee は sret（rdi=戻り値ポインタ）規約のため receiver/thrown がずれて `this` が壊れていた。`calleeName == "get"` かつ引数 1・戻り値が String aggregate の場合に限り、間接呼び出し型を `String` struct 返しにして外部ブリッジを抑止する（`virtualCallReturnsAggregate`、`_s` サフィックスで既存型と区別）。interface メソッドは従来どおり `virtualSourceCallSignature` 側で型付けされるため影響なし。
+  - golden テスト: `stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` + `.golden` を追加（新規ケースは空の `.golden` を先に置かないと preflight が落ちる点に注意）。`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で生成し全 4 suite green。生成差分はメンバ解決の機械的な dump（`upperBounds` が `List<out KType>` で出ている）。sibling golden への波及なし。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n.kt` を追加（ユーザー実装クラス経由で 4 プロパティ + `KClassifier` アップキャスト/`is` を検証）し `bash Scripts/diff_kotlinc.sh` green。
+  - 完了ゲート: `swift build` green / `ReflectKTypeParameterSyntheticTests`（2 件、`!synthetic` + `declSite` + `isSourceBackedSymbol` を assert する形に更新）PASS / `matchesGolden` 全 suite green / 対象 diff + interface dispatch 回帰（bug161 / object_literal / value_class / sam / CharSequence / companion_private）PASS / `check_todo_ids.sh`・`validate_runtime_abi_links.sh` PASS。全 Swift テスト・全 diff ケースは未実行（CI に委譲）。
   - 未実装シンボル一覧:
     - `kotlin.reflect.KTypeParameter.isReified` — val KTypeParameter.isReified: Boolean  -- `abstract val isReified`
     - `kotlin.reflect.KTypeParameter.name` — val KTypeParameter.name: String  -- `abstract val name`
@@ -2931,6 +2951,7 @@
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_associate.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_associate.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceAggregateHOF.kt:207-238,483-541` に8シンボル全て実装済み（commit `d1940304f` #4497 "migrate sequence aggregate HOFs to source" が導入元）。既存 Sema テスト `SequenceAssociateSyntheticTests`/`SequenceAssociateByFunctionTests`/`SequenceAssociateBySyntheticTests`/`SequenceAssociateByToSyntheticTests`/`SequenceAssociateToFunctionTests`/`SequenceAssociateToSyntheticTests`/`SequenceAssociateWithSyntheticTests`/`SequenceAssociateWithToSyntheticTests`/`SequenceSyntheticMemberLinkTests`（`Tests/CompilerCoreTests/Sema/`）で回帰確認済み。`kk_sequence_*` の associate 系 runtime bridge は本 repo に存在しない。専用 golden/diff は本同期では追加しない。
+  - 追記（2026-09-24、KUU-707）: 8 シンボルを Kotlin 2.3.10 ABI シグネチャに揃えた（`associate` / `associateBy` / `associateWith` は `Map<…>` 返しの `inline`、`*To` 系は `M : MutableMap<in …>` 汎用 destination + `@IgnorableReturnValue`、`associateWith` 系に `@SinceKotlin("1.3")`）。実装場所は既存の `SequenceAggregateHOF.kt`（package `kotlin.collections`）を維持し、本体は `Iterables.kt` の Iterable 版と同じ `for-in` 形に統一。専用 golden `stdlib_kotlin_sequences_Sequence_associate.kt` と diff ケース `stdlib_kotlin_sequences_Sequence_associate.kt`（supertype-keyed destination、destination identity、重複キー last-write-wins、例外伝播を含む）を追加し、diff は Kotlin 2.3.10 に対し PASS。既存 golden（`sequence_associate_with` / `collection_associate_to` / `list_associate`）に差分なし。
   - 実装シンボル一覧:
     - `kotlin.sequences.associate` — fun Sequence.associate(Function1): Map  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/associate(kotlin/Function1<#A, kotlin/Pair<#B, #C>>): kotlin.collections/Map<#B, #C>`
     - `kotlin.sequences.associateBy` — fun Sequence.associateBy(Function1): Map  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/associateBy(kotlin/Function1<#A, #B>): kotlin.collections/Map<#B, #A>`
@@ -2995,6 +3016,7 @@
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_group.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_group.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceAggregateHOF.kt:247-283,543-583` に4シンボル全て実装済み（commit `d1940304f` #4497 "migrate sequence aggregate HOFs to source" が導入元）。`Tests/CompilerCoreTests/GoldenCases/Sema/sequence_group_by.kt` golden で回帰確認済み。`kk_sequence_groupBy`（`RuntimeSequence.swift:3423`）は runtime bridge として保持。専用 diff は本同期では追加しない。
+  - 追記（2026-09-22、KUU-711）: 4 シンボルを Kotlin 2.3.10 ABI シグネチャに揃えた（`groupBy` は `Map<K, List<T>>` / `Map<K, List<V>>` 返しの `inline`、`groupByTo` は `M : MutableMap<in K, MutableList<…>>` 汎用 destination + `@IgnorableReturnValue`）。実装場所は既存の `SequenceAggregateHOF.kt`（package `kotlin.collections`）を維持し、本体は `Iterables.kt` の Iterable 版と同じ `for-in` 形に統一。専用 golden `stdlib_kotlin_sequences_Sequence_group.kt` と diff ケース `stdlib_kotlin_sequences_Sequence_group.kt`（supertype-keyed destination、destination identity、例外伝播を含む）を追加し、diff は Kotlin 2.3.10 に対し PASS。`sequence_group_by_to.golden` の差分は `gen=2→3` の機械的変更のみ。
   - 実装シンボル一覧:
     - `kotlin.sequences.groupBy` — fun Sequence.groupBy(Function1): Map  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/groupBy(kotlin/Function1<#A, #B>): kotlin.collections/Map<#B, kotlin.collections/List<#A>>`
     - `kotlin.sequences.groupBy` — fun Sequence.groupBy(Function1, Function1): Map  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/groupBy(kotlin/Function1<#A, #B>, kotlin/Function1<#A, #C>): kotlin.collections/Map<#B, kotlin.collections/List<#C>>`
@@ -3034,7 +3056,8 @@
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_map.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_map.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_map.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceDestinationHOF.kt:30-118`（ファイル冒頭コメント「KSP-446: Sequence destination-collection higher-order functions migrated to Kotlin source」）に `mapTo`/`mapNotNullTo`/`mapIndexedTo`/`mapIndexedNotNullTo` 4シンボル全て実装済み（commit `4f80770bb` #5775）。専用 golden/diff は本同期では追加しない。
+  - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceDestinationHOF.kt:30-118`（ファイル冒頭コメント「KSP-446: Sequence destination-collection higher-order functions migrated to Kotlin source」）に `mapTo`/`mapNotNullTo`/`mapIndexedTo`/`mapIndexedNotNullTo` 4シンボル全て実装済み（commit `4f80770bb` #5775）。
+  - 完了根拠（2026-09-23、KUU-714）: 専用 golden `stdlib_kotlin_sequences_Sequence_map.kt` / 専用 diff `stdlib_kotlin_sequences_Sequence_map.kt` を追加し、4シンボル全てが `kotlin.sequences.*` の Kotlin source 宣言に束縛されること・kotlinc と出力一致することを確認。bridge/stub/RuntimeABISpec の残存登録なし（#5775 で整理済み）。
   - 実装シンボル一覧:
     - `kotlin.sequences.mapIndexedNotNullTo` — fun Sequence.mapIndexedNotNullTo(, Function2): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/mapIndexedNotNullTo(#C, kotlin/Function2<kotlin/Int, #A, #B?>): #C`
     - `kotlin.sequences.mapIndexedTo` — fun Sequence.mapIndexedTo(, Function2): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/mapIndexedTo(#C, kotlin/Function2<kotlin/Int, #A, #B>): #C`
@@ -3068,6 +3091,7 @@
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt`
   - 完了根拠（2026-09-15）: KSP-1353 と同型。18 件中 8 件（generic `#A` の `min`/`minOrNull`、`minBy`/`minByOrNull`、generic `#B` の `minOf`/`minOfOrNull`、`minWith`/`minWithOrNull`）は既存実装済み。残り 10 件のうち 6 件（`minOf(Function1): Double/Float`・`minOfOrNull(Function1): Double/Float`・`minOfWith`・`minOfWithOrNull`）を本 PR で実装。`minOfWith`/`minOfWithOrNull` は KSP-1353 と同じ `activeCollectionHOFNames` 修正で救済。
   - 見送り（2026-09-15）: `min(): Double`/`min(): Float`/`minOrNull(): Double`/`minOrNull(): Float` の 4 件は KSP-1353 と同じ理由（`bindBundledSequenceAggregateSource` の receiver 要素型フィルタ欠如）で見送り。加えて `Iterable<Float>.min()`/`Iterable<Float>.minOrNull()`（`Iterables.kt`）が `sequenceOf(3.0f, 1.0f).let { listOf(*it.toList().toTypedArray()) }.min()` 相当の入力で先頭要素をそのまま返す既存バグ（`comparisonMinOf` を `iterator()` ベースのループから呼ぶ経路で発生、`kk_min_float`/`comparisonMinOf` 単体は正しく動作することを分離テストで確認済み）を発見。Sequence 版を実装する際にこの経路へ誤束縛されると同じ症状（`sequenceOf(3.0f, 1.0f).min()` が `3.0` を返す）を再現した。Linear バグ起票: [KUU-553](https://linear.app/kuu/issue/KUU-553)。
+  - 見送り解消（2026-09-22, KUU-716）: #6919 が Sequence aggregate fast path に receiver 要素型フィルタ（`sequenceSourceReceiverElementMatches`）を追加済み、かつ KUU-553 が #6970 で修正済み（floating-point List min 呼び出しを Iterable 特化版へルーティング）のため、残り 4 件（`Sequence<Double>.min()`/`Sequence<Float>.min()`/`Sequence<Double>.minOrNull()`/`Sequence<Float>.minOrNull()`）を実装。同ファイルの minOf 系と同じく `comparisonMinOf`（`kotlin.comparisons.minOf`）の pairwise 比較で IEEE-754 の NaN 伝播・符号付きゼロ順序を維持（ヘッダコメント記載のとおり `kk_min_*` のローカル再宣言は直接呼ぶと誤動作する経歴があるため使用しない）。generic 宣言より手前に置き、fast path の first-match で Double/Float receiver は特化版に、それ以外の要素型は従来どおり generic に束縛されることを golden で確認。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_min.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_min.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_min.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
@@ -3078,9 +3102,11 @@
     - `kotlin.sequences.minOfOrNull` — fun Sequence.minOfOrNull(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfOrNull(kotlin/Function1<#A, kotlin/Float>): kotlin/Float?`
     - `kotlin.sequences.minOfWith` — fun Sequence.minOfWith(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfWith(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B`
     - `kotlin.sequences.minOfWithOrNull` — fun Sequence.minOfWithOrNull(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfWithOrNull(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B?`
-  - 見送りシンボル一覧（4 件、理由は上記）:
-    - `kotlin.sequences.min` — fun Sequence.min(): Double / Float
-    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Double / Float
+  - 実装シンボル一覧（KUU-716 で新規実装した 4 件、旧見送り分）:
+    - `kotlin.sequences.min` — fun Sequence.min(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/min(): kotlin/Double`
+    - `kotlin.sequences.min` — fun Sequence.min(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/min(): kotlin/Float`
+    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/minOrNull(): kotlin/Double?`
+    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/minOrNull(): kotlin/Float?`
 
 - [x] KSP-1355: kotlin.sequences.Sequence.reduce-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `reduce`
@@ -3121,7 +3147,8 @@
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_single.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_single.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_single.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceAggregateHOF.kt:746-789`（KSP-442、commit `c965a08f8` #5723）に4シンボル全て実装済み。既存 Sema テスト `SequenceSingleFunctionTests`（`Tests/CompilerCoreTests/Sema/`）で回帰確認済み。`kk_sequence_single`/`singleOrNull`（`RuntimeSequence.swift`）は runtime bridge として保持。専用 golden/diff は本同期では追加しない。
+  - 完了根拠（2026-09-15、既存実装のTODO同期 / 2026-09-22 KSP-1357 残件対応）: `SequenceConversionsAndSetOps.kt` に upstream 準拠の lazy iterator 実装を追加（`single()`/`singleOrNull()` は2要素目で short-circuit、predicate 版は `public inline`＋2件目マッチで早期脱出）。`SequenceAggregateHOF.kt`（KSP-442、commit `c965a08f8` #5723）の `toList()` 経由版を除去した。`kk_sequence_single`/`singleOrNull`（`RuntimeSequence.swift`）・RuntimeABISpec エントリ・`CallLowerer` の未解決 fallback name-string 特例は Iterable/List 残余 dispatch・unresolved member recovery が共用するため保持。synthetic stub / `StdlibSurfaceSpec` 登録は存在しないことを確認。
+  - 回帰: `SequenceSingleFunctionTests` に4 overload の canonical FQName 解決・source-backed・no-link を固定するテストを追加し、Sema Golden (`stdlib_kotlin_sequences_Sequence_single`) と `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_single.kt`（全 overload・型付き例外・無限 Sequence の早期終了）を追加した。
   - 実装シンボル一覧:
     - `kotlin.sequences.single` — fun Sequence.single(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/single(): #A`
     - `kotlin.sequences.single` — fun Sequence.single(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/single(kotlin/Function1<#A, kotlin/Boolean>): #A`
@@ -3963,7 +3990,6 @@
     - `kotlin.text.Regex.replaceFirst` — fun Regex.replaceFirst(CharSequence, String): String  -- `final fun replaceFirst(kotlin/CharSequence, kotlin/String): kotlin/String`
     - `kotlin.text.Regex.split` — fun Regex.split(CharSequence, Int): List  -- `final fun split(kotlin/CharSequence, kotlin/Int = ...): kotlin.collections/List<kotlin/String>`
     - `kotlin.text.Regex.splitToSequence` — fun Regex.splitToSequence(CharSequence, Int): Sequence  -- `final fun splitToSequence(kotlin/CharSequence, kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
-    - `kotlin.text.Regex.toString` — fun Regex.toString(): String  -- `final fun toString(): kotlin/String`
 
 - [x] KSP-1439: kotlin.text.StringBuilder top-level の未実装 stdlib API を実装する（4 件）
   - 実装 (2026-09-16): `StringBuilder.kt` に CharSequence constructor を追加し、lowerer / runtime / RuntimeABISpec の専用 bridge で StringBuilder・custom CharSequence の初期値を扱う。

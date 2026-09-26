@@ -55,7 +55,7 @@ LSPServerTests       --> LSPServer, CompilerCore
 Runtime (独立 — リンク時に結合)
 ```
 
-LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。
+LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。discovery の候補は `KSWIFTK_LLVM_DYLIB`（絶対パスのみ）と固定の trusted install directory に限定され、`LIBRARY_PATH` / `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` は参照しない。`dlopen` 前に対象ファイルと全 ancestor directory の owner（root または実行ユーザ）・mode（group/other 書き込み不可）・canonical path を `TrustedFileSystem.trustedLoadableFile` で検証する。
 
 ---
 

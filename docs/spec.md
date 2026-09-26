@@ -225,7 +225,10 @@ public struct Diagnostic: Equatable {
 }
 
 public final class DiagnosticEngine: @unchecked Sendable {
+    public static let defaultMaxDiagnosticsPerFile: Int   // 1_000
     public var diagnostics: [Diagnostic] { get }
+
+    public init(maxDiagnosticsPerFile: Int = defaultMaxDiagnosticsPerFile)
 
     public func emit(_ d: Diagnostic)
     public func error(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
@@ -251,6 +254,8 @@ public final class DiagnosticEngine: @unchecked Sendable {
 ```
 
 表示フォーマットは human-readable text と LSP-compatible JSON（`DiagnosticsFormat`）を持つ。
+
+重複検査は `Set` による平均 O(1) で、ファイル (`primaryRange.start.file`、range なしは共通バケット) ごとに `maxDiagnosticsPerFile` 件まで保持する。上限超過分は破棄し、ファイルごとに 1 件だけ `KSWIFTK-PIPELINE-0005` の打ち切り diagnostic を発行する（破棄物に `.error` が含まれた時点で notice も `.error` に昇格し、error 喪失時に exit code が成功にならないことを保証する）。
 
 ---
 
@@ -1004,6 +1009,8 @@ final class LLVMBackend {
 ```
 
 `RuntimeLinkInfo` 型は存在しない。link に必要な library/search path は `CompilerOptions` が保持し、runtime object discovery と executable link は `LinkPhase` が担当する。
+
+`LinkPhase` が生成するエントリラッパ（`LLVMEntryPointObjectEmitter`）の終了ステータス規約: 正常終了は常に `0`、未捕捉例外は `1`（`KSWIFTK-LINK-0003` を stderr に出力）。`main` 自身の戻り値は終了ステータスに使わない — Kotlin で非ゼロを返す手段は `kotlin.system.exitProcess` だけであり、これは `__kk_system_exitProcess`（`Never`）としてプロセスを直接終了させるためラッパを通らない。なお kotlinc は戻り値型が `Unit` でない `main` をエントリポイントと認めない（`Main-Class` なしの jar を出す）が、kswiftc はこれを受理して値を捨てる: `runBlocking` / `coroutineScope` / `Deferred.await` を `Any` 返しとしてモデル化している都合上、`fun main() = runBlocking { ... }` は本体に関わらず非 `Unit` になるため、拒否すると正当なコードが通らなくなる。
 
 ## J15.3 文字列・配列・例外・コルーチンの呼び出し境界
 

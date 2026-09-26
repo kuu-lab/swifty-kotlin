@@ -37,6 +37,15 @@ public extension RuntimeABISpec {
             section: "Network"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_http_client_addTrustedRedirectOrigin",
+            parameters: [
+                RuntimeABIParameter(name: "clientRaw", type: .intptr),
+                RuntimeABIParameter(name: "originRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Network"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_http_response_statusCode",
             parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
             returnType: .intptr,

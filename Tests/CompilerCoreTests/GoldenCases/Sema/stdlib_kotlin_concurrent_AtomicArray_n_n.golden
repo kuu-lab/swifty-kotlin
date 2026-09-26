@@ -1,0 +1,14 @@
+symbol fq=golden.sema.atomicArrayFromInit.$0.size[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayFromInit[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.concurrent.AtomicArray<String>
+symbol fq=golden.sema.atomicArrayFromStorage.$1.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayFromStorage[kind=fun;params=kotlin.Array<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<String>] ret=kotlin.concurrent.AtomicArray<String>
+file fstdlib_kotlin_concurrent_AtomicArray_n_n package=golden.sema annotations=[@file:OptIn(kotlin.ExperimentalStdlibApi::class),@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.atomicArrayFromInit[kind=fun;params=Int] fun atomicArrayFromInit sym=golden.sema.atomicArrayFromInit[kind=fun;params=Int]
+  decl golden.sema.atomicArrayFromStorage[kind=fun;params=kotlin.Array<String>] fun atomicArrayFromStorage sym=golden.sema.atomicArrayFromStorage[kind=fun;params=kotlin.Array<String>]
+expr e@8:71 name(size) type=Int ref=golden.sema.atomicArrayFromInit.$0.size[kind=vparam]
+expr e@8:79 name(it) type=Int ref=s-0
+expr e@8:79#1 memberCall recv=e@8:79 callee=toString args=[] type=String
+expr e@8:77 lambda params=[] body=e@8:79#1 label=AtomicArray type=(Int) -> String
+expr e@8:59 call callee=e@8:59#1 args=[_:e@8:71,_:e@8:77] type=kotlin.concurrent.AtomicArray<String> call=kotlin.concurrent.AtomicArray[kind=fun;params=Int,fn{p=Int;ret=T0};gen=1] targs=[String]
+expr e@9:86 name(values) type=kotlin.Array<String> ref=golden.sema.atomicArrayFromStorage.$1.values[kind=vparam]
+expr e@9:74 call callee=e@9:74#1 args=[_:e@9:86] type=kotlin.concurrent.AtomicArray<String> call=kotlin.concurrent.AtomicArray[kind=fun;params=kotlin.Array<T0>;gen=1] targs=[String]

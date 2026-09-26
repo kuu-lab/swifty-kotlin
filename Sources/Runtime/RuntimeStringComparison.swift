@@ -102,14 +102,30 @@ private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? 
 }
 
 func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
-    let lhsCodeUnits = Array(lhs.utf16)
-    let rhsCodeUnits = Array(rhs.utf16)
-    let sharedCount = Swift.min(lhsCodeUnits.count, rhsCodeUnits.count)
-    for index in 0 ..< sharedCount {
-        let difference = Int(lhsCodeUnits[index]) - Int(rhsCodeUnits[index])
-        if difference != 0 {
-            return difference
+    var lhsIterator = lhs.utf16.makeIterator()
+    var rhsIterator = rhs.utf16.makeIterator()
+    while true {
+        switch (lhsIterator.next(), rhsIterator.next()) {
+        case let (lhsUnit?, rhsUnit?):
+            let difference = Int(lhsUnit) - Int(rhsUnit)
+            if difference != 0 {
+                return difference
+            }
+        case (nil, nil):
+            return 0
+        case (.some, nil):
+            return 1 + countRemaining(lhsIterator)
+        case (nil, .some):
+            return -(1 + countRemaining(rhsIterator))
         }
     }
-    return lhsCodeUnits.count - rhsCodeUnits.count
+}
+
+private func countRemaining(_ iterator: String.UTF16View.Iterator) -> Int {
+    var iterator = iterator
+    var count = 0
+    while iterator.next() != nil {
+        count += 1
+    }
+    return count
 }

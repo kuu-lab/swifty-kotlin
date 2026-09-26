@@ -136,8 +136,12 @@ extension CallLowerer {
         // writes via `copy`-to-`symbolRef`. The heap object some objects allocate
         // via `kk_object_new` (for interface/vtable dispatch) never holds the
         // object's own stored properties, so it must not be treated as
-        // field-offset storage here.
+        // field-offset storage here. A local `object` (KUU-555) is the
+        // exception: its members are object-literal instance fields, so the
+        // `.object` owner check must skip them and let the field-offset
+        // storage path below handle the write.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .object
@@ -154,7 +158,28 @@ extension CallLowerer {
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface
+               || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
         {
+            // An interface has no per-instance storage of its own, so a
+            // stored/abstract `var` written through an interface-typed
+            // receiver cannot use a concrete field offset (the same reason
+            // `tryLowerInterfaceItablePropertyGetterRead` exists for reads).
+            // Dispatch through the interface's itable to the implementing
+            // type's setter instead of falling through to the field-offset
+            // lookup below (which finds nothing on an interface) and then
+            // the generic call-binding fallback at the bottom of this
+            // function (which linked against an undefined name).
+            if let result = tryLowerInterfaceItablePropertySetterWrite(
+                propertySymbol: propertySymbol,
+                loweredReceiverID: receiverID,
+                loweredValueID: valueID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return result
+            }
             // BUG-227: a stored open/abstract/override property whose owner
             // has known subtypes must dispatch through its setter's vtable
             // slot — the field offset below is only this declaration's own
@@ -298,6 +323,7 @@ extension CallLowerer {
         let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
+                  !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol)
             else {
@@ -316,7 +342,8 @@ extension CallLowerer {
         }()
 
         // Direct field-offset storage for ordinary stored properties on
-        // class/interface instances.
+        // class/interface instances (and for a local `object`'s
+        // object-literal instance fields).
         let fieldOffset: Int? = {
             guard syntheticLinks == nil,
                   !isObjectOwned,
@@ -325,6 +352,7 @@ extension CallLowerer {
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
                   ownerInfo.kind == .class || ownerInfo.kind == .interface
+                      || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
             else {
                 return nil
             }
@@ -661,6 +689,12 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
+        // CLASS-008: a synthetic forwarding property for `by` delegation has
+        // no `.propertyDecl` AST node for the loop below to find — its setter
+        // writes through the delegate field, not a real backing field.
+        if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
+            return true
+        }
         for rawDecl in ast.arena.decls.indices {
             let declID = DeclID(rawValue: Int32(rawDecl))
             guard sema.bindings.declSymbols[declID] == propertySymbol,
@@ -675,5 +709,55 @@ extension CallLowerer {
             return propertyDecl.delegateExpression != nil
         }
         return false
+    }
+
+    /// Write counterpart of `tryLowerInterfaceItablePropertyGetterRead`
+    /// (`CallLowerer+MemberPropertyReads.swift`, BUG-141): an interface has
+    /// no per-instance storage of its own, so a stored/abstract `var`
+    /// written through an interface-typed receiver cannot use a concrete
+    /// field offset either. Dispatch through the interface's itable to the
+    /// implementing type's setter, mirroring the read side.
+    func tryLowerInterfaceItablePropertySetterWrite(
+        propertySymbol: SymbolID,
+        loweredReceiverID: KIRExprID,
+        loweredValueID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let propertyInfo = sema.symbols.symbol(propertySymbol),
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              ownerInfo.kind == .interface,
+              (propertyInfo.declSite != nil
+                  || propertyInfo.flags.contains(.importedLibrary)),
+              let methodSlot = kirInterfacePropertySetterSlot(
+                  interfaceProperty: propertySymbol,
+                  interfaceSymbol: ownerSymbol,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: ownerSymbol, sema: sema, interner: interner
+        )
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        let result = arena.appendTemporary(type: sema.types.unitType)
+        instructions.append(.virtualCall(
+            symbol: setterSymbol,
+            callee: interner.intern("set"),
+            receiver: loweredReceiverID,
+            arguments: [loweredValueID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        ))
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
     }
 }

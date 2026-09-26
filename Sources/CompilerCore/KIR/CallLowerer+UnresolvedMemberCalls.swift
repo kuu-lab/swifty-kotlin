@@ -110,6 +110,141 @@ extension CallLowerer {
         }
     }
 
+    /// Runtime-backed list boxes (the values `mutableListOf`/`subList` produce)
+    /// carry no Kotlin vtable, so source-backed MutableList member defaults
+    /// cannot be reached through itable dispatch on them. Route migrated
+    /// `kotlin.collections.MutableList` members to their demoted list ABI entry
+    /// points instead. Top-level extensions (e.g. the predicate `removeAll`)
+    /// share only the member name, so the callee's fqName must name the
+    /// MutableList interface before remapping (KSP-1503).
+    func runtimeBackedListMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        chosenCallee: SymbolID? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard isMutableListRuntimeFamilyType(nonNullReceiverType, sema: sema, interner: interner),
+              isMutableListRuntimeFamilyMember(
+                  chosenCallee,
+                  memberName: memberName,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        switch memberName {
+        case "set":
+            return interner.intern("__kk_mutable_list_set")
+        case "add":
+            let arity = chosenCallee.flatMap {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.count
+            } ?? 1
+            return interner.intern(arity >= 2 ? "__kk_mutable_list_add_at" : "__kk_mutable_list_add")
+        case "removeAt":
+            return interner.intern("__kk_mutable_list_removeAt")
+        case "clear":
+            return interner.intern("__kk_mutable_list_clear")
+        case "removeAll":
+            return interner.intern("__kk_mutable_list_removeAll")
+        case "retainAll":
+            return interner.intern("__kk_mutable_list_retainAll")
+        case "plusAssign", "minusAssign":
+            return mutableListBulkMutationCallee(
+                memberName: memberName,
+                chosenCallee: chosenCallee,
+                sema: sema,
+                interner: interner
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// `plusAssign`/`minusAssign` on a runtime-backed MutableList resolve to
+    /// either the element or the Collection overload; select the matching
+    /// residual bridge from the bound signature's first parameter type.
+    private func mutableListBulkMutationCallee(
+        memberName: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let parameterType = chosenCallee.flatMap { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        }
+        let parameterName = parameterType.flatMap { type in
+            resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
+                .map { interner.resolve($0.symbol.name) }
+        }
+        let operation = memberName == "plusAssign" ? "addAll" : "removeAll"
+        switch parameterName {
+        case "Sequence":
+            return interner.intern("__kk_mutable_list_\(operation)_sequence")
+        case "Iterable":
+            return interner.intern("__kk_mutable_list_\(operation)_iterable")
+        case "Array", "Collection", "MutableCollection":
+            return interner.intern("__kk_mutable_list_\(operation)")
+        default:
+            if memberName == "plusAssign" {
+                return interner.intern("__kk_mutable_list_add")
+            }
+            if memberName == "minusAssign" {
+                return interner.intern("__kk_mutable_list_remove")
+            }
+            return nil
+        }
+    }
+
+    /// True when the receiver's static type is `kotlin.collections.MutableList`
+    /// — the only spelling a runtime list box (`mutableListOf`, `subList`
+    /// views) can satisfy. `AbstractMutableList` is deliberately excluded: it
+    /// is a class, so a MutableList interface receiver can never bind one, and
+    /// an `AbstractMutableList`-typed receiver is always a real Kotlin object
+    /// (user subclass or the bundled SubList) whose calls must keep virtual
+    /// dispatch. Runtime list boxes carry no Kotlin vtable/itable, so these
+    /// members must lower to the `__kk_mutable_list_*` ABI entry points rather
+    /// than dispatch dynamically (KSP-1503).
+    private func isMutableListRuntimeFamilyType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return symbol.name == knownNames.mutableList
+            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
+    }
+
+    /// True only when the bound callee is a member declared on
+    /// `kotlin.collections.MutableList` — i.e. one of the members migrated to
+    /// `MutableList.kt`. Top-level extensions with the same name
+    /// (`removeAll(predicate)`, `retainAll(predicate)`, HOF sort variants)
+    /// live at package fqName and must keep their own lowering path.
+    private func isMutableListRuntimeFamilyMember(
+        _ chosenCallee: SymbolID?,
+        memberName: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee,
+              let calleeSymbol = sema.symbols.symbol(chosenCallee),
+              calleeSymbol.fqName.last == interner.intern(memberName)
+        else {
+            return false
+        }
+        let owner = Array(calleeSymbol.fqName.dropLast())
+        return owner == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+    }
+
     // swiftlint:disable cyclomatic_complexity
     func unresolvedSyntheticMemberCallee(
         memberName: String,
@@ -273,17 +408,21 @@ extension CallLowerer {
             }
         }
 
-        if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+        if isMutableListRuntimeFamilyType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
+            case "add" where argumentCount == 2:
+                return interner.intern("__kk_mutable_list_add_at")
             case "addAll":
                 return interner.intern("__kk_mutable_list_addAll")
             case "removeAll":
                 return interner.intern("__kk_mutable_list_removeAll")
             case "retainAll":
                 return interner.intern("__kk_mutable_list_retainAll")
+            case "removeAt":
+                return interner.intern("__kk_mutable_list_removeAt")
             case "removeFirst":
                 return interner.intern("__kk_mutable_list_removeFirst")
             case "removeFirstOrNull":
@@ -292,6 +431,14 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_list_removeLast")
             case "removeLastOrNull":
                 return interner.intern("__kk_mutable_list_removeLastOrNull")
+            case "set":
+                return interner.intern("__kk_mutable_list_set")
+            case "clear":
+                return interner.intern("__kk_mutable_list_clear")
+            case "plusAssign":
+                return interner.intern("__kk_mutable_list_add")
+            case "minusAssign":
+                return interner.intern("__kk_mutable_list_remove")
             default:
                 break
             }

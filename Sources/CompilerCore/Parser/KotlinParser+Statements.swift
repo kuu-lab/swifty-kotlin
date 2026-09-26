@@ -1,5 +1,10 @@
 extension KotlinParser {
     func parseBlock() -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: true, kind: .block)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         guard consumeIfSymbol(.lBrace, into: &children, range: &range) else {
@@ -55,6 +60,11 @@ extension KotlinParser {
     }
 
     func parseStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         if isLoopStart(stream.peek().kind) {
             return parseLoopStatement(inBlock: inBlock)
         }
@@ -170,6 +180,11 @@ extension KotlinParser {
 
     /// Parse a structured `if` expression: `if (condition) then-branch [else else-branch]`
     func parseIfStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -193,6 +208,11 @@ extension KotlinParser {
 
     /// Parse a structured `when` expression: `when [(subject)] { branches }`
     func parseWhenStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -216,6 +236,11 @@ extension KotlinParser {
 
     /// Parse a structured `try` expression: `try body [catch (params) body]* [finally body]`
     func parseTryStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -575,6 +600,11 @@ extension KotlinParser {
     // MARK: - Loop Parsing
 
     func parseLoopStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         _ = inBlock
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -733,7 +763,7 @@ extension KotlinParser {
     /// appear inside an expression (`suspend { ... }` lambda literal,
     /// `context(...) { ... }` helper call). A single token of lookahead
     /// can't tell these apart.
-    private func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
+    func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
         switch token.kind {
         case let .keyword(kw):
             return Self.isDeclarationModifierKeyword(kw)
@@ -744,24 +774,97 @@ extension KotlinParser {
         }
     }
 
+    /// Outcome of scanning a modifier / context-parameter prefix: a genuine
+    /// declaration keyword follows it, the prefix does not introduce a
+    /// declaration, or the lookahead ran out of budget mid-scan.
+    enum DeclarationPrefixVerdict: Equatable {
+        case declaration
+        case notDeclaration
+        case overBudget
+    }
+
     /// Resolves the ambiguity in `isAmbiguousDeclarationPrefix` by scanning
-    /// past the modifier / context-parameter prefix at lookahead `offset` —
-    /// recursing through chained modifiers and skipping a balanced `(...)`
-    /// group after `context` — to see whether an actual declaration keyword
-    /// (or another declaration-start token) follows. Never consumes tokens.
-    private func startsGenuineDeclaration(at offset: Int) -> Bool {
-        let token = stream.peek(offset)
-        if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
-            return startsGenuineDeclaration(at: offset + 1)
+    /// past the modifier / context-parameter prefix at lookahead `offset`.
+    /// Results are memoized for every prefix token visited so expression-tail
+    /// recovery does not rescan each suffix of a long chain.
+    func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
+        let startIndex = stream.index + offset
+        if let cached = genuineDeclarationLookahead[startIndex] {
+            return cached ? .declaration : .notDeclaration
         }
-        if case .softKeyword(.context) = token.kind {
-            var next = offset + 1
-            if stream.peek(next).kind == .symbol(.lParen) {
-                next = offsetPastBalancedGroup(from: next, open: .symbol(.lParen), close: .symbol(.rParen))
+
+        var cursor = offset
+        var work = 0
+        var prefixIndices: [Int] = []
+        while true {
+            guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
+                // Treat an over-budget prefix as a recovery boundary. The outer
+                // parser then consumes it iteratively through normal recovery.
+                cacheGenuineDeclarationLookahead(true, for: prefixIndices)
+                return .overBudget
             }
-            return startsGenuineDeclaration(at: next)
+
+            let token = stream.peek(cursor)
+            if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
+                prefixIndices.append(stream.index + cursor)
+                cursor += 1
+                continue
+            }
+            if case .softKeyword(.context) = token.kind {
+                prefixIndices.append(stream.index + cursor)
+                cursor += 1
+                if stream.peek(cursor).kind == .symbol(.lParen) {
+                    var depth = 0
+                    repeat {
+                        guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
+                            cacheGenuineDeclarationLookahead(true, for: prefixIndices)
+                            return .overBudget
+                        }
+                        let kind = stream.peek(cursor).kind
+                        if kind == .symbol(.lParen) {
+                            depth += 1
+                        } else if kind == .symbol(.rParen) {
+                            depth -= 1
+                        } else if kind == .eof {
+                            break
+                        }
+                        cursor += 1
+                    } while depth > 0
+                }
+                continue
+            }
+
+            let result = isDeclarationStart(token.kind)
+            cacheGenuineDeclarationLookahead(result, for: prefixIndices)
+            genuineDeclarationLookahead[stream.index + cursor] = result
+            return result ? .declaration : .notDeclaration
         }
-        return isDeclarationStart(token.kind)
+    }
+
+    func startsGenuineDeclaration(at offset: Int) -> Bool {
+        declarationPrefixVerdict(at: offset) != .notDeclaration
+    }
+
+    private static let declarationLookaheadWorkLimit = 4096
+
+    func consumeDeclarationLookaheadWork(_ work: inout Int, at offset: Int) -> Bool {
+        guard work < Self.declarationLookaheadWorkLimit else {
+            let token = stream.peek(offset)
+            diagnostics.error(
+                "KSWIFTK-PARSE-0007",
+                "Declaration prefix exceeds the parser lookahead limit; recovering at this boundary.",
+                range: token.rangeIfAvailable
+            )
+            return false
+        }
+        work += 1
+        return true
+    }
+
+    private func cacheGenuineDeclarationLookahead(_ result: Bool, for indices: [Int]) {
+        for index in indices {
+            genuineDeclarationLookahead[index] = result
+        }
     }
 
     /// Advances a lookahead offset past a balanced bracket group whose

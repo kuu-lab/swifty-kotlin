@@ -126,6 +126,11 @@ public class Regex {
         return result.toString()
     }
 
+    // Constructor parameter `pattern` is not a property; naming this
+    // `= pattern` would bind to that parameter slot (uninitialized / null)
+    // instead of the `Regex.pattern` extension.
+    public override fun toString(): String = __kkRegexPattern(this)
+
     public fun split(input: String, limit: Int = 0): List<String> {
         requireNonNegativeLimit(limit)
         if (limit == 0) {
@@ -151,8 +156,6 @@ public class Regex {
 
     public fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> =
         split(input.regexInputString(), limit).asSequence()
-
-    override fun toString(): String = __kkRegexPattern(this)
 }
 
 internal fun requireNonNegativeLimit(limit: Int) =

@@ -62,6 +62,11 @@ final class RuntimeStringBox {
     /// Kotlin UTF-16 code units materialized on first positional access.
     /// `value` is immutable, so the cache never invalidates.
     private var cachedUTF16CodeUnits: [UInt16]?
+    /// Flat-ABI buffer backing this string, materialized once so repeated
+    /// `kk_string_to_flat` bridges share a single registered storage instead
+    /// of accumulating one buffer per call. Owned by the flat-string registry,
+    /// so the cache stays weak and self-heals after `kk_flat_string_release`.
+    private weak var cachedFlatStorage: RuntimeFlatStringStorage?
     private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
@@ -86,6 +91,21 @@ final class RuntimeStringBox {
         let cached = cachedUTF16CodeUnits
         utf16CodeUnitsLock.unlock()
         return cached?.count ?? runtimeKotlinStringUTF16Length(value)
+    }
+
+    /// Flat-ABI buffer for `value`, creating and registering one on first use.
+    /// The box is the storage's canonical boxed handle, so a flat→raw bridge
+    /// of the same buffer resolves back to this box.
+    func flatStringStorage() -> RuntimeFlatStringStorage {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedFlatStorage {
+            return cachedFlatStorage
+        }
+        let storage = RuntimeFlatStringStorage(value)
+        runtimeRegisterFlatStringStorage(storage, canonicalBox: self)
+        cachedFlatStorage = storage
+        return storage
     }
 }
 
@@ -655,6 +675,31 @@ final class RuntimeListBox {
             base.setValue(value, at: index)
         case .subList(let slice):
             slice.base.setValue(value, at: slice.fromIndex + index)
+        }
+    }
+
+    /// Runs `body` on the backing array and returns its result. For `.direct`
+    /// storage the mutation goes through `direct.values`, so the buffer is
+    /// appended/removed in place when uniquely referenced instead of being
+    /// copied on every call; a buffer still shared with a snapshot (e.g. an
+    /// iterator's captured `values`) copy-on-writes inside `body` as usual.
+    /// View-backed storage keeps the materialize–mutate–write-back
+    /// semantics of the `values` setter, and a read-only list still drops
+    /// the write-back.
+    @discardableResult
+    func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
+        guard !isReadOnly else {
+            var values = values
+            return body(&values)
+        }
+        switch storage {
+        case .direct(let direct):
+            return body(&direct.values)
+        case .reversedViewOf, .arrayViewOf, .subList:
+            var values = self.values
+            let result = body(&values)
+            self.values = values
+            return result
         }
     }
 

@@ -111,6 +111,14 @@ struct CaptureAnalyzer {
                 visit(value)
 
             case let .call(callee, _, args, _):
+                // A call that resolved on an outer implicit receiver needs the
+                // enclosing `this` captured so the receiver value reaches the
+                // member body's lowering.
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 visit(callee)
                 for arg in args {
                     visit(arg.expr)
@@ -291,6 +299,67 @@ struct CaptureAnalyzer {
                         continue
                     }
                     visit(initializer)
+                }
+
+            case let .localNominalDecl(declID, _):
+                // KUU-555: a named local nominal's captured outer locals are
+                // stored into instance fields at its construction site —
+                // which runs in whatever enclosing scope contains this decl —
+                // so every body that can reference an outer local must be
+                // visited here or the enclosing closure won't capture it.
+                guard let decl = ast.arena.decl(declID) else {
+                    break
+                }
+                let constructorArgExprs: [ExprID]
+                let memberFunctionDecls: [DeclID]
+                let memberPropertyDecls: [DeclID]
+                let initBlocks: [FunctionBody]
+                switch decl {
+                case let .objectDecl(objectDecl):
+                    constructorArgExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                    memberFunctionDecls = objectDecl.memberFunctions
+                    memberPropertyDecls = objectDecl.memberProperties
+                    initBlocks = []
+                case let .classDecl(classDecl):
+                    constructorArgExprs = classDecl.superTypeEntries
+                        .flatMap(\.constructorArgs).map(\.expr)
+                    memberFunctionDecls = classDecl.memberFunctions
+                    memberPropertyDecls = classDecl.memberProperties
+                    initBlocks = classDecl.initBlocks
+                default:
+                    constructorArgExprs = []
+                    memberFunctionDecls = []
+                    memberPropertyDecls = []
+                    initBlocks = []
+                }
+                for argExpr in constructorArgExprs {
+                    visit(argExpr)
+                }
+                for memberFunctionID in memberFunctionDecls {
+                    guard let memberDecl = ast.arena.decl(memberFunctionID),
+                          case let .funDecl(memberFunction) = memberDecl
+                    else {
+                        continue
+                    }
+                    visitBody(memberFunction.body)
+                }
+                for propertyID in memberPropertyDecls {
+                    guard let propertyDecl = ast.arena.decl(propertyID),
+                          case let .propertyDecl(property) = propertyDecl
+                    else {
+                        continue
+                    }
+                    if let initializer = property.initializer {
+                        visit(initializer)
+                    }
+                    for accessorBody in [property.getter?.body, property.setter?.body, property.delegateBody] {
+                        if let accessorBody {
+                            visitBody(accessorBody)
+                        }
+                    }
+                }
+                for initBlock in initBlocks {
+                    visitBody(initBlock)
                 }
             }
         }

@@ -31,8 +31,12 @@ func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPoint
     return UnsafeMutableRawPointer(bitPattern: baseBits)
 }
 
+/// Registers `box` under its tagged primitive-box handle. The caller must
+/// already hold the GC lock and passes its `GCState` as `state` — this helper
+/// never acquires `withGCLock` itself, so it can run inside a larger critical
+/// section (e.g. `runtimeStaticBox`'s probe-and-register fast path).
 @inline(__always)
-func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
+func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCState) -> Int {
     let pointer = Unmanaged.passRetained(box).toOpaque()
     let bits = UInt(bitPattern: pointer)
     precondition(
@@ -40,9 +44,7 @@ func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
         "Swift object pointer is not representable by primitive box tagging"
     )
     let taggedBits = bits | runtimePrimitiveBoxTag
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(taggedBits)
-    }
+    state.objectPointers.insert(taggedBits)
     guard let taggedPointer = UnsafeMutableRawPointer(bitPattern: taggedBits) else {
         preconditionFailure("Tagged primitive box pointer must be non-null")
     }
@@ -74,6 +76,50 @@ func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {
         return nil
     }
     return unsafeBitCast(rawValue, to: KKSuspendEntryPoint.self)
+}
+
+/// FIFO queue with amortized O(1) `enqueue`/`dequeue`.
+///
+/// Elements are stored in an array behind a head index: `dequeue` advances the
+/// head (releasing the slot) instead of shifting every element like
+/// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
+/// storage is compacted back to `head == 0`, which keeps the steady-state cost
+/// O(1) amortized; a fully drained queue resets its head so alternating
+/// enqueue/dequeue never accumulates dead slots.
+struct RuntimeFIFOQueue<Element> {
+    private var elements: [Element?] = []
+    private var head = 0
+
+    var isEmpty: Bool { head >= elements.count }
+    var count: Int { elements.count - head }
+
+    mutating func enqueue(_ element: Element) {
+        elements.append(element)
+    }
+
+    mutating func dequeue() -> Element? {
+        guard head < elements.count, let element = elements[head] else {
+            return nil
+        }
+        elements[head] = nil
+        head += 1
+        if head == elements.count {
+            elements.removeAll(keepingCapacity: true)
+            head = 0
+        } else if head >= 32 && head * 2 >= elements.count {
+            elements.removeFirst(head)
+            head = 0
+        }
+        return element
+    }
+
+    /// Removes all queued elements and returns them in FIFO order.
+    mutating func drain() -> [Element] {
+        let queued = elements[head...].compactMap { $0 }
+        elements.removeAll(keepingCapacity: true)
+        head = 0
+        return queued
+    }
 }
 
 func runtimeArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
@@ -639,10 +685,20 @@ public enum KxMiniRuntime {
     }
 
     public static func launch(_ block: @escaping () -> Void) {
-        DispatchQueue.global().async(execute: DispatchWorkItem(block: block))
+        launch(workItem: DispatchWorkItem(block: block))
     }
 
     public static func launch(workItem: DispatchWorkItem) {
+        // When the launching coroutine is running on a `runBlocking`
+        // event loop, append to that loop's FIFO queue instead of handing the
+        // work item to the concurrent global pool. Two coroutines launched in
+        // the same burst then start in launch order, as they do under
+        // kotlinx.coroutines' single-threaded runBlocking dispatcher, rather
+        // than in whatever order two pool threads happen to pick them up.
+        if let loop = RuntimeEventLoop.current {
+            loop.enqueue(workItem: workItem)
+            return
+        }
         DispatchQueue.global().async(execute: workItem)
     }
 

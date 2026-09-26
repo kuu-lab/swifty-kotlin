@@ -1,4 +1,10 @@
 
+enum ImportedLibraryLimits {
+    /// Keep imported callable shapes small enough that malformed metadata cannot
+    /// trigger disproportionate allocations or parser work.
+    static let maxCallableArity = 1_024
+}
+
 extension DataFlowSemaPhase {
     func parseLibraryMetadata(
         path: String,
@@ -14,19 +20,44 @@ extension DataFlowSemaPhase {
             return nil
         }
 
+        guard validateImportedNominalLayoutValues(
+            in: content,
+            diagnostics: diagnostics,
+            metadataPath: path
+        ) else {
+            return nil
+        }
+
         let decoder = MetadataDecoder()
         let metadataRecords = decoder.decode(content)
-        let nominalTypeParametersByFQName = Dictionary(
-            uniqueKeysWithValues: metadataRecords.compactMap { record -> (String, String)? in
-                guard let signature = record.nominalTypeParametersSignature else {
-                    return nil
-                }
-                return (record.fqName, signature)
+        var nominalTypeParametersByFQName: [String: String] = [:]
+        for record in metadataRecords {
+            guard let signature = record.nominalTypeParametersSignature else {
+                continue
             }
-        )
+            guard nominalTypeParametersByFQName[record.fqName] == nil else {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0024",
+                    "Duplicate nominal type metadata for '\(record.fqName)' in library metadata at \(path)",
+                    range: nil
+                )
+                return nil
+            }
+            nominalTypeParametersByFQName[record.fqName] = signature
+        }
 
         return metadataRecords.compactMap { metadataRecord in
-            makeImportedLibraryRecord(
+            if metadataRecord.kind == .function || metadataRecord.kind == .constructor {
+                guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(metadataRecord.arity) else {
+                    diagnostics.error(
+                        "KSWIFTK-LIB-0024",
+                        "Callable arity \(metadataRecord.arity) in '\(path)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                        range: nil
+                    )
+                    return nil
+                }
+            }
+            return makeImportedLibraryRecord(
                 metadataRecord,
                 path: path,
                 diagnostics: diagnostics,
@@ -126,11 +157,13 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
+                valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
                 typeSignature: metadataRecord.typeSignature,
                 typeParameterUpperBoundsSignatures: metadataRecord.typeParameterUpperBoundsSignatures,
+                callableTypeParameterSignatures: metadataRecord.callableTypeParameterSignatures,
                 defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
                 declaredFieldCount: metadataRecord.declaredFieldCount,
@@ -145,6 +178,7 @@ extension DataFlowSemaPhase {
                 itableSlots: itableSlots,
                 objectInitializerLinkName: metadataRecord.objectInitializerLinkName,
                 companionInitializerLinkName: metadataRecord.companionInitializerLinkName,
+                objectLazyInitializerLinkName: metadataRecord.objectLazyInitializerLinkName,
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isOpenClass: metadataRecord.isOpenClass,
@@ -170,6 +204,72 @@ extension DataFlowSemaPhase {
             )
     }
 
+    private func validateImportedNominalLayoutValues(
+        in content: String,
+        diagnostics: DiagnosticEngine,
+        metadataPath: String
+    ) -> Bool {
+        let dimensionKeys: Set<String> = ["fields", "layoutWords", "vtable", "itable"]
+        let slotKeys: Set<String> = ["fieldOffsets", "vtableSlots", "itableSlots"]
+
+        for rawLine in content.split(whereSeparator: \.isNewline) {
+            let parts = rawLine.split(whereSeparator: \.isWhitespace)
+            guard let kindToken = parts.first,
+                  let kind = symbolKindFromMetadataToken(String(kindToken)),
+                  isNominalLayoutTargetSymbol(kind)
+            else {
+                continue
+            }
+            for part in parts {
+                guard let equalsIndex = part.firstIndex(of: "=") else { continue }
+                let key = String(part[..<equalsIndex])
+                let value = String(part[part.index(after: equalsIndex)...])
+                if dimensionKeys.contains(key) {
+                    guard let dimension = Int(value), (0 ... maximumImportedNominalLayoutValue).contains(dimension) else {
+                        diagnostics.warning(
+                            "KSWIFTK-LIB-0003",
+                            "Invalid nominal layout value in metadata at " + metadataPath + ": " + key + "=" + value + " (expected 0..." + String(maximumImportedNominalLayoutValue) + ")",
+                            range: nil
+                        )
+                        return false
+                    }
+                } else if slotKeys.contains(key), !validateImportedLayoutSlots(value, key: key) {
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0003",
+                        "Invalid nominal layout slot in metadata at " + metadataPath + ": " + key + "=" + value + " (expected 0..." + String(maximumImportedNominalLayoutValue) + ")",
+                        range: nil
+                    )
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private func validateImportedLayoutSlots(_ value: String, key: String) -> Bool {
+        guard !value.isEmpty else { return true }
+        let body: String
+        let separator: Character
+        if key == "vtableSlots", value.hasPrefix("v2:") {
+            body = String(value.dropFirst(3))
+            separator = "|"
+        } else {
+            body = value
+            separator = ","
+        }
+        var slotCount = 0
+        for entry in body.split(separator: separator, omittingEmptySubsequences: true) {
+            guard slotCount < maximumImportedNominalLayoutValue else { return false }
+            slotCount += 1
+            guard let atIndex = entry.lastIndex(of: "@") else { continue }
+            let rawSlot = entry[entry.index(after: atIndex)...]
+            guard let slot = Int(rawSlot), (0 ... maximumImportedNominalLayoutValue).contains(slot) else {
+                return false
+            }
+        }
+        return true
+    }
+
     func importedFunctionSignature(
         record: ImportedLibrarySymbolRecord,
         ownerSymbol: SymbolID,
@@ -182,6 +282,18 @@ extension DataFlowSemaPhase {
         allowPlaceholders: Bool = false,
         phantomTypeParameterSymbols: [SymbolID] = []
     ) -> FunctionSignature {
+        guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0024",
+                "Callable arity \(record.arity) in '\(metadataPath)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                range: nil
+            )
+            return FunctionSignature(
+                parameterTypes: [],
+                returnType: types.withNullability(.platformType, for: types.anyType),
+                isSuspend: record.isSuspend
+            )
+        }
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         let fallback = FunctionSignature(
             parameterTypes: Array(repeating: platformAny, count: max(0, record.arity)),
@@ -255,6 +367,45 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
+        // KUU-546: when the artifact records the callable's declared type
+        // parameters (`callTParams`), prefer that list over the structural
+        // scan. It restores the declaration order of "phantom" parameters
+        // interspersed with structural ones (e.g.
+        // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`) and
+        // identifies each overload's own parameters, which the FQ-name-grouped
+        // `.typeParameter` records cannot. For member callables the list also
+        // carries the leading owner parameters as placeholders, which
+        // `normalizeImportedLibraryMemberSignatures` later replaces with the
+        // owner's real symbols. The list is adopted only when it decodes
+        // cleanly and accounts for every structurally found parameter.
+        var restoredDeclarationOrder = false
+        if !record.callableTypeParameterSignatures.isEmpty {
+            var restored: [SymbolID] = []
+            var isWellFormed = true
+            for encodedTypeParameter in record.callableTypeParameterSignatures {
+                guard let decodedTypeParameter = decodeImportedTypeSignature(
+                    token: encodedTypeParameter,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    diagnostics: diagnostics,
+                    metadataPath: metadataPath,
+                    ownerFQName: record.fqName,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                ), case let .typeParam(typeParam) = types.kind(
+                    of: types.makeNonNullable(decodedTypeParameter)
+                ) else {
+                    isWellFormed = false
+                    break
+                }
+                restored.append(typeParam.symbol)
+            }
+            if isWellFormed, restored.count >= typeParameterSymbols.count {
+                typeParameterSymbols = restored
+                restoredDeclarationOrder = true
+            }
+        }
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: `collectTypeParameterSymbols` only
         // finds type parameters that structurally appear in the receiver,
         // value parameters, or return type. A type parameter used only inside
@@ -273,8 +424,10 @@ extension DataFlowSemaPhase {
         // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`,
         // where only C is structural) the padded symbols may land in the
         // wrong position relative to the structurally-found ones. That
-        // ordering gap is a known, accepted limitation of this fix.
-        if classTypeParameterCount == 0 {
+        // ordering gap is a known, accepted limitation of this fix for
+        // artifacts that predate `callTParams`; newer artifacts restore the
+        // exact declaration order above instead.
+        if !restoredDeclarationOrder, classTypeParameterCount == 0 {
             let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
             if deficit > 0 {
                 typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
@@ -335,6 +488,20 @@ extension DataFlowSemaPhase {
             )
             symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
             valueParameterSymbols.append(paramSymbol)
+        }
+        // STDLIB-592: restore `contract { callsInPlace(param, kind) }` effects
+        // decoded from metadata. `ContractCallsInPlaceEffect.parameterSymbol` is a
+        // `SymbolID` that cannot itself survive the metadata round-trip, so the
+        // wire format carries a per-parameter-index kind instead and this
+        // reconstructs the symbol reference from the freshly-imported
+        // `valueParameterSymbols`, mirroring how `recordContractEffects` derives
+        // it from a parameter index when parsing source directly.
+        for (index, kind) in record.valueParameterCallsInPlaceKinds.enumerated() where kind != nil {
+            guard index < valueParameterSymbols.count else { continue }
+            symbols.addContractCallsInPlaceEffect(
+                ContractCallsInPlaceEffect(parameterSymbol: valueParameterSymbols[index], kind: kind!),
+                for: ownerSymbol
+            )
         }
         return FunctionSignature(
             receiverType: functionType.receiver,
@@ -643,6 +810,7 @@ extension DataFlowSemaPhase {
         private var index: Int
         private var depth: Int
         private var depthLimitReported: Bool
+        private var arityLimitReported: Bool
         private var isOversized: Bool
         private let symbols: SymbolTable
         private let types: TypeSystem
@@ -656,6 +824,7 @@ extension DataFlowSemaPhase {
         // A signature with more than 63 nested wrappers is not practical metadata.
         private static let maxDepth: Int = 64
         private static let maxSourceLength: Int = 1_048_576
+        private static let maxCallableArity = ImportedLibraryLimits.maxCallableArity
 
         init(
             source: String,
@@ -677,6 +846,7 @@ extension DataFlowSemaPhase {
             index = 0
             depth = 0
             depthLimitReported = false
+            arityLimitReported = false
             self.symbols = symbols
             self.types = types
             self.interner = interner
@@ -696,7 +866,7 @@ extension DataFlowSemaPhase {
                 return nil
             }
             guard let type = parseType(), index == source.count else {
-                if depthLimitReported {
+                if depthLimitReported || arityLimitReported {
                     return nil
                 }
                 diagnostics.warning(
@@ -899,6 +1069,10 @@ extension DataFlowSemaPhase {
             guard let arity = parseNumber(), consume(character: "<") else {
                 return nil
             }
+            guard arity <= Self.maxCallableArity else {
+                reportArityLimit(arity)
+                return nil
+            }
 
             var contextReceivers: [TypeID] = []
             if peek() == "C",
@@ -907,6 +1081,10 @@ extension DataFlowSemaPhase {
             {
                 _ = consume(character: "C")
                 guard let contextArity = parseNumber(), consume(character: "<") else {
+                    return nil
+                }
+                guard contextArity <= Self.maxCallableArity else {
+                    reportArityLimit(contextArity)
                     return nil
                 }
                 contextReceivers.reserveCapacity(contextArity)
@@ -922,6 +1100,11 @@ extension DataFlowSemaPhase {
                 guard consume(character: ">"), consume(character: ",") else {
                     return nil
                 }
+            }
+
+            guard arity <= Self.maxCallableArity - contextReceivers.count else {
+                reportArityLimit(arity + contextReceivers.count)
+                return nil
             }
 
             var receiver: TypeID?
@@ -955,6 +1138,16 @@ extension DataFlowSemaPhase {
                 isSuspend: isSuspend,
                 nullability: .nonNull
             )))
+        }
+
+        private mutating func reportArityLimit(_ arity: Int) {
+            guard !arityLimitReported else { return }
+            arityLimitReported = true
+            diagnostics.error(
+                "KSWIFTK-LIB-0024",
+                "Function type arity \(arity) in '\(metadataPath)' exceeds the maximum supported (\(Self.maxCallableArity))",
+                range: nil
+            )
         }
 
         private mutating func parseTypeParameterType() -> TypeID? {
