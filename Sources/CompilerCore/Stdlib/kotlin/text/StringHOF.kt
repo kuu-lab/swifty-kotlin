@@ -1620,6 +1620,17 @@ public inline fun <K, V, M : MutableMap<in K, MutableList<V>>> CharSequence.grou
     return destination
 }
 
+// KSP-1380: CharSequence.groupingBy is source-backed. Mirrors the upstream
+// object-expression Grouping adapter over CharSequence.iterator().
+@SinceKotlin("1.1")
+public inline fun <K> CharSequence.groupingBy(crossinline keySelector: (Char) -> K): Grouping<Char, K> {
+    val source = this
+    return object : Grouping<Char, K> {
+        override fun sourceIterator(): Iterator<Char> = source.iterator()
+        override fun keyOf(element: Char): K = keySelector(element)
+    }
+}
+
 public fun CharSequence.drop(n: Int): CharSequence {
     require(n >= 0) { "Requested character count $n is less than zero." }
     return this.subSequence(n.coerceAtMost(length), length)
