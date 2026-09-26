@@ -1777,7 +1777,7 @@
     - `kotlin.concurrent.atomics.AtomicNativePtr.toString` — fun AtomicNativePtr.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicNativePtr.value` — val AtomicNativePtr.value: NativePtr  -- `final var value`
 
-- [ ] KSP-1122: kotlin.concurrent.atomics.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1122: kotlin.concurrent.atomics.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicReference` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicReference/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1786,6 +1786,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicReference.<init>` — constructor ()  -- `constructor <init>(#A)`
+  - 完了根拠（2026-09-26）: `atomics/AtomicReference/Stdlib.kt` に `public fun <T> AtomicReference(value: T)` を追加。呼び出しは synthetic typealias の ctor フォールバックから本 factory（`call=kotlin.concurrent.atomics.AtomicReference`）へ解決が移り、本体は `kotlin.concurrent.AtomicReference(value)` の runtime-linked ctor（`kk_atomic_ref_create`）へ委譲するため ABI・実行時挙動は不変（diff ケース green）。戻り型はあえて `kotlin.concurrent.AtomicReference<T>`（alias ではなく class）で宣言: atomics alias の underlying args は `T?` 固定のため `AtomicReference<T>` 経由だと推論結果が `AtomicReference<T?>` に広がり `load(): String` → `String?` 等に退化する（alias の型注釈位置の既存挙動とは無関係に ctor 推論を保全するため）。bridge/stub 整理は不要（`kk_atomic_ref_create` は concurrent class 側 synthetic ctor が所有し本 factory が再利用）。`AtomicReferenceSourceMigrationTests` で factory の source-backed 属性・注釈・`chosenCallee` を固定。
 
 - [x] KSP-1123: kotlin.concurrent.atomics.AtomicReference.AtomicReference の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.concurrent.atomics.AtomicReference` / receiver `AtomicReference`
