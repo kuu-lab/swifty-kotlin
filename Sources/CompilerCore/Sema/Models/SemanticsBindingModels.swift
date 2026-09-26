@@ -27,6 +27,26 @@ public struct CallableValueCallBinding {
     }
 }
 
+/// The custom `set()` operator call resolved for the write-back half of an
+/// `a[i] op= v` / `a[i]++`/`a[i]--` compound assignment on a receiver whose
+/// indexing is backed by a user-defined (or source-backed member, e.g.
+/// `MutableList`) `operator fun get`/`set` pair rather than a genuine
+/// built-in array. The matching `get()` call is already recorded in
+/// `callBindings[exprID]` for the same expression by the read half's
+/// resolution; this side-channel carries the write-back `set()` binding
+/// plus the get's substituted element type (needed to pick the right
+/// `kk_op_*` runtime variant), since the compound-assign expression itself
+/// is bound to `Unit`, not the element type.
+public struct IndexedCompoundAssignOperatorBinding {
+    public let setCall: CallBinding
+    public let elementType: TypeID
+
+    public init(setCall: CallBinding, elementType: TypeID) {
+        self.setCall = setCall
+        self.elementType = elementType
+    }
+}
+
 public struct LoopIterationBinding {
     public let iteratorCall: CallBinding?
     public let hasNextCall: CallBinding

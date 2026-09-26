@@ -617,6 +617,7 @@ extension CallLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         ) {
             return storedMemberProperty
@@ -775,7 +776,8 @@ extension CallLowerer {
                 || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
         if args.count == 1,
            !isRangePlusMinusReceiver,
-           shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold)
+           shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold),
+           isNumericPrimitiveOperand(args[0].expr, sema: sema)
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))

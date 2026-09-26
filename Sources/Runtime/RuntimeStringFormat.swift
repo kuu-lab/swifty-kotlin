@@ -25,6 +25,11 @@ private struct RuntimeFormatSpecifier {
         flags.contains(",")
     }
 
+    /// Java `Formatter` `<` flag: reuse the argument of the previous specifier.
+    var reusesPreviousArgument: Bool {
+        flags.contains("<")
+    }
+
     var usesParenthesesForNegativeValues: Bool {
         flags.contains("(")
     }
@@ -57,7 +62,7 @@ private enum RuntimeParsedFormatToken {
     case invalid
 }
 
-private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "("]
+private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "(", "<"]
 private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "a", "A", "c", "C",
     "h", "H", "t", "T",
@@ -74,6 +79,9 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
     let characters = Array(template)
     var cursor = 0
     var implicitArgumentIndex = 0
+    /// Index of the argument selected by the most recent specifier
+    /// (`java.util.Formatter`'s `last`), reused by the `<` flag.
+    var lastArgumentIndex: Int?
     var result = ""
 
     while cursor < characters.count {
@@ -91,13 +99,27 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
             result.append("\n")
             cursor = next
         case let .specifier(specifier, next):
-            let argumentIndex = specifier.explicitArgumentIndex ?? implicitArgumentIndex
-            if specifier.explicitArgumentIndex == nil {
+            // The `<` flag overrides an explicit `%n$` index and relative
+            // indexing does not consume the ordinary (implicit) index,
+            // matching `java.util.Formatter`.
+            let argumentIndex: Int?
+            if specifier.reusesPreviousArgument {
+                argumentIndex = lastArgumentIndex
+            } else if let explicitArgumentIndex = specifier.explicitArgumentIndex {
+                argumentIndex = explicitArgumentIndex
+            } else {
+                argumentIndex = implicitArgumentIndex
                 implicitArgumentIndex += 1
             }
-            let argument = arguments.indices.contains(argumentIndex)
-                ? arguments[argumentIndex]
-                : RuntimeValue(raw: runtimeNullSentinelInt)
+            if let argumentIndex {
+                lastArgumentIndex = argumentIndex
+            }
+            let argument: RuntimeValue
+            if let argumentIndex, arguments.indices.contains(argumentIndex) {
+                argument = arguments[argumentIndex]
+            } else {
+                argument = RuntimeValue(raw: runtimeNullSentinelInt)
+            }
             result += runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
             cursor = next
         case .invalid:

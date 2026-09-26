@@ -392,7 +392,9 @@ extension DeclTypeChecker {
                 let resolved = ctx.resolver.resolveCall(
                     candidates: candidates,
                     call: callExpr,
-                    expectedType: nil,
+                    expectedType: delegation.kind == .this
+                        ? constructorOwnerType(ownerSymbol, ctx: ctx)
+                        : nil,
                     ctx: sema
                 )
                 if let diagnostic = resolved.diagnostic {
@@ -405,6 +407,21 @@ extension DeclTypeChecker {
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func constructorOwnerType(
+        _ ownerSymbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard let ownerSymbol else { return nil }
+        let typeArguments = ctx.sema.types.nominalTypeParameterSymbols(for: ownerSymbol).map {
+            TypeArg.invariant(ctx.sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
     }
 
     private func resolveDelegationTarget(

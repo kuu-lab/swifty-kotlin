@@ -164,10 +164,14 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// `enumValue.toString()` binds to `kotlin.Any.toString` (enum classes
-    /// declare no `toString` of their own) and would otherwise render the bare
-    /// ordinal as a number, so the conversion is replaced by the
-    /// `$enumOrdinalToName` helper, which already produces the entry name.
+    /// `enumValue.toString()` binds to `kotlin.Any.toString` and, absent a
+    /// user override, renders the bare entry name via `$enumOrdinalToName`.
+    /// BUG-A/BUG-Planet: prefer an actual `toString()` implementation when
+    /// the enum class declares one -- either directly on the class body
+    /// (`enumToStringOverrideHelper`'s class-level branch) or through the
+    /// per-entry dispatch helper reached when only some entry bodies
+    /// override `toString()` (`Op.MUL`'s case, after `EnumEntryBodyHeaders`
+    /// registers it as a dispatch target).
     private func rewriteEnumStringConversionCall(
         instruction: KIRInstruction,
         sema: SemaModule,
@@ -190,33 +194,20 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        // When an enum entry body overrides `toString`, the call must reach
-        // the ordinal dispatcher instead of the name helper: entries with an
-        // override run their own implementation, others fall back to the
-        // `Enum.toString` base which renders the entry name.
-        if let dispatchSymbol = sema.symbols.enumEntryToStringDispatchSymbol(
-            for: classSymbol,
-            interner: interner
-        ),
-           let dispatchInfo = sema.symbols.symbol(dispatchSymbol)
-        {
-            return [.call(
-                symbol: dispatchSymbol,
-                callee: dispatchInfo.name,
-                arguments: [arguments[0]],
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            )]
-        }
-
-        let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
-        let fqName = classSym.fqName + [helperName]
-        guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
-            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-        }) else {
-            return nil
+        let helperName: InternedString
+        let helperSymbol: SymbolID?
+        if let override = enumToStringOverrideHelper(for: classSym, symbols: sema.symbols, interner: interner) {
+            helperName = override.name
+            helperSymbol = override.symbol
+        } else {
+            let fallbackName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+            guard let fallbackSymbol = sema.symbols.lookupAll(fqName: classSym.fqName + [fallbackName]).first(where: { id in
+                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+            }) else {
+                return nil
+            }
+            helperName = fallbackName
+            helperSymbol = fallbackSymbol
         }
 
         return [.call(
@@ -367,4 +358,71 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         }
         return nil
     }
+}
+
+/// BUG-A/BUG-Planet: resolves the function that should render `classSym`'s
+/// enum values as strings when a user `toString()` override exists, so
+/// callers can prefer it over the default `$enumOrdinalToName` bare-name
+/// rendering. Checked in order:
+///  1. A direct, non-synthetic `toString()` declared on the enum class body
+///     itself (e.g. `enum class Planet { ...; override fun toString() = ... }`).
+///  2. The per-entry dispatch helper for `kotlin.Enum.toString()`, reached
+///     when at least one entry body overrides `toString()` (e.g. `Op.MUL`'s
+///     `override fun toString() = "times"`). `EnumEntryBodyHeaders` registers
+///     this helper under the enum class's own fqName, keyed by the shared
+///     `Enum.toString` base symbol's mangled name, so looking it up this way
+///     stays correct even when multiple enum classes in the same
+///     compilation each register their own dispatch for that shared base --
+///     a lookup keyed by the base symbol alone could not tell them apart.
+/// Returns `nil` when neither exists, meaning the default rendering applies.
+/// Takes the raw `SymbolTable` (rather than `SemaModule`) so it is usable
+/// from both KIR lowering passes and the lower-level call-emission helpers.
+func enumToStringOverrideHelper(
+    for classSym: SemanticSymbol,
+    symbols: SymbolTable,
+    interner: StringInterner
+) -> (symbol: SymbolID, name: InternedString)? {
+    let toStringName = interner.intern("toString")
+    // A direct, non-synthetic `toString()` on the class body itself is the
+    // *default* implementation entries fall through to -- but when some
+    // entry bodies ALSO override toString(), `EnumEntryBodyHeaders` keys
+    // their dispatch helper off this class-level symbol (not
+    // `kotlin.Enum.toString`, since `duplicatesDirectMember` prefers the
+    // direct member as the dispatch base). Prefer that helper when present:
+    // it already runs the per-entry switch and falls back to this same
+    // class-level symbol for every non-overriding entry, so returning the
+    // plain override here instead would silently ignore an entry's own
+    // override (`enum class X { A { override fun toString() = "a!" }, B;
+    // override fun toString() = "x-" + name }` must print "a!" then "x-B").
+    if let directOverride = symbols.lookupAll(fqName: classSym.fqName + [toStringName]).first(where: { id in
+        guard let info = symbols.symbol(id),
+              info.kind == .function,
+              !info.flags.contains(.synthetic)
+        else {
+            return false
+        }
+        return symbols.parentSymbol(for: id) == classSym.id
+    }), let directOverrideInfo = symbols.symbol(directOverride) {
+        let dispatchHelperName = NameMangler.enumEntryDispatchHelperName(for: directOverrideInfo, interner: interner)
+        if let dispatchSymbol = symbols.lookupAll(fqName: classSym.fqName + [dispatchHelperName]).first(where: { id in
+            symbols.symbol(id).map { $0.kind == .function } ?? false
+        }) {
+            return (dispatchSymbol, dispatchHelperName)
+        }
+        return (directOverride, toStringName)
+    }
+    guard let enumBaseToString = symbols.lookup(
+        fqName: [interner.intern("kotlin"), interner.intern("Enum"), toStringName]
+    ),
+    let enumBaseToStringInfo = symbols.symbol(enumBaseToString)
+    else {
+        return nil
+    }
+    let dispatchHelperName = NameMangler.enumEntryDispatchHelperName(for: enumBaseToStringInfo, interner: interner)
+    guard let dispatchSymbol = symbols.lookupAll(fqName: classSym.fqName + [dispatchHelperName]).first(where: { id in
+        symbols.symbol(id).map { $0.kind == .function } ?? false
+    }) else {
+        return nil
+    }
+    return (dispatchSymbol, dispatchHelperName)
 }

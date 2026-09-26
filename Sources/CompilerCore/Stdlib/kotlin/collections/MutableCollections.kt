@@ -1,5 +1,37 @@
 package kotlin.collections
 
+// KSP-1503: MutableList's removal helpers are source-backed extensions. They
+// delegate to the source-backed removeAt member, whose default body retains
+// the runtime bridge at the storage boundary.
+
+@SinceKotlin("1.4")
+@IgnorableReturnValue
+public fun <T> MutableList<T>.removeFirst(): T {
+    if (isEmpty()) throw NoSuchElementException("List is empty.")
+    return removeAt(0)
+}
+
+@SinceKotlin("1.4")
+@IgnorableReturnValue
+public fun <T> MutableList<T>.removeFirstOrNull(): T? {
+    if (isEmpty()) return null
+    return removeAt(0)
+}
+
+@SinceKotlin("1.4")
+@IgnorableReturnValue
+public fun <T> MutableList<T>.removeLast(): T {
+    if (isEmpty()) throw NoSuchElementException("List is empty.")
+    return removeAt(size - 1)
+}
+
+@SinceKotlin("1.4")
+@IgnorableReturnValue
+public fun <T> MutableList<T>.removeLastOrNull(): T? {
+    if (isEmpty()) return null
+    return removeAt(size - 1)
+}
+
 // KSP-436: predicate-driven mutable list operations.
 //
 // Direct storage mutation stays in the `__kk_mutable_*` bridges; the functions

@@ -911,6 +911,13 @@ extension DataFlowSemaPhase {
             guard let funSymbol = bindings.declSymbols[funDeclID] else { continue }
             classMethodKeys.insert(delegationDispatchKey(for: funSymbol, symbols: symbols, interner: interner))
         }
+        var classPropertyNames: Set<InternedString> = []
+        for propDeclID in classDecl.memberProperties {
+            guard let propSymbol = bindings.declSymbols[propDeclID],
+                  let propSym = symbols.symbol(propSymbol)
+            else { continue }
+            classPropertyNames.insert(propSym.name)
+        }
 
         for interfaceSymbol in symbols.delegatedInterfaces(forClass: classSymbol) {
             guard let fieldSymbol = symbols.classDelegationField(forClass: classSymbol, interface: interfaceSymbol),
@@ -918,20 +925,36 @@ extension DataFlowSemaPhase {
             else {
                 continue
             }
-            let interfaceMethods = symbols.children(ofFQName: interfaceSym.fqName)
+            let interfaceMembers = symbols.children(ofFQName: interfaceSym.fqName)
                 .compactMap { symbols.symbol($0) }
-                .filter { $0.kind == .function }
                 // Extension member aliases (KSP-443) are lookup shims, not
                 // interface members — delegation must not forward to them.
                 .filter { !$0.flags.contains(.extensionMemberAlias) }
 
-            for methodSym in interfaceMethods {
+            for methodSym in interfaceMembers where methodSym.kind == .function {
                 let key = delegationDispatchKey(for: methodSym.id, symbols: symbols, interner: interner)
                 guard !classMethodKeys.contains(key),
                       let ifaceSig = symbols.functionSignature(for: methodSym.id)
                 else { continue }
                 synthesizeForwardingMethod(
                     methodSym: methodSym, ifaceSig: ifaceSig,
+                    classDecl: classDecl, classSymbol: classSymbol, classFQName: classFQName,
+                    interfaceSymbol: interfaceSymbol, fieldSymbol: fieldSymbol,
+                    symbols: symbols, types: types, interner: interner
+                )
+            }
+
+            // An interface `val`/`var` forwarded through `by` delegation
+            // previously had no forwarding counterpart at all — only
+            // `.function`-kind interface members were synthesized above, so a
+            // delegated property fell through to the interface's own
+            // abstract getter stub (which unconditionally returns null; see
+            // `synthesizeInterfacePropertyGetterStub`) instead of the
+            // delegate's real value.
+            for propSym in interfaceMembers where propSym.kind == .property {
+                guard !classPropertyNames.contains(propSym.name) else { continue }
+                synthesizeForwardingProperty(
+                    propSym: propSym,
                     classDecl: classDecl, classSymbol: classSymbol, classFQName: classFQName,
                     interfaceSymbol: interfaceSymbol, fieldSymbol: fieldSymbol,
                     symbols: symbols, types: types, interner: interner
@@ -1001,6 +1024,50 @@ extension DataFlowSemaPhase {
             forClass: classSymbol,
             interface: interfaceSymbol,
             interfaceMethod: methodSym.id,
+            field: fieldSymbol
+        )
+    }
+
+    /// Mirrors `synthesizeForwardingMethod` for a delegated interface
+    /// property: gives the class its own `val`/`var` symbol (so member
+    /// lookup on the class stops at this property instead of falling
+    /// through to the interface's own abstract declaration) that KIR
+    /// lowering later gives a real getter/setter body reading through the
+    /// delegate field.
+    private func synthesizeForwardingProperty(
+        propSym: SemanticSymbol,
+        classDecl: ClassDecl,
+        classSymbol: SymbolID,
+        classFQName: [InternedString],
+        interfaceSymbol: SymbolID,
+        fieldSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let propertyName = propSym.name
+        let forwardingFQName = classFQName + [propertyName]
+        var flags: SymbolFlags = [.synthetic, .overrideMember]
+        if propSym.flags.contains(.mutable) {
+            flags.insert(.mutable)
+        }
+        let forwardingSymbol = symbols.define(
+            kind: .property,
+            name: propertyName,
+            fqName: forwardingFQName,
+            declSite: classDecl.range,
+            visibility: propSym.visibility,
+            flags: flags
+        )
+        symbols.setParentSymbol(classSymbol, for: forwardingSymbol)
+        let propType = symbols.propertyType(for: propSym.id) ?? types.anyType
+        symbols.setPropertyType(propType, for: forwardingSymbol)
+
+        symbols.addClassDelegationForwardingProperty(
+            forwardingSymbol,
+            forClass: classSymbol,
+            interface: interfaceSymbol,
+            interfaceProperty: propSym.id,
             field: fieldSymbol
         )
     }

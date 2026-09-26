@@ -5,6 +5,38 @@ import Testing
 
 @Suite
 struct AdvancedTypeInferenceTests {
+    @Test func testGenericCollectionReceiverLambdaInfersWithoutAnnotation() throws {
+        let source = """
+        fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = buildList<T>(builderAction)
+
+        fun demo(): Int {
+            val xs = collect {
+                add(1)
+                add(2)
+            }
+            return xs[0]
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+        #expect(!ctx.diagnostics.hasError, "Expected collect's receiver lambda to infer T from add(), got: \(diagnostics)")
+    }
+
+    @Test func testSequenceBuilderYieldAllListChoosesIterableOverload() throws {
+        let source = """
+        fun values(): List<Int> = sequence {
+            yieldAll(listOf(1, 2))
+        }.toList()
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+        #expect(!ctx.diagnostics.hasError, "Expected yieldAll(List<Int>) to select Iterable<T>, got: \(diagnostics)")
+    }
+
     @Test func testExperimentalTypeInferenceInfersCustomBuilderElementTypeWithoutExpectedType() throws {
         let source = """
         import kotlin.experimental.ExperimentalTypeInference

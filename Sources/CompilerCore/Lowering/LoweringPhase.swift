@@ -75,14 +75,9 @@ public final class LoweringPhase: CompilerPhase {
             interner: ctx.interner,
             sema: ctx.sema
         )
-        if let sema = ctx.sema {
-            ImportedInlineKIRMaterializer.materialize(
-                importedFunctions: &sema.importedInlineFunctions,
-                arena: module.arena,
-                types: sema.types,
-                interner: ctx.interner
-            )
-        }
+        // Imported inline bodies are materialized lazily: the inline pass
+        // rebinds each body into this module's arena the first time a call
+        // site expands to it (`ImportedInlineFunctionStore`).
         module.scanFeatures()
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.

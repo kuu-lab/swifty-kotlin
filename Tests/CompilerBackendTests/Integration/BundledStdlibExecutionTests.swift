@@ -1014,6 +1014,30 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// REFL-CTOR / REFL-EXTPROP / REFL-PRIMOP: `::Foo` (constructor
+    /// reference), `String::length` (package-level extension property
+    /// reference), and `Int::plus` / `Int::times` (primitive operators with
+    /// no backing member symbol) all resolved as "Unresolved reference"
+    /// before this fix -- none of them go through ordinary symbol-based
+    /// candidate lookup the way a bound/unbound function reference does.
+    @Test
+    func testConstructorPropertyAndPrimitiveOperatorCallableReferencesRun() throws {
+        try compileAndRunKotlin(
+            """
+            class Foo(val n: Int) { override fun toString() = "Foo($n)" }
+            fun main() {
+                val ctor = ::Foo
+                println(ctor(3))
+                println(listOf(1, 2).map(::Foo))
+                println(listOf("a", "bb").map(String::length))
+                println(listOf(1, 2, 3).fold(0, Int::plus))
+                println(listOf(1, 2, 3).reduce(Int::times))
+            }
+            """,
+            expectedOutput: "Foo(3)\n[Foo(1), Foo(2)]\n[1, 2]\n6\n6\n"
+        )
+    }
+
     // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
     // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
     // Verify signed zero, subnormal values, computed NaNs, and payload NaNs

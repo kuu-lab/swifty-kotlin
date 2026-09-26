@@ -52,7 +52,7 @@ struct LibraryImportStdlibModuleNameTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             let work = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -60,7 +60,7 @@ struct LibraryImportStdlibModuleNameTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let stdlibModuleName = try #require(work.stdlibModuleName)
@@ -85,7 +85,7 @@ struct LibraryImportStdlibModuleNameTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             let work = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -93,7 +93,7 @@ struct LibraryImportStdlibModuleNameTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             #expect(work.stdlibModuleName == nil)
@@ -116,7 +116,7 @@ struct LibraryImportStdlibModuleNameTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             let work = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -124,7 +124,7 @@ struct LibraryImportStdlibModuleNameTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
             let stdlibModuleName = try #require(work.stdlibModuleName)
 

@@ -123,6 +123,7 @@ extension InlineLoweringPass {
             }
         }
 
+        let sequenceGenerateCallee = ctx.interner.intern("__kk_sequence_generate")
         for instruction in inlineTarget.body {
             switch instruction {
             case .beginBlock, .endBlock:
@@ -214,6 +215,7 @@ extension InlineLoweringPass {
                 )
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                let calleeStr = ctx.interner.resolve(callee)
                 // Attempt to inline a lambda argument passed to this inline function.
                 let resolvedLambdaParamSymbol: SymbolID? = if let symbol, lambdaParamSymbols.contains(symbol) {
                     symbol
@@ -235,7 +237,7 @@ extension InlineLoweringPass {
                     let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
                     let valueArgs: [KIRExprID]
                     if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"]
-                        .contains(ctx.interner.resolve(callee))
+                        .contains(calleeStr)
                     {
                         valueArgs = Array(resolvedArgs.dropFirst())
                     } else {
@@ -293,7 +295,7 @@ extension InlineLoweringPass {
                 // local alias map, inline its body here as well so returned
                 // function values preserve their captures.
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(calleeStr),
                    let callableExpr = resolvedArgs.first,
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -363,7 +365,7 @@ extension InlineLoweringPass {
                 // leave the bridge argument typed only as `T` after inlining.
                 // Recover the concrete call-site type before the erased bridge
                 // stores the seed, so enum ordinals retain their entry name.
-                if ctx.interner.resolve(callee) == "__kk_sequence_generate",
+                if callee == sequenceGenerateCallee,
                    let types = ctx.sema?.types,
                    let seed = loweredArgs.first,
                    let substitutedSeedType: TypeID? = {
@@ -402,7 +404,7 @@ extension InlineLoweringPass {
                 // Substituting concrete type arguments turned the values that
                 // meet the invoke into plain primitives; re-erase them.
                 let erasedInvoke = InlineErasedLambdaABI.erasedFunctionInvokeCallees
-                    .contains(ctx.interner.resolve(callee))
+                    .contains(calleeStr)
                 let erasedInvokeReturnType = erasedInvoke
                     ? InlineErasedLambdaABI.importedLambdaInvokeReturnType(
                         inlineTarget: inlineTarget,

@@ -152,5 +152,86 @@ extension LoweringPassRegressionTests {
             #expect(stringLiterals.contains("NORTH"), "expected \(northNameHelper) to return the \"NORTH\" literal; got: \(stringLiterals)")
         }
     }
+
+    // BUG-B/BUG-C: `name`/`ordinal`/a constructor property read via the
+    // *implicit* receiver inside an enum member function used to fall
+    // through every `.class`/`.interface`-owner branch in ExprLowerer's
+    // `.nameRef` case (enum values have no stored-field object layout) and
+    // land on the terminal `constValue(.symbolRef(propertySymbol))`
+    // fallback -- reading an unwritten slot as 0 for `rgb` (BUG-C), and a
+    // SIGSEGV once codegen dereferenced the bogus "pointer" as a String for
+    // `name` (BUG-B, `Dir.entries.map { it.name }`'s underlying shape).
+    @Test
+    func testEnumNameOnImplicitReceiverLowersToHelperCallWithReceiver() throws {
+        let source = """
+        enum class Dir { N, S; fun greet() = name.lowercase() }
+        fun main() {
+            println(Dir.N.greet())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumNameImplicitReceiver", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "greet", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(!callees.contains("name"),
+                    "the raw unresolved \"name\" call must be rewritten away; callees: \(callees)")
+            #expect(callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
+                    "expected a rewrite to $enumOrdinalToName$<id>; callees: \(callees)")
+        }
+    }
+
+    @Test
+    func testEnumOrdinalOnImplicitReceiverLowersToUnboxCall() throws {
+        let source = """
+        enum class Dir { N, S; fun index() = ordinal }
+        fun main() {
+            println(Dir.S.index())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumOrdinalImplicitReceiver", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "index", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(!callees.contains("ordinal"),
+                    "the raw unresolved \"ordinal\" call must be rewritten away; callees: \(callees)")
+            #expect(callees.contains("kk_unbox_int"),
+                    "expected the implicit receiver to be unboxed; callees: \(callees)")
+        }
+    }
+
+    @Test
+    func testEnumConstructorPropertyOnImplicitReceiverLowersToHelperCall() throws {
+        let source = """
+        enum class Color(val rgb: Int) {
+            RED(0xFF0000), GREEN(0x00FF00), BLUE(0x0000FF);
+            fun hex() = rgb.toString(16)
+        }
+        fun main() {
+            println(Color.RED.hex())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumConstructorPropertyImplicitReceiver", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "hex", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains(where: { $0.hasPrefix("$enumConstructorProperty$") }),
+                    "expected a rewrite to the $enumConstructorProperty$ helper; callees: \(callees)")
+        }
+    }
 }
 #endif

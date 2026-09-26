@@ -82,6 +82,21 @@ extension CallLowerer {
         return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType || receiverType == byteType || receiverType == shortType
     }
 
+    /// Whether `exprID`'s type is a primitive (numeric or Char), i.e. one of
+    /// the types the built-in `kk_op_*` arithmetic intrinsics actually accept.
+    /// A non-primitive argument (a user class, String, ...) means the callee
+    /// name only *looks* like a primitive operator; the real applicable
+    /// candidate is whatever Sema resolved (e.g. a user's
+    /// `operator fun Int.times(v: Vec)` extension), so the primitive fast
+    /// path in `shouldLowerPrimitiveInv`'s callers must not claim the call.
+    func isNumericPrimitiveOperand(_ exprID: ExprID, sema: SemaModule) -> Bool {
+        let type = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
+        if case .primitive = sema.types.kind(of: type) {
+            return true
+        }
+        return false
+    }
+
     func appendReceiverToMemberArguments(
         _ loweredReceiverID: KIRExprID,
         receiverExpr: ExprID,
@@ -201,10 +216,32 @@ extension CallLowerer {
         // enum member through the predeclared ordinal dispatcher before any
         // runtime-name or virtual-dispatch rewriting can select the abstract
         // declaration itself.
+        //
+        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
+        // or any interface member) that more than one enum class in this
+        // compilation registers entry-body dispatch for. A single
+        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
+        // would have the second such enum processed silently overwrite the
+        // first's registration. Resolve the helper directly under the
+        // *receiver's own* enum class fqName instead (deterministic from
+        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
+        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
+        // cross-resolve to each other's dispatch helper.
         if normalized.defaultMask == 0,
            !isSuperCall,
            let chosenCallee,
-           let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
+           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
+           let receiverType = sema.bindings.exprTypes[receiver.expr],
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass,
+           let dispatchSymbol = {
+               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
+               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
+                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+               }
+           }(),
            let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
            let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
            dispatchSignature.typeParameterSymbols.count
