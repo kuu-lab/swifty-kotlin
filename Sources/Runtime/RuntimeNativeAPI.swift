@@ -1224,7 +1224,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
 @_cdecl("kk_worker_new")
 public func kk_worker_new(_ nameRaw: Int) -> Int {
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
-    return registerRuntimeObject(RuntimeWorkerBox(name: name))
+    let handle = registerRuntimeObject(RuntimeWorkerBox(name: name))
+    registerActiveWorker(handle: handle)
+    return handle
 }
 
 /// Lazily-created stand-in for the implicit worker that owns the main thread
@@ -1241,6 +1243,7 @@ private final class MainWorkerHandleBox: @unchecked Sendable {
         defer { lock.unlock() }
         if handle == 0 {
             handle = registerRuntimeObject(RuntimeWorkerBox(name: nil))
+            registerActiveWorker(handle: handle)
         }
         return handle
     }
@@ -1326,6 +1329,7 @@ public func kk_worker_request_termination(_ workerHandle: Int, _ processSchedule
         return 0
     }
     worker.requestTermination(processScheduled: processScheduledRaw != 0)
+    unregisterActiveWorker(handle: workerHandle)
     let futureHandle = kk_future_new()
     guard futureHandle != 0 else {
         return 0

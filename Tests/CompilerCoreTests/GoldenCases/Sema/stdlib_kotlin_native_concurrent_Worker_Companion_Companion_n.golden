@@ -1,0 +1,78 @@
+symbol fq=__local_0.current[kind=local] kind=local vis=private flags=_ type=kotlin.native.concurrent.Worker
+symbol fq=__local_1.viaCompanion[kind=local] kind=local vis=private flags=_ type=kotlin.native.concurrent.Worker
+symbol fq=__local_2.active[kind=local] kind=local vis=private flags=_ type=kotlin.collections.List<kotlin.native.concurrent.Worker>
+symbol fq=__local_3.activeViaCompanion[kind=local] kind=local vis=private flags=_ type=kotlin.collections.List<kotlin.native.concurrent.Worker>
+symbol fq=__local_4.started[kind=local] kind=local vis=private flags=_ type=kotlin.native.concurrent.Worker
+symbol fq=__local_5.named[kind=local] kind=local vis=private flags=_ type=kotlin.native.concurrent.Worker
+symbol fq=__local_6.pointer[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?
+symbol fq=__local_7.resolved[kind=local] kind=local vis=private flags=_ type=kotlin.native.concurrent.Worker
+symbol fq=__local_8.resolvedViaCompanion[kind=local] kind=local vis=private flags=_ type=kotlin.native.concurrent.Worker
+symbol fq=workerCompanionSurface[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.native.concurrent.Worker
+symbol fq=workerFromCPointerSurface.$0.worker[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=workerFromCPointerSurface[kind=fun;params=kotlin.native.concurrent.Worker] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.Worker] ret=kotlin.native.concurrent.Worker
+file fstdlib_kotlin_native_concurrent_Worker_Companion_Companion_n package=_ annotations=[@file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class,kotlin.ExperimentalStdlibApi::class)]
+  decl workerCompanionSurface[kind=fun;params=] fun workerCompanionSurface sym=workerCompanionSurface[kind=fun;params=]
+  decl workerFromCPointerSurface[kind=fun;params=kotlin.native.concurrent.Worker] fun workerFromCPointerSurface sym=workerFromCPointerSurface[kind=fun;params=kotlin.native.concurrent.Worker]
+expr e@10:27 name(Worker) type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@10:27#1 memberCall recv=e@10:27 callee=current args=[] type=kotlin.native.concurrent.Worker call=kotlin.native.concurrent.current.$get[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=]
+expr e@10:5 localDecl current mutable=0 type=Worker init=e@10:27#1 type=Unit ref=__local_0.current[kind=local]
+expr e@11:32 name(Worker) type=kotlin.native.concurrent.Worker ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@11:32#1 memberCall recv=e@11:32 callee=Companion args=[] type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker.Companion[kind=obj]
+expr e@11:32#2 memberCall recv=e@11:32#1 callee=current args=[] type=kotlin.native.concurrent.Worker call=kotlin.native.concurrent.current.$get[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=]
+expr e@11:5 localDecl viaCompanion mutable=0 type=Worker init=e@11:32#2 type=Unit ref=__local_1.viaCompanion[kind=local]
+expr e@12:32 name(Worker) type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@12:32#1 memberCall recv=e@12:32 callee=activeWorkers args=[] type=kotlin.collections.List<kotlin.native.concurrent.Worker> call=kotlin.native.concurrent.activeWorkers.$get[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=]
+expr e@12:5 localDecl active mutable=0 type=List<Worker> init=e@12:32#1 type=Unit ref=__local_2.active[kind=local]
+expr e@13:44 name(Worker) type=kotlin.native.concurrent.Worker ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@13:44#1 memberCall recv=e@13:44 callee=Companion args=[] type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker.Companion[kind=obj]
+expr e@13:44#2 memberCall recv=e@13:44#1 callee=activeWorkers args=[] type=kotlin.collections.List<kotlin.native.concurrent.Worker> call=kotlin.native.concurrent.activeWorkers.$get[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=]
+expr e@13:5 localDecl activeViaCompanion mutable=0 type=List<Worker> init=e@13:44#2 type=Unit ref=__local_3.activeViaCompanion[kind=local]
+expr e@14:27 name(Worker) type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@14:27#1 memberCall recv=e@14:27 callee=start args=[] type=kotlin.native.concurrent.Worker call=kotlin.native.concurrent.start[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=Boolean,String?]
+expr e@14:5 localDecl started mutable=0 type=Worker init=e@14:27#1 type=Unit ref=__local_4.started[kind=local]
+expr e@15:25 name(Worker) type=kotlin.native.concurrent.Worker ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@15:25#1 memberCall recv=e@15:25 callee=Companion args=[] type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker.Companion[kind=obj]
+expr e@15:65 bool(false) type=Boolean
+expr e@15:79 string(companion-worker) type=String
+expr e@15:25#2 memberCall recv=e@15:25#1 callee=start args=[errorReporting:e@15:65,name:e@15:79] type=kotlin.native.concurrent.Worker call=kotlin.native.concurrent.start[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=Boolean,String?]
+expr e@15:5 localDecl named mutable=0 type=Worker init=e@15:25#2 type=Unit ref=__local_5.named[kind=local]
+expr e@16:5 name(named) type=kotlin.native.concurrent.Worker ref=__local_5.named[kind=local]
+expr e@16:5#1 memberCall recv=e@16:5 callee=requestTermination args=[] type=kotlin.native.concurrent.Future<Unit> call=kotlin.native.concurrent.requestTermination[kind=fun;recv=kotlin.native.concurrent.Worker;params=Boolean]
+expr e@17:16 name(active) type=kotlin.collections.List<kotlin.native.concurrent.Worker> ref=__local_2.active[kind=local]
+expr e@17:16#1 memberCall recv=e@17:16 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1]
+expr e@17:36 name(activeViaCompanion) type=kotlin.collections.List<kotlin.native.concurrent.Worker> ref=__local_3.activeViaCompanion[kind=local]
+expr e@17:36#1 memberCall recv=e@17:36 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1]
+expr e@17:16#2 binary(logicalOr) lhs=e@17:16#1 rhs=e@17:36#1 type=Boolean
+expr e@17:68 name(current) type=kotlin.native.concurrent.Worker ref=__local_0.current[kind=local]
+expr e@17:68#1 memberCall recv=e@17:68 callee=id args=[] type=Int call=kotlin.native.concurrent.id.$get[kind=fun;recv=kotlin.native.concurrent.Worker;params=]
+expr e@17:82 name(viaCompanion) type=kotlin.native.concurrent.Worker ref=__local_1.viaCompanion[kind=local]
+expr e@17:82#1 memberCall recv=e@17:82 callee=id args=[] type=Int call=kotlin.native.concurrent.id.$get[kind=fun;recv=kotlin.native.concurrent.Worker;params=]
+expr e@17:68#2 binary(equal) lhs=e@17:68#1 rhs=e@17:82#1 type=Boolean
+expr e@17:16#3 binary(logicalOr) lhs=e@17:16#2 rhs=e@17:68#2 type=Boolean
+expr e@18:9 name(started) type=kotlin.native.concurrent.Worker ref=__local_4.started[kind=local]
+expr e@17:99 blockExpr stmts=[] trailing=e@18:9 type=kotlin.native.concurrent.Worker
+expr e@20:9 name(viaCompanion) type=kotlin.native.concurrent.Worker ref=__local_1.viaCompanion[kind=local]
+expr e@19:12 blockExpr stmts=[] trailing=e@20:9 type=kotlin.native.concurrent.Worker
+expr e@17:12 if cond=e@17:16#3 then=e@17:99 else=e@19:12 type=kotlin.native.concurrent.Worker
+expr e@17:5 return value=e@17:12 type=Nothing
+expr e@25:36 name(worker) type=kotlin.native.concurrent.Worker ref=workerFromCPointerSurface.$0.worker[kind=vparam]
+expr e@25:36#1 memberCall recv=e@25:36 callee=asCPointer args=[] type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>? call=kotlin.native.concurrent.asCPointer[kind=fun;recv=kotlin.native.concurrent.Worker;params=]
+expr e@25:5 localDecl pointer mutable=0 type=COpaquePointer? init=e@25:36#1 type=Unit ref=__local_6.pointer[kind=local]
+expr e@26:28 name(Worker) type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@26:48 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>? ref=__local_6.pointer[kind=local]
+expr e@26:28#1 memberCall recv=e@26:28 callee=fromCPointer args=[_:e@26:48] type=kotlin.native.concurrent.Worker call=kotlin.native.concurrent.fromCPointer[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?]
+expr e@26:5 localDecl resolved mutable=0 type=Worker init=e@26:28#1 type=Unit ref=__local_7.resolved[kind=local]
+expr e@27:40 name(Worker) type=kotlin.native.concurrent.Worker ref=kotlin.native.concurrent.Worker[kind=class]
+expr e@27:40#1 memberCall recv=e@27:40 callee=Companion args=[] type=kotlin.native.concurrent.Worker.Companion ref=kotlin.native.concurrent.Worker.Companion[kind=obj]
+expr e@27:70 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>? ref=__local_6.pointer[kind=local]
+expr e@27:40#2 memberCall recv=e@27:40#1 callee=fromCPointer args=[_:e@27:70] type=kotlin.native.concurrent.Worker call=kotlin.native.concurrent.fromCPointer[kind=fun;recv=kotlin.native.concurrent.Worker.Companion;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?]
+expr e@27:5 localDecl resolvedViaCompanion mutable=0 type=Worker init=e@27:40#2 type=Unit ref=__local_8.resolvedViaCompanion[kind=local]
+expr e@28:16 name(resolved) type=kotlin.native.concurrent.Worker ref=__local_7.resolved[kind=local]
+expr e@28:16#1 memberCall recv=e@28:16 callee=id args=[] type=Int call=kotlin.native.concurrent.id.$get[kind=fun;recv=kotlin.native.concurrent.Worker;params=]
+expr e@28:31 name(resolvedViaCompanion) type=kotlin.native.concurrent.Worker ref=__local_8.resolvedViaCompanion[kind=local]
+expr e@28:31#1 memberCall recv=e@28:31 callee=id args=[] type=Int call=kotlin.native.concurrent.id.$get[kind=fun;recv=kotlin.native.concurrent.Worker;params=]
+expr e@28:16#2 binary(equal) lhs=e@28:16#1 rhs=e@28:31#1 type=Boolean
+expr e@28:56 name(resolved) type=kotlin.native.concurrent.Worker ref=__local_7.resolved[kind=local]
+expr e@28:70 name(worker) type=kotlin.native.concurrent.Worker ref=workerFromCPointerSurface.$0.worker[kind=vparam]
+expr e@28:12 if cond=e@28:16#2 then=e@28:56 else=e@28:70 type=kotlin.native.concurrent.Worker
+expr e@28:5 return value=e@28:12 type=Nothing

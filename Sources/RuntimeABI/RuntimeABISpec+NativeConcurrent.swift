@@ -3,6 +3,13 @@ public extension RuntimeABISpec {
     /// source-backed kotlin.native.concurrent package functions (KSP-1216).
     static let nativeConcurrentFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_native_concurrent_active_workers",
+            parameters: [],
+            returnType: .intptr,
+            section: "NativeConcurrent",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_native_concurrent_attach_object_graph",
             parameters: [
                 RuntimeABIParameter(name: "stableRaw", type: .intptr),
@@ -82,6 +89,15 @@ public extension RuntimeABISpec {
             name: "__kk_native_concurrent_wait_worker_termination",
             parameters: [
                 RuntimeABIParameter(name: "workerHandle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeConcurrent",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_native_concurrent_worker_from_cpointer",
+            parameters: [
+                RuntimeABIParameter(name: "pointerHandle", type: .intptr),
             ],
             returnType: .intptr,
             section: "NativeConcurrent",
