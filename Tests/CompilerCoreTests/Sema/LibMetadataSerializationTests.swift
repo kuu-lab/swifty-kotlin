@@ -2,9 +2,256 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 
 @Suite
 struct LibMetadataSerializationTests {
+    @Test func testIndexedMetadataRoundTripUsesByteOffsets() throws {
+        let records = [
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_first",
+                fqName: "demo.first",
+                arity: 1,
+                receiverOwnerFQName: "demo.Receiver",
+                typeSignature: "F1<I,I>",
+                externalLinkName: "_kk_first"
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_kk_日本語",
+                fqName: "demo.日本語",
+                typeSignature: "I"
+            ),
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_kk_owner",
+                fqName: "demo.Owner",
+                companionObjectFQName: "demo.Owner.Companion"
+            ),
+        ]
+
+        let serialized = MetadataEncoder().serializeIndexed(records)
+        #expect(serialized.hasPrefix("kklib-metadata-v2\n"))
+        let file = try #require(IndexedMetadataFile(data: Data(serialized.utf8)))
+        #expect(file.entries.count == records.count)
+        #expect(file.entries[0].offset < file.entries[1].offset)
+        #expect(file.entries.allSatisfy { $0.length > 0 })
+        #expect(file.entries[0].record.receiverOwnerFQName == "demo.Receiver")
+        #expect(file.entries[2].record.companionObjectFQName == "demo.Owner.Companion")
+        #expect(file.entries.compactMap { file.record(for: $0).map(\.fqName) } == records.map(\.fqName))
+        let decoded = MetadataDecoder().decode(serialized)
+        #expect(decoded.map(\.fqName) == records.map(\.fqName))
+        #expect(decoded[0].receiverOwnerFQName == "demo.Receiver")
+        #expect(decoded[2].companionObjectFQName == "demo.Owner.Companion")
+    }
+
+    @Test func testIndexedLibraryImportDefersBodyUntilSignatureQuery() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        try """
+        {
+          "formatVersion": 1,
+          "moduleName": "LazyMetadata",
+          "metadata": "metadata.bin"
+        }
+        """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let records = [
+            MetadataRecord(kind: .package, mangledName: "_", fqName: "lazy"),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_used",
+                fqName: "lazy.used",
+                arity: 1,
+                receiverOwnerFQName: "lazy.Receiver",
+                typeSignature: "F1<I,I>"
+            ),
+            MetadataRecord(kind: .function, mangledName: "_kk_unused", fqName: "lazy.unused", arity: 1, typeSignature: "F1<I,I>"),
+        ]
+        try MetadataEncoder().serializeIndexed(records)
+            .write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyConsumer",
+            emit: .kirDump,
+            searchPaths: [libDir.path]
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: importedInlineFunctions
+        )
+
+        let used = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "used" })
+        let unused = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "unused" })
+        let package = try #require(work.importedBindings.first { $0.record.kind == .package })
+        #expect(work.lazyLoaderState != nil)
+        #expect(!used.isMaterialized)
+        #expect(!unused.isMaterialized)
+        #expect(used.record.receiverOwnerFQName?.map { ctx.interner.resolve($0) } == ["lazy", "Receiver"])
+        #expect(symbols.parentSymbol(for: used.symbol) == package.symbol)
+        #expect(symbols.functionSignature(for: used.symbol)?.parameterTypes.count == 1)
+        #expect(used.isMaterialized)
+        #expect(!unused.isMaterialized)
+        #expect(symbols.parentSymbol(for: unused.symbol) == nil)
+        #expect(!diagnostics.hasError)
+    }
+
+    @Test func testLazyImportedMetadataLoaderRunsOncePerSymbol() {
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let interner = StringInterner()
+        let name = interner.intern("Imported")
+        let symbol = symbols.define(
+            kind: .class,
+            name: name,
+            fqName: [name],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary]
+        )
+        let typeName = interner.intern("ImportedType")
+        let typeSymbol = symbols.define(
+            kind: .class,
+            name: typeName,
+            fqName: [typeName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary]
+        )
+        let functionName = interner.intern("importedFunction")
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: [functionName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary]
+        )
+        var loadCount = 0
+        symbols.setLazyImportedMetadataLoader { loadedSymbol in
+            #expect(loadedSymbol == symbol || loadedSymbol == typeSymbol || loadedSymbol == functionSymbol)
+            loadCount += 1
+        }
+
+        #expect(symbols.lookupByShortName(functionName) == [functionSymbol])
+        #expect(loadCount == 0)
+        _ = symbols.functionSignature(for: functionSymbol)
+        _ = symbols.functionSignature(for: functionSymbol)
+        _ = symbols.directSupertypes(for: symbol)
+        _ = symbols.directSupertypes(for: symbol)
+        _ = types.directNominalSupertypes(for: typeSymbol)
+        _ = types.directNominalSupertypes(for: typeSymbol)
+
+        #expect(loadCount == 3)
+    }
+
+    @Test func testIndexedStdlibNominalGenericsSurviveSyntheticRegistration() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyGenericConsumer",
+            stdlibLibraryPath: stdlibPath
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let diagnostics = DiagnosticEngine()
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        let phase = DataFlowSemaPhase()
+        _ = phase.loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: importedInlineFunctions
+        )
+        phase.registerSyntheticCollectionStubs(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            bundledIndex: .empty
+        )
+        let listSymbol = try #require(symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("List"),
+        ]))
+        let iterableSymbol = try #require(symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("Iterable"),
+        ]))
+
+        let lifted = try #require(types.liftedNominalSupertypeArgs(
+            from: listSymbol,
+            childArgs: [.out(types.stringType)],
+            to: iterableSymbol
+        ))
+
+        let liftedType: TypeID? = switch try #require(lifted.first) {
+        case let .invariant(type), let .in(type), let .out(type): type
+        case .star: nil
+        }
+        #expect(liftedType == types.stringType)
+        let unresolvedLayoutWarnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0004" }
+        #expect(
+            unresolvedLayoutWarnings.isEmpty,
+            "Indexed stdlib layout entries must resolve during recursive lazy materialization: \(unresolvedLayoutWarnings.map(\.message))"
+        )
+        #expect(!diagnostics.hasError)
+    }
+
+    @Test func testIndexedStdlibCompanionPropertyMaterializesFromShell() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyCompanionConsumer",
+            stdlibLibraryPath: stdlibPath
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let diagnostics = DiagnosticEngine()
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: importedInlineFunctions
+        )
+
+        let ownerFQName = ["kotlin", "KotlinVersion"].map(ctx.interner.intern)
+        let companionFQName = ownerFQName + [ctx.interner.intern("Companion")]
+        let currentFQName = companionFQName + [ctx.interner.intern("CURRENT")]
+        let owner = try #require(symbols.lookup(fqName: ownerFQName))
+        let companion = try #require(symbols.lookup(fqName: companionFQName))
+        let current = try #require(symbols.lookup(fqName: currentFQName))
+
+        #expect(symbols.companionObjectSymbol(for: owner) == companion)
+        #expect(symbols.parentSymbol(for: companion) == owner)
+        #expect(symbols.parentSymbol(for: current) == companion)
+        #expect(symbols.propertyType(for: current) != nil)
+        #expect(!diagnostics.hasError)
+    }
+
     // MARK: - MetadataSerializer Round-Trip Tests
 
     @Test func testMetadataEncoderDecoderRoundTripForFunctionRecord() {
@@ -861,6 +1108,40 @@ struct LibMetadataSerializationTests {
         #expect(decoded[0].kind == .typeAlias)
         #expect(decoded[0].fqName == "demo.ID")
         #expect(decoded[0].typeSignature == "L")
+    }
+
+    /// The lazy loader closure lives on the symbol table itself, so capturing
+    /// the table strongly would retain the entire import state for the life of
+    /// the process — leaking every compilation's symbols and decoded records.
+    @Test func testLazyMetadataLoaderDoesNotRetainSymbolTable() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        weak var weakSymbols: SymbolTable?
+        weak var weakTypes: TypeSystem?
+        do {
+            let ctx = makeCompilationContext(
+                inputs: [],
+                moduleName: "LazyLoaderLifetime",
+                stdlibLibraryPath: stdlibPath
+            )
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            types.symbolTable = symbols
+            let diagnostics = DiagnosticEngine()
+            let importedInlineFunctions = ImportedInlineFunctionStore()
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: ctx.interner,
+                importedInlineFunctions: importedInlineFunctions
+            )
+            weakSymbols = symbols
+            weakTypes = types
+        }
+        #expect(weakSymbols == nil, "SymbolTable must deallocate once the import scope ends")
+        #expect(weakTypes == nil, "TypeSystem must deallocate once the import scope ends")
     }
 }
 #endif

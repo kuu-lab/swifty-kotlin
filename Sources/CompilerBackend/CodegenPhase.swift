@@ -549,7 +549,7 @@ public final class CodegenPhase: CompilerPhase {
             objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
-        return encoder.serialize(records)
+        return encoder.serializeIndexed(records)
     }
 
     // MARK: - REFL-004: Runtime Reflection Metadata

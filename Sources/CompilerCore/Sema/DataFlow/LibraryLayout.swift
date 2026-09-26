@@ -210,7 +210,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         metadataPath: String,
-        interner: StringInterner
+        interner: StringInterner,
+        indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]? = nil
     ) {
         let declaredLayoutValues = [
             record.declaredFieldCount,
@@ -283,7 +284,8 @@ extension DataFlowSemaPhase {
                 typeSignature: entry.typeSignature,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                indexedBindingsBySymbol: indexedBindingsBySymbol
             ) else {
                 let fq = entry.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 diagnostics.warning(
@@ -401,18 +403,34 @@ extension DataFlowSemaPhase {
         typeSignature: String?,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]?
     ) -> SymbolID? {
         let allSymbolIDs = symbols.lookupAll(fqName: fqName)
-        let candidates = allSymbolIDs
+        let functionSymbols = allSymbolIDs
             .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .function }
+        let candidates = functionSymbols
             .filter { symbol in
-                guard symbol.kind == .function,
-                      let signature = symbols.functionSignature(for: symbol.id)
-                else {
+                guard let signature = symbols.functionSignature(for: symbol.id) else {
                     return false
                 }
                 return signature.parameterTypes.count == arity && signature.isSuspend == isSuspend
+            }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+
+        // Decoding a member signature can recursively materialize its nominal
+        // owner before that member's signature has been stored. Resolve the
+        // owner's vtable entry from the compact index shape/body in that case
+        // instead of treating the in-progress member as missing.
+        let indexedCandidates = functionSymbols
+            .filter { symbol in
+                guard let record = indexedBindingsBySymbol?[symbol.id]?.record else {
+                    return false
+                }
+                return record.kind == .function
+                    && record.arity == arity
+                    && record.isSuspend == isSuspend
             }
             .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
@@ -430,10 +448,15 @@ extension DataFlowSemaPhase {
             }) {
                 return exact.id
             }
+            if let exact = indexedCandidates.first(where: { candidate in
+                indexedBindingsBySymbol?[candidate.id]?.record.typeSignature == typeSignature
+            }) {
+                return exact.id
+            }
             // Fall back to legacy arity-only resolution for metadata that lacks a signature.
         }
 
-        return candidates.first?.id
+        return candidates.first?.id ?? indexedCandidates.first?.id
     }
 
     private func resolveImportedPropertySymbol(
