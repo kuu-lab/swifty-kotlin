@@ -342,14 +342,64 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
     }
 
     @Test func compareAndExchangeUsesReferenceIdentity() {
-        let current = registerRuntimeObject(RuntimeStringBox("same"))
-        let equalButDistinct = registerRuntimeObject(RuntimeStringBox("same"))
-        let replacement = registerRuntimeObject(RuntimeStringBox("next"))
+        let current = kk_atomic_int_create(10)
+        let equalButDistinct = kk_atomic_int_create(10)
+        let replacement = kk_atomic_int_create(20)
         let atomicRef = kk_atomic_ref_create(current)
         let old = __kk_atomic_ref_compareAndExchange(atomicRef, equalButDistinct, replacement)
         #expect(old == current)
         #expect(__kk_atomic_ref_load(atomicRef) == current,
                 "Equal but distinct references must not satisfy the CAS expectation")
+    }
+
+    // KUU-858: one logical value reaches the cell through different marshal
+    // paths — a bare Int payload at construction vs a fresh (possibly tagged)
+    // Int box at the erased-T CAS boundary. CAS must compare decoded payloads.
+    @Test func compareAndExchangeMatchesStoredRawIntAgainstFreshBox() {
+        let atomicRef = kk_atomic_ref_create(41)
+        let expect = kk_box_int_static(41)
+        let update = kk_box_int_static(42)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect,
+                "On success the caller's expect word is returned so the Kotlin-level `===` sees a match")
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
+    @Test func compareAndExchangeMatchesBoxedIntAgainstFreshBox() {
+        let current = kk_box_int(41)
+        let expect = kk_box_int_static(41)
+        let update = kk_box_int_static(42)
+        let atomicRef = kk_atomic_ref_create(current)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect)
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
+    @Test func compareAndExchangeRejectsMismatchedValueBox() {
+        let atomicRef = kk_atomic_ref_create(41)
+        let expect = kk_box_int_static(99)
+        let update = kk_box_int_static(42)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == 41, "On failure compareAndExchange must return the stored word")
+        #expect(__kk_atomic_ref_load(atomicRef) == 41,
+                "A failed compareAndExchange must retain the stored value")
+    }
+
+    // The same marshal asymmetry for String: a `load()` result re-boxed via
+    // the flat-string bridge is a fresh RuntimeStringBox for the same text.
+    @Test func compareAndExchangeMatchesReboxedStringHandle() throws {
+        let current = registerRuntimeObject(RuntimeStringBox("aaa"))
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = try #require(kk_string_to_flat(current, &length, &byteCount, &hash))
+        let expect = kk_string_from_flat(data, length, byteCount, hash)
+        #expect(expect != current, "The flat round trip must yield a distinct handle")
+        let update = registerRuntimeObject(RuntimeStringBox("bbb"))
+        let atomicRef = kk_atomic_ref_create(current)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect)
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
     }
 
     @Test func nullReferenceRoundTrip() {
