@@ -290,6 +290,14 @@ the behavioral `diff_kotlinc.sh` run. Use `// EXPECT-REJECT` for a case that
 must be rejected by both compilers; acceptance is the default and can be stated
 explicitly with `// EXPECT-ACCEPT`.
 
+A case may pass extra flags to `kotlinc` with `// KOTLINC_FLAGS: <flags>`.
+Fixtures are treated as untrusted input: the flag list is validated against an
+allowlist of language-feature and diagnostic toggles (e.g. `-Xfeature`,
+`-Xfeature=mode`, `-XXLanguage:+Feature`, `-jvm-target 21`, `-opt-in=<fqname>`)
+before `kotlinc` runs. Options that load JVM code or reshape the compiler
+environment — `-Xplugin`, plugin `-P`, `-J`, `@argfile`, `-classpath` and
+friends — fail the case without invoking the compiler.
+
 ```bash
 bash Scripts/diff_diagnostics.sh Scripts/diagnostic_cases
 bash Scripts/diff_diagnostics.sh --report /tmp/diagnostics.tsv Scripts/diagnostic_cases

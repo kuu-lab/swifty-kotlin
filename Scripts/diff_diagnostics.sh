@@ -50,6 +50,10 @@ Environment:
 Case directives:
   // EXPECT-ACCEPT        Both compilers must accept the source (default)
   // EXPECT-REJECT        Both compilers must reject the source and report the same error lines
+  // KOTLINC_FLAGS: <f>   Extra kotlinc flags; restricted to an allowlist of
+                         language-feature/diagnostic toggles. Plugin, classpath,
+                         JVM and file-reading options are rejected before
+                         kotlinc runs and fail the case.
 USAGE
 }
 
@@ -245,8 +249,16 @@ run_case() {
   mkdir -p "$tmp_dir"
 
   local ref_exit=0 candidate_exit=0
-  local flags expectation result_reason result_status artifact_dir=""
-  flags="$(read_case_directive_flags "$case_path" 'KOTLINC_FLAGS')"
+  local expectation result_reason result_status artifact_dir=""
+  local -a kotlinc_flags=()
+  if ! validated_kotlinc_flag_argv "$case_path" kotlinc_flags; then
+    result_reason="KOTLINC_FLAGS directive rejected"
+    result_status="FAIL"
+    artifact_dir="$(persist_failure "$case_path" "$tmp_dir" "$result_reason" 2 2 '' '')"
+    echo "FAIL $case_path (KOTLINC_FLAGS directive rejected)"
+    report_case "$case_path" "$result_status" "$artifact_dir" 2 2 '<empty>' '<empty>'
+    return 1
+  fi
   if ! expectation="$(expected_outcome "$case_path")"; then
     result_reason="invalid expectation directives"
     result_status="FAIL"
@@ -257,8 +269,7 @@ run_case() {
   fi
 
   # Keep reference and candidate diagnostics separate so artifacts preserve the raw compiler output.
-  # shellcheck disable=SC2086
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $flags "$case_path" \
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters "${kotlinc_flags[@]}" "$case_path" \
     -d "$tmp_dir/reference.jar" >"$tmp_dir/reference.stdout" 2>"$tmp_dir/reference.stderr" || ref_exit=$?
   "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir "$case_path" \
     -o "$tmp_dir/candidate.kir" >"$tmp_dir/candidate.stdout" 2>"$tmp_dir/candidate.stderr" || candidate_exit=$?
@@ -320,6 +331,8 @@ run_self_test() {
   trap 'rm -rf "${SELF_TEST_TMP:-}"' EXIT
 
   local ref_fake="$self_tmp/fake-kotlinc" candidate_fake="$self_tmp/fake-kswiftc"
+  local argv_dir="$self_tmp/argv"
+  mkdir -p "$argv_dir"
   cat >"$ref_fake" <<'FAKE_REF'
 #!/usr/bin/env bash
 set -eu
@@ -327,8 +340,11 @@ source_file=""
 for argument in "$@"; do
   if [[ "$argument" == *.kt ]]; then source_file="$argument"; break; fi
 done
+if [[ -n "${ARGV_DIR:-}" && -n "$source_file" ]]; then
+  printf '%s\n' "$@" >"$ARGV_DIR/$(basename "$source_file").argv"
+fi
 case "$(basename "$source_file")" in
-  accept.kt) exit 0 ;;
+  accept.kt|flags_ok.kt) exit 0 ;;
   reject_same.kt|reject_candidate_accept.kt|reject_lines.kt)
     printf '%s\n' "$source_file:2:1: error: fake reference diagnostic" >&2
     exit 1
@@ -344,7 +360,7 @@ for argument in "$@"; do
   if [[ "$argument" == *.kt ]]; then source_file="$argument"; break; fi
 done
 case "$(basename "$source_file")" in
-  accept.kt) exit 0 ;;
+  accept.kt|flags_ok.kt) exit 0 ;;
   reject_same.kt)
     printf '%s\n' "$source_file:2:3: error KSWIFTK-SEMA-TEST: fake candidate diagnostic" >&2
     exit 1
@@ -363,11 +379,24 @@ FAKE_CANDIDATE
   printf '%s\n' '// EXPECT-REJECT' 'val broken = ' >"$self_tmp/reject_same.kt"
   printf '%s\n' '// EXPECT-REJECT' 'val broken = ' >"$self_tmp/reject_candidate_accept.kt"
   printf '%s\n' '// EXPECT-REJECT' 'val broken = ' >"$self_tmp/reject_lines.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' \
+    '// KOTLINC_FLAGS: -Xexplicit-backing-fields -Xreturn-value-checker=full -jvm-target 21' \
+    'fun main() {}' >"$self_tmp/flags_ok.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' '// KOTLINC_FLAGS: -Xplugin=/tmp/evil.jar' \
+    'fun main() {}' >"$self_tmp/flags_plugin.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' '// KOTLINC_FLAGS: -J-Xmx1g' \
+    'fun main() {}' >"$self_tmp/flags_jvmarg.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' '// KOTLINC_FLAGS: -P plugin:demo:opt=1' \
+    'fun main() {}' >"$self_tmp/flags_pluginopt.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' '// KOTLINC_FLAGS: @/tmp/args.txt' \
+    'fun main() {}' >"$self_tmp/flags_argfile.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' '// KOTLINC_FLAGS: -classpath /tmp/evil.jar' \
+    'fun main() {}' >"$self_tmp/flags_classpath.kt"
 
   local case_path output
-  for case_path in accept.kt reject_same.kt; do
+  for case_path in accept.kt reject_same.kt flags_ok.kt; do
     output="$self_tmp/$case_path.out"
-    if ! DIFF_REQUIRE_JDK21=0 "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
+    if ! DIFF_REQUIRE_JDK21=0 ARGV_DIR="$argv_dir" "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
       --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
       "$self_tmp/$case_path" >"$output" 2>&1; then
       echo "self-test expected PASS but failed: $case_path" >&2
@@ -376,12 +405,56 @@ FAKE_CANDIDATE
     fi
   done
 
+  # The safe flags must reach kotlinc verbatim between -Xcontext-parameters and
+  # the source file; only the -d target path is generated per run.
+  if [[ ! -f "$argv_dir/flags_ok.kt.argv" ]]; then
+    echo "self-test: fake kotlinc was not invoked for flags_ok.kt" >&2
+    return 1
+  fi
+  local -a argv_lines expected_prefix
+  mapfile -t argv_lines <"$argv_dir/flags_ok.kt.argv"
+  expected_prefix=(-Xcontext-parameters -Xexplicit-backing-fields -Xreturn-value-checker=full -jvm-target 21 "$self_tmp/flags_ok.kt" -d)
+  if (( ${#argv_lines[@]} != ${#expected_prefix[@]} + 1 )) || [[ "${argv_lines[-1]:-}" != */reference.jar ]]; then
+    echo "self-test: unexpected kotlinc argv: ${argv_lines[*]:-}" >&2
+    return 1
+  fi
+  local idx
+  for idx in "${!expected_prefix[@]}"; do
+    if [[ "${argv_lines[idx]:-}" != "${expected_prefix[idx]}" ]]; then
+      echo "self-test: kotlinc argv[$idx] mismatch: '${argv_lines[idx]:-}' != '${expected_prefix[idx]}'" >&2
+      return 1
+    fi
+  done
+
   for case_path in reject_candidate_accept.kt reject_lines.kt; do
     output="$self_tmp/$case_path.out"
-    if DIFF_REQUIRE_JDK21=0 "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
+    if DIFF_REQUIRE_JDK21=0 ARGV_DIR="$argv_dir" "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
       --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
       "$self_tmp/$case_path" >"$output" 2>&1; then
       echo "self-test expected FAIL but passed: $case_path" >&2
+      cat "$output" >&2
+      return 1
+    fi
+  done
+
+  # Code-loading / environment-reshaping options must fail the case before
+  # kotlinc is invoked — no argv file may be recorded for them.
+  for case_path in flags_plugin.kt flags_jvmarg.kt flags_pluginopt.kt flags_argfile.kt flags_classpath.kt; do
+    output="$self_tmp/$case_path.out"
+    if DIFF_REQUIRE_JDK21=0 ARGV_DIR="$argv_dir" "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
+      --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
+      "$self_tmp/$case_path" >"$output" 2>&1; then
+      echo "self-test expected FAIL but passed: $case_path" >&2
+      cat "$output" >&2
+      return 1
+    fi
+    if [[ -f "$argv_dir/$case_path.argv" ]]; then
+      echo "self-test: rejected flag reached kotlinc argv: $case_path" >&2
+      cat "$argv_dir/$case_path.argv" >&2
+      return 1
+    fi
+    if ! grep -q 'not in the allowlist' "$output"; then
+      echo "self-test: missing allowlist rejection for $case_path" >&2
       cat "$output" >&2
       return 1
     fi
