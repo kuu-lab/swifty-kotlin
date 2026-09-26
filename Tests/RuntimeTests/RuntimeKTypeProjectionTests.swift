@@ -45,6 +45,17 @@ struct RuntimeKTypeProjectionTests {
         let box = try #require(tryCast(pointer, to: RuntimeKTypeProjectionBox.self))
         #expect(box.variance == nil)
         #expect(box.typeRaw == 0)
+        #expect(raw != __kk_ktypeprojection_star())
+    }
+
+    @Test func uncheckedStarProjectionReusesCompanionSingleton() {
+        let companionStar = __kk_ktypeprojection_star()
+        let typeOfStar = __kk_ktypeprojection_create(123, -1)
+
+        #expect(companionStar == typeOfStar)
+        let pointer = UnsafeMutableRawPointer(bitPattern: companionStar)
+        let box = pointer.flatMap { tryCast($0, to: RuntimeKTypeProjectionBox.self) }
+        #expect(box?.typeRaw == 0)
     }
 
     @Test func sourceBackedAccessorsExposeKotlinProjectionSurface() throws {

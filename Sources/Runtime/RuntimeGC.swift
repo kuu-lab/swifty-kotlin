@@ -49,6 +49,7 @@ struct GCState {
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
+    var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
@@ -520,9 +521,14 @@ func kk_runtime_reset_gc() {
 }
 
 func kk_runtime_reset_metadata() {
-    let kClassBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
-        let boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+    let cachedReflectionBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
+        var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+        if let starRaw = state.kTypeProjectionStarRaw,
+           let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
+            boxes.append(pointer)
+        }
         state.kClassBoxCache.removeAll(keepingCapacity: false)
+        state.kTypeProjectionStarRaw = nil
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
         state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
@@ -537,7 +543,7 @@ func kk_runtime_reset_metadata() {
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
         return boxes
     }
-    releaseRegisteredRuntimeBoxes(kClassBoxes)
+    releaseRegisteredRuntimeBoxes(cachedReflectionBoxes)
     runtimeKClassMetadataRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
@@ -547,6 +553,9 @@ func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
     runtimeStorage.withMetadataLock { state in
         state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
             UInt(bitPattern: raw) != key
+        }
+        if state.kTypeProjectionStarRaw == Int(bitPattern: key) {
+            state.kTypeProjectionStarRaw = nil
         }
         state.objectTypeByPointer.removeValue(forKey: key)
         state.arrayTypeIDsByPointer.removeValue(forKey: key)

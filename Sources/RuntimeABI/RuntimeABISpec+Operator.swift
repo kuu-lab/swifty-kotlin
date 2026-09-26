@@ -447,6 +447,13 @@ public extension RuntimeABISpec {
             isThrowing: true
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_ktypeprojection_star",
+            parameters: [],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_ktypeprojection_get_variance",
             parameters: [
                 RuntimeABIParameter(name: "projectionRaw", type: .intptr),

@@ -272,6 +272,26 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     guard isObjectPointer else {
         return runtimeUnboxedAnyHashCode(value, tag)
     }
+    if let kTypeBox = tryCast(pointer, to: RuntimeKTypeBox.self) {
+        var hash = Int32(truncatingIfNeeded: kk_any_hashCode(kTypeBox.classifierRaw, 0))
+        hash = 31 &* hash &+ 1
+        for projectionRaw in kTypeBox.argumentRaws {
+            let projectionHash: Int32
+            if let projection = runtimeReflectionObject(
+                from: projectionRaw, as: RuntimeKTypeProjectionBox.self
+            ) {
+                projectionHash = runtimeKTypeProjectionHashCode(projection)
+            } else {
+                projectionHash = 0
+            }
+            hash = 31 &* hash &+ projectionHash
+        }
+        hash = 31 &* hash &+ (kTypeBox.isMarkedNullable ? 1231 : 1237)
+        return Int(hash)
+    }
+    if let projection = tryCast(pointer, to: RuntimeKTypeProjectionBox.self) {
+        return Int(runtimeKTypeProjectionHashCode(projection))
+    }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         return runtimeRangeHashCode(range)
     }
@@ -421,6 +441,19 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(hash)
     }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
+}
+
+private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjectionBox) -> Int32 {
+    let varianceHash: Int32 = switch projection.variance {
+    case .in: 1
+    case .out: 2
+    case .invariant: 0
+    case nil: 0
+    }
+    let typeHash = projection.typeRaw == 0 || projection.typeRaw == runtimeNullSentinelInt
+        ? 0
+        : Int32(truncatingIfNeeded: kk_any_hashCode(projection.typeRaw, 0))
+    return 31 &* varianceHash &+ typeHash
 }
 
 private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {

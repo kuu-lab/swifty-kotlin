@@ -890,6 +890,62 @@ func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
     return nil
 }
 
+private func runtimeKTypeDescriptor(_ box: RuntimeKTypeBox) -> String? {
+    guard box.typeNameRaw != 0,
+          box.typeNameRaw != runtimeNullSentinelInt,
+          let descriptor = extractString(from: UnsafeMutableRawPointer(bitPattern: box.typeNameRaw))
+    else {
+        return nil
+    }
+    return descriptor.hasSuffix("?") ? String(descriptor.dropLast()) : descriptor
+}
+
+private func runtimeKTypeClassifierEquals(_ lhs: RuntimeKTypeBox, _ rhs: RuntimeKTypeBox) -> Bool {
+    if let lhsDescriptor = runtimeKTypeDescriptor(lhs) {
+        return runtimeKTypeDescriptor(rhs) == lhsDescriptor
+    }
+    if runtimeKTypeDescriptor(rhs) != nil {
+        return false
+    }
+    if let lhsClass = runtimeKClassBox(from: lhs.classifierRaw),
+       let rhsClass = runtimeKClassBox(from: rhs.classifierRaw) {
+        return lhsClass.typeToken == rhsClass.typeToken
+    }
+    return lhs.classifierRaw == rhs.classifierRaw
+}
+
+private func runtimeKTypeProjectionEquals(_ lhs: RuntimeKTypeProjectionBox, _ rhs: RuntimeKTypeProjectionBox) -> Bool {
+    guard lhs.variance == rhs.variance else {
+        return false
+    }
+    guard lhs.variance != nil else {
+        return true
+    }
+    return runtimeValuesEqual(lhs.typeRaw, rhs.typeRaw)
+}
+
+private func runtimeKTypeEquals(_ lhs: RuntimeKTypeBox, _ rhs: RuntimeKTypeBox) -> Bool {
+    guard lhs.isMarkedNullable == rhs.isMarkedNullable,
+          runtimeKTypeClassifierEquals(lhs, rhs),
+          lhs.argumentRaws.count == rhs.argumentRaws.count
+    else {
+        return false
+    }
+    for index in lhs.argumentRaws.indices {
+        guard let lhsProjection = runtimeReflectionObject(
+                  from: lhs.argumentRaws[index], as: RuntimeKTypeProjectionBox.self
+              ),
+              let rhsProjection = runtimeReflectionObject(
+                  from: rhs.argumentRaws[index], as: RuntimeKTypeProjectionBox.self
+              ),
+              runtimeKTypeProjectionEquals(lhsProjection, rhsProjection)
+        else {
+            return false
+        }
+    }
+    return true
+}
+
 func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
@@ -933,6 +989,14 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     }
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
+    }
+    if let lhsType = tryCast(lhsPtr, to: RuntimeKTypeBox.self),
+       let rhsType = tryCast(rhsPtr, to: RuntimeKTypeBox.self) {
+        return runtimeKTypeEquals(lhsType, rhsType)
+    }
+    if let lhsProjection = tryCast(lhsPtr, to: RuntimeKTypeProjectionBox.self),
+       let rhsProjection = tryCast(rhsPtr, to: RuntimeKTypeProjectionBox.self) {
+        return runtimeKTypeProjectionEquals(lhsProjection, rhsProjection)
     }
     if let lhsString = tryCast(lhsPtr, to: RuntimeStringBox.self),
        let rhsString = tryCast(rhsPtr, to: RuntimeStringBox.self)

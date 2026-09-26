@@ -1959,9 +1959,44 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
     } else {
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
+    if variance == nil {
+        return runtimeKTypeProjectionStar()
+    }
+    return runtimeKTypeProjectionCreate(typeRaw: typeRaw, variance: variance)
+}
+
+private func runtimeKTypeProjectionCreate(typeRaw: Int, variance: RuntimeKVariance?) -> Int {
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
+}
+
+private func runtimeKTypeProjectionStar() -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.kTypeProjectionStarRaw }) {
+        return cached
+    }
+    registerReflectionRuntimeTypeMetadata()
+    let candidate = registerRuntimeObject(
+        RuntimeKTypeProjectionBox(typeRaw: 0, variance: nil),
+        typeID: kTypeProjectionRuntimeTypeID
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.kTypeProjectionStarRaw {
+            return cached
+        }
+        state.kTypeProjectionStarRaw = candidate
+        return candidate
+    }
+    if winner != candidate {
+        _ = runtimeReleaseObject(candidate)
+    }
+    return winner
+}
+
+/// Returns the canonical star projection used by the companion and `typeOf`.
+@_cdecl("__kk_ktypeprojection_star")
+public func __kk_ktypeprojection_star() -> Int {
+    runtimeKTypeProjectionStar()
 }
 
 /// Creates a KTypeProjection through its public constructor.
@@ -2005,7 +2040,13 @@ public func __kk_ktypeprojection_create_checked(
         return 0
     }
 
-    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, decodedVarianceOrdinal)
+    if varianceIsNull {
+        return runtimeKTypeProjectionCreate(typeRaw: 0, variance: nil)
+    }
+    return runtimeKTypeProjectionCreate(
+        typeRaw: typeRaw,
+        variance: RuntimeKVariance(rawValue: decodedVarianceOrdinal) ?? .invariant
+    )
 }
 
 /// Returns the Kotlin declaration ordinal for a projection's variance, or null.

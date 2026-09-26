@@ -91,6 +91,30 @@ struct RuntimeKTypeReflectionTests {
         #expect(runtimeListBox(from: __kk_ktype_arguments(stringType))?.elements.count == 0)
     }
 
+    @Test func ktypeEqualityAndHashCodeAreStructural() {
+        let firstLong = makeKTypeHandle(name: "kotlin.Long", typeToken: 102)
+        let secondLong = makeKTypeHandle(name: "kotlin.Long", typeToken: 102)
+        let firstList = makeKTypeHandle(
+            name: "kotlin.collections.List",
+            typeToken: 103,
+            arguments: [__kk_ktypeprojection_create(firstLong, 2)]
+        )
+        let secondList = makeKTypeHandle(
+            name: "kotlin.collections.List",
+            typeToken: 103,
+            arguments: [__kk_ktypeprojection_create(secondLong, 2)]
+        )
+        let nullableLong = makeKTypeHandle(name: "kotlin.Long", typeToken: 102, isNullable: true)
+
+        #expect(firstLong != secondLong)
+        #expect(kk_structural_eq(firstLong, secondLong) == 1)
+        #expect(kk_any_hashCode(firstLong, 0) == kk_any_hashCode(secondLong, 0))
+        #expect(kk_structural_eq(firstList, secondList) == 1)
+        #expect(kk_any_hashCode(firstList, 0) == kk_any_hashCode(secondList, 0))
+        #expect(kk_structural_eq(firstLong, nullableLong) == 0)
+        #expect(kk_any_hashCode(firstLong, 0) != firstLong)
+    }
+
     @Test func ktypeToStringRendersGenericArgumentsAndNullability() {
         let stringType = makeKTypeHandle(name: "kotlin.String", typeToken: 10)
         let nullableStringType = makeKTypeHandle(name: "kotlin.String", typeToken: 11, isNullable: true)
