@@ -3846,7 +3846,8 @@
     - `kotlin.text.HexFormat.toString` — fun HexFormat.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.text.HexFormat.upperCase` — val HexFormat.upperCase: Boolean  -- `final val upperCase`
 
-- [~] KSP-1422: kotlin.text.HexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1422: kotlin.text.HexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
+  - 対応 (2026-09-24): `HexFormat.Builder` と bytes/number builder accessors・DSL は `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt` の Kotlin source owner に実装済み。`build()` は public API ではなく、inline factory から使う `@PublishedApi internal` 実装として維持。Golden に val accessor 型チェックを追加し、kotlinc diff で公開 Builder の properties / DSL を確認。Sema Golden、対象 diff、TODO ID、Runtime ABI link validation はすべて PASS。対象は純 Kotlin 実装で bridge / synthetic stub / Runtime ABI 登録は不要。
   - 対象: `kotlin.text.HexFormat.Builder` / receiver `Builder`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/Builder/Builder.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
