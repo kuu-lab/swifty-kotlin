@@ -1,0 +1,33 @@
+symbol fq=__local_0.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicReference<String>
+symbol fq=__local_1.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicReference<String>
+symbol fq=__local_2.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicReference<String>
+symbol fq=golden.sema.atomicReferenceFetchAndUpdate.$0.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceFetchAndUpdate[kind=fun;params=fn{p=String;ret=String}] kind=function vis=public flags=_ sig=recv=_ params=[(String) -> String] ret=String
+symbol fq=golden.sema.atomicReferenceUpdate.$1.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceUpdateAndFetch.$2.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceUpdateAndFetch[kind=fun;params=fn{p=String;ret=String}] kind=function vis=public flags=_ sig=recv=_ params=[(String) -> String] ret=String
+symbol fq=golden.sema.atomicReferenceUpdate[kind=fun;params=fn{p=String;ret=String}] kind=function vis=public flags=_ sig=recv=_ params=[(String) -> String] ret=Unit
+file fstdlib_kotlin_concurrent_atomics_AtomicReference_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicReferenceFetchAndUpdate[kind=fun;params=fn{p=String;ret=String}] fun atomicReferenceFetchAndUpdate sym=golden.sema.atomicReferenceFetchAndUpdate[kind=fun;params=fn{p=String;ret=String}]
+  decl golden.sema.atomicReferenceUpdate[kind=fun;params=fn{p=String;ret=String}] fun atomicReferenceUpdate sym=golden.sema.atomicReferenceUpdate[kind=fun;params=fn{p=String;ret=String}]
+  decl golden.sema.atomicReferenceUpdateAndFetch[kind=fun;params=fn{p=String;ret=String}] fun atomicReferenceUpdateAndFetch sym=golden.sema.atomicReferenceUpdateAndFetch[kind=fun;params=fn{p=String;ret=String}]
+expr e@8:34 string(initial) type=String
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:34] type=kotlin.concurrent.AtomicReference<String> call=kotlin.concurrent.AtomicReference.<init>[kind=ctor;params=T0;gen=1] targs=[String]
+expr e@8:5 localDecl atomic mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.atomic[kind=local]
+expr e@9:12 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@9:34 name(transform) type=(String) -> String ref=golden.sema.atomicReferenceFetchAndUpdate.$0.transform[kind=vparam]
+expr e@9:12#1 memberCall recv=e@9:12 callee=fetchAndUpdate args=[_:e@9:34] type=String call=kotlin.concurrent.atomics.fetchAndUpdate[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[String]
+expr e@9:5 return value=e@9:12#1 type=Nothing
+expr e@13:34 string(initial) type=String
+expr e@13:18 call callee=e@13:18#1 args=[_:e@13:34] type=kotlin.concurrent.AtomicReference<String> call=kotlin.concurrent.AtomicReference.<init>[kind=ctor;params=T0;gen=1] targs=[String]
+expr e@13:5 localDecl atomic mutable=0 type=_ init=e@13:18 type=Unit ref=__local_1.atomic[kind=local]
+expr e@14:5 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_1.atomic[kind=local]
+expr e@14:19 name(transform) type=(String) -> String ref=golden.sema.atomicReferenceUpdate.$1.transform[kind=vparam]
+expr e@14:5#1 memberCall recv=e@14:5 callee=update args=[_:e@14:19] type=Unit call=kotlin.concurrent.atomics.update[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[String]
+expr e@18:34 string(initial) type=String
+expr e@18:18 call callee=e@18:18#1 args=[_:e@18:34] type=kotlin.concurrent.AtomicReference<String> call=kotlin.concurrent.AtomicReference.<init>[kind=ctor;params=T0;gen=1] targs=[String]
+expr e@18:5 localDecl atomic mutable=0 type=_ init=e@18:18 type=Unit ref=__local_2.atomic[kind=local]
+expr e@19:12 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_2.atomic[kind=local]
+expr e@19:34 name(transform) type=(String) -> String ref=golden.sema.atomicReferenceUpdateAndFetch.$2.transform[kind=vparam]
+expr e@19:12#1 memberCall recv=e@19:12 callee=updateAndFetch args=[_:e@19:34] type=String call=kotlin.concurrent.atomics.updateAndFetch[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[String]
+expr e@19:5 return value=e@19:12#1 type=Nothing

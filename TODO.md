@@ -1590,13 +1590,15 @@
     - `kotlin.concurrent.atomics.update` — fun AtomicNativePtr.update(Function1): Unit  -- `final inline fun (kotlin.concurrent.atomics/AtomicNativePtr).kotlin.concurrent.atomics/update(kotlin/Function1<kotlin.native.internal/NativePtr, kotlin.native.internal/NativePtr>)`
     - `kotlin.concurrent.atomics.updateAndFetch` — fun AtomicNativePtr.updateAndFetch(Function1): NativePtr  -- `final inline fun (kotlin.concurrent.atomics/AtomicNativePtr).kotlin.concurrent.atomics/updateAndFetch(kotlin/Function1<kotlin.native.internal/NativePtr, kotlin.native.internal/NativePtr>): kotlin.native.internal/NativePtr`
 
-- [ ] KSP-1107: kotlin.concurrent.atomics.AtomicReference の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1107: kotlin.concurrent.atomics.AtomicReference の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicReference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicReference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_atomics_AtomicReference_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_atomics_AtomicReference_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_atomics_AtomicReference_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠 (2026-09-26): `atomics/AtomicReference/AtomicReference.kt` に `fetchAndUpdate` / `update` / `updateAndFetch` の CAS retry loop を source-backed で追加（`load` + `compareAndExchange` の `===` identity-CAS witness 判定）。receiver は alias 経由で同一 nominal 型となる `kotlin.concurrent.AtomicReference<T>` で綴る（alias receiver 綴りだと bundled stdlib ビルド内で member call の型制約解決が落ちるため。alias-typed `this` への `as` cast は runtime で落ちる既存バグ）。`kotlin.concurrent` 側の同名拡張とは bundled-extension package disambiguation（`preferredBundledStdlibPackage`）で選択。`__kk_*`/`kk_*` bridge・synthetic member・RuntimeABISpec・name-string 特例は対象シンボルに存在せず削除対象なし。Sema golden + SKIP-DIFF diff case 追加済み。
+  - 個別確認（2026-09-26）: `swift build`、Sema golden suite 全体（UPDATE_GOLDEN=1、`CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`、101 batches green）、対象 diff case（`skipped=1, failed=0`、JVM kotlinc に対象拡張が無いため SKIP-DIFF）、kswiftc 直接コンパイル+実行（RefBox 値で fetchAndUpdate/update/updateAndFetch の期待出力）。他 golden スイート・全 diff ケースは未実行（CI）。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.fetchAndUpdate` — fun AtomicReference.fetchAndUpdate(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicReference<#A>).kotlin.concurrent.atomics/fetchAndUpdate(kotlin/Function1<#A, #A>): #A`
     - `kotlin.concurrent.atomics.update` — fun AtomicReference.update(Function1): Unit  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicReference<#A>).kotlin.concurrent.atomics/update(kotlin/Function1<#A, #A>)`
