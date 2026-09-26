@@ -344,6 +344,7 @@ extension TypeCheckHelpers {
         }
     }
 
+
     func compoundAssignToBinaryOp(_ op: CompoundAssignOp) -> BinaryOp {
         switch op {
         case .plusAssign: .add

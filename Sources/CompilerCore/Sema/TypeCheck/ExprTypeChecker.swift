@@ -183,12 +183,17 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            // An unlabeled return in a lambda targets the surrounding named
-            // function. Its value must therefore be inferred against that
-            // function's return type, not the lambda's expected Boolean/result
-            // type (e.g. a predicate passed to an inline HOF).
+            // An unlabeled `return` always targets the enclosing named
+            // function, whether or not it sits inside a lambda -- so its
+            // value must be inferred against *that* function's declared
+            // return type, never the ambient `expectedType` threaded down
+            // through whatever expression happens to syntactically contain
+            // it (a lambda's own expected Boolean/result type, but equally
+            // an elvis/if/when/try branch's expected type propagated in from
+            // an outer assignment: `x = if (c) 1 else return null` inside a
+            // function returning `Int?` must check `return null` against
+            // `Int?`, not `x`'s declared `Int`).
             let returnExpectedType: TypeID? = if label == nil,
-                                                    ctx.lambdaDepth > 0,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType

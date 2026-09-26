@@ -469,6 +469,65 @@ public final class TypeSystem {
         return nil
     }
 
+    /// Infers `subtype`'s own type arguments for a smart cast from a known
+    /// supertype instantiation, when `subtype` was checked for with no
+    /// explicit type arguments (`this is List`, not `this is List<Int>`).
+    ///
+    /// Kotlin's smart cast for this pattern is only sound because `subtype`'s
+    /// declared path to `supertype` passes each of `supertype`'s type
+    /// arguments straight through as one of `subtype`'s own bare type
+    /// parameters (e.g. `List<out E> : Collection<E>`, `Collection<E> :
+    /// Iterable<E>`, so a value known to be `Iterable<T>` that is also a
+    /// `List` must be a `List<T>`, never `List<*>`). This is checked
+    /// structurally: `subtype` is symbolically applied to its own type
+    /// parameters and lifted to `supertype` via `liftedNominalSupertypeArgs`;
+    /// any resulting position that isn't a bare reference back to one of
+    /// `subtype`'s own parameters (e.g. a declared path like `Foo<X> :
+    /// Bar<List<X>>`, which doesn't determine `X` from `Bar`'s argument
+    /// alone) is left unresolved (`.star`), matching today's conservative
+    /// behavior for that parameter.
+    public func narrowedSubtypeArgs(
+        forSubtype subtype: SymbolID,
+        givenSupertype supertype: SymbolID,
+        supertypeArgs: [TypeArg]
+    ) -> [TypeArg]? {
+        let subtypeParams = nominalTypeParameterSymbols(for: subtype)
+        guard !subtypeParams.isEmpty else { return nil }
+        let symbolicArgs: [TypeArg] = subtypeParams.map {
+            .invariant(make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        guard let symbolicSupertypeArgs = liftedNominalSupertypeArgs(
+            from: subtype, childArgs: symbolicArgs, to: supertype
+        ), symbolicSupertypeArgs.count == supertypeArgs.count else {
+            return nil
+        }
+        var resolved: [SymbolID: TypeID] = [:]
+        for (symbolicArg, concreteArg) in zip(symbolicSupertypeArgs, supertypeArgs) {
+            let symbolicType: TypeID?
+            switch symbolicArg {
+            case let .invariant(t), let .out(t), let .in(t): symbolicType = t
+            case .star: symbolicType = nil
+            }
+            guard let symbolicType,
+                  case let .typeParam(tp) = kind(of: symbolicType),
+                  subtypeParams.contains(tp.symbol)
+            else {
+                continue
+            }
+            let concreteType: TypeID?
+            switch concreteArg {
+            case let .invariant(t), let .out(t), let .in(t): concreteType = t
+            case .star: concreteType = nil
+            }
+            guard let concreteType else { continue }
+            resolved[tp.symbol] = concreteType
+        }
+        guard !resolved.isEmpty else { return nil }
+        return subtypeParams.map { symbol in
+            resolved[symbol].map { TypeArg.invariant($0) } ?? .star
+        }
+    }
+
     private func substituteNominalTypeArg(
         _ arg: TypeArg,
         owner: SymbolID,

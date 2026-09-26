@@ -360,29 +360,52 @@ extension LocalDeclTypeChecker {
                     else {
                         continue
                     }
-                    let paramType = sig.parameterTypes[valueParameterIndex]
+                    // The declared `set` signature's value parameter is often
+                    // still the operator's own raw type parameter (e.g. `V` in
+                    // `operator fun <K, V> MutableMap<K, V>.set(key: K, value:
+                    // V)`); substitute the call-site receiver's concrete type
+                    // arguments first so a fully-resolved value type (e.g.
+                    // `(Int) -> Int`) reaches the checks below instead of the
+                    // bare type parameter.
+                    let paramType = driver.callChecker.applyReceiverClassTypeArgs(
+                        to: sig.parameterTypes[valueParameterIndex],
+                        signature: sig,
+                        candidate: candidate,
+                        receiverType: receiverType,
+                        sema: sema
+                    )
                     valueTypes.append(sema.types.makeNonNullable(paramType))
                 }
-                if valueTypes.count == 1 {
-                    return valueTypes[0]
+                if let first = valueTypes.first, valueTypes.dropFirst().allSatisfy({ $0 == first }) {
+                    return first
                 }
             }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
 
-        // Only pass concrete wideable numeric types as the expected type;
-        // generic element types (e.g. MutableMap.set value type T) should
-        // not influence inference of non-literal values.
+        // Pass concrete wideable numeric types or a fully-substituted function
+        // type as the expected type; a still-generic element type (e.g. an
+        // unsubstituted `MutableMap.set` value type `T`) must not influence
+        // inference of non-literal values.
         let valueExpectedType: TypeID? = {
             guard let setValueExpectedType else { return nil }
             let nonNull = sema.types.makeNonNullable(setValueExpectedType)
-            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNull),
-                  primitive == .long || primitive == .uint || primitive == .ulong ||
-                  primitive == .byte || primitive == .short
-            else {
+            switch sema.types.kind(of: nonNull) {
+            case let .primitive(primitive, _):
+                guard primitive == .long || primitive == .uint || primitive == .ulong ||
+                    primitive == .byte || primitive == .short
+                else {
+                    return nil
+                }
+                return nonNull
+            case .functionType:
+                guard !driver.callChecker.typeMentionsTypeParameter(nonNull, sema: sema) else {
+                    return nil
+                }
+                return nonNull
+            default:
                 return nil
             }
-            return nonNull
         }()
 
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
