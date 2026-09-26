@@ -756,14 +756,14 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         let range = kk_long_rangeTo(Int.max, Int.max)
         let list = kk_long_range_toList(range)
         #expect(kk_list_size(list) == 1)
-        #expect(kk_list_get(list, 0) == Int.max)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max)
     }
 
     @Test func boundarySingleton_longMinToMin_toList() {
         let range = kk_long_rangeTo(Int.min, Int.min)
         let list = kk_long_range_toList(range)
         #expect(kk_list_size(list) == 1)
-        #expect(kk_list_get(list, 0) == Int.min)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.min)
     }
 
     @Test func boundarySingleton_intMaxToMax_toListAndSum() {
@@ -779,24 +779,24 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         let progression = __kk_long_progression_fromClosedRange(0, Int.max - 4, Int.max, 2, nil)
         let list = kk_long_range_toList(progression)
         #expect(kk_list_size(list) == 3)
-        #expect(kk_list_get(list, 0) == Int.max - 4)
-        #expect(kk_list_get(list, 2) == Int.max)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max - 4)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.max)
     }
 
     @Test func boundaryEndingProgression_longDescendingToMin() {
         let progression = __kk_long_progression_fromClosedRange(0, Int.min + 4, Int.min, -2, nil)
         let list = kk_long_range_toList(progression)
         #expect(kk_list_size(list) == 3)
-        #expect(kk_list_get(list, 0) == Int.min + 4)
-        #expect(kk_list_get(list, 2) == Int.min)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.min + 4)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.min)
     }
 
     @Test func boundaryEndingRange_reversedToListTerminates() {
         let rev = kk_range_reversed(kk_long_rangeTo(Int.max - 2, Int.max))
         let list = kk_long_range_toList(rev)
         #expect(kk_list_size(list) == 3)
-        #expect(kk_list_get(list, 0) == Int.max)
-        #expect(kk_list_get(list, 2) == Int.max - 2)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.max - 2)
     }
 
     @Test func boundaryReversedTraverse_lastMatchTerminates() {
