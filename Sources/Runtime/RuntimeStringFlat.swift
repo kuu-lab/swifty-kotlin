@@ -3,14 +3,20 @@
 import Foundation
 import RuntimeABI
 
+/// Flat result view of a boxed string handle: shares the box's cached flat
+/// storage so repeated raw→flat bridges of the same value do not accumulate a
+/// fresh buffer per call. Unresolvable handles still flatten to "".
 func runtimeRegisterFlatStringResult(
     _ raw: Int,
     outLength: UnsafeMutablePointer<Int>?,
     outByteCount: UnsafeMutablePointer<Int>?,
     outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatString(
-        runtimeStringFromRaw(raw) ?? "",
+    if let data = kk_string_to_flat(raw, outLength, outByteCount, outHash) {
+        return data
+    }
+    return runtimeRegisterFlatString(
+        "",
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash

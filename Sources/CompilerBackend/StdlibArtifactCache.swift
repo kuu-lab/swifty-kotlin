@@ -42,7 +42,7 @@ public enum StdlibArtifactCache {
 
     private static let artifactFileName = "KSwiftKStdlib.kklib"
     private static let kotlinLanguageVersion = "2.3.10"
-    private static let compilerVersion = "0.1.0"
+    private static let compilerVersion = CompilerBuildInfo.version
 
     /// Resolve a packaged artifact or build one in the user's standard cache.
     public static func resolveOrBuild(target: TargetTriple) throws -> String {

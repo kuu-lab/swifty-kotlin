@@ -157,6 +157,98 @@ read_case_directive_flags() {
         | sed "s/.*${directive}:[[:space:]]*//" | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
+# Build a validated kotlinc argv array from a case's // KOTLINC_FLAGS:
+# directives. Fixtures are untrusted input, so only pure language-feature and
+# diagnostic toggles are allowed. Anything that loads JVM code (-Xplugin,
+# plugin -P, -J), retargets the classpath/module/JDK, reads external files
+# (@argfile, -Xjava-source-roots, ...), or otherwise hijacks the compiler
+# command line is rejected before kotlinc ever runs. On success fills the
+# named array (possibly empty) and returns 0; on rejection prints the
+# offending flag to stderr and returns 1.
+validated_kotlinc_flag_argv() {
+    local case_path="$1"
+    local -n __kotlinc_flags_out="$2"
+    __kotlinc_flags_out=()
+
+    local raw_flags
+    raw_flags="$(read_case_directive_flags "$case_path" 'KOTLINC_FLAGS')"
+    [[ -z "$raw_flags" ]] && return 0
+
+    local -a tokens
+    read -r -a tokens <<<"$raw_flags"
+
+    local i token name
+    for (( i = 0; i < ${#tokens[@]}; i++ )); do
+        token="${tokens[i]}"
+        name="${token%%=*}"
+        case "$name" in
+            # Version options taking a numeric value: -jvm-target 21.
+            -jvm-target|-language-version|-api-version)
+                local value=""
+                if [[ "$token" == *=* ]]; then
+                    value="${token#*=}"
+                else
+                    i=$((i + 1))
+                    value="${tokens[i]:-}"
+                fi
+                if [[ ! "$value" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+                    echo "KOTLINC_FLAGS in $case_path: $name requires a numeric version (got '${value:-<missing>}')" >&2
+                    return 1
+                fi
+                if [[ "$token" == *=* ]]; then
+                    __kotlinc_flags_out+=("$token")
+                else
+                    __kotlinc_flags_out+=("$token" "$value")
+                fi
+                ;;
+            # Language-feature gate: -XXLanguage:+Feature / -XXLanguage:-Feature.
+            -XXLanguage:*)
+                if [[ ! "$token" =~ ^-XXLanguage:[+-][A-Za-z0-9_]+$ ]]; then
+                    echo "KOTLINC_FLAGS in $case_path: malformed -XXLanguage toggle '$token'" >&2
+                    return 1
+                fi
+                __kotlinc_flags_out+=("$token")
+                ;;
+            # Compiler opt-in: -opt-in=kotlin.RequiresOptIn (repeat per name).
+            -opt-in)
+                if [[ "$token" != *=* || ! "${token#*=}" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]]; then
+                    echo "KOTLINC_FLAGS in $case_path: -opt-in requires a single qualified name" >&2
+                    return 1
+                fi
+                __kotlinc_flags_out+=("$token")
+                ;;
+            # Feature/diagnostic toggles; an optional =value may only carry a
+            # scalar mode name, never a path or list.
+            -Xexplicit-backing-fields|-Xreturn-value-checker|-Xcontext-parameters|\
+-Xcontext-receivers|-Xwhen-guards|-Xmulti-dollar-interpolation|\
+-Xnon-local-break-continue|-Xnested-type-aliases|\
+-Xdata-flow-based-exhaustiveness|-Xannotation-target-all-params|\
+-Xexplicit-api-mode|-Xjspecify-annotations|-Xjvm-default|-Xjdk-release|\
+-Xenhance-type-parameter-types-to-def-not-null|-Xlink-via-signatures|\
+-Xsuppress-version-warnings|-Xconsistent-data-class-copy-visibility|\
+-Xtype-enhancement-improvements-strict-mode)
+                if [[ "$token" == *=* && ! "${token#*=}" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+                    echo "KOTLINC_FLAGS in $case_path: invalid value for $name" >&2
+                    return 1
+                fi
+                __kotlinc_flags_out+=("$token")
+                ;;
+            # Warning/progressivity modes.
+            -progressive|-nowarn|-Werror|-Wextra)
+                if [[ "$token" == *=* ]]; then
+                    echo "KOTLINC_FLAGS in $case_path: $name takes no value" >&2
+                    return 1
+                fi
+                __kotlinc_flags_out+=("$token")
+                ;;
+            *)
+                echo "KOTLINC_FLAGS in $case_path: '$token' is not in the allowlist (compiler plugin, classpath, JVM and file-reading options are not permitted)" >&2
+                return 1
+                ;;
+        esac
+    done
+}
+
 # True (exit 0) when a diff test case should be skipped: it carries a
 # // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE directive and $2 (the script's
 # --force-run-skipped flag) is not 1.

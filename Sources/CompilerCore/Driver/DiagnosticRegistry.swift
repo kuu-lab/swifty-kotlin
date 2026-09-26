@@ -871,6 +871,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Codegen phase failed to emit requested artifacts."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PIPELINE-0005",
+            pass: "PIPELINE",
+            defaultSeverity: .error,
+            summary: "Per-file diagnostic limit reached; further diagnostics were suppressed."
+        ),
     ]
 
     // MARK: - Internal compiler error (ICE)

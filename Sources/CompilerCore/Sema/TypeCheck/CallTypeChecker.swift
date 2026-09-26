@@ -1750,11 +1750,17 @@ final class CallTypeChecker {
                         sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
                     }
                 }()
-                if sym.kind == .function || localIsCallableValue || local.type == sema.types.errorType {
+                if sym.kind == .function
+                    || (sym.kind != .class && localIsCallableValue)
+                    || local.type == sema.types.errorType
+                {
                     // Callable local declarations shadow imported and top-level
                     // callables of the same name. Non-callable values do not:
                     // `val emptyList = emptyList<Int>()` must not hide a later
-                    // `emptyList<String>()` call.
+                    // `emptyList<String>()` call. A `.class`-kind local
+                    // (KUU-555 named local class) is likewise not a callable
+                    // value — `Local(...)` must reach its constructor through
+                    // the KSP-CAP-006 merge below.
                     candidates = sym.kind == .function ? [local.symbol] : []
                     resolvedFromLocalShadow = true
                 }

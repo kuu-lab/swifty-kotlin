@@ -8,14 +8,30 @@ import Foundation
 ///   manifest.json       — file fingerprints from the previous build
 ///   deps.json           — dependency graph (symbol ↔ file relationships)
 ///   frontend.json       — reusable AST/interner state for file-level frontend work
+///   integrity.json      — keyed MAC index authenticating every file above
 ///   artifacts/          — final output artifacts keyed by build configuration
 /// ```
+///
+/// The cache is a trust boundary: it is only read after its location and
+/// contents pass `IncrementalCacheTrust` validation, so a cache shipped
+/// inside a workspace or tampered with on disk falls back to a full build
+/// instead of restoring arbitrary outputs.
 public final class IncrementalCompilationCache {
     public let cachePath: String
+
+    /// Root of the managed cache ancestry inside which every directory up to
+    /// `cachePath` must be private. Non-nil only for the compiler-managed
+    /// default location; explicit `--incremental-cache` paths are leaf-checked
+    /// and authenticated by the integrity index instead.
+    private let managedAncestorBase: String?
 
     private var previousFingerprints: [String: FileFingerprint] = [:]
     private var previousBuildConfigurationHash: String?
     private var previousOutputArtifact: CachedOutputArtifact?
+
+    /// Authenticated digests of the cache files, loaded from `integrity.json`.
+    /// Nil until `loadPreviousState` (or `saveState`) authenticates the cache.
+    private var trustedFileDigests: [String: String]?
 
     /// Dependency graph from the *previous* successful compilation.
     /// `nil` means no valid dependency graph was loaded (deps.json missing or corrupt).
@@ -24,8 +40,83 @@ public final class IncrementalCompilationCache {
     /// Fingerprints computed for the *current* compilation inputs.
     private var currentFingerprints: [String: FileFingerprint] = [:]
 
-    public init(cachePath: String) {
-        self.cachePath = cachePath
+    /// Test hook: when set, the compiler-managed default cache root moves to
+    /// this directory instead of the per-user caches directory.
+    nonisolated(unsafe) public static var userCacheRootOverride: String?
+
+    public init(cachePath: String, managedAncestorBase: String? = nil) {
+        self.cachePath = IncrementalCacheTrust.normalize(cachePath)
+        self.managedAncestorBase = managedAncestorBase.map(IncrementalCacheTrust.normalize)
+    }
+
+    // MARK: - Compiler-managed default location
+
+    /// Per-user private cache root for compiler-managed state: the
+    /// `<caches>/kswiftk` directory holding the integrity key and the
+    /// namespaced incremental caches.
+    public static func userPrivateCacheBase(allowOverride: Bool = true) -> String? {
+        if allowOverride, let override = userCacheRootOverride {
+            return IncrementalCacheTrust.normalize(override)
+        }
+        guard let caches = FileManager.default
+            .urls(for: .cachesDirectory, in: .userDomainMask)
+            .first
+        else {
+            return nil
+        }
+        return caches.path + "/kswiftk"
+    }
+
+    /// Directory isolating this workspace and build: namespaced by repository
+    /// identity, compiler build, and the resolved input set so caches from
+    /// other projects or toolchains never collide.
+    public static func defaultCachePath(for options: CompilerOptions) -> String? {
+        userPrivateCacheBase().map { $0 + "/incremental/" + namespace(for: options) }
+    }
+
+    /// Cache for the compiler-managed default location, or nil when no
+    /// per-user caches directory is available (incremental then compiles
+    /// uncached rather than falling back to a workspace directory).
+    public static func makeDefault(for options: CompilerOptions) -> IncrementalCompilationCache? {
+        guard let base = userPrivateCacheBase() else {
+            return nil
+        }
+        return IncrementalCompilationCache(
+            cachePath: base + "/incremental/" + namespace(for: options),
+            managedAncestorBase: base
+        )
+    }
+
+    /// Stable identifier for the cache namespace: repository root (or output
+    /// parent outside a worktree), compiler build, and resolved input paths.
+    public static func namespace(for options: CompilerOptions) -> String {
+        let fm = FileManager.default
+        let outputParent = URL(fileURLWithPath: options.outputPath)
+            .deletingLastPathComponent()
+        let resolvedOutputParent = outputParent.standardized
+            .resolvingSymlinksInPath().path
+        // The worktree root (the directory containing `.git`, which can also
+        // be a file for linked worktrees) is the repository identity; outside
+        // a worktree the output directory itself stands in.
+        var repositoryIdentity = resolvedOutputParent
+        var cursor = resolvedOutputParent
+        while true {
+            if fm.fileExists(atPath: cursor + "/.git") {
+                repositoryIdentity = cursor
+                break
+            }
+            let parent = URL(fileURLWithPath: cursor).deletingLastPathComponent().path
+            if parent == cursor {
+                break
+            }
+            cursor = parent
+        }
+        let resolvedInputs = options.inputs.map {
+            URL(fileURLWithPath: $0).standardized.resolvingSymlinksInPath().path
+        }.sorted()
+        let material = (["kswiftk-incremental-namespace/v1", repositoryIdentity, CompilerBuildInfo.version] + resolvedInputs)
+            .joined(separator: "\n")
+        return FileFingerprint.sha256Hex(Data(material.utf8))
     }
 
     // MARK: - Loading previous state
@@ -33,34 +124,57 @@ public final class IncrementalCompilationCache {
     private static let supportedManifestVersion = 1
 
     /// Loads the manifest and dependency graph from the cache directory.
-    /// If the cache doesn't exist, is corrupt, or has an unsupported version,
+    /// The location must pass trust validation and every file read must match
+    /// the authenticated integrity index; a cache that fails either check —
+    /// including one committed inside a workspace — is ignored so the build
     /// starts fresh.
     public func loadPreviousState() {
         let fm = FileManager.default
-        let manifestPath = cachePath + "/manifest.json"
-        let depsPath = cachePath + "/deps.json"
-
-        if fm.fileExists(atPath: manifestPath),
-           let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath))
-        {
-            let decoder = JSONDecoder()
-            if let manifest = try? decoder.decode(CacheManifest.self, from: data),
-               manifest.version == Self.supportedManifestVersion
-            {
-                for fp in manifest.fingerprints {
-                    previousFingerprints[fp.path] = fp
-                }
-                previousBuildConfigurationHash = manifest.buildConfigurationHash
-                previousOutputArtifact = manifest.outputArtifact
-            }
+        switch IncrementalCacheTrust.validateLocation(
+            cachePath: cachePath,
+            managedAncestorBase: managedAncestorBase
+        ) {
+        case .missing:
+            return
+        case let .untrusted(reason):
+            Self.writeStderr(
+                "[IncrementalCompilationCache] Ignoring untrusted cache at '\(cachePath)': \(reason)\n"
+            )
+            return
+        case .trusted:
+            break
         }
 
-        if fm.fileExists(atPath: depsPath),
-           let data = try? Data(contentsOf: URL(fileURLWithPath: depsPath))
-        {
-            if let graph = try? DependencyGraph.deserialize(from: data) {
-                previousDependencyGraph = graph
+        guard let digests = IncrementalCacheTrust.readIntegrityIndex(cachePath: cachePath) else {
+            if fm.fileExists(atPath: cachePath + "/manifest.json") {
+                Self.writeStderr(
+                    "[IncrementalCompilationCache] Ignoring unauthenticated cache at '\(cachePath)'\n"
+                )
             }
+            return
+        }
+        trustedFileDigests = digests
+
+        if let data = IncrementalCacheTrust.authenticatedFileData(
+            cachePath: cachePath,
+            relativePath: "manifest.json",
+            index: digests
+        ), let manifest = try? JSONDecoder().decode(CacheManifest.self, from: data),
+           manifest.version == Self.supportedManifestVersion
+        {
+            for fp in manifest.fingerprints {
+                previousFingerprints[fp.path] = fp
+            }
+            previousBuildConfigurationHash = manifest.buildConfigurationHash
+            previousOutputArtifact = manifest.outputArtifact
+        }
+
+        if let data = IncrementalCacheTrust.authenticatedFileData(
+            cachePath: cachePath,
+            relativePath: "deps.json",
+            index: digests
+        ), let graph = try? DependencyGraph.deserialize(from: data) {
+            previousDependencyGraph = graph
         }
     }
 
@@ -159,6 +273,18 @@ public final class IncrementalCompilationCache {
             return false
         }
 
+        // Re-verify the artifact bytes against the authenticated index at
+        // restore time so content swapped in after the state load is caught.
+        guard let digests = trustedFileDigests,
+              IncrementalCacheTrust.verifyArtifact(
+                  cachePath: cachePath,
+                  artifact: artifact,
+                  index: digests
+              )
+        else {
+            return false
+        }
+
         var sourceIsDirectory = ObjCBool(false)
         let fm = FileManager.default
         guard fm.fileExists(atPath: sourcePath, isDirectory: &sourceIsDirectory) else {
@@ -236,9 +362,12 @@ public final class IncrementalCompilationCache {
         guard previousBuildConfigurationHash == buildHash else {
             return nil
         }
-        let frontendPath = cachePath + "/frontend.json"
-        guard FileManager.default.fileExists(atPath: frontendPath),
-              let data = try? Data(contentsOf: URL(fileURLWithPath: frontendPath))
+        guard let digests = trustedFileDigests,
+              let data = IncrementalCacheTrust.authenticatedFileData(
+                  cachePath: cachePath,
+                  relativePath: "frontend.json",
+                  index: digests
+              )
         else {
             return nil
         }
@@ -261,11 +390,19 @@ public final class IncrementalCompilationCache {
     ) {
         let fm = FileManager.default
 
-        do {
-            if !fm.fileExists(atPath: cachePath) {
-                try fm.createDirectory(atPath: cachePath, withIntermediateDirectories: true)
-            }
+        // The cache may only ever live in a private, current-user-owned
+        // directory — refuse to write into anything else.
+        guard IncrementalCacheTrust.ensureSecureLocation(
+            cachePath: cachePath,
+            managedAncestorBase: managedAncestorBase
+        ) else {
+            Self.writeStderr(
+                "[IncrementalCompilationCache] Skipping cache save at untrusted location '\(cachePath)'\n"
+            )
+            return
+        }
 
+        do {
             let fingerprints = currentFingerprints.values.sorted(by: { $0.path < $1.path })
             let manifest = CacheManifest(
                 version: 1,
@@ -298,6 +435,16 @@ public final class IncrementalCompilationCache {
             } else {
                 try? fm.removeItem(atPath: cachePath + "/frontend.json")
             }
+
+            // Publish the authenticated index last so the new state is only
+            // trusted once every file on disk matches it.
+            guard let digests = IncrementalCacheTrust.writeIntegrityIndex(cachePath: cachePath) else {
+                Self.writeStderr(
+                    "[IncrementalCompilationCache] Failed to authenticate cache at '\(cachePath)'\n"
+                )
+                return
+            }
+            trustedFileDigests = digests
 
             previousFingerprints = currentFingerprints
             previousBuildConfigurationHash = manifest.buildConfigurationHash
@@ -347,6 +494,12 @@ public final class IncrementalCompilationCache {
                 FileHandle.standardError.write(data)
             }
             return nil
+        }
+    }
+
+    private static func writeStderr(_ message: String) {
+        if let data = message.data(using: .utf8) {
+            FileHandle.standardError.write(data)
         }
     }
 

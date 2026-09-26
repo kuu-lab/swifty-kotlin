@@ -525,11 +525,15 @@ func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
     runtimeStructuredPanicMessage(String(cString: cstr))
 }
 
-private final class RuntimeFlatStringStorage: @unchecked Sendable {
+final class RuntimeFlatStringStorage: @unchecked Sendable {
     let data: UnsafeMutablePointer<UInt8>
     let length: Int
     let byteCount: Int
     let hash: Int
+    /// Canonical boxed handle for this buffer, materialized on the first
+    /// flat→raw bridge so repeated conversions share one registered box.
+    /// Only mutated under the flat-string registry lock.
+    weak var canonicalBox: RuntimeStringBox?
     /// Kotlin UTF-16 code units decoded on first positional access; the flat
     /// bytes never change, so the cache stays valid for the storage's lifetime.
     private var cachedUTF16CodeUnits: [UInt16]?
@@ -567,24 +571,100 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
     }
 }
 
+private struct RuntimeWeakStringBox {
+    weak var box: RuntimeStringBox?
+}
+
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
+    /// Owning registry of runtime-produced flat String buffers. Entries
+    /// retain their storage until `unregister` (the `kk_flat_string_release`
+    /// path) drops them and the buffer is freed.
     private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
+    /// Canonical boxes deduplicating `kk_string_from_flat` on buffers the
+    /// registry does not own (string literals and other foreign pointers).
+    private var foreignBoxByDataPointer: [UInt: RuntimeWeakStringBox] = [:]
 
-    func append(_ entry: RuntimeFlatStringStorage) {
+    func register(_ storage: RuntimeFlatStringStorage, canonicalBox: RuntimeStringBox?) {
         lock.lock()
-        storageByDataPointer[UInt(bitPattern: entry.data)] = entry
+        if let canonicalBox, storage.canonicalBox == nil {
+            storage.canonicalBox = canonicalBox
+        }
+        storageByDataPointer[UInt(bitPattern: storage.data)] = storage
         lock.unlock()
     }
 
     /// Storage whose `data` pointer is `data`, when the flat string was
-    /// produced by this runtime. Registered storages are retained forever, so
-    /// the pointer key stays unique for the process lifetime.
+    /// produced by this runtime and has not been released. The pointer key
+    /// stays unique among registered entries: released storages free their
+    /// buffer and are dropped from the map.
     func storage(for data: UnsafePointer<UInt8>?) -> RuntimeFlatStringStorage? {
         guard let data else { return nil }
         lock.lock()
         defer { lock.unlock() }
         return storageByDataPointer[UInt(bitPattern: data)]
+    }
+
+    /// Drops the storage registered for `data` so its buffer is freed.
+    /// Returns false for foreign or already-released pointers.
+    @discardableResult
+    func unregister(data: UnsafePointer<UInt8>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.removeValue(forKey: UInt(bitPattern: data)) != nil
+    }
+
+    /// Boxed handle that canonically represents `data`. Materializes and
+    /// registers a `RuntimeStringBox` on first use so repeated flat→raw
+    /// bridges of the same buffer share a single box instead of accumulating
+    /// one registered box per call.
+    func canonicalBoxRaw(
+        for data: UnsafePointer<UInt8>,
+        length: Int,
+        byteCount: Int,
+        hash: Int
+    ) -> Int {
+        let key = UInt(bitPattern: data)
+        lock.lock()
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            lock.unlock()
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        lock.unlock()
+
+        let string = runtimeStringFromFlatFields(
+            data: data,
+            length: length,
+            byteCount: byteCount,
+            hash: hash
+        )
+
+        lock.lock()
+        defer { lock.unlock() }
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        // A foreign buffer (literal or transient caller buffer) may reuse its
+        // address for different contents, so a dedup hit is only valid when
+        // the decoded bytes still match the cached box.
+        if let box = foreignBoxByDataPointer[key]?.box, box.value == string {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        let box = RuntimeStringBox(string)
+        let raw = registerRuntimeObject(box)
+        if let storage = storageByDataPointer[key] {
+            storage.canonicalBox = box
+        } else {
+            foreignBoxByDataPointer[key] = RuntimeWeakStringBox(box: box)
+        }
+        return raw
+    }
+
+    /// Number of storages retained by the registry; test support only.
+    var liveStorageCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.count
     }
 }
 
@@ -597,6 +677,11 @@ func runtimeFlatStringRegisteredUTF16CodeUnits(
     data: UnsafePointer<UInt8>?
 ) -> [UInt16]? {
     runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
+}
+
+/// Live storages tracked by the flat-string index; test support only.
+func runtimeFlatStringLiveStorageCountForTesting() -> Int {
+    runtimeFlatStringStorageRegistry.liveStorageCount
 }
 
 func runtimeStringFromFlatFields(
@@ -613,6 +698,17 @@ func runtimeStringFromFlatFields(
     return String(decoding: buffer, as: UTF8.self)
 }
 
+/// Publishes `storage` in the flat-string registry, which retains it until
+/// `kk_flat_string_release` unregisters and frees the buffer. `canonicalBox`
+/// (when already known, e.g. a `RuntimeStringBox` flattening itself) becomes
+/// the handle `kk_string_from_flat` resolves for this buffer.
+func runtimeRegisterFlatStringStorage(
+    _ storage: RuntimeFlatStringStorage,
+    canonicalBox: RuntimeStringBox? = nil
+) {
+    runtimeFlatStringStorageRegistry.register(storage, canonicalBox: canonicalBox)
+}
+
 func runtimeRegisterFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
@@ -620,12 +716,11 @@ func runtimeRegisterFlatString(
     outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let storage = RuntimeFlatStringStorage(value)
+    runtimeRegisterFlatStringStorage(storage)
     outLength?.pointee = storage.length
     outByteCount?.pointee = storage.byteCount
     outHash?.pointee = storage.hash
-    let data = storage.data
-    runtimeFlatStringStorageRegistry.append(storage)
-    return data
+    return storage.data
 }
 
 @_cdecl("kk_string_from_flat")
@@ -635,16 +730,15 @@ public func kk_string_from_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    guard data != nil else {
+    guard let data else {
         return 0
     }
-    let string = runtimeStringFromFlatFields(
-        data: data,
+    return runtimeFlatStringStorageRegistry.canonicalBoxRaw(
+        for: data,
         length: length,
         byteCount: byteCount,
         hash: hash
     )
-    return registerRuntimeObject(RuntimeStringBox(string))
 }
 
 @_cdecl("kk_string_to_flat")
@@ -656,19 +750,34 @@ public func kk_string_to_flat(
 ) -> UnsafeMutablePointer<UInt8>? {
     guard raw != runtimeNullSentinelInt,
           raw != 0,
-          let string = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
+          let box = extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
     else {
         outLength?.pointee = 0
         outByteCount?.pointee = 0
         outHash?.pointee = 0
         return nil
     }
-    return runtimeRegisterFlatString(
-        string,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+    let storage = box.flatStringStorage()
+    outLength?.pointee = storage.length
+    outByteCount?.pointee = storage.byteCount
+    outHash?.pointee = storage.hash
+    return storage.data
+}
+
+/// Releases the retained buffer behind a runtime-produced flat `String`
+/// aggregate: the registry drops the storage and its backing allocation is
+/// freed. The `data` pointer — and every aggregate still carrying it — must
+/// not be used after a successful call.
+///
+/// Returns `1` when a registered storage was dropped, and `0` when `data` is
+/// nil, a string literal or other foreign buffer, or an already-released
+/// buffer, making the call idempotent for stale pointers.
+@_cdecl("kk_flat_string_release")
+public func kk_flat_string_release(_ data: UnsafePointer<UInt8>?) -> Int {
+    guard let data else {
+        return 0
+    }
+    return runtimeFlatStringStorageRegistry.unregister(data: data) ? 1 : 0
 }
 
 @_cdecl("kk_string_from_utf8")
