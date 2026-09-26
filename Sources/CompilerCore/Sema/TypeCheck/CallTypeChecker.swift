@@ -2596,6 +2596,23 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
             }
+            // Nested class member scopes are chained lexically, so a bare
+            // member call can arrive here with a candidate owned by an outer
+            // class. Resolve it against that enclosing receiver's type rather
+            // than the inner class's implicit receiver.
+            // Object-literal outer receivers carry a capture symbol; leave
+            // those to the later implicit-receiver tower so KIR can load
+            // `this@Outer` from the captured field (kuu_544).
+            let callImplicitReceiverType = ctx.outerReceiverTypes.reversed().first { outerReceiver in
+                guard outerReceiver.symbol == nil,
+                      let outerClass = resolveClassType(outerReceiver.type, sema: sema)?.classSymbol
+                else {
+                    return false
+                }
+                return candidates.contains { candidate in
+                    sema.symbols.parentSymbol(for: candidate) == outerClass
+                }
+            }?.type ?? ctx.implicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2604,7 +2621,7 @@ final class CallTypeChecker {
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                implicitReceiverType: ctx.implicitReceiverType,
+                implicitReceiverType: callImplicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
