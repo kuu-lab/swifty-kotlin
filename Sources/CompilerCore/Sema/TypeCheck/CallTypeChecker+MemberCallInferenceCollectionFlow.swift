@@ -2372,6 +2372,55 @@ extension CallTypeChecker {
                     expectedType: destinationExpectedType
                 )
                 var nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
+                let destinationRequiresMutableMap = calleeStr == "associateTo"
+                    || calleeStr == "mapKeysTo"
+                    || calleeStr == "mapValuesTo"
+                    || (isMapReceiver && (calleeStr == "filterTo" || calleeStr == "filterNotTo"))
+                let destinationBoundName = destinationRequiresMutableMap ? "MutableMap" : "MutableCollection"
+                let destinationBoundArity = destinationRequiresMutableMap ? 2 : 1
+                let destinationBoundArguments: [TypeArg] = if case let .classType(destinationClassType) = sema.types.kind(of: nonNullableDestinationType),
+                                                             destinationClassType.args.count >= destinationBoundArity
+                {
+                    destinationClassType.args.prefix(destinationBoundArity).map { argument in
+                        switch argument {
+                        case let .invariant(type), let .out(type), let .in(type): .in(type)
+                        case .star: .in(sema.types.nothingType)
+                        }
+                    }
+                } else {
+                    Array(repeating: .in(sema.types.nothingType), count: destinationBoundArity)
+                }
+                if let destinationBoundSymbol = lookupStdlibSymbol(
+                    destinationBoundName,
+                    symbols: sema.symbols,
+                    interner: interner
+                ) {
+                    let destinationBound = sema.types.make(.classType(ClassType(
+                        classSymbol: destinationBoundSymbol,
+                        args: destinationBoundArguments,
+                        nullability: .nonNull
+                    )))
+                    guard sema.types.isSubtype(nonNullableDestinationType, destinationBound) else {
+                        let actualTypeName = sema.types.displayName(
+                            of: destinationType,
+                            symbols: sema.symbols,
+                            interner: interner
+                        )
+                        let requiredTypeName = sema.types.displayName(
+                            of: destinationBound,
+                            symbols: sema.symbols,
+                            interner: interner
+                        )
+                        ctx.semaCtx.diagnostics.emit(Diagnostic(
+                            severity: .error,
+                            code: "KSWIFTK-TYPE-0001",
+                            message: "Type mismatch: destination has type '\(actualTypeName)', but '\(requiredTypeName)' is required for '\(calleeStr)'.",
+                            primaryRange: ast.arena.exprRange(args[0].expr) ?? range,
+                            secondaryRanges: []
+                        ))
+                        return sema.types.errorType
+                    }
+                }
                 func destinationTypeArgument(at argIndex: Int, minimumArity: Int) -> TypeID {
                     guard case let .classType(destClassType) = sema.types.kind(of: nonNullableDestinationType),
                           destClassType.args.count >= minimumArity,
