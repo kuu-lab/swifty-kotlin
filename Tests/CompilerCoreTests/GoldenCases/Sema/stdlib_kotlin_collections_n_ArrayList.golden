@@ -52,7 +52,7 @@ expr e@14:32 int(2) type=Int
 expr e@14:12#2 binary(equal) lhs=e@14:12#1 rhs=e@14:32 type=Boolean
 expr e@9:12#6 binary(logicalAnd) lhs=e@9:12#5 rhs=e@14:12#2 type=Boolean
 expr e@15:12 name(readonly) type=kotlin.collections.List<Int> ref=__local_5.readonly[kind=local]
-expr e@15:12#1 memberCall recv=e@15:12 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@15:12#1 memberCall recv=e@15:12 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@15:29 int(1) type=Int
 expr e@15:12#2 binary(equal) lhs=e@15:12#1 rhs=e@15:29 type=Boolean
 expr e@9:12#7 binary(logicalAnd) lhs=e@9:12#6 rhs=e@15:12#2 type=Boolean

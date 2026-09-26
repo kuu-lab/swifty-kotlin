@@ -15,7 +15,7 @@ expr e@7:35#1 asCast? expr=e@7:35 type=kotlin.collections.List<*> type=kotlin.co
 expr e@10:9 name(v) type=Any ref=golden.sema.printSizeIfList.$2.v[kind=vparam]
 expr e@10:9#1 isCheck expr=e@10:9 type=kotlin.collections.List<*> type=Boolean
 expr e@11:17 name(v) type=kotlin.collections.List<*> ref=golden.sema.printSizeIfList.$2.v[kind=vparam]
-expr e@11:17#1 memberCall recv=e@11:17 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@11:17#1 memberCall recv=e@11:17 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@11:9 call callee=e@11:9#1 args=[_:e@11:17#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@10:23 blockExpr stmts=[] trailing=e@11:9 type=Unit
 expr e@10:5 if cond=e@10:9#1 then=e@10:23 else=_ type=Unit

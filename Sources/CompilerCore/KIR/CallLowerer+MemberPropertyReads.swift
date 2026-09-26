@@ -959,12 +959,21 @@ extension CallLowerer {
     ) -> Bool {
         guard let property = sema.symbols.symbol(propertySymbol),
               property.name == interner.intern("size"),
-              let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
-              sema.symbols.symbol(ownerID)?.fqName == [
-                  interner.intern("kotlin"),
-                  interner.intern("collections"),
-                  interner.intern("Collection"),
-              ],
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol)
+        else {
+            return false
+        }
+        // `Collection.size` (and, since KSP-1063, the `List.size` redeclaration
+        // that claims the `__kk_collection_size` link) must defer when the
+        // receiver is not a concrete list box: for a user interface extending
+        // List, the direct `__kk_*_size` call would read 0 on Kotlin-defined
+        // implementations instead of dispatching through the interface itable.
+        let ownerFQName = sema.symbols.symbol(ownerID)?.fqName
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let isListFamilySizeOwner = ownerFQName == [kotlin, collections, interner.intern("Collection")]
+            || ownerFQName == [kotlin, collections, interner.intern("List")]
+        guard isListFamilySizeOwner,
               let receiverType = sema.bindings.exprTypes[receiverExpr]
         else {
             return false

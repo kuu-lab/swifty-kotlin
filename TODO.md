@@ -1197,13 +1197,14 @@
     - `kotlin.collections.Iterator.hasNext` — fun Iterator.hasNext(): Boolean  -- `abstract fun hasNext(): kotlin/Boolean`
     - `kotlin.collections.Iterator.next` — fun Iterator.next(): #A  -- `abstract fun next(): #A`
 
-- [ ] KSP-1063: kotlin.collections.List.List の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1063: kotlin.collections.List.List の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.collections.List` / receiver `List`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/List/List.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_List_List_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_List_List_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_List_List_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-09-26）: `List.kt` を `List/List.kt` へ移動し、既存の `get`/`isEmpty`/`listIterator` decls に加えて `size`/`iterator` の source 宣言を追加。`size` は `__kk_collection_size` link、`iterator` は `kk_list_iterator` link を持つ claimable synthetic stub を `registerSyntheticListStub` に残置し、source decl が claim して引き継ぐ（`@KsSymbolName` は property に付けられないため）。`List.iterator` の bundled decl が `Iterable` へ alias されるのを `addListIterableAliases` で抑止し、`Iterable.iterator`（KSP-998 の lazy/thrown-channel stub）の未 claim を維持。`shouldDeferCollectionSizePropertyRead` を List owner に拡張し、`interface X : List` 系 receiver が `__kk_list_size` 直叩きで 0 を返す退行を回避（List 非実装 receiver は `__kk_collection_size` の source-impl fallback へ回す）。対象 Sema Golden shard と Kotlin diff case PASS、runtime 出力は master と同一確認済み。
   - 未実装シンボル一覧:
     - `kotlin.collections.List.get` — fun List.get(Int): #A  -- `abstract fun get(kotlin/Int): #A`
     - `kotlin.collections.List.isEmpty` — fun List.isEmpty(): Boolean  -- `abstract fun isEmpty(): kotlin/Boolean`

@@ -27,7 +27,7 @@ expr e@23:23 call callee=e@23:23#1 args=[] type=golden.sema.IntHolder call=golde
 expr e@23:5 localDecl valueHolder mutable=0 type=_ init=e@23:23 type=Unit ref=__local_1.valueHolder[kind=local]
 expr e@24:13 name(listProvider) type=golden.sema.IntListProvider ref=__local_0.listProvider[kind=local]
 expr e@24:13#1 memberCall recv=e@24:13 callee=items args=[] type=kotlin.collections.List<Int> call=golden.sema.IntListProvider.items[kind=fun;recv=golden.sema.IntListProvider;params=]
-expr e@24:13#2 memberCall recv=e@24:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@24:13#2 memberCall recv=e@24:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@25:13 name(valueHolder) type=golden.sema.IntHolder ref=__local_1.valueHolder[kind=local]
 expr e@25:13#1 memberCall recv=e@25:13 callee=value args=[] type=Int call=golden.sema.IntHolder.value[kind=fun;recv=golden.sema.IntHolder;params=]

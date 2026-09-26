@@ -3,7 +3,7 @@ file fstdlib_kotlin_native_OsFamily_OsFamily_n package=_ annotations=[@file:OptI
   decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
 expr e@6:13 name(OsFamily) type=kotlin.native.OsFamily.Companion ref=kotlin.native.OsFamily[kind=enum]
 expr e@6:13#1 memberCall recv=e@6:13 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.native.OsFamily> ref=kotlin.native.OsFamily.Companion.entries[kind=prop]
-expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@7:13 name(OsFamily) type=kotlin.native.OsFamily ref=kotlin.native.OsFamily[kind=enum]
 expr e@7:13#1 memberCall recv=e@7:13 callee=values args=[] type=kotlin.Array<kotlin.native.OsFamily> ref=kotlin.native.OsFamily.values[kind=fun;params=] call=kotlin.native.OsFamily.values[kind=fun;params=]
