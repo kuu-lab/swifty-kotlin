@@ -41,29 +41,25 @@ import Testing
 //     - kk_debugging_thread_count()
 //     - kk_debugging_global_object_count()
 //
-// SEMA EXPOSED (compile-time stubs, covered by NativeRefRuntimeSemaTests):
+// SEMA EXPOSED (compile-time stubs):
 //   - kotlin.native.ref.WeakReference<T>
 //   - kotlin.native.ref.WeakReference.get()
 //   - kotlin.native.ref.WeakReference.clear()
 //   - kotlin.native.ref.createCleaner(value, block)
-//   - kotlin.native.runtime.GC (source-backed: see GC.kt; full member list
-//     tested by NativeRefRuntimeSemaTests' GC object tests)
+//   - kotlin.native.runtime.GC (source-backed: see GC.kt)
 //   - kotlin.native.runtime.GCInfo
 //   - kotlin.native.runtime.GCInfo.* timing / summary properties
 //   - kotlin.native.runtime.RootSetStatistics
 //   - kotlin.native.runtime.RootSetStatistics.* root count properties
 //   - kotlin.native.runtime.NativeRuntimeApi
 //
-// SOURCE-BACKED (Stdlib/kotlin/native/runtime/Debugging.kt, KSP-1260,
-// covered by NativeDebuggingSourceAPITests):
+// SOURCE-BACKED (Stdlib/kotlin/native/runtime/Debugging.kt, KSP-1260):
 //   - kotlin.native.runtime.Debugging
 //   - kotlin.native.runtime.Debugging.isThreadStateRunnable
 //   - kotlin.native.runtime.Debugging.forceCheckedShutdown
 //   - kotlin.native.runtime.Debugging.dumpMemory(fd)
 //
-// SOURCE-BACKED (Stdlib/kotlin/native/runtime/GCInfo.kt, KSP-1266/1267/1272;
-// MemoryUsage covered by MemoryUsageSourceMigrationTests, SweepStatistics by
-// NativeRefRuntimeSemaTests.testSweepStatisticsConstructorIsSourceBacked):
+// SOURCE-BACKED (Stdlib/kotlin/native/runtime/GCInfo.kt, KSP-1266/1267/1272):
 //   - kotlin.native.runtime.MemoryUsage
 //   - kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes
 //   - kotlin.native.runtime.SweepStatistics
