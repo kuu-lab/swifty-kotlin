@@ -189,7 +189,9 @@ struct CompilerTypesTests {
 
     @Test func testHostDefaultTargetTripleMatchesCompileArchitecture() {
         let host = TargetTriple.hostDefault()
-        #if arch(arm64)
+        #if os(Linux) && arch(arm64)
+            #expect(host.arch == "aarch64")
+        #elseif arch(arm64)
             #expect(host.arch == "arm64")
         #elseif arch(x86_64)
             #expect(host.arch == "x86_64")
