@@ -2594,8 +2594,13 @@ final class CallTypeChecker {
             // member call can arrive here with a candidate owned by an outer
             // class. Resolve it against that enclosing receiver's type rather
             // than the inner class's implicit receiver.
+            // Object-literal outer receivers carry a capture symbol; leave
+            // those to the later implicit-receiver tower so KIR can load
+            // `this@Outer` from the captured field (kuu_544).
             let callImplicitReceiverType = ctx.outerReceiverTypes.reversed().first { outerReceiver in
-                guard let outerClass = resolveClassType(outerReceiver.type, sema: sema)?.classSymbol else {
+                guard outerReceiver.symbol == nil,
+                      let outerClass = resolveClassType(outerReceiver.type, sema: sema)?.classSymbol
+                else {
                     return false
                 }
                 return candidates.contains { candidate in

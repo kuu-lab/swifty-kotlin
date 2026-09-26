@@ -21,5 +21,27 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
             expected: "8\n"
         )
     }
+
+    @Test func unqualifiedOuterMemberCallFromAnonymousObjectUsesCapturedOuterInstance() throws {
+        try assertKotlinOutput(
+            """
+            interface Getter<E> {
+                fun fetch(index: Int): E
+            }
+            class ConstGetter(val value: Int) : Getter<Int> {
+                override fun fetch(index: Int): Int = value + index
+                fun call(): Int {
+                    val result = object : Any() {
+                        fun compute(): Int = fetch(3)
+                    }
+                    return result.compute()
+                }
+            }
+            fun main() = println(ConstGetter(7).call())
+            """,
+            moduleName: "AnonymousObjectOuterReceiverCall",
+            expected: "10\n"
+        )
+    }
 }
 #endif
