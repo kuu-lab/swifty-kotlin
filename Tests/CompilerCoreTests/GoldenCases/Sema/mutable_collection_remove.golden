@@ -36,7 +36,7 @@ file fmutable_collection_remove package=_
   decl minusAssignOverloads[kind=fun;params=kotlin.collections.MutableCollection<Int>,Int] fun minusAssignOverloads sym=minusAssignOverloads[kind=fun;params=kotlin.collections.MutableCollection<Int>,Int]
   decl removeAllOverloads[kind=fun;params=kotlin.collections.MutableCollection<Int>,kotlin.collections.Iterable<Int>,kotlin.sequences.Sequence<Int>,kotlin.Array<Int>,kotlin.collections.Collection<Int>] fun removeAllOverloads sym=removeAllOverloads[kind=fun;params=kotlin.collections.MutableCollection<Int>,kotlin.collections.Iterable<Int>,kotlin.sequences.Sequence<Int>,kotlin.Array<Int>,kotlin.collections.Collection<Int>]
 expr e@5:46 name(values) type=kotlin.collections.List<Int> ref=StableIterable.values[kind=prop]
-expr e@5:46#1 memberCall recv=e@5:46 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.Collection.iterator[kind=fun;recv=kotlin.collections.Collection<T0>;params=;gen=1] targs=[Int]
+expr e@5:46#1 memberCall recv=e@5:46 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.List.iterator[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1] targs=[Int]
 expr e@9:19 name(target) type=kotlin.collections.MutableCollection<Int> ref=removeElement.$3.target[kind=vparam]
 expr e@9:33 name(element) type=Int ref=removeElement.$3.element[kind=vparam]
 expr e@9:19#1 memberCall recv=e@9:19 callee=remove args=[_:e@9:33] type=Boolean call=kotlin.collections.MutableCollection.remove[kind=fun;recv=kotlin.collections.MutableCollection<T0>;params=T0;gen=1] targs=[Int]

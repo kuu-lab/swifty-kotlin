@@ -13,12 +13,24 @@ import kotlin.internal.KsSymbolName
 // source-backed here. The link names stay stable for the built-in list boxes;
 // the corresponding Swift registrations remain only as no-stdlib/precompiled
 // fallbacks.
+// KSP-1063: `size` redeclares the Collection contract; `@KsSymbolName` cannot
+// annotate a property, so its `__kk_collection_size` bridge link is supplied by
+// the claimed synthetic registration in HeaderHelpers+SyntheticListResiduals.swift
+// (the same mechanism Collection.size uses — the Collection-level bridge, not
+// __kk_list_size, so receivers typed as user interfaces extending List keep the
+// source-implementation fallback). `iterator` likewise claims the
+// `kk_list_iterator` residual registration, keeping the same runtime bridge
+// for receivers statically typed as List.
 public interface List<out E> : Collection<E> {
+    public override val size: Int
+
     @KsSymbolName("__kk_list_get")
     public operator fun get(index: Int): E
 
     @KsSymbolName("kk_list_is_empty")
     public override fun isEmpty(): Boolean
+
+    public override fun iterator(): Iterator<E>
 
     @KsSymbolName("kk_list_iterator")
     public fun listIterator(): ListIterator<E>

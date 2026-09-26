@@ -2,9 +2,12 @@ import RuntimeABI
 
 // KSP-697: List and AbstractList nominal declarations are source-backed in the
 // bundled stdlib. KSP-700 moved the indexed/empty/list-iterator contracts to
-// collections/List.kt and collections/MutableList.kt; the Swift registrations
-// below retain only the no-stdlib/precompiled fallback for List.get and the
-// residual HOF registration delegated to the dedicated helper.
+// collections/List/List.kt and collections/MutableList.kt; KSP-1063 added the
+// `size`/`iterator` redeclarations there. The Swift registrations below retain
+// the claimable `size`/`iterator` members (the source decls inherit their
+// runtime links — @KsSymbolName cannot annotate a property), plus the
+// no-stdlib/precompiled fallback for List.get and the residual HOF
+// registration delegated to the dedicated helper.
 
 /// Synthetic List residuals retained after the KSP-700 source migration.
 extension DataFlowSemaPhase {
@@ -71,7 +74,97 @@ extension DataFlowSemaPhase {
             listTypeParamType: listTypeParamType,
             bundledIndex: bundledIndex
         )
+        registerListSizeAndIterator(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            listFQName: listFQName,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            listTypeParamType: listTypeParamType
+        )
         return listInterfaceSymbol
+    }
+
+    /// Register the `size`/`iterator` residual members on `kotlin.collections.List`.
+    /// Unlike `get`, these must NOT be skipped when bundled source declares them:
+    /// the source declarations claim the synthetic symbols (keeping the runtime
+    /// link names) the same way `Collection.size`/`Collection.iterator` do —
+    /// `@KsSymbolName` cannot attach a link to a property, and an unlinked
+    /// source-declared `iterator` would route through virtual itable dispatch
+    /// that built-in runtime list boxes never register for (BUG-166).
+    private func registerListSizeAndIterator(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinCollectionsPkg: [InternedString],
+        listFQName: [InternedString],
+        listInterfaceSymbol: SymbolID,
+        listTypeParamSymbol: SymbolID,
+        listTypeParamType: TypeID
+    ) {
+        // Registered inline because size is a .property, not a function.
+        // The link is the Collection-level bridge, not __kk_list_size:
+        // receivers statically typed List<Int> lower through the
+        // unresolved-collection path to __kk_list_size anyway (they defer past
+        // the external-link shortcut via shouldDeferCollectionSizePropertyRead),
+        // while receivers of a user interface extending List keep the
+        // Collection bridge — which unlike __kk_list_size knows how to reach
+        // Kotlin-defined implementations via runtimeSourceCollectionSize.
+        let sizeName = interner.intern("size")
+        let sizeFQName = listFQName + [sizeName]
+        if symbols.lookup(fqName: sizeFQName) == nil {
+            let sizeSymbol = symbols.define(
+                kind: .property,
+                name: sizeName,
+                fqName: sizeFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: sizeSymbol)
+            symbols.setExternalLinkName("__kk_collection_size", for: sizeSymbol)
+            symbols.setPropertyType(types.intType, for: sizeSymbol)
+        }
+
+        let iteratorFQName = kotlinCollectionsPkg + [interner.intern("Iterator")]
+        let iteratorName = interner.intern("iterator")
+        let iteratorMemberFQName = listFQName + [iteratorName]
+        if symbols.lookup(fqName: iteratorMemberFQName) == nil,
+           let iteratorSymbol = symbols.lookup(fqName: iteratorFQName)
+        {
+            let iteratorReturnType = types.make(.classType(ClassType(
+                classSymbol: iteratorSymbol,
+                args: [.out(listTypeParamType)],
+                nullability: .nonNull
+            )))
+            let listReceiverType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(listTypeParamType)],
+                nullability: .nonNull
+            )))
+            let iteratorMemberSymbol = symbols.define(
+                kind: .function,
+                name: iteratorName,
+                fqName: iteratorMemberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .operatorFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: iteratorMemberSymbol)
+            symbols.setExternalLinkName("kk_list_iterator", for: iteratorMemberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: listReceiverType,
+                    parameterTypes: [],
+                    returnType: iteratorReturnType,
+                    typeParameterSymbols: [listTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: iteratorMemberSymbol
+            )
+        }
     }
 
     /// Register the no-stdlib/precompiled fallback for `List.get`.

@@ -1,5 +1,5 @@
 // KSP-700: `List<E>.get(index)` is now declared in bundled Kotlin source
-// (Stdlib/kotlin/collections/List.kt) as an external member backed by the
+// (Stdlib/kotlin/collections/List/List.kt) as an external member backed by the
 // existing __kk_list_get runtime bridge, instead of Swift-side synthetic Sema
 // registration. Locks observable behavior for indexed access on List and
 // MutableList receivers, including through a generic type parameter.

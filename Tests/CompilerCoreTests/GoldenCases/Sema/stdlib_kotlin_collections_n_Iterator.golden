@@ -11,7 +11,7 @@ file fstdlib_kotlin_collections_n_Iterator package=golden.sema
 expr e@4:25 int(0) type=Int
 expr e@6:39 name(index) type=Int ref=golden.sema.NullableIterator.index[kind=prop]
 expr e@6:47 name(values) type=kotlin.collections.List<String?> ref=golden.sema.NullableIterator.values[kind=prop]
-expr e@6:47#1 memberCall recv=e@6:47 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@6:47#1 memberCall recv=e@6:47 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@6:39#1 binary(lessThan) lhs=e@6:39 rhs=e@6:47#1 type=Boolean
 expr e@9:14 call callee=e@9:14#1 args=[] type=Boolean call=golden.sema.NullableIterator.hasNext[kind=fun;recv=golden.sema.NullableIterator;params=]
 expr e@9:13 unary(not) operand=e@9:14 type=Boolean
