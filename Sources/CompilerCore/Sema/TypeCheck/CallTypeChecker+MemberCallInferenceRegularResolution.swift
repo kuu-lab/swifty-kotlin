@@ -129,9 +129,13 @@ extension CallTypeChecker {
         // implicit-receiver shape: a receiver-typed callee must always
         // supply it positionally as argument 0 (`ef.invoke(5, 6)`, never
         // `ef.invoke(6)`).
+        // A non-safe `x.invoke` on a nullable function value is left for
+        // the existing fallback (KUU-644): `h?.f.invoke(3)` must stay
+        // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
         if calleeName == knownNames.invoke,
            explicitTypeArgs.isEmpty,
-           case .functionType = sema.types.kind(of: lookupReceiverType),
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: lookupReceiverType),
+           invokeFunctionType.nullability != .nullable,
            let result = inferCallableValueInvocation(
                id,
                calleeType: lookupReceiverType,
