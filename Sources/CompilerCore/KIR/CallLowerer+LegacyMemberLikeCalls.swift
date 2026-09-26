@@ -560,7 +560,7 @@ extension CallLowerer {
                         callee: runtimeGetter,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
+                        canThrow: calleeNameStr == "endExclusive",
                         thrownResult: nil
                     ))
                     return result
