@@ -1,0 +1,33 @@
+symbol fq=golden.sema.hashSetReceiverMembers.$0.elements[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hashSetReceiverMembers[kind=fun;params=kotlin.collections.HashSet<String?>,kotlin.collections.Collection<String?>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.HashSet<String?>,kotlin.collections.Collection<String?>] ret=Any?
+file fstdlib_kotlin_collections_HashSet_HashSet_n package=golden.sema
+  decl golden.sema.hashSetReceiverMembers[kind=fun;params=kotlin.collections.HashSet<String?>,kotlin.collections.Collection<String?>] fun hashSetReceiverMembers sym=golden.sema.hashSetReceiverMembers[kind=fun;params=kotlin.collections.HashSet<String?>,kotlin.collections.Collection<String?>]
+expr e@4:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@4:13 string(a) type=String
+expr e@4:5#1 memberCall recv=e@4:5 callee=add args=[_:e@4:13] type=Boolean call=kotlin.collections.HashSet.add[kind=fun;recv=kotlin.collections.HashSet<T0>;params=T0;gen=1]
+expr e@5:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@5:16 name(elements) type=kotlin.collections.Collection<String?> ref=golden.sema.hashSetReceiverMembers.$0.elements[kind=vparam]
+expr e@5:5#1 memberCall recv=e@5:5 callee=addAll args=[_:e@5:16] type=Boolean call=kotlin.collections.HashSet.addAll[kind=fun;recv=kotlin.collections.HashSet<T0>;params=kotlin.collections.Collection<T0>;gen=1]
+expr e@6:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@6:5#1 memberCall recv=e@6:5 callee=clear args=[] type=Unit call=kotlin.collections.HashSet.clear[kind=fun;recv=kotlin.collections.HashSet<T0>;params=;gen=1] targs=[String?]
+expr e@7:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@7:18 string(a) type=String
+expr e@7:5#1 memberCall recv=e@7:5 callee=contains args=[_:e@7:18] type=Boolean call=kotlin.collections.HashSet.contains[kind=fun;recv=kotlin.collections.HashSet<T0>;params=T0;gen=1]
+expr e@8:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@8:5#1 memberCall recv=e@8:5 callee=isEmpty args=[] type=Boolean call=kotlin.collections.HashSet.isEmpty[kind=fun;recv=kotlin.collections.HashSet<T0>;params=;gen=1]
+expr e@9:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@9:5#1 memberCall recv=e@9:5 callee=iterator args=[] type=kotlin.collections.MutableIterator<String?> call=kotlin.collections.HashSet.iterator[kind=fun;recv=kotlin.collections.HashSet<T0>;params=;gen=1] targs=[String?]
+expr e@10:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@10:16 string(a) type=String
+expr e@10:5#1 memberCall recv=e@10:5 callee=remove args=[_:e@10:16] type=Boolean call=kotlin.collections.HashSet.remove[kind=fun;recv=kotlin.collections.HashSet<T0>;params=T0;gen=1] targs=[String?]
+expr e@11:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@11:19 name(elements) type=kotlin.collections.Collection<String?> ref=golden.sema.hashSetReceiverMembers.$0.elements[kind=vparam]
+expr e@11:5#1 memberCall recv=e@11:5 callee=removeAll args=[_:e@11:19] type=Boolean call=kotlin.collections.HashSet.removeAll[kind=fun;recv=kotlin.collections.HashSet<T0>;params=kotlin.collections.Collection<T0>;gen=1]
+expr e@12:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@12:19 name(elements) type=kotlin.collections.Collection<String?> ref=golden.sema.hashSetReceiverMembers.$0.elements[kind=vparam]
+expr e@12:5#1 memberCall recv=e@12:5 callee=retainAll args=[_:e@12:19] type=Boolean call=kotlin.collections.HashSet.retainAll[kind=fun;recv=kotlin.collections.HashSet<T0>;params=kotlin.collections.Collection<T0>;gen=1]
+expr e@13:5 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@13:5#1 memberCall recv=e@13:5 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
+expr e@14:12 name(set) type=kotlin.collections.HashSet<String?> ref=golden.sema.hashSetReceiverMembers.$0.set[kind=vparam]
+expr e@14:5 return value=e@14:12 type=Nothing

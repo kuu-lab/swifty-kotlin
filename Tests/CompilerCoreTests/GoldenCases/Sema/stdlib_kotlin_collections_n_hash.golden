@@ -48,11 +48,11 @@ expr e@10:40#1 memberCall recv=e@10:40 callee=size args=[] type=Int ref=kotlin.c
 expr e@10:13#3 binary(add) lhs=e@10:13#2 rhs=e@10:40#1 type=Int
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#3] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@11:13 name(emptySet) type=kotlin.collections.HashSet<String?> ref=__local_3.emptySet[kind=local]
-expr e@11:13#1 memberCall recv=e@11:13 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@11:13#1 memberCall recv=e@11:13 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@11:29 name(set) type=kotlin.collections.HashSet<String?> ref=__local_4.set[kind=local]
-expr e@11:29#1 memberCall recv=e@11:29 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@11:29#1 memberCall recv=e@11:29 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@11:13#2 binary(add) lhs=e@11:13#1 rhs=e@11:29#1 type=Int
 expr e@11:40 name(spreadSet) type=kotlin.collections.HashSet<String> ref=__local_5.spreadSet[kind=local]
-expr e@11:40#1 memberCall recv=e@11:40 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@11:40#1 memberCall recv=e@11:40 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@11:13#3 binary(add) lhs=e@11:13#2 rhs=e@11:40#1 type=Int
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#3] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

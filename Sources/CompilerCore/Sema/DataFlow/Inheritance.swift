@@ -1120,18 +1120,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // HashSet is source-backed for its nominal surface, while its
-        // iterator/size implementation remains on the shared runtime set
-        // bridge. Do not force the KSP-936 shell to duplicate KSP-1056/1057
-        // collection members just to satisfy the synthetic abstract stub.
-        let hashSetFQName = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("HashSet"),
-        ]
-        if symbolInfo.fqName == hashSetFQName {
-            return
-        }
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.

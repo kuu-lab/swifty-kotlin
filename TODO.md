@@ -1155,7 +1155,8 @@
     - `kotlin.collections.HashSet.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.collections.HashSet.<init>` — constructor (Int, Float)  -- `constructor <init>(kotlin/Int, kotlin/Float)`
 
-- [ ] KSP-1057: kotlin.collections.HashSet.HashSet の未実装 stdlib API を実装する（12 件）
+- [~] KSP-1057: kotlin.collections.HashSet.HashSet の未実装 stdlib API を実装する（12 件）
+  - 実装済み・focused確認（2026-09-26、KUU-671）: `Sources/CompilerCore/Stdlib/kotlin/collections/HashSet.kt` に 12 メンバーを実装（`size`/`isEmpty`/`contains`/`iterator`/`add`/`remove`/`clear`/`addAll`/`removeAll`/`retainAll` は `@KsSymbolName` 付き `override external fun` で既存 `__kk_set_*`/`__kk_mutable_set_*`/`kk_list_iterator` bridge へ直結、`build()` は upstream 同様 `@PublishedApi internal`、`getElement` は upstream の error-level deprecated 注釈付き iterator 実装）。`Inheritance.swift` の HashSet 検証スキップ（KSP-936 シェル用の回避策）を削除。新規 Sema Golden `stdlib_kotlin_collections_HashSet_HashSet_n.kt` を追加し、`stdlib_kotlin_collections_n_HashSet` / `stdlib_kotlin_collections_n_hash` の .golden を HashSet メンバー直接束縛に更新（差分は `AbstractMutableSet.*` → `HashSet.*` の callee 変更のみ）。確認済み: `swift build`、Sema Golden 全件（変更は上記 2 ファイルのみ）、新規 diff ケース + set 関連 11 ケースの kotlinc diff PASS、TODO ID、Runtime ABI link（5件）。全 `swift_test.sh` / 全 diff_cases は共通ゲートとして PR CI に委ねるため `[~]` を維持する。
   - 対象: `kotlin.collections.HashSet` / receiver `HashSet`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/HashSet/HashSet.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
