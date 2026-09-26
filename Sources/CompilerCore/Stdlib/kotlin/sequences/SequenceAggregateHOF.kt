@@ -824,40 +824,6 @@ public fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> Sequence<T>.last(): T {
-    val elements = this.toList()
-    if (elements.size == 0) throw NoSuchElementException("Sequence is empty.")
-    return elements[elements.size - 1]
-}
-
-public fun <T> Sequence<T>.last(predicate: (T) -> Boolean): T {
-    val elements = this.toList()
-    var i = elements.size - 1
-    while (i >= 0) {
-        val element = elements[i]
-        if (predicate(element)) return element
-        i -= 1
-    }
-    throw NoSuchElementException("Sequence contains no element matching the predicate.")
-}
-
-public fun <T> Sequence<T>.lastOrNull(): T? {
-    val elements = this.toList()
-    if (elements.size == 0) return null
-    return elements[elements.size - 1]
-}
-
-public fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
-    val elements = this.toList()
-    var i = elements.size - 1
-    while (i >= 0) {
-        val element = elements[i]
-        if (predicate(element)) return element
-        i -= 1
-    }
-    return null
-}
-
 public fun <T> Sequence<T>.elementAt(index: Int): T {
     val elements = this.toList()
     if (index < 0 || index >= elements.size) {
