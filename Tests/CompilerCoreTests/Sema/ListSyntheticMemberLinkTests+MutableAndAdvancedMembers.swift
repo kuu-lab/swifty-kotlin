@@ -557,6 +557,7 @@ extension ListSyntheticMemberLinkTests {
     func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
+            values[0] = 9
             values.add(1)
             values.add(1, 0)
             values.addAll(listOf(2, 3))
@@ -568,6 +569,10 @@ extension ListSyntheticMemberLinkTests {
             values.removeLast()
             values.removeLastOrNull()
             values.clear()
+            values += 6
+            values += listOf(7)
+            values -= 6
+            values -= listOf(7)
         }
         """
 
@@ -578,14 +583,10 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
+            // KSP-705 residual: addAll keeps a synthetic runtime link until its
+            // own Kotlin migration lands.
             let expectedExternalLinks: [(String, Int, String)] = [
-                ("add", 1, "__kk_mutable_list_add"),
-                ("add", 2, "__kk_mutable_list_add_at"),
                 ("addAll", 1, "__kk_mutable_list_addAll"),
-                ("removeAll", 1, "__kk_mutable_list_removeAll"),
-                ("retainAll", 1, "__kk_mutable_list_retainAll"),
-                ("removeAt", 1, "__kk_mutable_list_removeAt"),
-                ("clear", 0, "__kk_mutable_list_clear"),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
@@ -597,7 +598,16 @@ extension ListSyntheticMemberLinkTests {
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
             }
 
+            // KSP-1503: element add/remove members are bundled MutableList
+            // defaults forwarding to `__kk_mutable_list_*` inside the body, so
+            // the member symbol itself carries no external link.
             let sourceBackedMembers: [(String, Int)] = [
+                ("add", 1),
+                ("add", 2),
+                ("removeAll", 1),
+                ("retainAll", 1),
+                ("removeAt", 1),
+                ("clear", 0),
                 ("removeFirst", 0),
                 ("removeFirstOrNull", 0),
                 ("removeLast", 0),
@@ -676,7 +686,15 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            for memberName in ["addAll", "removeAll", "retainAll"] {
+            // KSP-705 residual: addAll still resolves to a synthetic runtime
+            // extern; removeAll/retainAll are bundled MutableList defaults
+            // since KSP-1503.
+            let expectedExternalLinks: [String: String?] = [
+                "addAll": "__kk_mutable_list_addAll",
+                "removeAll": nil,
+                "retainAll": nil,
+            ]
+            for (memberName, expectedLink) in expectedExternalLinks {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
@@ -690,7 +708,7 @@ extension ListSyntheticMemberLinkTests {
                         ]
                     ))
 
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "__kk_mutable_list_\(memberName)", "Expected \(memberName) to resolve to runtime extern")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == expectedLink, "Expected \(memberName) external link to be \(String(describing: expectedLink))")
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.booleanType, "Expected \(memberName) to return Boolean")
                 #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to remain a scalar Boolean")
             }
@@ -934,10 +952,12 @@ extension ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
 
-            let expectedExternalLinks = [
+            // KSP-705 residual: addAll keeps a synthetic runtime link;
+            // KSP-1503 migrated removeAll/retainAll to bundled defaults.
+            let expectedExternalLinks: [String: String?] = [
                 "addAll": "__kk_mutable_list_addAll",
-                "removeAll": "__kk_mutable_list_removeAll",
-                "retainAll": "__kk_mutable_list_retainAll",
+                "removeAll": nil,
+                "retainAll": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {

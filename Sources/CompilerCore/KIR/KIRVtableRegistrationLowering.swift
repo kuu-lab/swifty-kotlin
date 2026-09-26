@@ -12,6 +12,11 @@ final class KIRNominalDispatchCache {
     /// the `kirFindOverrideMethod` result, or the method itself when no
     /// override exists (both call sites apply that same fallback).
     private var itableImplementationsByNominal: [SymbolID: [SymbolID: SymbolID]] = [:]
+    /// Interface → property-getter slot table, computed once per interface
+    /// instead of once per property read or object registration site.
+    private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
+    /// Interface → property → itable slot, built lazily from the slot table.
+    private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
 
     func vtableImplementations(
         for nominalSymbol: SymbolID,
@@ -69,6 +74,44 @@ final class KIRNominalDispatchCache {
         ) ?? interfaceMethod
         itableImplementationsByNominal[nominalSymbol, default: [:]][interfaceMethod] = resolved
         return resolved
+    }
+
+    func interfacePropertyGetterSlots(
+        for interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [KIRInterfacePropertyGetterSlot] {
+        if let cached = interfacePropertyGetterSlotsByInterface[interfaceSymbol] {
+            return cached
+        }
+        let computed = kirInterfacePropertyGetterSlots(
+            interfaceSymbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        interfacePropertyGetterSlotsByInterface[interfaceSymbol] = computed
+        return computed
+    }
+
+    /// Itable slot of `interfaceProperty`'s getter on `interfaceSymbol`, or nil
+    /// when the property does not participate in itable dispatch.
+    func interfacePropertyGetterSlot(
+        for interfaceProperty: SymbolID,
+        in interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int? {
+        if let map = interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] {
+            return map[interfaceProperty]
+        }
+        var map: [SymbolID: Int] = [:]
+        for slot in interfacePropertyGetterSlots(for: interfaceSymbol, sema: sema, interner: interner) {
+            if let propertySymbol = slot.propertySymbol {
+                map[propertySymbol] = slot.slot
+            }
+        }
+        interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] = map
+        return map[interfaceProperty]
     }
 }
 
@@ -629,6 +672,17 @@ func itableBridgeSymbolForMethod(
     if isStringAggregate(implementationFn.returnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
+    let needsErasedPrimitiveReturnBoxing: Bool = {
+        guard case .typeParam = sema.types.kind(of: interfaceSig.returnType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: implementationFn.returnType)
+        else {
+            return false
+        }
+        return true
+    }()
+    if needsErasedPrimitiveReturnBoxing {
+        needsBridge = true
+    }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
             if isStringAggregate(implType) != isStringAggregate(ifaceType) {
@@ -695,7 +749,23 @@ func itableBridgeSymbolForMethod(
         body.append(.label(continueLabel))
     }
 
-    body.append(.returnValue(callResult))
+    let bridgeResult: KIRExprID
+    if needsErasedPrimitiveReturnBoxing {
+        bridgeResult = boxValueForAnySlot(
+            callResult,
+            sourceType: implementationFn.returnType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: interfaceSig.returnType,
+            requireNonNull: true,
+            into: &body
+        )
+    } else {
+        bridgeResult = callResult
+    }
+    body.append(.returnValue(bridgeResult))
     body.append(.endBlock)
 
     let bridgeDecl = arena.appendDecl(
@@ -932,6 +1002,17 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
 
     // BUG-141: also register interface property getters into the itable.
     appendObjectItablePropertyGetterRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+    // Setter counterpart: register interface property setters into the itable
+    // so a write through an interface-typed receiver can dispatch to them.
+    appendObjectItablePropertySetterRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,

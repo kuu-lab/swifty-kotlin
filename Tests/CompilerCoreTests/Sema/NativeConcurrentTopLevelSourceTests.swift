@@ -74,9 +74,8 @@ struct NativeConcurrentTopLevelSourceTests {
             }
         }
 
-        // DetachedObjectGraph is source-backed by KSP-1235. Its public
-        // constructors remain KSP-1234's separate top-level task, so only the
-        // internal pointer constructor is present here.
+        // DetachedObjectGraph is source-backed by KSP-1235 and its public
+        // constructors are source-backed by KSP-1234.
         let detachedObjectGraphPath = package + ["DetachedObjectGraph"]
         let detachedObjectGraphSymbol = try symbol(detachedObjectGraphPath, in: context)
         let detachedObjectGraphInfo = try #require(sema.symbols.symbol(detachedObjectGraphSymbol))
@@ -87,10 +86,13 @@ struct NativeConcurrentTopLevelSourceTests {
         let detachedConstructors = sema.symbols.lookupAll(
             fqName: detachedObjectGraphPath.map(context.interner.intern) + [context.interner.intern("<init>")]
         )
-        #expect(detachedConstructors.count == 1)
-        if let detachedConstructor = detachedConstructors.first {
-            #expect(sema.symbols.symbol(detachedConstructor)?.visibility == .internal)
+        #expect(detachedConstructors.count == 3)
+        let detachedConstructorVisibilities = detachedConstructors.compactMap {
+            sema.symbols.symbol($0)?.visibility
         }
+        #expect(detachedConstructorVisibilities.count == 3)
+        #expect(detachedConstructorVisibilities.filter { $0 == .internal }.count == 1)
+        #expect(detachedConstructorVisibilities.filter { $0 == .public }.count == 2)
 
         // FreezableAtomicReference is already source-backed (KSP-1236) with a
         // value-taking constructor; it is intentionally not a synthetic anchor.

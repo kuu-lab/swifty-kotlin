@@ -32,11 +32,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -83,11 +83,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
             let fn1 = symbols.allSymbols().first { interner.resolve($0.name) == "fn1" }
             let fn2 = symbols.allSymbols().first { interner.resolve($0.name) == "fn2" }
@@ -111,11 +111,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
             let fn1 = symbols.allSymbols().first { interner.resolve($0.name) == "fn1" }
@@ -166,11 +166,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -225,11 +225,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 

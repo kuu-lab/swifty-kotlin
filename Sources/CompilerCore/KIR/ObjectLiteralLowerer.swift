@@ -730,6 +730,20 @@ final class ObjectLiteralLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     allDecls: &allDecls
                 )
+            } else if propertyDecl.isVar {
+                // Setter counterpart of the stored getter accessor above: a
+                // plain `var` (no custom setter body) still needs a real
+                // setter accessor function registered so a write through an
+                // interface-typed receiver can dispatch to this object
+                // literal's own storage, the same way its getter already does.
+                driver.memberLowerer.synthesizeStoredPropertySetterAccessor(
+                    propertySymbol: propertySymbol,
+                    ownerSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
             }
         }
         for declID in allDecls {

@@ -34,17 +34,19 @@ public func __kk_uint_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
 
 @_cdecl("__kk_uint_range_iterator")
 public func __kk_uint_range_iterator(_ rangeRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: rangeRaw) != nil { return rangeRaw }
-    guard let range = runtimeRangeBox(from: rangeRaw) else { return 0 }
+    let object = resolveRuntimeObjectHandle(rangeRaw)
+    if object is RuntimeIteratorBuilderBox { return rangeRaw }
+    guard let range = object as? RuntimeRangeBox else { return 0 }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
 @_cdecl("__kk_uint_range_hasNext")
 public func __kk_uint_range_hasNext(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return __kk_iterator_builder_hasNext(iterRaw) }
-    guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else { return 0 }
+    let object = resolveRuntimeObjectHandle(iterRaw)
+    if object is RuntimeIteratorBuilderBox { return __kk_iterator_builder_hasNext(iterRaw) }
+    guard let iterator = object as? RuntimeRangeIteratorBox else { return 0 }
     let current = UInt(bitPattern: iterator.current)
     let last = UInt(bitPattern: iterator.last)
     if iterator.step > 0 { return current <= last ? 1 : 0 }
@@ -54,20 +56,21 @@ public func __kk_uint_range_hasNext(_ iterRaw: Int) -> Int {
 
 @_cdecl("__kk_uint_range_next")
 public func __kk_uint_range_next(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return __kk_iterator_builder_next(iterRaw) }
-    guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else { return 0 }
+    let object = resolveRuntimeObjectHandle(iterRaw)
+    if object is RuntimeIteratorBuilderBox { return __kk_iterator_builder_next(iterRaw) }
+    guard let iterator = object as? RuntimeRangeIteratorBox else { return 0 }
     let current = iterator.current
     let uCurrent = UInt(bitPattern: current)
     if iterator.step > 0 {
         let uStep = UInt(bitPattern: iterator.step)
         let (next, overflow) = uCurrent.addingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     } else if iterator.step < 0 {
         let uStep = UInt(iterator.step.magnitude)
         let (next, overflow) = uCurrent.subtractingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     }
     return current
 }
@@ -448,30 +451,4 @@ private func runtimeUnsignedStep(_ rangeRaw: Int, _ stepValue: Int) -> Int {
         step: nextStep,
         kind: range.kind.progressionKind
     ))
-}
-
-private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeRangeIteratorBox.self)
-}
-
-private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeIteratorBuilderBox.self)
 }
