@@ -982,7 +982,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
                 state.objectPointers.contains(UInt(bitPattern: ptr))
             }
             guard isRegistered else { continue }
-            let anyObject = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+            // Primitive box handles are tagged (kk_box_*); ARC reads need the
+            // base object pointer.
+            let basePtr = runtimePrimitiveBoxBasePointer(from: raw) ?? ptr
+            let anyObject = Unmanaged<AnyObject>.fromOpaque(basePtr).takeUnretainedValue()
             if let provider = anyObject as? RuntimeChildReferenceProviding {
                 for child in provider.childRefs where child != 0 {
                     let childKey = UInt(bitPattern: child)

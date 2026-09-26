@@ -590,7 +590,10 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
         }
     }
     for pointer in pointers {
-        Unmanaged<AnyObject>.fromOpaque(pointer).release()
+        // Primitive box handles registered under tagged bits need the base
+        // object pointer for ARC release.
+        let base = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: pointer)) ?? pointer
+        Unmanaged<AnyObject>.fromOpaque(base).release()
     }
 }
 

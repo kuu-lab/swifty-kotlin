@@ -53,7 +53,10 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     let key = UInt(bitPattern: pointer)
     removeRuntimeObjectMetadata(forObjectKey: key)
     runtimeForgetFrozenObject(rawValue)
-    Unmanaged<AnyObject>.fromOpaque(pointer).release()
+    // Primitive box handles are tagged (kk_box_* / registerTaggedPrimitiveBox):
+    // the registry key is the tagged bits, but ARC release needs the base object.
+    let basePointer = runtimePrimitiveBoxBasePointer(from: rawValue) ?? pointer
+    Unmanaged<AnyObject>.fromOpaque(basePointer).release()
     return true
 }
 
