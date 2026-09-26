@@ -125,6 +125,35 @@ public inline fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
     return single
 }
 
+// KSP-1341: Sequence element-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract: elementAt* reads at most index + 1 elements
+// instead of materializing the sequence.
+public fun <T> Sequence<T>.elementAt(index: Int): T {
+    return elementAtOrElse(index) { throw IndexOutOfBoundsException("Sequence doesn't contain element at index $index.") }
+}
+
+public fun <T> Sequence<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+    if (index < 0) return defaultValue(index)
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return defaultValue(index)
+}
+
+public fun <T> Sequence<T>.elementAtOrNull(index: Int): T? {
+    if (index < 0) return null
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return null
+}
+
 // KSP-1355: Sequence reduce-family APIs are source-backed with the Kotlin 2.3.10
 // terminal traversal contract. The accumulator may widen to a supertype of the
 // element type (`<S, T : S>`), matching the Iterable declarations.
