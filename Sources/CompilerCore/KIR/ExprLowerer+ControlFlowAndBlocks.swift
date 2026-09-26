@@ -269,6 +269,39 @@ extension ExprLowerer {
                 let resultType = boundType ?? sema.types.anyType
                 let result = arena.appendTemporary(type: resultType
                 )
+                // Enum entry body functions use the enum value itself as
+                // their implicit receiver. Its runtime representation is the
+                // entry ordinal, so the synthetic Enum.name property cannot
+                // be read as an ordinary stored property on that receiver.
+                // Route it through the same enum-name rewrite used for
+                // explicit receiver reads; ordinal is already the boxed
+                // receiver's integer payload.
+                if (memberStr == "name" || memberStr == "ordinal"),
+                   let (_, receiverClass) = resolveClassTypeSymbol(
+                       nonNullReceiverType,
+                       sema: sema
+                   ),
+                   receiverClass.kind == .enumClass
+                {
+                    if memberStr == "ordinal" {
+                        emitNonThrowingCall(
+                            callee: interner.intern("kk_unbox_int"),
+                            arg: receiverExprID,
+                            result: result,
+                            into: &instructions
+                        )
+                    } else {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: memberName,
+                            arguments: [receiverExprID],
+                            result: result,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    return result
+                }
                 // String properties
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
