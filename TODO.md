@@ -1077,7 +1077,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMap.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1032: kotlin.collections.AbstractMap.AbstractMap の未実装 stdlib API を実装する（10 件）
+- [~] KSP-1032: kotlin.collections.AbstractMap.AbstractMap の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.collections.AbstractMap` / receiver `AbstractMap`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMap/AbstractMap.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1095,6 +1095,7 @@
     - `kotlin.collections.AbstractMap.size` — val AbstractMap.size: Int  -- `open val size`
     - `kotlin.collections.AbstractMap.toString` — fun AbstractMap.toString(): String  -- `open fun toString(): kotlin/String`
     - `kotlin.collections.AbstractMap.values` — val AbstractMap.values: Collection  -- `open val values`
+  - 2026-09-26 完了: 監査エントリは stale（audit 2026-08-16 生成、KSP-928 #6153 が 2026-09-05 に `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMap.kt` を追加済み）。10 シンボルは既に source-backed 実装済みで canonical signature も一致（監査側 `open` は実装側 `override` と等価 — interface メンバの override は暗黙 open）。`__kk_*`/`kk_*` bridge、Synthetic stub、RuntimeABISpec エントリ、name-string 特例は対象シンボルに存在しない（`__kk_map_entries` は equals が外部 Map 実装と比較する共有 bridge、`__kk_map_*` は Map 実現用の既存 export として維持）。Sema golden と diff case を追加した。
 
 - [ ] KSP-1045: kotlin.collections.ArrayList top-level の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections.ArrayList` / top-level
