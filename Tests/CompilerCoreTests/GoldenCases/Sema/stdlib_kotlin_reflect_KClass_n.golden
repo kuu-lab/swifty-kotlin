@@ -1,0 +1,26 @@
+symbol fq=golden.sema.Binding[kind=anno] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.Box[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.castVia.$0.T[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.castVia.$0.klass[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.castVia.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.castVia[kind=fun;params=kclass{T0},Any?;gen=1] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.castVia.$0.T>,Any?] ret=golden.sema.castVia.$0.T bounds=[Any]
+symbol fq=golden.sema.findBinding.$1.kclass[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.findBinding[kind=fun;params=kotlin.reflect.KClass<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KClass<*>] ret=Any?
+symbol fq=golden.sema.safeCastVia.$2.T[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia.$2.klass[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia.$2.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;gen=1] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.safeCastVia.$2.T>,Any?] ret=golden.sema.safeCastVia.$2.T? bounds=[Any]
+file fstdlib_kotlin_reflect_KClass_n package=golden.sema
+  decl golden.sema.Binding[kind=anno] class Binding sym=golden.sema.Binding[kind=anno]
+  decl golden.sema.Box[kind=class] class Box sym=golden.sema.Box[kind=class]
+  decl golden.sema.castVia[kind=fun;params=kclass{T0},Any?;gen=1] fun castVia sym=golden.sema.castVia[kind=fun;params=kclass{T0},Any?;gen=1]
+  decl golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;gen=1] fun safeCastVia sym=golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;gen=1]
+  decl golden.sema.findBinding[kind=fun;params=kotlin.reflect.KClass<*>] fun findBinding sym=golden.sema.findBinding[kind=fun;params=kotlin.reflect.KClass<*>]
+expr e@14:59 name(klass) type=KClass<golden.sema.castVia.$0.T> ref=golden.sema.castVia.$0.klass[kind=vparam]
+expr e@14:70 name(value) type=Any? ref=golden.sema.castVia.$0.value[kind=vparam]
+expr e@14:59#1 memberCall recv=e@14:59 callee=cast args=[_:e@14:70] type=golden.sema.castVia.$0.T call=kotlin.reflect.cast[kind=fun;recv=kclass{T0};params=Any?;gen=1] targs=[golden.sema.castVia.$0.T]
+expr e@16:64 name(klass) type=KClass<golden.sema.safeCastVia.$2.T> ref=golden.sema.safeCastVia.$2.klass[kind=vparam]
+expr e@16:79 name(value) type=Any? ref=golden.sema.safeCastVia.$2.value[kind=vparam]
+expr e@16:64#1 memberCall recv=e@16:64 callee=safeCast args=[_:e@16:79] type=golden.sema.safeCastVia.$2.T? call=kotlin.reflect.safeCast[kind=fun;recv=kclass{T0};params=Any?;gen=1] targs=[golden.sema.safeCastVia.$2.T]
+expr e@19:44 name(kclass) type=kotlin.reflect.KClass<*> ref=golden.sema.findBinding.$1.kclass[kind=vparam]
+expr e@19:44#1 memberCall recv=e@19:44 callee=findAssociatedObject args=[] type=Any? call=kotlin.reflect.findAssociatedObject[kind=fun;recv=kotlin.reflect.KClass<*>;params=;gen=1] targs=[golden.sema.Binding]
