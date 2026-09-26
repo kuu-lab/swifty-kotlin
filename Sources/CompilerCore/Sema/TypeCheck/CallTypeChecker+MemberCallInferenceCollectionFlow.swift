@@ -2197,6 +2197,118 @@ extension CallTypeChecker {
                 }
             }
 
+            /// KSP-1359: bind the bundled monomorphic `Sequence<E>.sum()`
+            /// overload whose receiver element type matches the actual
+            /// receiver's element type, and return its declared return type
+            /// (Double/Float/Long/UInt/ULong sibling of `Sequence<Int>.sum()`).
+            /// The Sequence counterpart of `bindBundledIterableSumSource`,
+            /// which cannot be reused here because it only scans the
+            /// kotlin.collections Iterable-family declarations.
+            func bindBundledSequenceSumSource() -> TypeID? {
+                guard isSequenceReceiver, args.isEmpty else {
+                    return nil
+                }
+                let sourcePackages: [[InternedString]] = [
+                    [interner.intern("kotlin"), interner.intern("sequences")],
+                    [interner.intern("kotlin"), interner.intern("collections")],
+                ]
+                for packageFQName in sourcePackages {
+                    if let chosen = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).first(where: { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              sema.symbols.isSourceBackedSymbol(candidate),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              signature.parameterTypes.isEmpty,
+                              let signatureReceiver = signature.receiverType
+                        else {
+                            return false
+                        }
+                        return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                            && sequenceSourceReceiverElementMatches(
+                                signature,
+                                actualElementType: collectionElementType
+                            )
+                    }) {
+                        sema.bindings.bindCall(id, binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: [],
+                            parameterMapping: [:]
+                        ))
+                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+                        return sema.symbols.functionSignature(for: chosen)?.returnType
+                    }
+                }
+                return nil
+            }
+
+            /// KSP-1359: select and bind the bundled generic
+            /// `<T> Sequence<T>.sumOf(selector)` overload whose selector return
+            /// type equals `selectorReturnType`, substituting each candidate's
+            /// `T` for the concrete element type first (its signature stores
+            /// the unsubstituted type parameter). The Sequence counterpart of
+            /// `bindIterableSumOfSourceForSelectorType`: without a
+            /// selector-type-aware match, the first arity-compatible overload
+            /// would capture every selector type (upstream exposes exactly the
+            /// Int/Long/Double/UInt/ULong family).
+            func bindSequenceSumOfSourceForSelectorType(
+                selectorReturnType: TypeID
+            ) -> TypeID? {
+                let sourcePackages: [[InternedString]] = [
+                    [interner.intern("kotlin"), interner.intern("sequences")],
+                    [interner.intern("kotlin"), interner.intern("collections")],
+                ]
+                for packageFQName in sourcePackages {
+                    if let chosen = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).first(where: { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              sema.symbols.isSourceBackedSymbol(candidate),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              signature.parameterTypes.count == 1,
+                              let signatureReceiver = signature.receiverType,
+                              receiverClassifier.isSequenceLikeType(signatureReceiver),
+                              !signature.typeParameterSymbols.isEmpty
+                        else {
+                            return false
+                        }
+                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let substitution: [TypeVarID: TypeID] = [TypeVarID(rawValue: 0): collectionElementType]
+                        let substitutedReceiver = sema.types.substituteTypeParameters(
+                            in: signatureReceiver,
+                            substitution: substitution,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
+                        guard extractIterableOrSequenceElementType(
+                            substitutedReceiver,
+                            sema: sema,
+                            interner: interner
+                        ) == collectionElementType else {
+                            return false
+                        }
+                        let substitutedParam = sema.types.substituteTypeParameters(
+                            in: signature.parameterTypes[0],
+                            substitution: substitution,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
+                        guard case let .functionType(selectorType) = sema.types.kind(of: substitutedParam),
+                              selectorType.params.count == 1,
+                              selectorType.params[0] == collectionElementType
+                        else {
+                            return false
+                        }
+                        return selectorType.returnType == selectorReturnType
+                    }) {
+                        sema.bindings.bindCall(id, binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: [collectionElementType],
+                            parameterMapping: [0: 0]
+                        ))
+                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+                        return sema.symbols.functionSignature(for: chosen)?.returnType
+                    }
+                }
+                return nil
+            }
+
             // KSP-441: Source-backed Sequence transforms (map/filter/etc.) live in
             // kotlin.sequences as top-level extensions. Prefer them over the synthetic
             // runtime stubs so the object-expression pipeline runs.
@@ -3097,7 +3209,14 @@ extension CallTypeChecker {
                             resultType = sema.types.anyType
                         }
                     case "sum":
-                        resultType = bindBundledIterableSumSource() ?? sema.types.intType
+                        // KSP-1359: a Sequence receiver binds the bundled
+                        // monomorphic Sequence<E>.sum() overload matching its
+                        // element type, and the call's result is that
+                        // overload's declared return type (UInt/ULong included)
+                        // rather than the historical hard-wired Int.
+                        resultType = (isSequenceReceiver
+                            ? bindBundledSequenceSumSource()
+                            : bindBundledIterableSumSource()) ?? sema.types.intType
                     case "average":
                         resultType = sema.types.doubleType
                     case "reversed", "asReversed":
@@ -5032,15 +5151,19 @@ extension CallTypeChecker {
                 }
                 let isListSumOf = calleeStr == "sumOf"
                     && (receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver)
+                // KSP-1359: a Sequence receiver's sumOf selector is likewise
+                // inferred against Any so its concrete return type can pick the
+                // matching bundled overload below.
+                let isSequenceSumOf = calleeStr == "sumOf" && isSequenceReceiver
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: isListSumOf ? sema.types.anyType : sema.types.intType
+                    returnType: (isListSumOf || isSequenceSumOf) ? sema.types.anyType : sema.types.intType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                let selectorType = isListSumOf
+                let selectorType = (isListSumOf || isSequenceSumOf)
                     ? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
                     : sema.types.intType
                 // BUG-256 sibling: List<T>.sumOf only has Int/Long/Double
@@ -5055,30 +5178,71 @@ extension CallTypeChecker {
                 let selectorHasIterableSumOfOverload = supportedListSumOfType
                     || selectorType == sema.types.uintType
                     || selectorType == sema.types.ulongType
-                resultType = isListSumOf && selectorHasIterableSumOfOverload
-                    ? selectorType
-                    : sema.types.intType
-                if isListSumOf,
-                   selectorHasIterableSumOfOverload,
-                   case .lambdaLiteral = ast.arena.expr(args[0].expr)
-                {
-                    // The temporary Any return type above supplies the lambda's
-                    // input type while its body is inferred. Restore the
-                    // concrete selector type before KIR lowering so the closure
-                    // ABI remains raw for primitive results such as Double.
-                    sema.bindings.bindExprType(
-                        args[0].expr,
-                        type: sema.types.make(.functionType(FunctionType(
-                            params: [collectionElementType],
-                            returnType: selectorType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    )
-                }
                 if isSequenceReceiver {
-                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                    if calleeStr == "sumOf" {
+                        // KSP-1359: bind the bundled Sequence<T>.sumOf overload
+                        // matching the inferred selector return type
+                        // (Int/Long/Double/UInt/ULong). An unsupported selector
+                        // type has no viable overload upstream and must not
+                        // fall through to the first-arity-match binder.
+                        guard let sequenceSumOfType = bindSequenceSumOfSourceForSelectorType(
+                            selectorReturnType: selectorType
+                        ) else {
+                            ctx.semaCtx.diagnostics.error(
+                                "KSWIFTK-SEMA-0024",
+                                "No viable overload found for call.",
+                                range: ast.arena.exprRange(id)
+                            )
+                            let failedType = safeCall
+                                ? sema.types.makeNullable(sema.types.errorType)
+                                : sema.types.errorType
+                            sema.bindings.bindExprType(id, type: failedType)
+                            return failedType
+                        }
+                        resultType = sequenceSumOfType
+                        if case .lambdaLiteral = ast.arena.expr(args[0].expr) {
+                            // Same lambda-type restoration as the List branch:
+                            // the boxed selector's result ABI must match the
+                            // bound overload's primitive return type.
+                            sema.bindings.bindExprType(
+                                args[0].expr,
+                                type: sema.types.make(.functionType(FunctionType(
+                                    params: [collectionElementType],
+                                    returnType: selectorType,
+                                    isSuspend: false,
+                                    nullability: .nonNull
+                                )))
+                            )
+                        }
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                        }
+                    } else {
+                        resultType = sema.types.intType
+                        sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                    }
                 } else {
+                    resultType = isListSumOf && selectorHasIterableSumOfOverload
+                        ? selectorType
+                        : sema.types.intType
+                    if isListSumOf,
+                       selectorHasIterableSumOfOverload,
+                       case .lambdaLiteral = ast.arena.expr(args[0].expr)
+                    {
+                        // The temporary Any return type above supplies the lambda's
+                        // input type while its body is inferred. Restore the
+                        // concrete selector type before KIR lowering so the closure
+                        // ABI remains raw for primitive results such as Double.
+                        sema.bindings.bindExprType(
+                            args[0].expr,
+                            type: sema.types.make(.functionType(FunctionType(
+                                params: [collectionElementType],
+                                returnType: selectorType,
+                                isSuspend: false,
+                                nullability: .nonNull
+                            )))
+                        )
+                    }
                     var didBindSource = calleeStr == "sumOf"
                         ? bindBundledListSourceFunction(
                             typeArguments: [collectionElementType],

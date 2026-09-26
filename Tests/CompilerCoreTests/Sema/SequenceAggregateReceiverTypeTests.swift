@@ -9,10 +9,11 @@ struct SequenceAggregateReceiverTypeTests {
     @Test
     func unsupportedNumericSequenceAggregatesProduceDiagnostics() throws {
         let source = """
-        fun doubleSum(values: Sequence<Double>): Double = values.sum()
-        fun floatSum(values: Sequence<Float>): Float = values.sum()
-        fun longSum(values: Sequence<Long>): Long = values.sum()
+        fun byteSum(values: Sequence<Byte>): Int = values.sum()
+        fun shortSum(values: Sequence<Short>): Int = values.sum()
         fun doubleAverage(values: Sequence<Double>): Double = values.average()
+        fun floatAverage(values: Sequence<Float>): Float = values.average()
+        fun badSumOfSelector(values: Sequence<String>): String = values.sumOf { it }
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
@@ -21,7 +22,7 @@ struct SequenceAggregateReceiverTypeTests {
             $0.code == "KSWIFTK-SEMA-0024"
         }
         #expect(
-            diagnostics.count == 4,
+            diagnostics.count == 5,
             "Expected one unresolved aggregate diagnostic per unsupported call, got \(ctx.diagnostics.diagnostics)"
         )
 
@@ -31,12 +32,12 @@ struct SequenceAggregateReceiverTypeTests {
             ctx.sourceManager.origin(of: $0) == .user
         })
         let calls = memberCalls(
-            named: ["sum", "average"],
+            named: ["sum", "average", "sumOf"],
             in: ast,
             interner: ctx.interner,
             userFileID: userFileID
         )
-        #expect(calls.count == 4, "Expected four user Sequence aggregate calls, got \(calls)")
+        #expect(calls.count == 5, "Expected five user Sequence aggregate calls, got \(calls)")
         #expect(calls.allSatisfy { sema.bindings.callBinding(for: $0) == nil })
     }
 
@@ -87,6 +88,62 @@ struct SequenceAggregateReceiverTypeTests {
             case .star: nil
             }
             #expect(receiverElement == sema.types.intType)
+        }
+    }
+
+    /// KSP-1359: every monomorphic Sequence sum() overload and the three
+    /// sumOf selector-return-type overloads resolve to bundled Kotlin source
+    /// declarations, each with its declared return type.
+    @Test
+    func sequenceSumFamilyBindsSourceOverloadsWithDeclaredReturnTypes() throws {
+        let source = """
+        fun doubleSum(values: Sequence<Double>): Double = values.sum()
+        fun floatSum(values: Sequence<Float>): Float = values.sum()
+        fun longSum(values: Sequence<Long>): Long = values.sum()
+        fun ubyteSum(values: Sequence<UByte>): UInt = values.sum()
+        fun ushortSum(values: Sequence<UShort>): UInt = values.sum()
+        fun uintSum(values: Sequence<UInt>): UInt = values.sum()
+        fun ulongSum(values: Sequence<ULong>): ULong = values.sum()
+        fun sumOfLong(values: Sequence<String>): Long = values.sumOf { it.length.toLong() }
+        fun sumOfUInt(values: Sequence<String>): UInt = values.sumOf { it.length.toUInt() }
+        fun sumOfULong(values: Sequence<String>): ULong = values.sumOf { it.length.toULong() }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected the Sequence sum-family to resolve, got \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let calls = memberCalls(
+            named: ["sum", "sumOf"],
+            in: ast,
+            interner: ctx.interner,
+            userFileID: userFileID
+        )
+        #expect(calls.count == 10, "Expected ten user Sequence sum-family calls, got \(calls)")
+
+        let expectedReturns: [TypeID] = [
+            sema.types.doubleType,
+            sema.types.floatType,
+            sema.types.longType,
+            sema.types.uintType,
+            sema.types.uintType,
+            sema.types.uintType,
+            sema.types.ulongType,
+            sema.types.longType,
+            sema.types.uintType,
+            sema.types.ulongType
+        ]
+        for (callID, expectedReturn) in zip(calls, expectedReturns) {
+            let binding = try #require(sema.bindings.callBinding(for: callID))
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+
+            let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+            #expect(signature.returnType == expectedReturn)
         }
     }
 }
