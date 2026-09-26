@@ -12,7 +12,7 @@ import Testing
 //   4. Named-capture-group access chains produce no sema errors and lower to KIR
 //   5. toRegex() String extension lowers to __kk_string_toRegex_flat
 //   6. String.split(Regex) and String.contains(Regex) lower to the correct KIR callees
-//   7. Regex.replace with lambda lowers to __kk_regex_replace_lambda
+//   7. Regex.replace with lambda resolves to the bundled source implementation
 //   8. Regex.fromLiteral (companion) lowers to __kk_regex_from_literal_flat in KIR
 //
 // Scope: sema resolution + KIR lowering only. No runtime edits.
@@ -382,7 +382,7 @@ struct RegexSemaLoweringTests {
 
     // MARK: - 3. Method dispatch for each Regex member
 
-    @Test func testMatchesBindingResolvesToKkRegexMatches() throws {
+    @Test func testMatchesBindingResolvesToBundledSource() throws {
         let (ctx, paths) = try sharedSema()
         let path = paths[5]
             let ast = try #require(ctx.ast)
@@ -396,10 +396,11 @@ struct RegexSemaLoweringTests {
                 "Expected .matches(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat")
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
-    @Test func testFindAllBindingResolvesToKkRegexFindAll() throws {
+    @Test func testFindAllBindingResolvesToBundledSource() throws {
         let (ctx, paths) = try sharedSema()
         let path = paths[6]
             let ast = try #require(ctx.ast)
@@ -413,10 +414,11 @@ struct RegexSemaLoweringTests {
                 "Expected .findAll(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_findAll_flat")
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
-    @Test func testReplaceWithLambdaBindingResolvesToKkRegexReplaceLambda() throws {
+    @Test func testReplaceWithLambdaBindingResolvesToBundledSource() throws {
         let (ctx, paths) = try sharedSema()
         let path = paths[7]
             let ast = try #require(ctx.ast)
@@ -435,9 +437,8 @@ struct RegexSemaLoweringTests {
                 "Expected .replace(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_replace_lambda"
-            )
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
     // MARK: - 4. Named capture group access chain
@@ -506,52 +507,52 @@ struct RegexSemaLoweringTests {
 
     // MARK: - 6. KIR lowering: member calls emit correct KIR callees
 
-    @Test func testRegexMatchesLowersToKkRegexMatches() throws {
+    @Test func testRegexMatchesLowersToBundledSource() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase3", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_matches_flat"), Comment(rawValue: "KIR must contain kk_regex_matches; found: \(callees)"))
+        #expect(callees.contains("matches"), Comment(rawValue: "KIR must call bundled Regex.matches; found: \(callees)"))
     }
 
-    @Test func testRegexContainsMatchInLowersToKkRegexContainsMatchIn() throws {
+    @Test func testRegexContainsMatchInLowersToBundledSource() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase4", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_containsMatchIn_flat"), Comment(rawValue: "KIR must contain kk_regex_containsMatchIn; found: \(callees)"))
+        #expect(callees.contains("containsMatchIn"), Comment(rawValue: "KIR must call bundled Regex.containsMatchIn; found: \(callees)"))
     }
 
-    @Test func testRegexFindLowersToKkRegexFind() throws {
+    @Test func testRegexFindLowersToBundledSource() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase5", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_find_flat"), Comment(rawValue: "KIR must contain kk_regex_find; found: \(callees)"))
+        #expect(callees.contains("find"), Comment(rawValue: "KIR must call bundled Regex.find overload; found: \(callees)"))
     }
 
-    @Test func testRegexFindAllLowersToKkRegexFindAll() throws {
+    @Test func testRegexFindAllLowersToBundledSource() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase6", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_findAll_flat"), Comment(rawValue: "KIR must contain kk_regex_findAll; found: \(callees)"))
+        #expect(callees.contains("findAll"), Comment(rawValue: "KIR must call bundled Regex.findAll overload; found: \(callees)"))
     }
 
-    @Test func testRegexMatchEntireLowersToKkRegexMatchEntire() throws {
+    @Test func testRegexMatchEntireLowersToBundledSource() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase7", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_matchEntire_flat"), Comment(rawValue: "KIR must contain kk_regex_matchEntire; found: \(callees)"))
+        #expect(callees.contains("matchEntire"), Comment(rawValue: "KIR must call bundled Regex.matchEntire; found: \(callees)"))
     }
 
-    @Test func testRegexReplaceWithLambdaLowersToKkRegexReplaceLambda() throws {
+    @Test func testRegexReplaceWithLambdaLowersToBundledSource() throws {
         let ctx = try sharedRegexKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase8", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_replace_lambda"), Comment(rawValue: "KIR must contain __kk_regex_replace_lambda; found: \(callees)"))
+        #expect(callees.contains("replace"), Comment(rawValue: "KIR must call bundled Regex.replace; found: \(callees)"))
     }
 
     // MARK: - 7. KIR lowering: String.toRegex()
