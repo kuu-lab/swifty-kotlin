@@ -107,6 +107,22 @@ func runtimeRangeHashCode(_ range: RuntimeRangeBox) -> Int {
     return Int(hash)
 }
 
+func runtimeRangeToString(_ range: RuntimeRangeBox) -> String {
+    let first = range.kind.usesUnsignedValues
+        ? String(UInt(bitPattern: range.first))
+        : String(range.first)
+    let last = range.kind.usesUnsignedValues
+        ? String(UInt(bitPattern: range.last))
+        : String(range.last)
+    guard range.kind.isProgression else {
+        return "\(first)..\(last)"
+    }
+    if range.step > 0 {
+        return "\(first)..\(last) step \(range.step)"
+    }
+    return "\(first) downTo \(last) step \(range.step.magnitude)"
+}
+
 func runtimeRangesEqual(_ lhs: RuntimeRangeBox, _ rhs: RuntimeRangeBox) -> Bool {
     guard lhs.kind == rhs.kind else {
         return false

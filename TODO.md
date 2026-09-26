@@ -2809,7 +2809,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.ULongProgression.Companion` — object kotlin.ranges.ULongProgression.Companion  -- `final object Companion {`
 
-- [ ] KSP-1318: kotlin.ranges.ULongProgression.ULongProgression の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1318: kotlin.ranges.ULongProgression.ULongProgression の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.ULongProgression` / receiver `ULongProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongProgression/ULongProgression.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2823,6 +2823,7 @@
     - `kotlin.ranges.ULongProgression.last` — val ULongProgression.last: ULong  -- `final val last`
     - `kotlin.ranges.ULongProgression.step` — val ULongProgression.step: Long  -- `final val step`
     - `kotlin.ranges.ULongProgression.toString` — fun ULongProgression.toString(): String  -- `open fun toString(): kotlin/String`
+  - 完了根拠: `ULongProgression/ULongProgression.kt` を追加し、`equals`/`first`/`hashCode`/`last`/`step`/`toString` を Kotlin source-backed に移行。`iterator` も標準ライブラリのメンバーとして移し、旧 extension を削除。`ULongProgression` と `ULongRange` の synthetic `step` 型を `Long` に揃え、ULong の負 step membership を修正。実体は `RuntimeRangeBox` のため、`equals`/`hashCode`/`toString`/`iterator` は既存 value semantics / iterator ABI に lower し、vtable を呼ばない。
 
 - [ ] KSP-1319: kotlin.ranges.ULongProgression.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.ULongProgression.Companion` / receiver `Companion`

@@ -212,15 +212,21 @@ func resolveClassOwnToStringCallee(
         guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
         }
-        // HashSet is source-backed for its nominal API, but its runtime
-        // representation is a RuntimeSetBox without a Kotlin vtable/heap-object
-        // identity. Fall back to the generic Any-fallback tag path below
-        // (kk_any_to_string -> runtimeElementToString), which already knows
-        // how to render a RuntimeSetBox, instead of dispatching through a
-        // vtable the receiver does not have (KSWIFTK-RUNTIME-0001 vtable
-        // lookup panic).
+        // HashSet, ULongRange, and ULongProgression are source-backed for
+        // their nominal APIs, but their runtime representations do not carry
+        // Kotlin vtables. Fall back to the generic Any path, whose runtime
+        // formatter understands these boxes.
         let knownNames = KnownCompilerNames(interner: interner)
-        guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName else {
+        let isRuntimeBackedULongRange = ["ULongRange", "ULongProgression"].contains { name in
+            classSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern(name),
+            ]
+        }
+        guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName,
+              !isRuntimeBackedULongRange
+        else {
             return nil
         }
         toStringSymbolID = resolveClassToStringSymbol(

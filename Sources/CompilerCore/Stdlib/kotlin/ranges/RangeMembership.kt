@@ -100,16 +100,17 @@ private fun containsUInt(value: UInt, first: UInt, last: UInt, step: Int): Boole
     return diff % step.toUInt() == 0u
 }
 
-private fun containsULong(value: ULong, first: ULong, last: ULong, step: Int): Boolean {
-    if (step > 0) {
+private fun containsULong(value: ULong, first: ULong, last: ULong, step: Long): Boolean {
+    if (step > 0L) {
         if (value < first || value > last) return false
-    } else if (step < 0) {
+    } else if (step < 0L) {
         if (value > first || value < last) return false
     } else {
         return false
     }
     val diff = if (value >= first) value - first else first - value
-    return diff % step.toULong() == 0uL
+    val unsignedStep = if (step > 0L) step.toULong() else (-step).toULong()
+    return diff % unsignedStep == 0uL
 }
 
 @KsSymbolName("__kk_range_contains")

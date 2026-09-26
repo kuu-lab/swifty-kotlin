@@ -1,0 +1,87 @@
+symbol fq=__local_0.positive[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongProgression
+symbol fq=__local_1.samePositive[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongProgression
+symbol fq=__local_2.negative[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongProgression
+symbol fq=__local_3.emptyPositive[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongProgression
+symbol fq=__local_4.emptyNegative[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongProgression
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_ranges_ULongProgression_ULongProgression_n package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@2:20 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression[kind=class]
+expr e@2:53 ulong(2) type=ULong
+expr e@2:58 ulong(11) type=ULong
+expr e@2:64 long(3) type=Long
+expr e@2:20#1 memberCall recv=e@2:20 callee=fromClosedRange args=[_:e@2:53,_:e@2:58,_:e@2:64] type=kotlin.ranges.ULongProgression call=kotlin.ranges.fromClosedRange[kind=fun;recv=kotlin.ranges.ULongProgression.Companion;params=ULong,ULong,Long]
+expr e@2:5 localDecl positive mutable=0 type=_ init=e@2:20#1 type=Unit ref=__local_0.positive[kind=local]
+expr e@3:24 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression[kind=class]
+expr e@3:57 ulong(2) type=ULong
+expr e@3:62 ulong(11) type=ULong
+expr e@3:68 long(3) type=Long
+expr e@3:24#1 memberCall recv=e@3:24 callee=fromClosedRange args=[_:e@3:57,_:e@3:62,_:e@3:68] type=kotlin.ranges.ULongProgression call=kotlin.ranges.fromClosedRange[kind=fun;recv=kotlin.ranges.ULongProgression.Companion;params=ULong,ULong,Long]
+expr e@3:5 localDecl samePositive mutable=0 type=_ init=e@3:24#1 type=Unit ref=__local_1.samePositive[kind=local]
+expr e@4:20 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression[kind=class]
+expr e@4:53 ulong(10) type=ULong
+expr e@4:59 ulong(0) type=ULong
+expr e@4:65 long(3) type=Long
+expr e@4:64 unary(unaryMinus) operand=e@4:65 type=Long
+expr e@4:20#1 memberCall recv=e@4:20 callee=fromClosedRange args=[_:e@4:53,_:e@4:59,_:e@4:64] type=kotlin.ranges.ULongProgression call=kotlin.ranges.fromClosedRange[kind=fun;recv=kotlin.ranges.ULongProgression.Companion;params=ULong,ULong,Long]
+expr e@4:5 localDecl negative mutable=0 type=_ init=e@4:20#1 type=Unit ref=__local_2.negative[kind=local]
+expr e@5:25 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression[kind=class]
+expr e@5:58 ulong(5) type=ULong
+expr e@5:63 ulong(1) type=ULong
+expr e@5:68 long(1) type=Long
+expr e@5:25#1 memberCall recv=e@5:25 callee=fromClosedRange args=[_:e@5:58,_:e@5:63,_:e@5:68] type=kotlin.ranges.ULongProgression call=kotlin.ranges.fromClosedRange[kind=fun;recv=kotlin.ranges.ULongProgression.Companion;params=ULong,ULong,Long]
+expr e@5:5 localDecl emptyPositive mutable=0 type=_ init=e@5:25#1 type=Unit ref=__local_3.emptyPositive[kind=local]
+expr e@6:25 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression[kind=class]
+expr e@6:58 ulong(1) type=ULong
+expr e@6:63 ulong(5) type=ULong
+expr e@6:69 long(1) type=Long
+expr e@6:68 unary(unaryMinus) operand=e@6:69 type=Long
+expr e@6:25#1 memberCall recv=e@6:25 callee=fromClosedRange args=[_:e@6:58,_:e@6:63,_:e@6:68] type=kotlin.ranges.ULongProgression call=kotlin.ranges.fromClosedRange[kind=fun;recv=kotlin.ranges.ULongProgression.Companion;params=ULong,ULong,Long]
+expr e@6:5 localDecl emptyNegative mutable=0 type=_ init=e@6:25#1 type=Unit ref=__local_4.emptyNegative[kind=local]
+expr e@8:25 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@8:25#1 memberCall recv=e@8:25 callee=first args=[] type=ULong ref=kotlin.ranges.ULongProgression.first[kind=prop]
+expr e@8:43 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@8:43#1 memberCall recv=e@8:43 callee=last args=[] type=ULong ref=kotlin.ranges.ULongProgression.last[kind=prop]
+expr e@8:60 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@8:60#1 memberCall recv=e@8:60 callee=step args=[] type=Long ref=kotlin.ranges.ULongProgression.step[kind=prop]
+expr e@8:13 stringTemplate[lit(positive=),expr(e@8:25#1),lit(,),expr(e@8:43#1),lit(,),expr(e@8:60#1)] type=String
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@9:25 name(negative) type=kotlin.ranges.ULongProgression ref=__local_2.negative[kind=local]
+expr e@9:25#1 memberCall recv=e@9:25 callee=first args=[] type=ULong ref=kotlin.ranges.ULongProgression.first[kind=prop]
+expr e@9:43 name(negative) type=kotlin.ranges.ULongProgression ref=__local_2.negative[kind=local]
+expr e@9:43#1 memberCall recv=e@9:43 callee=last args=[] type=ULong ref=kotlin.ranges.ULongProgression.last[kind=prop]
+expr e@9:60 name(negative) type=kotlin.ranges.ULongProgression ref=__local_2.negative[kind=local]
+expr e@9:60#1 memberCall recv=e@9:60 callee=step args=[] type=Long ref=kotlin.ranges.ULongProgression.step[kind=prop]
+expr e@9:13 stringTemplate[lit(negative=),expr(e@9:25#1),lit(,),expr(e@9:43#1),lit(,),expr(e@9:60#1)] type=String
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@10:21 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@10:37 name(samePositive) type=kotlin.ranges.ULongProgression ref=__local_1.samePositive[kind=local]
+expr e@10:21#1 memberCall recv=e@10:21 callee=equals args=[_:e@10:37] type=Boolean call=kotlin.ranges.ULongProgression.equals[kind=fun;recv=kotlin.ranges.ULongProgression;params=Any?]
+expr e@10:54 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@10:54#1 memberCall recv=e@10:54 callee=hashCode args=[] type=Int call=kotlin.ranges.ULongProgression.hashCode[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@10:77 name(samePositive) type=kotlin.ranges.ULongProgression ref=__local_1.samePositive[kind=local]
+expr e@10:77#1 memberCall recv=e@10:77 callee=hashCode args=[] type=Int call=kotlin.ranges.ULongProgression.hashCode[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@10:54#2 binary(equal) lhs=e@10:54#1 rhs=e@10:77#1 type=Boolean
+expr e@10:13 stringTemplate[lit(same=),expr(e@10:21#1),lit(,),expr(e@10:54#2)] type=String
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@11:22 name(emptyPositive) type=kotlin.ranges.ULongProgression ref=__local_3.emptyPositive[kind=local]
+expr e@11:39 name(emptyNegative) type=kotlin.ranges.ULongProgression ref=__local_4.emptyNegative[kind=local]
+expr e@11:22#1 binary(equal) lhs=e@11:22 rhs=e@11:39 type=Boolean call=kotlin.ranges.ULongProgression.equals[kind=fun;recv=kotlin.ranges.ULongProgression;params=Any?]
+expr e@11:56 name(emptyPositive) type=kotlin.ranges.ULongProgression ref=__local_3.emptyPositive[kind=local]
+expr e@11:56#1 memberCall recv=e@11:56 callee=hashCode args=[] type=Int call=kotlin.ranges.ULongProgression.hashCode[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@11:84 name(emptyNegative) type=kotlin.ranges.ULongProgression ref=__local_4.emptyNegative[kind=local]
+expr e@11:84#1 memberCall recv=e@11:84 callee=hashCode args=[] type=Int call=kotlin.ranges.ULongProgression.hashCode[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@11:13 stringTemplate[lit(empty=),expr(e@11:22#1),lit(,),expr(e@11:56#1),lit(,),expr(e@11:84#1)] type=String
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@12:21 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@12:21#1 memberCall recv=e@12:21 callee=toString args=[] type=String call=kotlin.ranges.ULongProgression.toString[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@12:44 name(negative) type=kotlin.ranges.ULongProgression ref=__local_2.negative[kind=local]
+expr e@12:44#1 memberCall recv=e@12:44 callee=toString args=[] type=String call=kotlin.ranges.ULongProgression.toString[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@12:13 stringTemplate[lit(text=),expr(e@12:21#1),lit(,),expr(e@12:44#1)] type=String
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@13:21 name(positive) type=kotlin.ranges.ULongProgression ref=__local_0.positive[kind=local]
+expr e@13:21#1 memberCall recv=e@13:21 callee=iterator args=[] type=kotlin.collections.Iterator<ULong> call=kotlin.ranges.iterator[kind=fun;recv=kotlin.ranges.ULongProgression;params=]
+expr e@13:21#2 memberCall recv=e@13:21#1 callee=asSequence args=[] type=kotlin.sequences.Sequence<ULong> call=kotlin.sequences.asSequence[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[ULong]
+expr e@13:21#3 memberCall recv=e@13:21#2 callee=toList args=[] type=kotlin.collections.List<ULong> call=kotlin.sequences.toList[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] targs=[ULong]
+expr e@13:13 stringTemplate[lit(iter=),expr(e@13:21#3)] type=String
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
