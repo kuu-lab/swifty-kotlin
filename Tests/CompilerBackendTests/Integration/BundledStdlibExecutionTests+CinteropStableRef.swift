@@ -29,11 +29,12 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// Unlike `Pinned<T>` (a plain membership set), the same target object may
-    /// be wrapped by several independent StableRef handles at once — disposing
-    /// one must not unpin a sibling handle to the same object. This is the
-    /// reason `kk_stable_ref_create`/`_dispose` refcount per target instead of
-    /// reusing Pinned<T>'s set-based kk_pin_object/kk_unpin_object.
+    /// The same target object may be wrapped by several independent StableRef
+    /// handles at once — disposing one must not unpin a sibling handle to the
+    /// same object. This is why `kk_stable_ref_create`/`_dispose` keep their
+    /// own per-target refcount (`stableRefCounts`) rather than reusing
+    /// `Pinned<T>`'s `pinnedObjectCounts`, whose counts are driven by
+    /// per-handle `RuntimePinnedBox` unpins.
     @Test
     func testIndependentStableRefsToSameObjectSurviveSiblingDispose() throws {
         try compileAndRunKotlin(

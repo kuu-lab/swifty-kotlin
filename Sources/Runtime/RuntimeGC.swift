@@ -34,10 +34,15 @@ struct GCState {
     var frameMaps: [UInt32: [Int32]] = [:]
     var activeFrames: [ActiveFrameRecord] = []
     var coroutineRoots: Set<UInt> = []
-    var pinnedObjects: Set<UInt> = []
+    /// Per-target refcount for `kotlin.native.ref.Pinned<T>` (kk_pin_object/
+    /// kk_unpin_object). Every pin call returns an independent `RuntimePinnedBox`
+    /// handle, so the same target may be pinned by several handles at once;
+    /// the GC root must survive until the last handle unpins. A plain
+    /// membership set would let one handle's unpin drop the root while a
+    /// sibling pin is still held, leaving it dangling into freed memory.
+    var pinnedObjectCounts: [UInt: Int] = [:]
     /// Per-target refcount for `kotlinx.cinterop.StableRef` (kk_stable_ref_create/
-    /// _dispose). Unlike `pinnedObjects` (a plain membership set backing
-    /// `Pinned<T>`), the same target object may be wrapped by several
+    /// _dispose). The same target object may be wrapped by several
     /// independent StableRef handles at once — see kk_stable_ref_create.
     var stableRefCounts: [UInt: Int] = [:]
 }
@@ -507,7 +512,7 @@ func kk_runtime_reset_gc() {
         state.frameMaps.removeAll(keepingCapacity: false)
         state.activeFrames.removeAll(keepingCapacity: false)
         state.coroutineRoots.removeAll(keepingCapacity: false)
-        state.pinnedObjects.removeAll(keepingCapacity: false)
+        state.pinnedObjectCounts.removeAll(keepingCapacity: false)
         state.stableRefCounts.removeAll(keepingCapacity: false)
     }
     runtimeGCTuningState.reset()
@@ -668,7 +673,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
         worklist.append(ptr)
     }
 
-    for pinned in state.pinnedObjects {
+    for pinned in state.pinnedObjectCounts.keys {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: pinned) else {
             continue
         }
