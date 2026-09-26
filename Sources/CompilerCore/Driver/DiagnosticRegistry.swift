@@ -571,6 +571,24 @@ enum DiagnosticRegistry {
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-CYCLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cyclic supertype reference detected during nominal layout synthesis."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-DEPTH",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Inheritance chain exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-COUNT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Nominal type count exceeds the supported maximum."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0171",
             pass: "SEMA",
             defaultSeverity: .error,
