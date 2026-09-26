@@ -384,11 +384,24 @@ final class AtomicRefBox {
         kkrt_atomic_word_exchange(storage, new)
     }
 
-    /// Kotlin `AtomicReference` CAS uses reference identity, so raw handles
-    /// are compared rather than their structural values.
+    /// CAS matching `runtimeAtomicRefValuesMatch` so value-type words that
+    /// marshal differently across the erased-T boundary (bare primitive vs
+    /// fresh box, re-materialized string handle) still compare equal, while
+    /// real object references keep pointer identity. On success the caller's
+    /// `expect` word is returned rather than the stored word: the Kotlin-level
+    /// `compareAndSet` is `compareAndExchange(...) === expectedValue`, and
+    /// `===` is raw word equality, so returning the stored word would report
+    /// failure for a canonically-equal but differently-marshaled value.
+    /// The loop retries on the newly observed value so the swap happens iff
+    /// the cell held a matching value at the successful compare-exchange.
     func compareAndExchange(expect: Int, update: Int) -> Int {
-        var exchanged = false
-        return kkrt_atomic_word_compare_exchange(storage, expect, update, &exchanged)
+        var observed = kkrt_atomic_word_load(storage)
+        while runtimeAtomicRefValuesMatch(observed, expect) {
+            var exchanged = false
+            observed = kkrt_atomic_word_compare_exchange(storage, observed, update, &exchanged)
+            if exchanged { return expect }
+        }
+        return observed
     }
 }
 
@@ -799,6 +812,86 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// Comparable form of one atomic-cell word. Words for the same logical value
+/// arrive through different marshal paths at the erased-T boundary — a bare
+/// primitive payload, a fresh primitive box (possibly under a tagged static
+/// handle), or a re-materialized string handle — so CAS for value types
+/// compares the decoded payload while real object references keep word
+/// identity.
+private enum AtomicRefWordValue {
+    /// Unregistered word: a bare primitive payload or sentinel stored raw.
+    case raw(Int)
+    /// Registered handle that is not a value box: identity semantics.
+    case object
+    case bool(Bool)
+    case char(Int)
+    case int(value: Int, enumClassID: Int64?)
+    case long(Int)
+    case ulong(Int)
+    case floatBits(UInt32)
+    case doubleBits(UInt64)
+    case string(String)
+    case unit
+
+    /// The payload a bare primitive word would carry for this cell's element
+    /// type, when this word is a primitive/unit box. References and strings
+    /// return nil: a raw pointer can never decode to them without a registry
+    /// hit, which `.raw` already excluded.
+    var primitivePayload: Int? {
+        switch self {
+        case .bool(let value):
+            return value ? 1 : 0
+        case .char(let value), .int(let value, _), .long(let value), .ulong(let value):
+            return value
+        case .floatBits(let bits):
+            return Int(bitPattern: UInt(bits))
+        case .doubleBits(let bits):
+            return Int(bitPattern: UInt(bits))
+        case .unit:
+            return 0
+        case .raw, .object, .string:
+            return nil
+        }
+    }
+}
+
+private func runtimeAtomicRefWordValue(_ word: Int) -> AtomicRefWordValue {
+    let isObject = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: word))
+    }
+    guard isObject, let ptr = UnsafeMutableRawPointer(bitPattern: word) else {
+        return .raw(word)
+    }
+    let base = runtimePrimitiveBoxBasePointer(from: word) ?? ptr
+    let object = Unmanaged<AnyObject>.fromOpaque(base).takeUnretainedValue()
+    switch object {
+    case let box as RuntimeStringBox:
+        return .string(box.value)
+    case let box as RuntimeIntBox:
+        return .int(value: box.value, enumClassID: box.enumClassID)
+    case let box as RuntimeBoolBox:
+        return .bool(box.value)
+    case let box as RuntimeLongBox:
+        return .long(box.value)
+    case let box as RuntimeULongBox:
+        return .ulong(box.value)
+    case let box as RuntimeFloatBox:
+        return .floatBits(box.value.bitPattern)
+    case let box as RuntimeDoubleBox:
+        return .doubleBits(box.value.bitPattern)
+    case let box as RuntimeCharBox:
+        return .char(box.value)
+    case is RuntimeUnitBox:
+        return .unit
+    default:
+        return .object
+    }
+}
+
+/// Value-typed CAS match for `AtomicReference` / `AtomicArray<T>`: identical
+/// words match (object identity and equal raw payloads), boxes of the same
+/// primitive/String kind match by payload, and a bare stored word matches a
+/// box carrying the same payload. Distinct object handles never match.
 private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
@@ -808,28 +901,35 @@ private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhsIsNull || rhsIsNull {
         return lhsIsNull && rhsIsNull
     }
-    guard
-        let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
-        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs)
-    else {
-        return false
+    let left = runtimeAtomicRefWordValue(lhs)
+    let right = runtimeAtomicRefWordValue(rhs)
+    switch (left, right) {
+    case let (.string(l), .string(r)):
+        return runtimeStringsEqual(l, r)
+    case let (.bool(l), .bool(r)):
+        return l == r
+    case let (.char(l), .char(r)),
+         let (.long(l), .long(r)),
+         let (.ulong(l), .ulong(r)):
+        return l == r
+    case let (.floatBits(l), .floatBits(r)):
+        return l == r
+    case let (.doubleBits(l), .doubleBits(r)):
+        return l == r
+    case let (.int(lv, lenum), .int(rv, renum)):
+        return lv == rv && lenum == renum
+    case (.unit, .unit):
+        return true
+    default:
+        break
     }
-    let (lhsRegistered, rhsRegistered) = runtimeStorage.withGCLock { state in
-        (
-            state.objectPointers.contains(UInt(bitPattern: lhsPointer)),
-            state.objectPointers.contains(UInt(bitPattern: rhsPointer))
-        )
+    if case .raw(let raw) = left, let payload = right.primitivePayload {
+        return raw == payload
     }
-    guard lhsRegistered, rhsRegistered else {
-        return false
+    if case .raw(let raw) = right, let payload = left.primitivePayload {
+        return raw == payload
     }
-    guard
-        let lhsString = tryCast(lhsPointer, to: RuntimeStringBox.self),
-        let rhsString = tryCast(rhsPointer, to: RuntimeStringBox.self)
-    else {
-        return false
-    }
-    return runtimeStringsEqual(lhsString.value, rhsString.value)
+    return false
 }
 
 @_cdecl("kk_atomic_ref_array_new")
