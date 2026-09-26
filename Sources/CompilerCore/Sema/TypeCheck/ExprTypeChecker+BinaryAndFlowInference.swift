@@ -95,6 +95,17 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
+        if (op == .equal || op == .notEqual),
+           equalityHasDisjointFinalTypes(lhs, rhs, sema: sema)
+        {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "Operator '\(op == .equal ? "==" : "!=")' cannot be applied to unrelated types.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if op == .add,
            isCoroutineContextLikeType(lhs, sema: sema, interner: interner),
            isCoroutineContextLikeType(rhs, sema: sema, interner: interner),
@@ -657,6 +668,38 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    // Kotlin rejects equality when both operand types are final and cannot
+    // describe the same value. Keep interfaces, open classes, nullable values,
+    // and type parameters on the normal equals path: a common subtype or null
+    // can make those comparisons meaningful.
+    private func equalityHasDisjointFinalTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        guard sema.types.isDefinitelyNonNull(lhs), sema.types.isDefinitelyNonNull(rhs),
+              !sema.types.isSubtype(lhs, rhs), !sema.types.isSubtype(rhs, lhs)
+        else { return false }
+
+        func isFinal(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case .primitive, .stringStruct, .unit:
+                return true
+            case let .classType(classType):
+                guard let symbol = sema.symbols.symbol(classType.classSymbol) else { return false }
+                switch symbol.kind {
+                case .object, .enumClass:
+                    return true
+                case .class:
+                    return !symbol.flags.contains(.openType)
+                        && !symbol.flags.contains(.abstractType)
+                        && !symbol.flags.contains(.sealedType)
+                default:
+                    return false
+                }
+            default:
+                return false
+            }
+        }
+        return isFinal(lhs) && isFinal(rhs)
     }
 
     private func coroutineContextType(sema: SemaModule, interner: StringInterner) -> TypeID? {
