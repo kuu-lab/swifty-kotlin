@@ -778,9 +778,8 @@ public external fun LongRange.reversed(): LongProgression
 // MARK: - LongProgression
 
 private fun longProgressionDescription(progression: LongProgression): String {
-    // Widen before negation so the existing Int-typed synthetic step also
-    // renders Int.MIN_VALUE as 2147483648 when used in an empty message.
-    val step = progression.step.toLong()
+    // Negate in Long so Long.MIN_VALUE still renders as a positive magnitude.
+    val step = progression.step
     return if (step > 0) {
         "${progression.first}..${progression.last} step $step"
     } else {

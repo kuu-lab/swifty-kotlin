@@ -1,0 +1,27 @@
+symbol fq=__local_0.progression[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.LongProgression
+symbol fq=inspectLongProgression.$0.progressions[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=inspectLongProgression[kind=fun;params=kotlin.collections.List<kotlin.ranges.LongProgression>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<kotlin.ranges.LongProgression>] ret=Unit
+file fstdlib_kotlin_ranges_LongProgression_LongProgression_n package=_
+  decl inspectLongProgression[kind=fun;params=kotlin.collections.List<kotlin.ranges.LongProgression>] fun inspectLongProgression sym=inspectLongProgression[kind=fun;params=kotlin.collections.List<kotlin.ranges.LongProgression>]
+expr e@2:23 name(progressions) type=kotlin.collections.List<kotlin.ranges.LongProgression> ref=inspectLongProgression.$0.progressions[kind=vparam]
+expr e@2:23#1 memberCall recv=e@2:23 callee=first args=[] type=kotlin.ranges.LongProgression call=kotlin.collections.first[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1] targs=[kotlin.ranges.LongProgression]
+expr e@2:5 localDecl progression mutable=0 type=_ init=e@2:23#1 type=Unit ref=__local_0.progression[kind=local]
+expr e@3:16 name(progression) type=kotlin.ranges.LongProgression ref=__local_0.progression[kind=local]
+expr e@3:16#1 memberCall recv=e@3:16 callee=first args=[] type=Long ref=kotlin.ranges.LongProgression.first[kind=prop]
+expr e@3:37 name(progression) type=kotlin.ranges.LongProgression ref=__local_0.progression[kind=local]
+expr e@3:37#1 memberCall recv=e@3:37 callee=last args=[] type=Long ref=kotlin.ranges.LongProgression.last[kind=prop]
+expr e@3:57 name(progression) type=kotlin.ranges.LongProgression ref=__local_0.progression[kind=local]
+expr e@3:57#1 memberCall recv=e@3:57 callee=step args=[] type=Long ref=kotlin.ranges.LongProgression.step[kind=prop]
+expr e@3:13 stringTemplate[expr(e@3:16#1),lit(,),expr(e@3:37#1),lit(,),expr(e@3:57#1)] type=String
+expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@4:13 name(progression) type=kotlin.ranges.LongProgression ref=__local_0.progression[kind=local]
+expr e@4:13#1 memberCall recv=e@4:13 callee=toString args=[] type=String call=kotlin.ranges.LongProgression.toString[kind=fun;recv=kotlin.ranges.LongProgression;params=]
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@5:13 name(progression) type=kotlin.ranges.LongProgression ref=__local_0.progression[kind=local]
+expr e@5:13#1 memberCall recv=e@5:13 callee=hashCode args=[] type=Int call=kotlin.ranges.LongProgression.hashCode[kind=fun;recv=kotlin.ranges.LongProgression;params=]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@6:13 name(progression) type=kotlin.ranges.LongProgression ref=__local_0.progression[kind=local]
+expr e@6:28 name(progressions) type=kotlin.collections.List<kotlin.ranges.LongProgression> ref=inspectLongProgression.$0.progressions[kind=vparam]
+expr e@6:28#1 memberCall recv=e@6:28 callee=first args=[] type=kotlin.ranges.LongProgression call=kotlin.collections.first[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1] targs=[kotlin.ranges.LongProgression]
+expr e@6:13#1 binary(equal) lhs=e@6:13 rhs=e@6:28#1 type=Boolean call=kotlin.ranges.LongProgression.equals[kind=fun;recv=kotlin.ranges.LongProgression;params=Any?]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
