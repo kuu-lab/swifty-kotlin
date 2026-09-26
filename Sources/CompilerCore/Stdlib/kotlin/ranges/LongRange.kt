@@ -24,5 +24,15 @@ public class LongRange @KsSymbolName("__kk_long_rangeTo") constructor(
         }
     public override fun isEmpty(): Boolean = first > last
 
+    public override fun toString(): String = "$first..$last"
+
+    public override fun equals(other: Any?): Boolean =
+        other is LongRange && (isEmpty() && other.isEmpty() ||
+            first == other.first && last == other.last)
+
+    public override fun hashCode(): Int =
+        if (isEmpty()) -1
+        else 31 * first.hashCode() + last.hashCode()
+
     public companion object {}
 }

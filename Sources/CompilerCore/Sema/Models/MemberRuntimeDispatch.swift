@@ -95,9 +95,11 @@ struct MemberDispatchKey: Equatable, Hashable, CustomStringConvertible {
 }
 
 enum MemberRuntimeDispatch {
+    /// The nominal-name half of `rangeReceiverKind`, usable when only the
+    /// static receiver *type* is known (e.g. virtual-dispatch resolution in
+    /// KIR, where no source ExprID survives).
     static func rangeReceiverKind(
-        receiverExpr: ExprID,
-        receiverType: TypeID,
+        for receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> MemberDispatchReceiverKind? {
@@ -131,9 +133,20 @@ enum MemberRuntimeDispatch {
         case "ULongRange":
             return .ulongRange
         default:
-            break
+            return nil
         }
+    }
 
+    static func rangeReceiverKind(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> MemberDispatchReceiverKind? {
+        if let nominalKind = rangeReceiverKind(for: receiverType, sema: sema, interner: interner) {
+            return nominalKind
+        }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         guard sema.bindings.isRangeExpr(receiverExpr) else {
             return nil
         }

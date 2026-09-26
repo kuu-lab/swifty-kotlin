@@ -1228,6 +1228,15 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
+    // Range/progression receivers are RuntimeRangeBox handles without a
+    // Kotlin vtable/itable — dispatching a member virtually on them crashes
+    // at kk_vtable_lookup (KSWIFTK-RUNTIME-0001). Their member calls always
+    // use direct dispatch.
+    if let receiverTypeID,
+       MemberRuntimeDispatch.rangeReceiverKind(for: receiverTypeID, sema: sema, interner: interner) != nil
+    {
+        return nil
+    }
     guard let parentID = sema.symbols.parentSymbol(for: callee),
           let parentSymbol = sema.symbols.symbol(parentID)
     else { return nil }

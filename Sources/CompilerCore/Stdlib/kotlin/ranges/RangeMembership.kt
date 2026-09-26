@@ -21,11 +21,9 @@ import kotlin.internal.KsSymbolName
 // These implementations are written purely in terms of the first/last/step
 // properties every one of the six classes already exposes as Kotlin members.
 //
-// The Kotlin LongRange contract uses Long for step while this compiler's
-// residual LongProgression.step property is modelled as Int (the shared
-// progression registration). The LongRange/LongProgression overloads below
-// widen step to Long before delegating so the shared helper only has to handle
-// one width.
+// The LongRange/LongProgression overloads below pass their Long step through
+// the same helpers the Int/Char/UInt overloads widen into, so the shared
+// helpers only have to handle one width.
 
 // Keep these helpers specialized: the generic Comparable helper makes bundled
 // source type-checking fail to terminate even for unrelated small programs.
@@ -40,8 +38,8 @@ private fun rangeIsEmptyChar(first: Char, last: Char, step: Long): Boolean =
 
 public fun IntRange.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
 public fun IntProgression.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
-public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step.toLong())
-public fun LongProgression.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step.toLong())
+public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
+public fun LongProgression.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
 public fun CharRange.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
 public fun CharProgression.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
 
@@ -119,11 +117,11 @@ public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, 
 public operator fun IntProgression.contains(value: Int): Boolean = containsInt(value, first, last, step)
 
 @KsSymbolName("__kk_range_contains")
-public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step.toLong())
+public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step)
 
 @KsSymbolName("__kk_range_contains")
 public operator fun LongProgression.contains(value: Long): Boolean =
-    containsLong(value, first, last, step.toLong())
+    containsLong(value, first, last, step)
 
 @KsSymbolName("__kk_range_contains")
 public operator fun CharRange.contains(value: Char): Boolean = containsChar(value, first, last, step)

@@ -1,6 +1,6 @@
 extension DataFlowSemaPhase {
     private static let bundledLongProgressionSourcePath =
-        "__bundled_kotlin/ranges/LongProgression/Stdlib.kt"
+        "__bundled_kotlin/ranges/LongProgression/LongProgression.kt"
 
     /// KSP-1305: Adopt the synthetic Companion created by the progression
     /// bootstrap when the bundled LongProgression declaration is collected.
