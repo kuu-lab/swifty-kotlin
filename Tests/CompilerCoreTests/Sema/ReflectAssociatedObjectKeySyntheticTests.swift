@@ -43,7 +43,8 @@ struct ReflectAssociatedObjectKeySyntheticTests {
 
         #expect(symbol.kind == .annotationClass)
         #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
+        #expect(!symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(symbolID))
 
         let constructorFQName = fqName + [ctx.interner.intern("<init>")]
         let constructors = sema.symbols.lookupAll(fqName: constructorFQName)
@@ -52,7 +53,7 @@ struct ReflectAssociatedObjectKeySyntheticTests {
         let constructor = try #require(sema.symbols.symbol(constructorID))
         #expect(constructor.kind == .constructor)
         #expect(constructor.visibility == .public)
-        #expect(constructor.flags.contains(.synthetic))
+        #expect(!constructor.flags.contains(.synthetic))
         #expect(sema.symbols.parentSymbol(for: constructorID) == symbolID)
         let constructorSignature = try #require(sema.symbols.functionSignature(for: constructorID))
         #expect(constructorSignature.parameterTypes.isEmpty)

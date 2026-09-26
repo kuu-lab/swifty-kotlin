@@ -14,7 +14,7 @@ package kotlin.reflect
  * the declarations remain source-backed so inheritance and member lookup use
  * the same contract as the Kotlin/Native stdlib.
  */
-public interface KCallable<out R> {
+public interface KCallable<out R> : KAnnotatedElement {
     public val name: String
     public val returnType: KType
 }
