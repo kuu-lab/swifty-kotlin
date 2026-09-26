@@ -15,8 +15,7 @@ struct LibraryInlineImportLabelTests {
         var resultFunction: KIRFunction?
 
         try withTemporaryFile(contents: content, fileExtension: "kir") { path in
-            let phase = DataFlowSemaPhase()
-            resultFunction = phase.parseImportedInlineFunction(
+            resultFunction = DataFlowSemaPhase.parseImportedInlineFunction(
                 path: path,
                 importedSymbol: SymbolID(rawValue: 100),
                 signature: nil,
