@@ -577,6 +577,7 @@ jobs:
             optimization_suffix: ""
     env:
       KOTLIN_VERSION: "2.3.10"
+      KOTLIN_COMPILER_SHA256: "c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
       - name: Fail when the shared release build failed
@@ -585,6 +586,9 @@ jobs:
           echo "Shared release kswiftc build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
           exit 1
       - uses: actions/checkout@v7
+      - name: Verify Kotlin compiler archive integrity policy
+        if: matrix.shard_index == 0 && matrix.optimization == 'O0'
+        run: bash Scripts/test_verify_kotlin_compiler_archive.sh
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
@@ -611,12 +615,13 @@ jobs:
           tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
           test -x "$install_dir/kswiftc"
           echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
-      - name: Cache Kotlin compiler and coroutines jar
-        id: cache-kotlin
+      - name: Cache pinned Kotlin compiler archive
         uses: actions/cache@v5
         with:
-          path: ${{ runner.temp }}/kotlin-tools
-          key: kotlin-tools-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
+          path: |
+            ${{ runner.temp }}/kotlin-compiler-cache/kotlin-compiler-${{ env.KOTLIN_VERSION }}.zip
+            ${{ runner.temp }}/kotlin-tools
+          key: kotlin-tools-${{ env.KOTLIN_VERSION }}-${{ env.KOTLIN_COMPILER_SHA256 }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
       - name: Cache kotlinc reference jars
         uses: actions/cache@v5
         with:
@@ -631,12 +636,12 @@ jobs:
           java-version: "21"
       - name: Install Kotlin compiler
         run: |
-          TOOLS_DIR="${RUNNER_TEMP}/kotlin-tools"
-          KOTLIN_DIR="${TOOLS_DIR}/kotlin"
-          mkdir -p "$KOTLIN_DIR"
+          CACHE_DIR="${RUNNER_TEMP}/kotlin-compiler-cache"
+          KOTLIN_DIR="${RUNNER_TEMP}/kotlin-${KOTLIN_VERSION}"
+          zip_path="${CACHE_DIR}/kotlin-compiler-${KOTLIN_VERSION}.zip"
+          mkdir -p "$CACHE_DIR"
 
-          if [ ! -f "${KOTLIN_DIR}/kotlinc/bin/kotlinc" ]; then
-            zip_path="${TOOLS_DIR}/kotlin-compiler.zip"
+          if [ ! -s "$zip_path" ]; then
             for attempt in 1 2 3 4 5; do
               if curl -fSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 120 \
                 -o "$zip_path" \
@@ -647,12 +652,13 @@ jobs:
               rm -f "$zip_path"
               sleep $((attempt * 10))
             done
-            if [ ! -f "$zip_path" ]; then
+            if [ ! -s "$zip_path" ]; then
               echo "Failed to download Kotlin compiler after 5 attempts" >&2
               exit 1
             fi
-            unzip -q "$zip_path" -d "$KOTLIN_DIR"
           fi
+          bash Scripts/verify_kotlin_compiler_archive.sh \
+            "$zip_path" "$KOTLIN_COMPILER_SHA256" "$KOTLIN_DIR" "$KOTLIN_VERSION"
           echo "${KOTLIN_DIR}/kotlinc/bin" >> "$GITHUB_PATH"
       - name: Verify prerequisites
         run: |
