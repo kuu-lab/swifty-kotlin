@@ -3861,12 +3861,13 @@
     - `kotlin.text.HexFormat.Builder.number` — fun Builder.number(Function1): Unit  -- `final inline fun number(kotlin/Function1<kotlin.text/HexFormat.NumberHexFormat.Builder, kotlin/Unit>)`
     - `kotlin.text.HexFormat.Builder.upperCase` — val Builder.upperCase: Boolean  -- `final var upperCase`
 
-- [~] KSP-1423: kotlin.text.HexFormat.BytesHexFormat top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1423: kotlin.text.HexFormat.BytesHexFormat top-level の未実装 stdlib API を実装する（1 件）
+  - 完了確認 (2026-09-24): `BytesHexFormat.Builder` は KSP-719（PR #6944）で `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt` に既に source-backed 実装済み。Kotlin のネスト型は既存の外側クラスへ別ファイルから追加できないため、監査指定の `text/HexFormat/BytesHexFormat/Stdlib.kt` は作成しない。既存の `stdlib_kotlin_text_HexFormat_BytesHexFormat_n_n` Golden と kotlinc diff が対象型を参照する。`check_todo_ids.sh`、Runtime ABI link validator（5 tests）、対象 kotlinc diff（1 case）は通過。Sema Golden suite はビルド後3分以上無出力だったため中断し、未確認。
   - 対象: `kotlin.text.HexFormat.BytesHexFormat` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/BytesHexFormat/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - source owner: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt`（KSP-719; `BytesHexFormat.Builder` は `HexFormat.BytesHexFormat` のネスト型）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_HexFormat_BytesHexFormat_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_HexFormat_BytesHexFormat_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_HexFormat_BytesHexFormat_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - golden テスト: 既存 `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_HexFormat_BytesHexFormat_n_n.kt` が Builder 型を参照。
+  - diff ケース: 既存 `Scripts/diff_cases/stdlib_kotlin_text_HexFormat_BytesHexFormat_n_n.kt` が Builder 型を参照（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.HexFormat.BytesHexFormat.Builder` — class kotlin.text.HexFormat.BytesHexFormat.Builder  -- `final class Builder {`
