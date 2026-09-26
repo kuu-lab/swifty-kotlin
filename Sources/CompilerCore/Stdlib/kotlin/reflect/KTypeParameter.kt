@@ -7,8 +7,12 @@
 
 package kotlin.reflect
 
-// KSP-1333: source-backed KTypeParameter surface. Concrete implementations
-// dispatch the abstract properties through the interface itable.
+// KSP-1323/KSP-1333: source-backed KTypeParameter surface. Concrete
+// implementations dispatch the abstract properties through the interface itable.
+
+/**
+ * Represents a type parameter of a generic declaration.
+ */
 public interface KTypeParameter : KClassifier {
     public val name: String
 

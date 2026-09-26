@@ -2859,7 +2859,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.ULongRange.Companion.EMPTY` — val Companion.EMPTY: ULongRange  -- `final val EMPTY`
 
-- [ ] KSP-1323: kotlin.reflect top-level の未実装 stdlib API を実装する（15 件）
+- [~] KSP-1323: kotlin.reflect top-level の未実装 stdlib API を実装する（15 件）
   - 対象: `kotlin.reflect` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2882,6 +2882,7 @@
     - `kotlin.reflect.KTypeProjection` — class kotlin.reflect.KTypeProjection  -- `final class kotlin.reflect/KTypeProjection {`
     - `kotlin.reflect.KVariance` — enumClass kotlin.reflect.KVariance  -- `final enum class kotlin.reflect/KVariance : kotlin/Enum<kotlin.reflect/KVariance> {`
     - `kotlin.reflect.typeOf` — fun typeOf(): KType  -- `final inline fun <#A: reified kotlin/Any?> kotlin.reflect/typeOf(): kotlin.reflect/KType`
+  - 2026-09-24 KUU-702: `Stdlib/kotlin/reflect/Stdlib.kt` に `AssociatedObjectKey` / `KAnnotatedElement` / `KClassifier` / `KDeclarationContainer` / `KFunction` / `KMutableProperty` / `KProperty` / `KTypeParameter` / `typeOf` を新規実装（`ExperimentalAssociatedObjects` / `KCallable` / `KClass` / `KType` / `KTypeProjection` / `KVariance` は既存ソース）。`predeclareBundledReflectTopLevelHeaders` で 8 nominal を predeclare、`kotlin.typeOf` 合成 stub は削除、`kotlin.reflect.typeOf` は bundledIndex ゲート付きフォールバックへ降格、`WellKnownReflectIntrinsic.typeOf` で reified 呼び出し解決を source シンボルへ接続し、qualified `kotlin.reflect.typeOf` も FQN top-level 経路で同一 intrinsic へ展開。Runtime の reflection type-edge 表に `KCallable→KAnnotatedElement` / `KClass→KAnnotatedElement,KDeclarationContainer` / `KFunction→kotlin.Function` を登録。Golden 全更新は機械的差分ゼロ、新規 golden・diff ケース・Reflect* focused Sema・Runtime ABI リンク検証を通過。全 diff_kotlinc は未実行のため `[~]` とする。
 
 - [ ] KSP-1324: kotlin.reflect.KClass の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.reflect` / receiver `KClass`
