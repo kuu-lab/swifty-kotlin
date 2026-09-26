@@ -157,15 +157,40 @@ public class AtomicLong {
     public override fun toString(): String = value.toString()
 }
 
-/**
- * A deprecated atomic wrapper around a native pointer.
- *
- * This declaration owns the top-level constructor only. The value property
- * and member operations remain separate migration surfaces.
- */
+// KSP-1224/KSP-1225: Keep the legacy native AtomicNativePtr API source-backed.
 @Deprecated("Use kotlin.concurrent.atomics.AtomicNativePtr instead.", ReplaceWith("kotlin.concurrent.atomics.AtomicNativePtr"), DeprecationLevel.ERROR)
-public class AtomicNativePtr {
-    public constructor(value: NativePtr)
+public class AtomicNativePtr(value: NativePtr) {
+    @Volatile
+    public var value: NativePtr = value
+
+    /** Atomically replaces the value and returns the value observed before the replacement. */
+    public fun getAndSet(newValue: NativePtr): NativePtr {
+        val oldValue = value
+        value = newValue
+        return oldValue
+    }
+
+    /** Atomically replaces the value when it matches [expected]; comparison is by value. */
+    public fun compareAndSet(expected: NativePtr, newValue: NativePtr): Boolean {
+        val oldValue = value
+        if (oldValue == expected) {
+            value = newValue
+            return true
+        }
+        return false
+    }
+
+    /** Atomically replaces the value when it matches [expected] and returns the observed value. */
+    public fun compareAndSwap(expected: NativePtr, newValue: NativePtr): NativePtr {
+        val oldValue = value
+        if (oldValue == expected) {
+            value = newValue
+        }
+        return oldValue
+    }
+
+    /** Returns the string representation of the current atomic value. */
+    public override fun toString(): String = value.toString()
 }
 
 // KSP-1226/KSP-1227: Keep the legacy native AtomicReference API source-backed.

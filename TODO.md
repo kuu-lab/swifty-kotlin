@@ -2083,12 +2083,14 @@
     - `kotlin.native.concurrent.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
 
-- [ ] KSP-1225: kotlin.native.concurrent.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1225: kotlin.native.concurrent.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.native.concurrent.AtomicNativePtr` / receiver `AtomicNativePtr`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 実装状況: `Atomics.kt` の `AtomicNativePtr` に `value` / `getAndSet` / `compareAndSet` / `compareAndSwap` / `toString` を source-backed 実装（AtomicReference と同じ stored-property + CAS パターン）。対象シンボルに Runtime / RuntimeABISpec / synthetic stub / name-string 特例は存在せず削除対象なし。diff ケースは Kotlin/Native-only のため `SKIP-DIFF (DEBT-DIFF-001)`。
+  - 完了確認（2026-09-26）: branch `kuxu2525/kuu-376-ksp-1225`。Sema Golden suite、`AtomicNativePtrConstructorSourceTests` / `NativeConcurrentTopLevelSourceTests` / `NativeConcurrentAPISurfaceInventoryTests` / `AtomicTopLevelSourceTests` / `SemanticsAndUtilitiesRegressionTests`、対象 diff case（`skipped=1`）、`bash Scripts/check_todo_ids.sh`、`bash Scripts/validate_runtime_abi_links.sh`、`swift build` を確認済み。全 Golden / 全 diff は未実行（最小スコープ、CI に委譲）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.AtomicNativePtr.compareAndSet` — fun AtomicNativePtr.compareAndSet(NativePtr, NativePtr): Boolean  -- `final fun compareAndSet(kotlin.native.internal/NativePtr, kotlin.native.internal/NativePtr): kotlin/Boolean`
