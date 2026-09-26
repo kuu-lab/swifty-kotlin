@@ -1,0 +1,18 @@
+symbol fq=__local_0.direct[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongRange
+symbol fq=__local_1.explicit[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ULongRange
+symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_ranges_ULongRange_Companion_Companion_n package=golden.sema
+  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
+expr e@4:30 name(ULongRange) type=kotlin.ranges.ULongRange.Companion ref=kotlin.ranges.ULongRange[kind=class]
+expr e@4:30#1 memberCall recv=e@4:30 callee=EMPTY args=[] type=kotlin.ranges.ULongRange ref=kotlin.ranges.ULongRange.Companion.EMPTY[kind=prop]
+expr e@4:5 localDecl direct mutable=0 type=ULongRange init=e@4:30#1 type=Unit ref=__local_0.direct[kind=local]
+expr e@5:32 name(ULongRange) type=kotlin.ranges.ULongRange ref=kotlin.ranges.ULongRange[kind=class]
+expr e@5:32#1 memberCall recv=e@5:32 callee=Companion args=[] type=kotlin.ranges.ULongRange.Companion ref=kotlin.ranges.ULongRange.Companion[kind=obj]
+expr e@5:32#2 memberCall recv=e@5:32#1 callee=EMPTY args=[] type=kotlin.ranges.ULongRange ref=kotlin.ranges.ULongRange.Companion.EMPTY[kind=prop]
+expr e@5:5 localDecl explicit mutable=0 type=ULongRange init=e@5:32#2 type=Unit ref=__local_1.explicit[kind=local]
+expr e@6:13 name(direct) type=kotlin.ranges.ULongRange ref=__local_0.direct[kind=local]
+expr e@6:13#1 memberCall recv=e@6:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.isEmpty[kind=fun;recv=kotlin.ranges.ULongRange;params=]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@7:13 name(explicit) type=kotlin.ranges.ULongRange ref=__local_1.explicit[kind=local]
+expr e@7:13#1 memberCall recv=e@7:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.isEmpty[kind=fun;recv=kotlin.ranges.ULongRange;params=]
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
