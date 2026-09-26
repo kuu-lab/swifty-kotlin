@@ -108,6 +108,31 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
     }
 
     @Test
+    func testCodegenObjectLiteralMemberFunctionCallsEnclosingPrivateMember() throws {
+        let source = """
+        class ConstGetter(val value: Int) {
+            private fun fetch(index: Int): Int = value + index
+            fun call(): Int {
+                val o = object : Any() {
+                    fun get(): Int = fetch(1)
+                }
+                return o.get()
+            }
+        }
+
+        fun main() {
+            println(ConstGetter(41).call())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralEnclosingPrivateMemberCallExecution",
+            expected: "42\n"
+        )
+    }
+
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesAndMutatesVarAcrossCalls() throws {
         let source = """
         interface Counter {
