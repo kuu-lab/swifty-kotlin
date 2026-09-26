@@ -12,15 +12,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            ownerSymbol: mutableListSymbol,
-            externalLinkName: "__kk_mutable_list_addAll_sequence",
-            flags: [.synthetic, .operatorFunction],
-            sequenceSymbol: sequenceSymbol
-        )
-        registerMutableCollectionSequenceAddAllMember(
-            symbols: symbols,
-            types: types,
-            interner: interner,
             ownerSymbol: mutableSetSymbol,
             externalLinkName: "__kk_mutable_set_addAll_sequence",
             flags: [.synthetic],

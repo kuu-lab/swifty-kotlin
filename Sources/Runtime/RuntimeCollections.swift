@@ -965,17 +965,6 @@ public func kk_mutable_list_addAll(_ listRaw: Int, _ collectionRaw: Int) -> Int 
     kk_mutable_collection_addAll(listRaw, collectionRaw)
 }
 
-private func runtimeMutableListAddAllSequence(list: RuntimeListBox, sequenceRaw: Int) -> Int {
-    guard let values = runtimeSequenceSourceValues(from: sequenceRaw) else {
-        return kk_box_bool(0)
-    }
-    if values.isEmpty {
-        return kk_box_bool(0)
-    }
-    list.withMutableValues { $0.append(contentsOf: values) }
-    return kk_box_bool(1)
-}
-
 private func runtimeMutableSetAddAllSequence(set: RuntimeSetBox, sequenceRaw: Int) -> Int {
     guard let values = runtimeSequenceSourceValues(from: sequenceRaw) else {
         return kk_box_bool(0)
@@ -989,23 +978,11 @@ private func runtimeMutableSetAddAllSequence(set: RuntimeSetBox, sequenceRaw: In
     return kk_box_bool(modified ? 1 : 0)
 }
 
-func runtimeMutableListAddAllSequence(listRaw: Int, sequenceRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    return runtimeMutableListAddAllSequence(list: list, sequenceRaw: sequenceRaw)
-}
-
 func runtimeMutableSetAddAllSequence(setRaw: Int, sequenceRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
     }
     return runtimeMutableSetAddAllSequence(set: set, sequenceRaw: sequenceRaw)
-}
-
-@_cdecl("__kk_mutable_list_addAll_sequence")
-public func kk_mutable_list_addAll_sequence(_ listRaw: Int, _ sequenceRaw: Int) -> Int {
-    return runtimeMutableListAddAllSequence(listRaw: listRaw, sequenceRaw: sequenceRaw)
 }
 
 @_cdecl("__kk_mutable_collection_addAll_iterable")
@@ -1030,11 +1007,6 @@ public func kk_mutable_collection_addAll_iterable(_ collectionRaw: Int, _ iterab
         return kk_box_bool(modified ? 1 : 0)
     }
     return kk_box_bool(0)
-}
-
-@_cdecl("__kk_mutable_list_addAll_iterable")
-public func kk_mutable_list_addAll_iterable(_ listRaw: Int, _ iterableRaw: Int) -> Int {
-    kk_mutable_collection_addAll_iterable(listRaw, iterableRaw)
 }
 
 @_cdecl("__kk_mutable_list_removeAll")

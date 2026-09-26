@@ -415,6 +415,8 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_list_add")
             case "add" where argumentCount == 2:
                 return interner.intern("__kk_mutable_list_add_at")
+            case "addAll" where argumentCount == 2:
+                return interner.intern("__kk_mutable_list_addAll_at")
             case "addAll":
                 return interner.intern("__kk_mutable_list_addAll")
             case "removeAll":
