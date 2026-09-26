@@ -3178,7 +3178,8 @@
     - `kotlin.sequences.sumOf` — fun Sequence.sumOf(Function1): UInt  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/sumOf(kotlin/Function1<#A, kotlin/UInt>): kotlin/UInt`
     - `kotlin.sequences.sumOf` — fun Sequence.sumOf(Function1): ULong  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/sumOf(kotlin/Function1<#A, kotlin/ULong>): kotlin/ULong`
 
-- [ ] KSP-1362: kotlin.text top-level の未実装 stdlib API を実装する（20 件）
+- [~] KSP-1362: kotlin.text top-level の未実装 stdlib API を実装する（20 件）
+  - 実装済み・focused確認（2026-09-26、KUU-341）: 新規 `Sources/CompilerCore/Stdlib/kotlin/text/Stdlib.kt` に `String(CharArray)` / `String(CharArray,Int,Int)`（deprecated）/ `T.append(vararg CharSequence?)` / `T.appendRange` / `HexFormat(builderAction)` / `checkRadix` / `intToString` / `longToString` を追加し、`StringEmptyBlankLines.kt` の `ifEmpty`/`ifBlank` を `<C,R> where C : CharSequence, C : R` へ、`StringHOF.kt` の `onEach`/`onEachIndexed` を `<S : CharSequence>` へ汎用化。`intToString`/`longToString`/`checkRadix` は `toString(radix)` 系が実際に呼ぶ本体として配線。未使用になった `kk_string_ifBlank_flat` / `kk_string_ifEmpty_flat` の Runtime 実装・`RuntimeABISpec` エントリ・emitter spec を削除。resolver 側は `kotlin.text` の onEach/ifEmpty 系 early-intercept を除去し、scope candidate が落ちたあとの implicit-receiver member フォールバックを解放、lambda expected-type 集約で receiver-infeasible candidate を pruning + concrete-subset 優先を追加。`swift build` / `--stdlib-only` diagnostics 0 件 / 805 Sema golden green / `stdlib_kotlin_text_n_n.kt` diff case green / TODO ID / ABI link validator をローカル確認。全 Golden・全 diff_cases は CI に委譲。
   - 対象: `kotlin.text` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

@@ -603,9 +603,9 @@ public fun CharSequence.findLast(predicate: (Char) -> Boolean): Char? {
     return null
 }
 
-public fun String.onEach(action: (Char) -> Unit): String {
+public inline fun <S : CharSequence> S.onEach(action: (Char) -> Unit): S {
     var i = 0
-    val sz = length
+    val sz = this.length
     while (i < sz) {
         action(this[i])
         i++
@@ -721,9 +721,9 @@ public inline fun CharSequence.sumOf(selector: (Char) -> ULong): ULong {
     return sum
 }
 
-public fun String.onEachIndexed(action: (index: Int, Char) -> Unit): String {
+public inline fun <S : CharSequence> S.onEachIndexed(action: (index: Int, Char) -> Unit): S {
     var i = 0
-    val sz = length
+    val sz = this.length
     while (i < sz) {
         action(i, this[i])
         i++

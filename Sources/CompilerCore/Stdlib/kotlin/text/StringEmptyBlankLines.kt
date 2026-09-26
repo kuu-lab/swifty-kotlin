@@ -17,14 +17,12 @@ public fun CharSequence.isBlank(): Boolean {
 
 public fun CharSequence.isNotBlank(): Boolean = !isBlank()
 
-public fun CharSequence.ifEmpty(defaultValue: () -> String): String {
-    if (isEmpty()) return defaultValue()
-    return this.toString()
+public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSequence, C : R {
+    return if (this.length == 0) defaultValue() else this
 }
 
-public fun CharSequence.ifBlank(defaultValue: () -> String): String {
-    if (isBlank()) return defaultValue()
-    return this.toString()
+public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
+    return if (isBlank()) defaultValue() else this
 }
 
 public fun CharSequence?.isNullOrEmpty(): Boolean {
