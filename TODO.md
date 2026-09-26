@@ -2910,7 +2910,7 @@
     - `kotlin.reflect.KTypeParameter.upperBounds` — val KTypeParameter.upperBounds: List  -- `abstract val upperBounds`
     - `kotlin.reflect.KTypeParameter.variance` — val KTypeParameter.variance: KVariance  -- `abstract val variance`
 
-- [ ] KSP-1336: kotlin.reflect.KTypeProjection.Companion.Companion の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1336: kotlin.reflect.KTypeProjection.Companion.Companion の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.reflect.KTypeProjection.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KTypeProjection.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2923,6 +2923,8 @@
     - `kotlin.reflect.KTypeProjection.Companion.covariant` — fun Companion.covariant(KType): KTypeProjection  -- `final fun covariant(kotlin.reflect/KType): kotlin.reflect/KTypeProjection`
     - `kotlin.reflect.KTypeProjection.Companion.invariant` — fun Companion.invariant(KType): KTypeProjection  -- `final fun invariant(kotlin.reflect/KType): kotlin.reflect/KTypeProjection`
     - `kotlin.reflect.KTypeProjection.Companion.star` — val Companion.star: KTypeProjection  -- `final val star`
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/reflect/KTypeProjection.kt` の既存 `public companion object {}`（source-backed）に Kotlin 2.3.10 本家構成どおり 5 件を追加。@PublishedApi internal `star`（`KTypeProjection(null, null)`）を backing に public `STAR` は `get() = star`、`invariant`/`contravariant`/`covariant` は `KVariance.INVARIANT/IN/OUT` を既存 constructor bridge（`__kk_ktypeprojection_create_checked`）へ委譲。JVM 専用の `@JvmField`/`@JvmStatic` は本ターゲットに不要のため省略。対象シンボルの `__kk_*` 専用関数・synthetic stub・RuntimeABISpec エントリ・name-string 特例は元々存在せず削除対象なし（新規 Kotlin 実装のみ）。
+  - 検証根拠: `swift build` pass。golden `stdlib_kotlin_reflect_KTypeProjection_Companion_Companion_n.kt` 追加後 `UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden -Xswiftc -swift-version -Xswiftc 6` で `.golden` 生成（STAR が `kotlin.reflect.KTypeProjection.Companion.STAR[kind=prop]`、3 関数が `...Companion.<name>[kind=fun;recv=...Companion]` に解決される機械的出力のみ、他ケース差分なし）。diff `Scripts/diff_cases/stdlib_kotlin_reflect_KTypeProjection_Companion_Companion_n.kt` は `bash Scripts/diff_kotlinc.sh` PASS。`bash Scripts/check_todo_ids.sh` / `bash Scripts/validate_runtime_abi_links.sh` / `git diff --check` pass。`ReflectKTypeProjectionSyntheticTests`・`ReflectKTypeSourceMigrationTests`・`ReflectKVarianceSyntheticTests`・`BundledStdlibOrderingTests`・`StarProjectionGenericInferenceTests` は全件 PASS。全 Golden / 全 diff_cases は変更範囲を超えるため CI で確認する。
 
 - [x] KSP-1338: kotlin.sequences top-level の未実装 stdlib API を実装する（9 件）
   - 対象: `kotlin.sequences` / top-level
