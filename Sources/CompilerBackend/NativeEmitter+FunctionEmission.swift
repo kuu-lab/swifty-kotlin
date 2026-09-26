@@ -2762,20 +2762,28 @@ extension NativeEmitter {
                 // `Lazy<String>.value` still erases to a raw pointer return.
                 // The KIR symbol is the synthetic getter accessor, so recover
                 // the declared property type via the accessor encoding.
+                let virtualCallDeclaredAggregateResult: Bool? = {
+                    guard calleeName == "get",
+                          argumentValues.count == 1,
+                          typeLowering != nil
+                    else {
+                        return nil
+                    }
+                    if let symbol,
+                       let property = symbols?.propertySymbol(forAccessor: symbol)
+                    {
+                        return isStringAggregateType(symbols?.propertyType(for: property))
+                    }
+                    if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
+                        return isStringAggregateType(signature.returnType)
+                    }
+                    return nil
+                }()
                 let virtualCallReturnsAggregate = calleeName == "get"
                     && argumentValues.count == 1
                     && typeLowering != nil
-                    && {
-                        if let symbol,
-                           let property = symbols?.propertySymbol(forAccessor: symbol)
-                        {
-                            return isStringAggregateType(symbols?.propertyType(for: property))
-                        }
-                        if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
-                            return isStringAggregateType(signature.returnType)
-                        }
-                        return isStringAggregateType(result.flatMap { module.arena.exprType($0) })
-                    }()
+                    && (virtualCallDeclaredAggregateResult
+                        ?? isStringAggregateType(result.flatMap { module.arena.exprType($0) }))
                 let isThrowableToStringVirtualCall: Bool = {
                     guard case .vtable = dispatch,
                           let symbols
@@ -2893,7 +2901,16 @@ extension NativeEmitter {
                 // than the raw Int handle used by runtime-registered members,
                 // which keeps the indirect-call ABI independent of whether the
                 // getter's KIRFunction happens to be emitted in this module.
-                let virtualItableFlatAggregateResult = if let result {
+                //
+                // The call-site result type only decides this when the
+                // accessor's declared type is unavailable: a generic
+                // `val value: T` erases to the raw pointer ABI even when this
+                // call site reads it as `Lazy<String>.value`, so a resolved
+                // non-aggregate declaration must suppress the flat path.
+                let virtualItableFlatAggregateResult = if let result,
+                                                          virtualCallDeclaredAggregateResult != false,
+                                                          typeLowering != nil
+                {
                     switch dispatch {
                     case .itable, .itableDynamic:
                         isStringAggregateExpr(result)
