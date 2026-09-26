@@ -128,7 +128,8 @@ struct LibraryMetadataLayoutValidationTests {
             DataFlowSemaPhase().synthesizeNominalLayouts(
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                diagnostics: diagnostics
             )
             let emptyLayout = try #require(symbols.nominalLayout(for: emptyClass))
             #expect(emptyLayout.instanceFieldCount == 1_000_000)
