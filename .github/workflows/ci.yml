@@ -34,6 +34,8 @@ jobs:
         run: bash Scripts/check_mutation_fuzzer_keywords.sh
       - name: Check Swift test parallelism overrides
         run: bash Scripts/test_swift_test_parallelism.sh
+      - name: Check workflows install npm tools via npm ci only
+        run: bash Scripts/check_workflow_npm_install.sh
 
   build-debug-tests:
     name: Build debug Swift test bundle once
@@ -379,15 +381,17 @@ jobs:
       - name: Install jscpd
         run: |
           jscpd_prefix="$RUNNER_TEMP/jscpd"
+          mkdir -p "$jscpd_prefix"
+          cp .github/ci-tools/package.json .github/ci-tools/package-lock.json .github/ci-tools/.npmrc "$jscpd_prefix/"
           for attempt in 1 2 3; do
-            if npm install --prefix "$jscpd_prefix" --no-save jscpd@4.0.8; then
+            if npm ci --prefix "$jscpd_prefix" --ignore-scripts; then
               echo "$jscpd_prefix/node_modules/.bin" >> "$GITHUB_PATH"
               exit 0
             fi
             echo "Attempt $attempt failed, retrying in $((attempt * 5))s..."
             sleep $((attempt * 5))
           done
-          echo "npm install failed after 3 attempts" >&2
+          echo "npm ci failed after 3 attempts" >&2
           exit 1
       - name: Run jscpd
         run: |
@@ -429,7 +433,8 @@ jobs:
             echo '## Verification 4/5 reproduce'
             echo '```bash'
             echo 'bash Scripts/loc_report.sh'
-            echo 'npm install --prefix "$RUNNER_TEMP/jscpd" --no-save jscpd@4.0.8'
+            echo 'mkdir -p "$RUNNER_TEMP/jscpd" && cp .github/ci-tools/{package.json,package-lock.json,.npmrc} "$RUNNER_TEMP/jscpd/"'
+            echo 'npm ci --prefix "$RUNNER_TEMP/jscpd" --ignore-scripts'
             echo 'PATH="$RUNNER_TEMP/jscpd/node_modules/.bin:$PATH" jscpd --config .jscpd-ci.json --output /tmp/kswiftk-jscpd-report'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
