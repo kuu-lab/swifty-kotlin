@@ -83,14 +83,16 @@ public final class CompilerDriver {
         return options.frontendFlags.contains("incremental")
     }
 
-    private func resolveIncrementalCachePath(options: CompilerOptions) -> String {
+    /// Cache to use for this run. An explicitly configured path is used as-is
+    /// (it is leaf-validated and integrity-authenticated at load); without one
+    /// the cache lives in the compiler-managed per-user location outside the
+    /// workspace, never next to the output where a repository could ship a
+    /// poisoned `.kswiftk-cache`.
+    private func resolveIncrementalCache(options: CompilerOptions) -> IncrementalCompilationCache? {
         if let explicit = options.incrementalCachePath {
-            return explicit
+            return IncrementalCompilationCache(cachePath: explicit)
         }
-        // Default: place cache next to the output.
-        let outputURL = URL(fileURLWithPath: options.outputPath)
-        let parentDir = outputURL.deletingLastPathComponent().path
-        return parentDir + "/.kswiftk-cache"
+        return IncrementalCompilationCache.makeDefault(for: options)
     }
 
     /// Computes fingerprints for loaded sources, determines the incremental
@@ -142,9 +144,7 @@ public final class CompilerDriver {
         }
 
         let incrementalEnabled = isIncrementalEnabled(options: options)
-        if incrementalEnabled {
-            let cachePath = resolveIncrementalCachePath(options: options)
-            let cache = IncrementalCompilationCache(cachePath: cachePath)
+        if incrementalEnabled, let cache = resolveIncrementalCache(options: options) {
             cache.loadPreviousState()
             context.installIncrementalCache(cache)
         }

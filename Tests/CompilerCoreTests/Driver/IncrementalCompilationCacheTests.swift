@@ -3,6 +3,12 @@
 import Foundation
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @Suite
 struct IncrementalCompilationCacheTests {
     private var tempDir: String
@@ -223,6 +229,7 @@ struct IncrementalCompilationCacheTests {
         try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         let manifest = "{\"version\": 999, \"fingerprints\": []}"
         try manifest.write(toFile: tempDir + "/manifest.json", atomically: true, encoding: .utf8)
+        try secureAndIndex(tempDir)
 
         let cache = IncrementalCompilationCache(cachePath: tempDir)
         cache.loadPreviousState()
@@ -296,6 +303,14 @@ struct IncrementalCompilationCacheTests {
         try manifest.write(toFile: cacheRoot + "/manifest.json", atomically: true, encoding: .utf8)
     }
 
+    /// Mirrors what `saveState` guarantees before a cache is readable: the
+    /// directory is private and every file on disk is covered by the
+    /// authenticated integrity index.
+    private func secureAndIndex(_ cacheRoot: String) throws {
+        #expect(chmod(cacheRoot, 0o700) == 0)
+        try #require(IncrementalCacheTrust.writeIntegrityIndex(cachePath: cacheRoot) != nil)
+    }
+
     @Test
     func testRestoreCachedOutputCopiesValidArtifact() throws {
         let cacheRoot = tempDir + "/cache"
@@ -312,6 +327,7 @@ struct IncrementalCompilationCacheTests {
         try "cached".write(toFile: artifactFile, atomically: true, encoding: .utf8)
 
         try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+        try secureAndIndex(cacheRoot)
 
         let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
         cache2.loadPreviousState()
@@ -334,6 +350,7 @@ struct IncrementalCompilationCacheTests {
         let buildHash = cache.buildConfigurationHash(for: options)
 
         try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: "../secret.txt")
+        try secureAndIndex(cacheRoot)
 
         let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
         cache2.loadPreviousState()
@@ -355,6 +372,7 @@ struct IncrementalCompilationCacheTests {
         try "secret".write(toFile: secretFile, atomically: true, encoding: .utf8)
 
         try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: secretFile)
+        try secureAndIndex(cacheRoot)
 
         let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
         cache2.loadPreviousState()

@@ -179,7 +179,7 @@ public final class CodegenPhase: CompilerPhase {
             "formatVersion": 1,
             "moduleName": ctx.options.moduleName,
             "kotlinLanguageVersion": "2.3.10",
-            "compilerVersion": "0.1.0",
+            "compilerVersion": CompilerBuildInfo.version,
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
