@@ -107,6 +107,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        if self.path == "/redirect-headers":
+            self.send_response(302)
+            self.send_header("Location", "/headers")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path.startswith("/redirect-port-"):
+            target_port = self.path.rsplit("-", 1)[1]
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{target_port}/headers")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path == "/headers":
+            lines = sorted(f"{name.lower()}: {value}" for name, value in self.headers.items())
+            body = "\\n".join(lines).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         header = self.headers.get("X-Test", "")
         body = f"GET:{header}".encode("utf-8")
         self.send_response(200)
@@ -171,6 +193,17 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
             result[stringValue(keyRaw)] = listStrings(map.values[index])
         }
         return result
+    }
+
+    /// Reads one `name: value` line from the test server's /headers echo body.
+    private func echoedHeader(_ body: String, name: String) -> String? {
+        for line in body.split(separator: "\n") {
+            let key = name.lowercased() + ":"
+            if line.lowercased().hasPrefix(key) {
+                return String(line.dropFirst(key.count)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
     }
 
     @Test func httpClientSupportsGetAndPost() throws {
@@ -247,6 +280,109 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         #expect(thrown == 0)
         #expect(kk_http_response_statusCode(defaultResponseRaw) == 200)
         #expect(stringValue(kk_http_response_body(defaultResponseRaw)) == "GET:")
+    }
+
+    @Test func crossOriginRedirectDropsCallerSuppliedHeaders() throws {
+        let redirectServer = try HTTPTestServer()
+        defer { redirectServer.stop() }
+        let targetServer = try HTTPTestServer()
+        defer { targetServer.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        _ = kk_http_client_setBearerToken(clientRaw, runtimeString("client-token"))
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        let uri = runtimeNetworkURI(
+            from: runtimeString("http://127.0.0.1:\(redirectServer.port)/redirect-port-\(targetServer.port)"),
+            &thrown
+        )
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        for (name, value) in [
+            ("Cookie", "session=secret"),
+            ("Proxy-Authorization", "Basic cHJveHk="),
+            ("X-API-Key", "secret-api-key"),
+            ("X-Signature", "deadbeef"),
+            ("X-Test", "custom"),
+            ("Accept", "text/plain"),
+        ] {
+            _ = kk_http_request_builder_header(builderRaw, runtimeString(name), runtimeString(value))
+        }
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let responseRaw = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(responseRaw) == 200)
+        let echoed = stringValue(kk_http_response_body(responseRaw))
+        for name in ["authorization", "cookie", "proxy-authorization", "x-api-key", "x-signature", "x-test"] {
+            #expect(echoedHeader(echoed, name: name) == nil, "\(name) leaked across the cross-origin redirect")
+        }
+        #expect(echoedHeader(echoed, name: "accept") == "text/plain")
+    }
+
+    @Test func sameOriginRedirectRetainsCallerSuppliedHeaders() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        let uri = runtimeNetworkURI(
+            from: runtimeString("http://127.0.0.1:\(server.port)/redirect-headers"),
+            &thrown
+        )
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_header(builderRaw, runtimeString("Authorization"), runtimeString("Bearer secret"))
+        _ = kk_http_request_builder_header(builderRaw, runtimeString("X-API-Key"), runtimeString("secret-api-key"))
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let responseRaw = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(responseRaw) == 200)
+        let echoed = stringValue(kk_http_response_body(responseRaw))
+        #expect(echoedHeader(echoed, name: "authorization") == "Bearer secret")
+        #expect(echoedHeader(echoed, name: "x-api-key") == "secret-api-key")
+    }
+
+    @Test func trustedRedirectOriginRetainsCallerSuppliedHeaders() throws {
+        let redirectServer = try HTTPTestServer()
+        defer { redirectServer.stop() }
+        let targetServer = try HTTPTestServer()
+        defer { targetServer.stop() }
+
+        var thrown = 0
+        let clientRaw = kk_http_client_newHttpClient()
+        _ = kk_http_client_addTrustedRedirectOrigin(
+            clientRaw,
+            runtimeString("http://127.0.0.1:\(targetServer.port)")
+        )
+        let responseHandlerRaw = kk_http_body_handlers_ofString(0)
+
+        let uri = runtimeNetworkURI(
+            from: runtimeString("http://127.0.0.1:\(redirectServer.port)/redirect-port-\(targetServer.port)"),
+            &thrown
+        )
+        #expect(thrown == 0)
+        let builderRaw = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_header(builderRaw, runtimeString("Authorization"), runtimeString("Bearer secret"))
+        _ = kk_http_request_builder_header(builderRaw, runtimeString("X-API-Key"), runtimeString("secret-api-key"))
+        _ = kk_http_request_builder_GET(builderRaw)
+        let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
+        #expect(thrown == 0)
+
+        let responseRaw = kk_http_client_send(clientRaw, requestRaw, responseHandlerRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(responseRaw) == 200)
+        let echoed = stringValue(kk_http_response_body(responseRaw))
+        #expect(echoedHeader(echoed, name: "authorization") == "Bearer secret")
+        #expect(echoedHeader(echoed, name: "x-api-key") == "secret-api-key")
     }
 
     @Test func httpRequestBuildThrowsWithoutURI() {

@@ -10,6 +10,7 @@ private final class RuntimeHTTPClientBox {
     private var followRedirects = true
     private var defaultHeaders: [String: String] = [:]
     private var authHeader: String?
+    private var trustedRedirectOrigins: Set<String> = []
 
     struct Snapshot {
         let connectTimeoutMillis: Int
@@ -17,6 +18,7 @@ private final class RuntimeHTTPClientBox {
         let followRedirects: Bool
         let defaultHeaders: [String: String]
         let authHeader: String?
+        let trustedRedirectOrigins: Set<String>
     }
 
     func snapshot() -> Snapshot {
@@ -27,7 +29,8 @@ private final class RuntimeHTTPClientBox {
             readTimeoutMillis: readTimeoutMillis,
             followRedirects: followRedirects,
             defaultHeaders: defaultHeaders,
-            authHeader: authHeader
+            authHeader: authHeader,
+            trustedRedirectOrigins: trustedRedirectOrigins
         )
     }
 
@@ -52,6 +55,12 @@ private final class RuntimeHTTPClientBox {
     func setBearerToken(_ token: String) {
         lock.lock()
         authHeader = "Bearer \(token)"
+        lock.unlock()
+    }
+
+    func addTrustedRedirectOrigin(_ originKey: String) {
+        lock.lock()
+        trustedRedirectOrigins.insert(originKey)
         lock.unlock()
     }
 }
@@ -143,13 +152,57 @@ private final class RuntimeHTTPTaskResultBox: @unchecked Sendable {
     var error: Error?
 }
 
-/// URLSession delegate that enforces a client's redirect policy and prevents
-/// sensitive headers from leaking across origins on redirects.
-private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private let followRedirects: Bool
+/// Canonical origin key (scheme, host, effective port) shared by the
+/// same-origin check and the trusted-redirect-origin list so both classify
+/// origins identically.
+private func runtimeOriginKey(_ url: URL?) -> String? {
+    guard let url,
+          let scheme = url.scheme?.lowercased(),
+          let host = url.host?.lowercased()
+    else {
+        return nil
+    }
+    let port: Int?
+    if let explicit = url.port {
+        port = explicit
+    } else {
+        switch scheme {
+        case "https": port = 443
+        case "http": port = 80
+        default: port = nil
+        }
+    }
+    guard let port else { return "\(scheme)://\(host)" }
+    return "\(scheme)://\(host):\(port)"
+}
 
-    init(followRedirects: Bool) {
+/// URLSession delegate that enforces a client's redirect policy and prevents
+/// caller-supplied headers from leaking across origins on redirects.
+private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    /// Headers re-applied on an untrusted cross-origin redirect. They carry
+    /// request semantics (representation metadata, content negotiation,
+    /// caching, ranges) but no credentials or origin-identifying data, so
+    /// forwarding them cannot leak secrets to another origin. Every other
+    /// caller-supplied header — Authorization, Cookie, Proxy-Authorization,
+    /// API keys, signing headers — is dropped deny-by-default.
+    private static let crossOriginSafeRequestHeaders: Set<String> = [
+        "accept", "accept-charset", "accept-encoding", "accept-language",
+        "cache-control",
+        "content-encoding", "content-language", "content-length", "content-location",
+        "content-md5", "content-range", "content-type",
+        "date", "dnt", "expect",
+        "if-match", "if-modified-since", "if-none-match", "if-range", "if-unmodified-since",
+        "max-forwards", "pragma", "range", "save-data", "sec-gpc",
+        "te", "trailer", "upgrade", "upgrade-insecure-requests",
+        "user-agent", "via", "warning", "x-requested-with",
+    ]
+
+    private let followRedirects: Bool
+    private let trustedRedirectOrigins: Set<String>
+
+    init(followRedirects: Bool, trustedRedirectOrigins: Set<String>) {
         self.followRedirects = followRedirects
+        self.trustedRedirectOrigins = trustedRedirectOrigins
     }
 
     func urlSession(
@@ -167,27 +220,29 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionTaskDelegate
         }
 
         var redirected = request
-        if !RuntimeHTTPSessionDelegate.sameOrigin(task.originalRequest?.url, request.url) {
-            // Do not forward credentials to a different origin on redirect.
-            redirected.setValue(nil, forHTTPHeaderField: "Authorization")
-            redirected.setValue(nil, forHTTPHeaderField: "Cookie")
+        if !RuntimeHTTPSessionDelegate.sameOrigin(task.originalRequest?.url, request.url)
+            && !isTrustedRedirectTarget(request.url) {
+            // Deny-by-default on a cross-origin redirect: keep only the safe
+            // allowlist so credential-bearing or signing headers cannot leak
+            // to a different origin.
+            if let headerFields = redirected.allHTTPHeaderFields {
+                for name in headerFields.keys
+                where !RuntimeHTTPSessionDelegate.crossOriginSafeRequestHeaders.contains(name.lowercased()) {
+                    redirected.setValue(nil, forHTTPHeaderField: name)
+                }
+            }
         }
         completionHandler(redirected)
     }
 
+    private func isTrustedRedirectTarget(_ url: URL?) -> Bool {
+        guard let key = runtimeOriginKey(url) else { return false }
+        return trustedRedirectOrigins.contains(key)
+    }
+
     private static func sameOrigin(_ lhs: URL?, _ rhs: URL?) -> Bool {
-        guard let lhs, let rhs else { return false }
-        func port(for url: URL) -> Int? {
-            if let explicit = url.port { return explicit }
-            switch url.scheme?.lowercased() {
-            case "https": return 443
-            case "http": return 80
-            default: return nil
-            }
-        }
-        return lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
-            && lhs.host?.lowercased() == rhs.host?.lowercased()
-            && port(for: lhs) == port(for: rhs)
+        guard let lhsKey = runtimeOriginKey(lhs), let rhsKey = runtimeOriginKey(rhs) else { return false }
+        return lhsKey == rhsKey
     }
 }
 
@@ -442,7 +497,10 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
         sessionConfig.timeoutIntervalForResource = Double(config.connectTimeoutMillis + config.readTimeoutMillis) / 1000
     }
 
-    let delegate = RuntimeHTTPSessionDelegate(followRedirects: config.followRedirects)
+    let delegate = RuntimeHTTPSessionDelegate(
+        followRedirects: config.followRedirects,
+        trustedRedirectOrigins: config.trustedRedirectOrigins
+    )
     let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     defer { session.finishTasksAndInvalidate() }
 
@@ -553,6 +611,18 @@ public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> 
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setBearerToken received invalid client handle")
     }
     client.setBearerToken(networkString(from: tokenRaw, caller: #function))
+    return 0
+}
+
+@_cdecl("kk_http_client_addTrustedRedirectOrigin")
+public func kk_http_client_addTrustedRedirectOrigin(_ clientRaw: Int, _ originRaw: Int) -> Int {
+    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_addTrustedRedirectOrigin received invalid client handle")
+    }
+    let spec = networkString(from: originRaw, caller: #function)
+    if let key = runtimeOriginKey(URL(string: spec)) {
+        client.addTrustedRedirectOrigin(key)
+    }
     return 0
 }
 
