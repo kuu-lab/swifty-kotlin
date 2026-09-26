@@ -1550,7 +1550,7 @@
     - `kotlin.concurrent.atomics.updateAndFetchAt` — fun AtomicIntArray.updateAndFetchAt(Int, Function1): Int  -- `final inline fun (kotlin.concurrent.atomics/AtomicIntArray).kotlin.concurrent.atomics/updateAndFetchAt(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Int>): kotlin/Int`
     - `kotlin.concurrent.atomics.updateAt` — fun AtomicIntArray.updateAt(Int, Function1): Unit  -- `final inline fun (kotlin.concurrent.atomics/AtomicIntArray).kotlin.concurrent.atomics/updateAt(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Int>)`
 
-- [ ] KSP-1104: kotlin.concurrent.atomics.AtomicLong の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1104: kotlin.concurrent.atomics.AtomicLong の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicLong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicLong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1564,6 +1564,7 @@
     - `kotlin.concurrent.atomics.plusAssign` — fun AtomicLong.plusAssign(Long): Unit  -- `final fun (kotlin.concurrent.atomics/AtomicLong).kotlin.concurrent.atomics/plusAssign(kotlin/Long)`
     - `kotlin.concurrent.atomics.update` — fun AtomicLong.update(Function1): Unit  -- `final inline fun (kotlin.concurrent.atomics/AtomicLong).kotlin.concurrent.atomics/update(kotlin/Function1<kotlin/Long, kotlin/Long>)`
     - `kotlin.concurrent.atomics.updateAndFetch` — fun AtomicLong.updateAndFetch(Function1): Long  -- `final inline fun (kotlin.concurrent.atomics/AtomicLong).kotlin.concurrent.atomics/updateAndFetch(kotlin/Function1<kotlin/Long, kotlin/Long>): kotlin/Long`
+  - 完了根拠 (2026-09-26): `atomics/AtomicLong.kt` を新規作成し、6 API を `kotlin.concurrent.atomics` 配下の source-backed `public` extension として実装（`plusAssign`/`minusAssign` は `operator`、`update`/`updateAndFetch` は `inline` CAS retry loop、加減算は `addAndFetch(±delta)` へ委譲）。receiver は `concurrent.AtomicLong` shell への alias。対象シンボル専用の `__kk_*`/`kk_*` bridge・Synthetic stub 登録・RuntimeABISpec・CallTypeChecker/CallLowerer の name-string 特例は存在せず削除対象なし（`kotlin.concurrent` 面の既存 member は保持）。golden で 6 API が `kotlin.concurrent.atomics.*` extension に解決されることを固定（`atomic += delta` の compoundAssign binding も同 extension に解決）。`swift build`、Sema golden suite 全 805 cases、対象 diff case（SKIP-DIFF: DEBT-DIFF-001 — JVM kotlinc は `atomics` の Native 面 API を持たない）、`check_todo_ids.sh`、`RuntimeABIExternalLinkValidationTests`（5 tests）を確認済み。全テストスイートと全 diff ケースは未実行（CI）。
 
 - [ ] KSP-1105: kotlin.concurrent.atomics.AtomicLongArray の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicLongArray`
