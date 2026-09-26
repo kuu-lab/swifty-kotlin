@@ -949,7 +949,7 @@
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Pair_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Pair_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Pair_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: 対象API・専用 fixtures は既に master の PR #6944 に含まれる。今回の local regression rerun は上記のとおり未完了。
   - 未実装シンボル一覧:
     - `kotlin.Pair.<init>` — constructor (, )  -- `constructor <init>(#A, #B)`
   - 実装済み・focused確認（2026-09-18、KUU-426）: PR #5983 で `Sources/CompilerCore/Stdlib/kotlin/Pair/Stdlib.kt` に constructor の source owner と専用 Sema Golden / diff fixture を追加済み。`__kk_pair_new` は collection/sequence が共有する Pair box allocation bridge のため残置する。現行 master で `swift build`、`PairTripleNominalAnchorTests`（2件）、Pair の最小 Sema render（非 nullable / nullable の `kotlin.Pair.<init>` binding）、`stdlib_kotlin_Pair_n_n.kt` の kotlinc 2.3.10 参照出力生成、TODO ID、Runtime ABI link（5件）を確認済み。Pair-only diff の PASS は PR #5983 の検証記録を再確認した。全 Golden / 全 diff_cases は共通ゲート G としてローカルでは実行せず、PR CI に委ねるため `[~]` を維持する。
@@ -3820,12 +3820,14 @@
   - 未実装シンボル一覧:
     - `kotlin.text.toCharArray` — fun StringBuilder.toCharArray(CharArray, Int, Int, Int): Unit  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/toCharArray(kotlin/CharArray, kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...)`
 
-- [~] KSP-1419: kotlin.text.HexFormat top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1419: kotlin.text.HexFormat top-level の未実装 stdlib API を実装する（4 件）
+  - 監査 (2026-09-24): PR #6944 (`93d4472531`) の `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt` は `package kotlin.text` として宣言され、対象の `Builder` / `BytesHexFormat` / `Companion` / `NumberHexFormat` を既に提供している。専用 Sema Golden と kotlinc diff fixture も同 PR に存在し、今回の gap は物理パスを package と誤認した監査重複。該当する synthetic stub / Runtime ABI bridge はないため、ソースの重複追加は不要。
   - 対象: `kotlin.text.HexFormat` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_HexFormat_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_HexFormat_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_HexFormat_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 実装先 .kt: 既存の `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt`（package は `kotlin.text`）。nested 宣言の Kotlin source owner。
+  - bridge/stub 整理: 対象4型に対応する synthetic stub / Runtime ABI bridge は現 HEAD に存在しない。別の HexFormat 呼び出し推論特例は既存関数向けのため対象外。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_HexFormat_n_n.kt` は PR #6944 で追加済み。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_HexFormat_n_n.kt` は PR #6944 で追加済み。
+  - ローカル再確認 (2026-09-24): `swift build` PASS、Runtime ABI link validator 5 tests PASS、`check_todo_ids.sh` PASS。Sema Golden は別 worktree の SwiftPM テストとの資源競合で helper が5分超 0% CPU 待機したため中断。単一 kotlinc diff は stdlib `.kklib` 構築が120秒で失敗（生成ログ空）。したがってこの checkout での Golden / diff 再実行は未完了。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.HexFormat.Builder` — class kotlin.text.HexFormat.Builder  -- `final class Builder {`
