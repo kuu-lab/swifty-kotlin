@@ -57,3 +57,21 @@ public class DetachedObjectGraph<T> internal constructor(pointer: NativePtr) {
     @Suppress("DEPRECATION")
     public fun asCPointer(): COpaquePointer? = __interpretCPointer(stable.value)
 }
+
+/**
+ * Attaches previously detached object subgraph created by [DetachedObjectGraph].
+ * Please note, that once object graph is attached, the [DetachedObjectGraph.stable] pointer does not
+ * make sense anymore, and shall be discarded, so attach of one DetachedObjectGraph object can only
+ * happen once.
+ */
+// KSwiftK keeps the managed reference itself as the opaque stable token (see
+// __kk_native_concurrent_detach_object_graph / __kk_native_concurrent_attach_object_graph),
+// so attaching is a single read of `stable.value` routed through the package
+// bridge. The upstream CAS-to-NULL loop is not expressible while the legacy
+// kotlin.concurrent.AtomicNativePtr receiver surface remains with KSP-1096.
+@ObsoleteWorkersApi
+@Deprecated("Support for the legacy memory manager has been completely removed.")
+@DeprecatedSinceKotlin(errorSince = "2.1")
+@Suppress("DEPRECATION_ERROR")
+public inline fun <reified T> DetachedObjectGraph<T>.attach(): T =
+    attachObjectGraphInternal(stable.value) as T

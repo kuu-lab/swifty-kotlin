@@ -1,0 +1,6 @@
+symbol fq=golden.sema.detachedObjectGraphAttach.$0.graph[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.detachedObjectGraphAttach[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.DetachedObjectGraph<String>] ret=String
+file fstdlib_kotlin_native_concurrent_DetachedObjectGraph_n package=golden.sema annotations=[@file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class),@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.detachedObjectGraphAttach[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>] fun detachedObjectGraphAttach sym=golden.sema.detachedObjectGraphAttach[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>]
+expr e@10:5 name(graph) type=kotlin.native.concurrent.DetachedObjectGraph<String> ref=golden.sema.detachedObjectGraphAttach.$0.graph[kind=vparam]
+expr e@10:5#1 memberCall recv=e@10:5 callee=attach args=[] type=String call=kotlin.native.concurrent.attach[kind=fun;recv=kotlin.native.concurrent.DetachedObjectGraph<T0>;params=;gen=1] targs=[String]
