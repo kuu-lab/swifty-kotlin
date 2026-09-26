@@ -183,12 +183,14 @@ public val KClass<*>.isFun: Boolean
 // dispatch are valid at the Kotlin boundary, but the containing collection
 // itself is not yet precisely typed.
 //
-// NOTE: `findAnnotation<T>()` / `findAssociatedObject<T>()` are NOT covered
-// here — they take a reified type argument, which this compiler only
-// supports for a fixed, non-nested set of built-in intrinsics (see how
-// `typeOf<T>()` is special-cased). Forwarding a reified type parameter as
-// the type argument of a *nested* reified call is not yet general, so they
-// remain compiler special cases (Sources/CompilerCore/KIR/CallLowerer+KClassReflectMemberCalls.swift).
+// NOTE: `findAnnotation<T>()` is NOT covered here — it takes a reified
+// type argument, which this compiler only supports for a fixed, non-nested
+// set of built-in intrinsics (see how `typeOf<T>()` is special-cased).
+// Forwarding a reified type parameter as the type argument of a *nested*
+// reified call is not yet general, so it remains a compiler special case
+// (Sources/CompilerCore/KIR/CallLowerer+KClassReflectMemberCalls.swift).
+// `findAssociatedObject<T>()` is likewise expanded by that special case,
+// but its bundled source declaration now lives in AssociatedObjects.kt.
 //
 // NOTE: `properties` is also NOT covered here, unlike its `memberProperties`/
 // `declaredMemberProperties` siblings. It is not a real kotlin-stdlib name
