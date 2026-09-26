@@ -988,6 +988,18 @@ final class CallLowerer {
                     interner: interner,
                     instructions: &instructions
                 )
+                // Setter counterpart: register interface property setters
+                // into the itable so a write through an interface-typed
+                // receiver can dispatch to them.
+                appendObjectItablePropertySetterRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 appendObjectVtableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
@@ -1052,7 +1064,13 @@ final class CallLowerer {
                   let signature = sema.symbols.functionSignature(for: chosen),
                   signature.receiverType != nil
         {
-            var implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+            // A call that Sema resolved on an *outer* implicit receiver (e.g.
+            // an enclosing class's member invoked unqualified from an object
+            // literal's member body) reads the receiver through the captured
+            // enclosing `this`, not the member's own implicit receiver.
+            var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
+                .flatMap { driver.ctx.localValue(for: $0) }
+                ?? driver.ctx.activeImplicitReceiverExprID()
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
             {
@@ -1074,11 +1092,18 @@ final class CallLowerer {
                 // source-backed default mutation members. Resolve those
                 // implicit calls to their demoted ABI bridges before the
                 // generic virtual-dispatch path is selected.
+                let implicitReceiverType = arena.exprType(implicitReceiver)
+                    ?? signature.receiverType
+                    ?? sema.types.anyType
                 implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(
                     memberName: interner.resolve(sourceCalleeName),
-                    receiverType: arena.exprType(implicitReceiver)
-                        ?? signature.receiverType
-                        ?? sema.types.anyType,
+                    receiverType: implicitReceiverType,
+                    chosenCallee: chosen,
+                    sema: sema,
+                    interner: interner
+                ) ?? runtimeBackedListMemberCallee(
+                    memberName: interner.resolve(sourceCalleeName),
+                    receiverType: implicitReceiverType,
                     chosenCallee: chosen,
                     sema: sema,
                     interner: interner
@@ -1446,7 +1471,9 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
+            "__kk_mutable_list_add_at",
             "__kk_mutable_list_removeAt",
+            "__kk_mutable_list_set",
             "__kk_list_get",
             "__kk_mutable_set_add",
             "__kk_mutable_set_remove",
@@ -1511,6 +1538,9 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "__kk_mutable_list_removeAt",
+            "__kk_mutable_list_add",
+            "__kk_mutable_list_add_at",
+            "__kk_mutable_list_set",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
             "__kk_file_readText",

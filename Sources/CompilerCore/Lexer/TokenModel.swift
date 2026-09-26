@@ -11,10 +11,20 @@ public struct InternedString: Hashable, Sendable, Codable {
 }
 
 private struct StringInternerKey: Hashable {
-    let utf16CodeUnits: [UInt16]
+    let string: String
 
     init(_ string: String) {
-        utf16CodeUnits = Array(string.utf16)
+        self.string = string
+    }
+
+    static func == (lhs: StringInternerKey, rhs: StringInternerKey) -> Bool {
+        lhs.string.utf16.elementsEqual(rhs.string.utf16)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        for codeUnit in string.utf16 {
+            hasher.combine(codeUnit)
+        }
     }
 }
 
@@ -27,6 +37,8 @@ public final class StringInterner: @unchecked Sendable {
     private let lock = NSLock()
     private let compilerNamesLock = NSLock()
     private var compilerNames: KnownCompilerNames?
+    private let builtinTypeNamesLock = NSLock()
+    private var builtinTypeNames: BuiltinTypeNames?
 
     public init() {}
 
@@ -40,6 +52,20 @@ public final class StringInterner: @unchecked Sendable {
         }
         let names = create()
         compilerNames = names
+        return names
+    }
+
+    /// Same one-time cache for `BuiltinTypeNames` (19 interned builtin names).
+    /// Keeps the IDs local to this interner; separate lock because creation
+    /// calls intern().
+    func cachedBuiltinTypeNames(create: () -> BuiltinTypeNames) -> BuiltinTypeNames {
+        builtinTypeNamesLock.lock()
+        defer { builtinTypeNamesLock.unlock() }
+        if let builtinTypeNames {
+            return builtinTypeNames
+        }
+        let names = create()
+        builtinTypeNames = names
         return names
     }
 

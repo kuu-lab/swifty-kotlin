@@ -51,6 +51,9 @@ struct MetadataState {
     /// Set once the static reflection hierarchy edges are in `typeParents`;
     /// cleared with `typeParents` so a metadata reset re-registers them.
     var reflectionTypeEdgesRegistered = false
+    /// Same idea as `reflectionTypeEdgesRegistered`, for the boxed-primitive
+    /// `Number`/`Comparable` edges `RuntimePrimitiveNominalTypeIDs` installs.
+    var primitiveTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
@@ -519,6 +522,7 @@ func kk_runtime_reset_metadata() {
         state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
         state.reflectionTypeEdgesRegistered = false
+        state.primitiveTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)

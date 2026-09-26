@@ -224,6 +224,18 @@ extension KIRLoweringDriver {
                 interner: interner,
                 instructions: &body.instructions
             )
+            // Setter counterpart: register interface property setters into
+            // the itable so a write through an interface-typed receiver can
+            // dispatch to them.
+            appendObjectItablePropertySetterRegistrations(
+                objectValue: allocatedObj,
+                nominalSymbol: objectSymbol,
+                sema: sema,
+                cache: ctx.nominalDispatchCache,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
         }
         appendObjectVtableMethodRegistrations(
             objectValue: allocatedObj,

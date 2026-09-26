@@ -324,7 +324,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticMutableCollectionArrayAddAll.swift` | 109 | (b) | M3 mutable collection helper source migration. |
 | `HeaderHelpers+SyntheticMutableCollectionIterableAddAll.swift` | 104 | (b) | M3 mutable collection helper source migration. |
 | `HeaderHelpers+SyntheticMutableCollectionSequenceAddAll.swift` | 101 | (b) | M3/M4 mutable collection helper source migration. |
-| `HeaderHelpers+SyntheticMutableListStubs.swift` | 1549 | (b) | M3 mutable list shell and member migration. |
+| `HeaderHelpers+SyntheticMutableListStubs.swift` | 821 | (b) | M3 mutable list shell and member migration. KSP-1503 で `MutableList`/`AbstractMutableList` の要素追加・削除メンバ（`set`/`add`/`add(index)`/`removeAt`/`removeFirst*`/`removeLast*`/`clear`/`removeAll`/`retainAll`/`plusAssign`/`minusAssign`）を `MutableList.kt` へ移し、残るは `registerMutableListSort*`/`registerMutableListShuffleMember`/`registerMutableListReverseMember`（KSP-1504）と `registerMutableListAddAll*`（KSP-705）のみ。 |
 | `HeaderHelpers+SyntheticNativeConcurrentCommon.swift` | 736 | (c) | RF-STUB-004 shared NativeConcurrent helper body. |
 | `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` | 2715 | (c) | RF-STUB-004 consolidated NativeConcurrent registration table and entry point. |
 | `HeaderHelpers+SyntheticNativeDataStubs.swift` | 821 | (c) | Native data/runtime support; declarative residual candidate. |

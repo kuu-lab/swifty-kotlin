@@ -24,7 +24,7 @@ extension InlineLoweringPass {
     /// still re-expands the frozen originals, so a body is never spliced
     /// twice.
     func expandNestedBodylessInlineCalls(
-        index: inout InlineExpansionIndex,
+        index: InlineExpansionIndex,
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?
@@ -56,7 +56,7 @@ extension InlineLoweringPass {
     func inlineTransform(
         function: KIRFunction,
         index: InlineExpansionIndex,
-        inlineFunctionsByName: [InternedString: [KIRFunction]],
+        inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?

@@ -230,16 +230,22 @@ extension DataEnumSealedSynthesisPass {
         )
         let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        // BUG-A/BUG-B: `emitEnumOrdinalBoxCall` resolves a user `toString()`
+        // override (instead of always tagging the box with the bare entry
+        // name -- `values()`/`entries` rendered "MUL" instead of "times")
+        // and registers the box for itable dispatch when it implements an
+        // interface. It requires a non-synthetic, source-backed class
+        // symbol (native enums like `RegexOption`/`OsFamily` have no
+        // `$enumOrdinalToName$` helper to call), so those keep the
+        // hand-rolled literal-name box below.
+        let canUseResolvedNameBoxing = sema.symbols.symbol(enumClassSymbol)?.flags.contains(.synthetic) == false
 
         for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(ordinal))))
 
-            let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
-            body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
-
-            // Box the ordinal (tagged with its declared name and the enum
+            // Box the ordinal (tagged with its rendered name and the enum
             // class's stable nominal type ID, see kk_enum_box_ordinal) instead
             // of storing a pre-baked name string. Every other enum value is a
             // raw ordinal Int, so an element read back out of values()/entries
@@ -248,14 +254,31 @@ extension DataEnumSealedSynthesisPass {
             // string outright broke all three (it only happened to look right
             // when the whole collection was printed generically).
             let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
-            body.append(.call(
-                symbol: nil,
-                callee: boxOrdinalCallee,
-                arguments: [indexExpr, nameExpr, classIDExpr],
-                result: boxedEntry,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            if canUseResolvedNameBoxing {
+                emitEnumOrdinalBoxCall(
+                    ordinal: indexExpr,
+                    classSymbol: enumClassSymbol,
+                    result: boxedEntry,
+                    resultType: sema.types.anyType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: module.arena,
+                    sema: sema,
+                    into: &body.instructions
+                )
+            } else {
+                let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
+                body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
+                body.append(.call(
+                    symbol: nil,
+                    callee: boxOrdinalCallee,
+                    arguments: [indexExpr, nameExpr, classIDExpr],
+                    result: boxedEntry,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
 
             body.append(.call(
                 symbol: nil,
@@ -478,30 +501,76 @@ extension DataEnumSealedSynthesisPass {
                 body.append(.label(fallthroughLabel))
             }
 
-            // An abstract enum member should be implemented by every entry.
-            // Keep malformed or incomplete metadata from producing an undefined
-            // call; the normal abstract-member validation reports the source
+            // An *abstract* enum member (e.g. `abstract fun apply()`) must be
+            // implemented by every entry, so falling through here means
+            // malformed or incomplete metadata -- keep the abort as a safety
+            // net; the normal abstract-member validation reports the source
             // error before this fallback could be reached.
-            let unreachableResult: KIRExprID? = signature.returnType == sema.types.unitType
+            //
+            // BUG-A: a *non-abstract* base (`kotlin.Enum.toString()`, or an
+            // interface method with a default body) has a real
+            // implementation for entries that don't override it, so those
+            // must call it, not abort.
+            let baseSymbolID: SymbolID? = {
+                let suffix = interner.resolve(dispatch.name).dropFirst(dispatchPrefix.count)
+                guard let rawValue = Int32(suffix) else { return nil }
+                return SymbolID(rawValue: rawValue)
+            }()
+            let baseSymbolInfo = baseSymbolID.flatMap { sema.symbols.symbol($0) }
+            let fallthroughResult: KIRExprID? = signature.returnType == sema.types.unitType
                 ? nil
                 : module.arena.appendTemporary(type: signature.returnType)
-            let nullOutThrown = module.arena.appendExpr(
-                .null,
-                type: sema.types.nullableAnyType
-            )
-            body.append(.constValue(result: nullOutThrown, value: .null))
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_abort_unreachable"),
-                arguments: [nullOutThrown],
-                result: unreachableResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let unreachableResult {
-                body.append(.returnValue(unreachableResult))
+            if let baseSymbolID, let baseSymbolInfo, !baseSymbolInfo.flags.contains(.abstractType) {
+                if sema.symbols.externalLinkName(for: baseSymbolID) == "kk_any_member_to_string" {
+                    // Enum's default toString renders the bare entry name via
+                    // $enumOrdinalToName. Route there directly by bare name
+                    // (mirroring emitEnumOrdinalBoxCall) instead of calling
+                    // kk_any_member_to_string, which EnumNameAccessLoweringPass
+                    // would route straight back into this dispatch helper,
+                    // recursing forever.
+                    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: owner, interner: interner)
+                    body.append(.call(
+                        symbol: nil,
+                        callee: nameHelperCallee,
+                        arguments: [receiverRef],
+                        result: fallthroughResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else {
+                    body.append(.call(
+                        symbol: baseSymbolID,
+                        callee: baseSymbolInfo.name,
+                        arguments: [receiverRef] + argumentRefs,
+                        result: fallthroughResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+                if let fallthroughResult {
+                    body.append(.returnValue(fallthroughResult))
+                } else {
+                    body.append(.returnUnit)
+                }
             } else {
-                body.append(.returnUnit)
+                let nullOutThrown = module.arena.appendExpr(
+                    .null,
+                    type: sema.types.nullableAnyType
+                )
+                body.append(.constValue(result: nullOutThrown, value: .null))
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_abort_unreachable"),
+                    arguments: [nullOutThrown],
+                    result: fallthroughResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                if let fallthroughResult {
+                    body.append(.returnValue(fallthroughResult))
+                } else {
+                    body.append(.returnUnit)
+                }
             }
 
             appendSyntheticFunctionWithSymbol(

@@ -111,6 +111,14 @@ struct CaptureAnalyzer {
                 visit(value)
 
             case let .call(callee, _, args, _):
+                // A call that resolved on an outer implicit receiver needs the
+                // enclosing `this` captured so the receiver value reaches the
+                // member body's lowering.
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 visit(callee)
                 for arg in args {
                     visit(arg.expr)

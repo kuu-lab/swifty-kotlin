@@ -34,11 +34,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
                 // cache: nil (default)
             )
             symbolNames1 = symbols.allSymbols()
@@ -55,11 +55,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: nil
             )
             symbolNames2 = symbols.allSymbols()
@@ -110,11 +110,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -178,11 +178,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -227,11 +227,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -251,11 +251,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 

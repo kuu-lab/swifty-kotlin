@@ -53,6 +53,7 @@ private struct LLVMEntryPointBlocks {
 private struct LLVMEntryPointConstants {
     let thrownSlot: LLVMCAPIBindings.LLVMValueRef
     let zero: LLVMCAPIBindings.LLVMValueRef
+    let zero32: LLVMCAPIBindings.LLVMValueRef
     let one32: LLVMCAPIBindings.LLVMValueRef
     let stderrFD: LLVMCAPIBindings.LLVMValueRef
     let panicMessageLength: LLVMCAPIBindings.LLVMValueRef
@@ -253,7 +254,7 @@ struct LLVMEntryPointObjectEmitter {
         bindings.positionBuilder(builder, at: blocks.entryBlock)
 
         let constants = try makeMainConstants(builder: builder, primitiveTypes: primitiveTypes)
-        let entryResult = try emitEntryDispatch(
+        try emitEntryDispatch(
             builder: builder,
             blocks: blocks,
             primitiveTypes: primitiveTypes,
@@ -271,11 +272,7 @@ struct LLVMEntryPointObjectEmitter {
         )
 
         bindings.positionBuilder(builder, at: blocks.successBlock)
-        try emitSuccessPath(
-            builder: builder,
-            primitiveTypes: primitiveTypes,
-            entryResult: entryResult
-        )
+        try emitSuccessPath(builder: builder, constants: constants)
     }
 
     private func makeMainBlocks(
@@ -297,6 +294,7 @@ struct LLVMEntryPointObjectEmitter {
     ) throws -> LLVMEntryPointConstants {
         guard let thrownSlot = bindings.buildAlloca(builder, type: primitiveTypes.int64Type, name: "thrown.slot"),
               let zero = bindings.constInt(primitiveTypes.int64Type, value: 0),
+              let zero32 = bindings.constInt(primitiveTypes.int32Type, value: 0),
               let one32 = bindings.constInt(primitiveTypes.int32Type, value: 1),
               let stderrFD = bindings.constInt(primitiveTypes.int64Type, value: 2),
               let panicMessageLength = bindings.constInt(
@@ -312,6 +310,7 @@ struct LLVMEntryPointObjectEmitter {
         return LLVMEntryPointConstants(
             thrownSlot: thrownSlot,
             zero: zero,
+            zero32: zero32,
             one32: one32,
             stderrFD: stderrFD,
             panicMessageLength: panicMessageLength
@@ -325,8 +324,10 @@ struct LLVMEntryPointObjectEmitter {
         functionTypes: LLVMEntryPointFunctionTypes,
         functions: LLVMEntryPointFunctions,
         constants: LLVMEntryPointConstants
-    ) throws -> LLVMCAPIBindings.LLVMValueRef {
-        let entryResult = try emitEntryResult(
+    ) throws {
+        // `main`'s own result is deliberately discarded: only the call's side
+        // effects and the thrown channel matter to the process status.
+        _ = try emitEntryResult(
             builder: builder,
             functionTypes: functionTypes,
             functions: functions,
@@ -356,7 +357,6 @@ struct LLVMEntryPointObjectEmitter {
         ) != nil else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit entry wrapper branch")
         }
-        return entryResult
     }
 
     private func emitEntryResult(
@@ -404,20 +404,25 @@ struct LLVMEntryPointObjectEmitter {
         }
     }
 
+    /// Returns `0` for every normal completion of `main`.
+    ///
+    /// Kotlin never uses the value of `main` as the process status: a valid
+    /// entry point returns `Unit`, and a program chooses a non-zero status
+    /// through `kotlin.system.exitProcess`, which terminates the process
+    /// directly (`__kk_system_exitProcess` returns `Never`) without ever
+    /// reaching this wrapper. Earlier this path truncated the entry
+    /// function's `i64` result into the `main` ABI's `i32`, so any `main`
+    /// whose inferred type was not `Unit` leaked its return value — or, when
+    /// that value was a boxed object, the low bits of a heap pointer — into
+    /// the exit status. `fun main() = runBlocking { 42 }` exited 42, and
+    /// shapes whose type widened to `Any` (`coroutineScope`/`await` are
+    /// modelled as returning `Any`) exited with a different garbage status on
+    /// each run of the same binary.
     private func emitSuccessPath(
         builder: LLVMCAPIBindings.LLVMBuilderRef,
-        primitiveTypes: LLVMEntryPointPrimitiveTypes,
-        entryResult: LLVMCAPIBindings.LLVMValueRef
+        constants: LLVMEntryPointConstants
     ) throws {
-        guard let exitCode = bindings.buildTrunc(
-            builder,
-            value: entryResult,
-            type: primitiveTypes.int32Type,
-            name: "exit.code"
-        ) else {
-            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to narrow entry return value to main ABI")
-        }
-        guard bindings.buildRet(builder, value: exitCode) != nil else {
+        guard bindings.buildRet(builder, value: constants.zero32) != nil else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit success return")
         }
     }

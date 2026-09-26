@@ -174,11 +174,23 @@ extension DataFlowSemaPhase {
         // member lookup can select for an enum-typed receiver. Keep a direct
         // member's signature as the preferred base when it overrides the same
         // inherited declaration.
+        //
+        // BUG-A: a base function inherited through a *generic* supertype (the
+        // implicit `kotlin.Enum<T>` every enum class extends) declares its
+        // receiver in terms of Enum's own unsubstituted type parameter `T`,
+        // not the concrete enum class. `Enum<T>` and the concrete `enumType`
+        // (e.g. `Op`) are unrelated types by naive comparison, so `toString()`
+        // silently never became a dispatch target and an entry-body
+        // `override fun toString()` was ignored. Substitute each candidate's
+        // receiver type using the recorded supertype type args (`Enum<Op>`
+        // for `Op`) before the match below compares it against `enumType`.
+        var effectiveReceiverTypes: [SymbolID: TypeID] = [:]
         var pendingSupertypes = symbols.directSupertypes(for: ownerSymbol)
         var visitedSupertypes: Set<SymbolID> = []
         while let supertype = pendingSupertypes.popLast() {
             guard visitedSupertypes.insert(supertype).inserted else { continue }
             if let supertypeInfo = symbols.symbol(supertype) {
+                let supertypeArgs = symbols.supertypeTypeArgs(for: ownerSymbol, supertype: supertype)
                 for candidate in symbols.children(ofFQName: supertypeInfo.fqName) {
                     guard let candidateInfo = symbols.symbol(candidate),
                           candidateInfo.kind == .function,
@@ -198,6 +210,11 @@ extension DataFlowSemaPhase {
                     }
                     if !duplicatesDirectMember {
                         baseFunctions.append(candidate)
+                        if let receiverType = candidateSignature.receiverType, !supertypeArgs.isEmpty {
+                            effectiveReceiverTypes[candidate] = types.substituteNominalTypeParameters(
+                                in: receiverType, owner: supertype, ownerArgs: supertypeArgs
+                            )
+                        }
                     }
                 }
             }
@@ -226,11 +243,23 @@ extension DataFlowSemaPhase {
 
                 let candidates = baseFunctions.filter { candidate in
                     guard let candidateSignature = symbols.functionSignature(for: candidate),
-                          let candidateReceiverType = candidateSignature.receiverType,
-                          (candidateReceiverType == enumType
+                          let rawReceiverType = candidateSignature.receiverType
+                    else {
+                        return false
+                    }
+                    let candidateReceiverType = effectiveReceiverTypes[candidate] ?? rawReceiverType
+                    guard (candidateReceiverType == enumType
                               || types.isSubtype(enumType, candidateReceiverType)),
                           bodySignature.receiverType == enumType,
-                          candidateSignature.typeParameterSymbols.isEmpty,
+                          // BUG-A: `typeParameterSymbols` also carries the
+                          // *enclosing class's* own type parameters for a
+                          // generic base like `kotlin.Enum<T>` (see
+                          // `classTypeParameterCount`'s doc comment) -- only
+                          // reject a candidate with type parameters of its
+                          // own, not inherited class-level ones already
+                          // accounted for by the receiver-type substitution
+                          // above.
+                          candidateSignature.typeParameterSymbols.count == candidateSignature.classTypeParameterCount,
                           candidateSignature.reifiedTypeParameterIndices.isEmpty,
                           !candidateSignature.isSuspend,
                           bodySignature.typeParameterSymbols.isEmpty,
@@ -296,7 +325,6 @@ extension DataFlowSemaPhase {
                 ),
                 for: helperSymbol
             )
-            symbols.setEnumEntryDispatchSymbol(helperSymbol, for: baseSymbol)
             symbols.setEnumEntryDispatchTargets(targets, for: helperSymbol)
         }
     }
