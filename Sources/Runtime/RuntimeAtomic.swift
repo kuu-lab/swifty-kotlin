@@ -888,6 +888,11 @@ private func runtimeAtomicRefWordValue(_ word: Int) -> AtomicRefWordValue {
     }
 }
 
+/// 0 and the raw sentinel are both null representations at this ABI edge.
+private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
+    word == 0 || word == runtimeNullSentinelInt
+}
+
 /// Value-typed CAS match for `AtomicReference` / `AtomicArray<T>`: identical
 /// words match (object identity and equal raw payloads), boxes of the same
 /// primitive/String kind match by payload, and a bare stored word matches a
@@ -895,11 +900,6 @@ private func runtimeAtomicRefWordValue(_ word: Int) -> AtomicRefWordValue {
 private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
-    }
-    let lhsIsNull = (lhs == 0 || lhs == runtimeNullSentinelInt)
-    let rhsIsNull = (rhs == 0 || rhs == runtimeNullSentinelInt)
-    if lhsIsNull || rhsIsNull {
-        return lhsIsNull && rhsIsNull
     }
     let left = runtimeAtomicRefWordValue(lhs)
     let right = runtimeAtomicRefWordValue(rhs)
@@ -920,6 +920,10 @@ private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
         return lv == rv && lenum == renum
     case (.unit, .unit):
         return true
+    case let (.raw(l), .raw(r)):
+        // Distinct bare words differ as payloads; the two null spellings
+        // still denote the same null.
+        return runtimeAtomicRefIsNullWord(l) && runtimeAtomicRefIsNullWord(r)
     default:
         break
     }

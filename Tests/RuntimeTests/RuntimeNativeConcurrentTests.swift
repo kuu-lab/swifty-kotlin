@@ -385,6 +385,17 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
                 "A failed compareAndExchange must retain the stored value")
     }
 
+    // A stored zero payload reads as the null representation at the raw-word
+    // level; CAS must still match it against a box carrying payload zero.
+    @Test func compareAndExchangeMatchesStoredRawZeroAgainstFreshBox() {
+        let atomicRef = kk_atomic_ref_create(0)
+        let expect = kk_box_int_static(0)
+        let update = kk_box_int_static(1)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect)
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
     // The same marshal asymmetry for String: two RuntimeStringBox handles
     // carrying the same text (the stored cell vs a freshly boxed expect)
     // must still CAS-match. The flat-string bridge now dedups, so this
