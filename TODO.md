@@ -1176,7 +1176,8 @@
     - `kotlin.collections.HashSet.retainAll` — fun HashSet.retainAll(Collection): Boolean  -- `final fun retainAll(kotlin.collections/Collection<#A>): kotlin/Boolean`
     - `kotlin.collections.HashSet.size` — val HashSet.size: Int  -- `final val size`
 
-- [ ] KSP-1061: kotlin.collections.Iterable.Iterable の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1061: kotlin.collections.Iterable.Iterable の未実装 stdlib API を実装する（1 件）
+  - KUU-672: `Iterable.kt` に `operator fun iterator(): Iterator<E>` を移行し、bundled 宣言がある場合は synthetic 登録を抑止。既存の throwing bridge は built-in box と source 実装の ABI 境界として維持。Swift build・対象 Sema Golden の再生成一致・kotlinc 2.3.10 単体 diff（独自 iterator / 遅延取得 / 例外伝播）を確認。共通 CI は未完了。
   - 対象: `kotlin.collections.Iterable` / receiver `Iterable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterable/Iterable.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
