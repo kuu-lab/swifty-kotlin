@@ -891,6 +891,38 @@ extension ExprLowerer {
                     ))
                     return result
                 }
+                // A bare reference to an extension property inside a body whose
+                // implicit receiver matches the extension receiver (e.g. `id`
+                // inside another `Worker` extension body) must call the
+                // property's getter on that receiver. Without this branch the
+                // symbol falls through to `loadGlobal` below, which reads a
+                // global slot that is never initialized (Int reads as 0,
+                // String reads as null).
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let activeReceiverType = arena.exprType(receiverExprID),
+                   sema.types.isSubtype(
+                       sema.types.makeNonNullable(activeReceiverType),
+                       sema.types.makeNonNullable(extensionReceiverType)
+                   )
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
                 if let sym = sema.symbols.symbol(symbol),
