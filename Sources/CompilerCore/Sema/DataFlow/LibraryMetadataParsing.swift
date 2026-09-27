@@ -172,6 +172,7 @@ extension DataFlowSemaPhase {
                 sealedSubclassFQNames: sealedSubclassFQNames,
                 propertyReceiverTypeSignature: metadataRecord.propertyReceiverTypeSignature,
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
+                propertySetterExternalLinkName: metadataRecord.propertySetterExternalLinkName,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
                 isMutable: metadataRecord.isMutable,

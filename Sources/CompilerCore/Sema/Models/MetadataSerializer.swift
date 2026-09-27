@@ -113,6 +113,8 @@ package struct MetadataRecord {
     let propertyReceiverTypeSignature: String?
     /// Link name of the precompiled getter accessor for extension properties.
     let propertyGetterExternalLinkName: String?
+    /// Link name of the precompiled setter accessor for `var` properties.
+    let propertySetterExternalLinkName: String?
     /// ABI return type signature for functions whose compiled return type differs
     /// from the source-level signature (e.g. raw `Int` string handles).
     let abiReturnTypeSignature: String?
@@ -185,6 +187,7 @@ package struct MetadataRecord {
         isActual: Bool = false,
         propertyReceiverTypeSignature: String? = nil,
         propertyGetterExternalLinkName: String? = nil,
+        propertySetterExternalLinkName: String? = nil,
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
         isMutable: Bool = false,
@@ -239,6 +242,7 @@ package struct MetadataRecord {
         self.isActual = isActual
         self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
         self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+        self.propertySetterExternalLinkName = propertySetterExternalLinkName
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
@@ -902,6 +906,7 @@ package final class MetadataEncoder {
 
         var propertyReceiverTypeSignature: String?
         var propertyGetterExternalLinkName: String?
+        var propertySetterExternalLinkName: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable = false
         var constValueLiteral: String?
@@ -973,6 +978,18 @@ package final class MetadataEncoder {
             if let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
                 propertyGetterExternalLinkName = linkName
+            }
+            // The setter accessor is a precompiled function too (a `var` with
+            // a custom `set` body, or any bundled extension `var`); without
+            // its link name the consumer resolves writes to a bare `set` call
+            // that fails to link (e.g. `atomicInt.value = x`).
+            let setterSymbol = symbols.extensionPropertySetterAccessor(for: symbol.id)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol.id)
+            if let setterLinkName = functionLinkNames[setterSymbol] ?? symbols.externalLinkName(for: setterSymbol),
+               !setterLinkName.isEmpty {
+                propertySetterExternalLinkName = setterLinkName
+            }
+            if propertyGetterExternalLinkName != nil {
                 let isErasedTypeParameterGetter: Bool = {
                     guard let propertyType = symbols.propertyType(for: symbol.id) else {
                         return false
@@ -1169,6 +1186,7 @@ package final class MetadataEncoder {
             isActual: isActual,
             propertyReceiverTypeSignature: propertyReceiverTypeSignature,
             propertyGetterExternalLinkName: propertyGetterExternalLinkName,
+            propertySetterExternalLinkName: propertySetterExternalLinkName,
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
             isMutable: isMutable,
@@ -1392,6 +1410,9 @@ package final class MetadataEncoder {
                 }
                 if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
                     fields.append("getterLink=\(getterLink)")
+                }
+                if let setterLink = record.propertySetterExternalLinkName, !setterLink.isEmpty {
+                    fields.append("setterLink=\(setterLink)")
                 }
                 if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature {
                     fields.append("getterAbiSig=\(getterAbiSig)")
@@ -1785,6 +1806,7 @@ final class MetadataDecoder {
                 isActual: rec.isActual,
                 propertyReceiverTypeSignature: rec.propertyReceiverTypeSignature,
                 propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
+                propertySetterExternalLinkName: rec.propertySetterExternalLinkName,
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
                 isMutable: rec.isMutable,
@@ -1844,6 +1866,7 @@ final class MetadataDecoder {
         var isActual: Bool = false
         var propertyReceiverTypeSignature: String?
         var propertyGetterExternalLinkName: String?
+        var propertySetterExternalLinkName: String?
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
@@ -1961,6 +1984,8 @@ final class MetadataDecoder {
             record.propertyReceiverTypeSignature = value.isEmpty ? nil : value
         case "getterLink":
             record.propertyGetterExternalLinkName = value.isEmpty ? nil : value
+        case "setterLink":
+            record.propertySetterExternalLinkName = value.isEmpty ? nil : value
         case "getterAbiSig":
             record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
         case "mutable":
