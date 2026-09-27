@@ -1876,7 +1876,8 @@
     - `kotlin.coroutines.SafeContinuation.getOrThrow` — fun SafeContinuation.getOrThrow(): Any  -- `final fun getOrThrow(): kotlin/Any?`
     - `kotlin.coroutines.SafeContinuation.resumeWith` — fun SafeContinuation.resumeWith(Result): Unit  -- `final fun resumeWith(kotlin/Result<#A>)`
 
-- [ ] KSP-1149: kotlin.coroutines.cancellation top-level の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1149: kotlin.coroutines.cancellation top-level の未実装 stdlib API を実装する（3 件）
+  - 2026-09-27 (KUU-696): 既存 CancellationException class/4 constructor を維持し、Native の hidden expect-actual factory 2件を Kotlin source に追加。HIDDEN 宣言を一般の overload 候補から除外する Sema 修正と回帰2テストを追加（PASS）。fresh stdlib と対応 Sema Golden を検証。全体 CI は未実行。
   - 対象: `kotlin.coroutines.cancellation` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/cancellation/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
