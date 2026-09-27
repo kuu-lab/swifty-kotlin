@@ -1616,7 +1616,7 @@
     - `kotlin.concurrent.atomics.AtomicArray.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<#A>)`
   - 完了根拠 (2026-09-25): `atomics/AtomicArray/Stdlib.kt` に `public fun <T> AtomicArray(array: Array<T>): AtomicArray<T> = atomicArrayOf(*array)` の source-backed 実装を追加した。`kk_atomic_ref_array_of` が要素を新規 atomic box へコピーするため copy-ctor 意味論と一致し、nullable スロットの `AtomicArray<T?>` を返す `AtomicArray(Int)` ctor 経由ではなく nonNull `AtomicArray<T>` を返せる。対象シンボルに `__kk_*`/`kk_*` の direct bridge や CallTypeChecker/CallLowerer の name-string 特例は存在せず削除対象なし。`atomicArrayOf`/`atomicArrayOfNulls` の合成ファクトリ登録は KSP-1100 の所有範囲のため保持。
 
-- [ ] KSP-1109: kotlin.concurrent.atomics.AtomicArray.AtomicArray の未実装 stdlib API を実装する（13 件）
+- [x] KSP-1109: kotlin.concurrent.atomics.AtomicArray.AtomicArray の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.concurrent.atomics.AtomicArray` / receiver `AtomicArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicArray/AtomicArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
