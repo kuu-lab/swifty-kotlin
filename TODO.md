@@ -1485,7 +1485,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicReference.<init>` — constructor ()  -- `constructor <init>(#A)`
 
-- [ ] KSP-1098: kotlin.concurrent.AtomicReference.AtomicReference の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1098: kotlin.concurrent.AtomicReference.AtomicReference の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.concurrent.AtomicReference` / receiver `AtomicReference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicReference/AtomicReference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1497,6 +1497,7 @@
     - `kotlin.concurrent.AtomicReference.getAndSet` — fun AtomicReference.getAndSet(): #A  -- `final fun getAndSet(#A): #A`
     - `kotlin.concurrent.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicReference/AtomicReference.kt` に source-backed class 宣言へ移し、`compareAndExchange` / `getAndSet` / `toString` / `var value` の 4 件を class member として実装した。`compareAndExchange` は `__kk_atomic_ref_compareAndExchange` private external bridge に委譲し、`getAndSet` / `toString` / `value` は retained runtime-backed `exchange` / `load` / `store` member へ委譲する（member 経由の T marshal は全 T で正しく、function-generic extern 経由だと `Int?` 等の nullable value で格納済み `null` を誤デコードするため）。残りの合成 stub（`AtomicReference(T)` コンストラクタ、load/store/exchange 本体、`get`/`set`/`compareAndSet`/CAS-update 系 extension、`kotlin.concurrent.atomics` typealias、`kotlin.native.concurrent` 系）は継続利用のため保持。name-string 特例は無し。
 
 - [ ] KSP-1100: kotlin.concurrent.atomics top-level の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.concurrent.atomics` / top-level
