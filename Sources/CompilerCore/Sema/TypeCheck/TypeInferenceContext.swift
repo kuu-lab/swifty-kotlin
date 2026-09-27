@@ -212,6 +212,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         var invisible: [SemanticSymbol] = []
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
+            guard !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols) else { continue }
             if visibilityChecker.isAccessible(symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol) {
                 visible.append(candidate)
             } else {
