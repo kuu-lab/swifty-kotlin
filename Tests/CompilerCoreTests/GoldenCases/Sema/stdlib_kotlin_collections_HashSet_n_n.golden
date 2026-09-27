@@ -1,0 +1,36 @@
+symbol fq=__local_0.empty[kind=local] kind=local vis=private flags=_ type=kotlin.collections.HashSet<String>
+symbol fq=__local_1.sized[kind=local] kind=local vis=private flags=_ type=kotlin.collections.HashSet<String>
+symbol fq=__local_2.copied[kind=local] kind=local vis=private flags=_ type=kotlin.collections.HashSet<String>
+symbol fq=__local_3.tuned[kind=local] kind=local vis=private flags=_ type=kotlin.collections.HashSet<String>
+symbol fq=hashSetConstructors[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+file fstdlib_kotlin_collections_HashSet_n_n package=_
+  decl hashSetConstructors[kind=fun;params=] fun hashSetConstructors sym=hashSetConstructors[kind=fun;params=]
+expr e@2:17 call callee=e@2:17#1 args=[] type=kotlin.collections.HashSet<String>
+expr e@2:5 localDecl empty mutable=0 type=_ init=e@2:17 type=Unit ref=__local_0.empty[kind=local]
+expr e@3:33 int(8) type=Int
+expr e@3:17 call callee=e@3:17#1 args=[_:e@3:33] type=kotlin.collections.HashSet<String>
+expr e@3:5 localDecl sized mutable=0 type=_ init=e@3:17 type=Unit ref=__local_1.sized[kind=local]
+expr e@4:33 string(a) type=String
+expr e@4:38 string(b) type=String
+expr e@4:26 call callee=e@4:26#1 args=[_:e@4:33,_:e@4:38] type=kotlin.collections.List<out String> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[String]
+expr e@4:18 call callee=e@4:18#1 args=[_:e@4:26] type=kotlin.collections.HashSet<String>
+expr e@4:5 localDecl copied mutable=0 type=_ init=e@4:18 type=Unit ref=__local_2.copied[kind=local]
+expr e@5:33 int(8) type=Int
+expr e@5:36 float(0.75) type=Float
+expr e@5:17 call callee=e@5:17#1 args=[_:e@5:33,_:e@5:36] type=kotlin.collections.HashSet<String>
+expr e@5:5 localDecl tuned mutable=0 type=_ init=e@5:17 type=Unit ref=__local_3.tuned[kind=local]
+expr e@6:12 name(empty) type=kotlin.collections.HashSet<String> ref=__local_0.empty[kind=local]
+expr e@6:12#1 memberCall recv=e@6:12 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:25 name(sized) type=kotlin.collections.HashSet<String> ref=__local_1.sized[kind=local]
+expr e@6:25#1 memberCall recv=e@6:25 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:12#2 binary(add) lhs=e@6:12#1 rhs=e@6:25#1 type=Int
+expr e@6:38 name(copied) type=kotlin.collections.HashSet<String> ref=__local_2.copied[kind=local]
+expr e@6:38#1 memberCall recv=e@6:38 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:12#3 binary(add) lhs=e@6:12#2 rhs=e@6:38#1 type=Int
+expr e@6:52 name(tuned) type=kotlin.collections.HashSet<String> ref=__local_3.tuned[kind=local]
+expr e@6:52#1 memberCall recv=e@6:52 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:12#4 binary(add) lhs=e@6:12#3 rhs=e@6:52#1 type=Int
+expr e@6:5 return value=e@6:12#4 type=Nothing
+section stdlib-targets
+target fq=kotlin.collections.HashSet.<init>[kind=ctor;recv=kotlin.collections.HashSet<T0>;params=Int,Float;gen=1] origin=importedLibrary kind=constructor vis=public flags=synthetic sig=recv=kotlin.collections.HashSet<T0> params=[Int,Float] ret=kotlin.collections.HashSet<T0> tparams=[T0]
+target fq=kotlin.collections.HashSet[kind=class;gen=1] origin=importedLibrary kind=class vis=public flags=synthetic tparams=[T0] supertypes=[kotlin.collections.AbstractMutableSet<T0>,kotlin.collections.MutableSet<T0>]

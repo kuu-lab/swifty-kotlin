@@ -1,0 +1,4 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.collections.HashSet[kind=class;gen=1]
+target=kotlin.collections.HashSet.<init>[kind=ctor;recv=kotlin.collections.HashSet<T0>;params=Int,Float;gen=1]

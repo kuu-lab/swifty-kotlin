@@ -20,5 +20,6 @@ package kotlin.collections
 public class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
     constructor()
     constructor(initialCapacity: Int)
+    constructor(initialCapacity: Int, loadFactor: Float)
     constructor(elements: Collection<E>)
 }
