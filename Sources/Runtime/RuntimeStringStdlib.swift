@@ -87,7 +87,7 @@ func runtimeStringTrimWithPredicate(
 
 @_cdecl("__kk_string_intern")
 public func __kk_string_intern(_ strRaw: Int) -> Int {
-    return strRaw
+    runtimeInternString(strRaw)
 }
 
 @_cdecl("kk_string_lowercase")

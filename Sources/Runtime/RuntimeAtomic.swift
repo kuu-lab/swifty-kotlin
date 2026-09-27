@@ -412,7 +412,9 @@ public func kk_atomic_ref_create(_ initial: Int) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
-    return Int(bitPattern: ptr)
+    let raw = Int(bitPattern: ptr)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeStableNominalTypeID(fqName: "kotlin.concurrent.AtomicReference"))
+    return raw
 }
 
 @_cdecl("__kk_atomic_ref_load")

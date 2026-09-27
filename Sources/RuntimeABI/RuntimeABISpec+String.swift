@@ -7,6 +7,16 @@
 public extension RuntimeABISpec {
     static let stringFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_string_literal_from_utf8",
+            parameters: [
+                RuntimeABIParameter(name: "pointer", type: .constUInt8Pointer),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_from_utf8",
             parameters: [
                 RuntimeABIParameter(name: "ptr", type: .constUInt8Pointer),
