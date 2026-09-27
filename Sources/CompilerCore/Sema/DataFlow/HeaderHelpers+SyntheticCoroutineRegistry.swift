@@ -582,7 +582,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         if !bundledIndex.contains(
-            ownerFQName: kotlinCoroutinesPkg,
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
             name: interner.intern("resume"),
             arity: 1
         ) {
@@ -602,7 +602,7 @@ extension DataFlowSemaPhase {
             )
         }
         if !bundledIndex.contains(
-            ownerFQName: kotlinCoroutinesPkg,
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
             name: interner.intern("resumeWithException"),
             arity: 1
         ) {
@@ -987,6 +987,11 @@ extension DataFlowSemaPhase {
             symbol: createCoroutineTypeParameterSymbol,
             nullability: .nonNull
         )))
+        let createCoroutineCompletionType = types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: [.invariant(createCoroutineTypeParameterType)],
+            nullability: .nonNull
+        )))
         let createCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
             params: [],
             returnType: createCoroutineTypeParameterType,
@@ -1216,7 +1221,7 @@ extension DataFlowSemaPhase {
             named: "createCoroutineUnintercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
             receiverType: createCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: continuationType)],
+            parameters: [(name: "completion", type: createCoroutineCompletionType)],
             returnType: continuationOfUnitType,
             typeParameterSymbols: [createCoroutineTypeParameterSymbol],
             symbols: symbols,
@@ -1228,7 +1233,7 @@ extension DataFlowSemaPhase {
             receiverType: createCoroutineWithReceiverFunctionType,
             parameters: [
                 (name: "receiver", type: createCoroutineReceiverTypeParameterType),
-                (name: "completion", type: continuationType),
+                (name: "completion", type: createCoroutineCompletionType),
             ],
             returnType: continuationOfUnitType,
             typeParameterSymbols: [createCoroutineReceiverTypeParameterSymbol, createCoroutineTypeParameterSymbol],
