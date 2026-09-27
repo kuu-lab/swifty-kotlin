@@ -1212,7 +1212,7 @@
     - `kotlin.collections.List.listIterator` — fun List.listIterator(Int): ListIterator  -- `abstract fun listIterator(kotlin/Int): kotlin.collections/ListIterator<#A>`
     - `kotlin.collections.List.size` — val List.size: Int  -- `abstract val size`
 
-- [ ] KSP-1066: kotlin.collections.Map top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1066: kotlin.collections.Map top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.Map` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Map/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1222,7 +1222,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.Map.Entry` — interface kotlin.collections.Map.Entry  -- `abstract interface <#A1: out kotlin/Any?, #B1: out kotlin/Any?> Entry {`
 
-- [ ] KSP-1068: kotlin.collections.Map.Entry.Entry の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1068: kotlin.collections.Map.Entry.Entry の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections.Map.Entry` / receiver `Entry`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Map/Entry/Entry.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

@@ -608,6 +608,10 @@ extension MemberLowerer {
         let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: ownerType, parameterTypes: [], returnType: propType),
+            for: getterSymbol
+        )
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
@@ -740,6 +744,10 @@ extension MemberLowerer {
         body.append(.endBlock)
 
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: ownerType, parameterTypes: [], returnType: propType),
+            for: getterSymbol
+        )
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(

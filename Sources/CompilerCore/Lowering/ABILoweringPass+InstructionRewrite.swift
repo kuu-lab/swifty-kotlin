@@ -11,6 +11,8 @@ extension ABILoweringPass {
         callee: InternedString?,
         interner: StringInterner,
         boxTypeParamArguments: Bool = false,
+        sema: SemaModule? = nil,
+        cache: KIRNominalDispatchCache? = nil,
         newBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         var boxedArguments = arguments
@@ -51,6 +53,8 @@ extension ABILoweringPass {
                     symbols: symbols,
                     interner: interner,
                     arena: module.arena,
+                    sema: sema,
+                    cache: cache,
                     into: &newBody
                 )
                 boxedArguments[argIndex] = boxedResult
@@ -107,6 +111,17 @@ extension ABILoweringPass {
         guard let callSymbol, let symbols else {
             return nil
         }
-        return symbols.functionSignature(for: callSymbol)?.returnType
+        if let returnType = symbols.functionSignature(for: callSymbol)?.returnType {
+            return returnType
+        }
+        // An interface property's dynamic getter has a synthetic ID even
+        // when its declaration was imported from a library. The declaration
+        // still carries the erased T return type needed to unbox Double and
+        // other concrete values after dispatch.
+        if let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(callSymbol),
+           accessor.kind == .getter {
+            return symbols.propertyType(for: accessor.property)
+        }
+        return nil
     }
 }

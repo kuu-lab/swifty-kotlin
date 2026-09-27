@@ -678,12 +678,12 @@ func itableBridgeSymbolForMethod(
         needsBridge = true
     }
     let needsErasedPrimitiveReturnBoxing: Bool = {
-        guard case .typeParam = sema.types.kind(of: interfaceSig.returnType),
-              case .primitive(_, .nonNull) = sema.types.kind(of: implementationReturnType)
-        else {
+        guard case .typeParam = sema.types.kind(of: interfaceSig.returnType) else {
             return false
         }
-        return true
+        let rawKind = sema.types.kind(of: implementationReturnType)
+        let resolvedKind = resolveValueClassKind(rawKind, types: sema.types, symbols: sema.symbols)
+        return BoxingCalleeTable(interner: interner).boxCallee(for: resolvedKind, requireNonNull: true) != nil
     }()
     if needsErasedPrimitiveReturnBoxing {
         needsBridge = true
@@ -780,6 +780,7 @@ func itableBridgeSymbolForMethod(
             arena: arena,
             resultType: interfaceSig.returnType,
             requireNonNull: true,
+            sema: sema,
             into: &body
         )
     } else {

@@ -12,6 +12,8 @@ private interface Container {
 
 private class TextValue(override val value: String) : Container.Value<String>
 private class DoubleEntry(override val key: String, override val value: Double) : Map.Entry<String, Double>
+private enum class EntryKind { FIRST }
+private class EnumEntry(override val key: String, override val value: EntryKind) : Map.Entry<String, EntryKind>
 private enum class Label : Container.Value<String> {
     VALUE;
     override val value: String get() = "enum"
@@ -50,5 +52,7 @@ fun main() {
     val concrete: Map.Entry<String, Double> = DoubleEntry("double", 2.5)
     println(concrete.key)
     println(concrete.value)
+    val enumEntry: Map.Entry<Any, Any> = EnumEntry("enum", EntryKind.FIRST)
+    println(enumEntry.value)
     println(readValue(Label.VALUE))
 }

@@ -1,12 +1,18 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct MapEntrySourceContractTests {
     @Test(arguments: [false, true])
     func entryAndGettersAreOwnedByBundledSource(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
         try withTemporaryFiles(contents: ["fun key(entry: Map.Entry<String, Int>): String = entry.key"]) { paths in
-            let ctx = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: useArtifact)
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let sema = try #require(ctx.sema)
@@ -16,9 +22,12 @@ struct MapEntrySourceContractTests {
             #expect(sema.types.nominalTypeParameterVariances(for: entry) == [.out, .out])
             for path in [fq, fq + [ctx.interner.intern("key")], fq + [ctx.interner.intern("value")]] {
                 let symbol = try #require(sema.symbols.lookup(fqName: path))
-                #expect(sema.symbols.isSourceBackedSymbol(symbol))
-                #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
-                #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+                #expect(sema.symbols.symbol(symbol)?.flags.contains(.importedLibrary) == useArtifact)
+                if !useArtifact {
+                    #expect(sema.symbols.isSourceBackedSymbol(symbol))
+                    #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
+                    #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+                }
             }
         }
     }

@@ -233,6 +233,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: vcCallee,
                             interner: ctx.interner,
                             boxTypeParamArguments: isKotlinSourceCallee(vcSymbol, symbols: symbols),
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             newBody: &newBody
                         )
                     } else {
@@ -487,6 +489,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         callee: effectiveCallee,
                         interner: ctx.interner,
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         newBody: &newBody
                     )
                 } else {
