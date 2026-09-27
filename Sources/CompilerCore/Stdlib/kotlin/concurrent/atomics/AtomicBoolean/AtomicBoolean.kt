@@ -4,6 +4,8 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
@@ -30,6 +32,11 @@ private external fun AtomicBoolean.__kkAtomicBoolStore(value: Boolean): Int
 @SinceKotlin("2.1")
 public fun AtomicBoolean.compareAndExchange(expectedValue: Boolean, newValue: Boolean): Boolean =
     __kkAtomicBoolCompareAndExchange(expectedValue, newValue)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun AtomicBoolean.compareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
+    compareAndExchange(expectedValue, newValue) == expectedValue
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")

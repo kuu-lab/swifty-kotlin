@@ -1500,7 +1500,7 @@
     - `kotlin.concurrent.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1100: kotlin.concurrent.atomics top-level の未実装 stdlib API を実装する（13 件）
+- [x] KSP-1100: kotlin.concurrent.atomics top-level の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.concurrent.atomics` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1521,6 +1521,7 @@
     - `kotlin.concurrent.atomics.AtomicReference` — class kotlin.concurrent.atomics.AtomicReference  -- `final class <#A: kotlin/Any?> kotlin.concurrent.atomics/AtomicReference {`
     - `kotlin.concurrent.atomics.ExperimentalAtomicApi` — class kotlin.concurrent.atomics.ExperimentalAtomicApi  -- `open annotation class kotlin.concurrent.atomics/ExperimentalAtomicApi : kotlin/Annotation {`
     - `kotlin.concurrent.atomics.atomicArrayOfNulls` — fun atomicArrayOfNulls(Int): AtomicArray  -- `final inline fun <#A: reified kotlin/Any?> kotlin.concurrent.atomics/atomicArrayOfNulls(kotlin/Int): kotlin.concurrent.atomics/AtomicArray<#A?>`
+  - 完了根拠 (2026-09-27): `atomics/Stdlib.kt` に `AtomicBoolean` / `AtomicInt` / `AtomicLong` / `AtomicNativePtr` / `AtomicReference<T>` / `AtomicArray<T>` の source-backed class shell と `atomicArrayOfNulls(Int)`（`kk_atomic_ref_array_new` external）・`AtomicArray(Int, init)` inline factory を追加した。`AtomicIntArray` / `AtomicLongArray` の class + factory と `ExperimentalAtomicApi` は既存の source-backed 実装済みのため対象外。上流は `kotlin.concurrent.atomics.AtomicX` を `kotlin.concurrent` への alias ではなく独立 class として持つため、atomics 側 4 件の `registerAtomicTypeAlias` を削除し、`registerAtomicScalarFamily`（AtomicInt/AtomicLong は `kk_atomic_*_compareAndSet` リンク付き、AtomicBoolean は bundled `compareAndSet` 拡張）と `registerAtomicReferenceStubs` を atomics package に追加して member shell を維持した。`atomicArrayOfNulls` の合成 factory 登録（`registerAtomicArrayOfNullsFactory`）は bundled external に統合して削除。`atomics/AtomicBoolean/Stdlib.kt` の委譲 factory は `kk_atomic_bool_create` 直結の external に変更し、atomics 側 `AtomicBoolean.compareAndSet` / `AtomicReference.compareAndSet` を bundled 拡張として追加（`__kk_atomic_{bool,ref}_compareAndSet` がランタイムに無いため `compareAndExchange` ベース）。`concurrent.AtomicBoolean` 向けに key 移動で失われる `toString` を `kotlin/concurrent/AtomicMigration.kt` に追加して保持。name-string 特例は `atomicArrayOf` 用の既存 dispatch のみで削除対象なし。
 
 - [~] KSP-1101: kotlin.concurrent.atomics.AtomicArray の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicArray`
