@@ -930,10 +930,11 @@
   - 更新モードなしで同 suite と `GoldenHarnessPersistenceTests` / `GoldenHarnessSemaComparisonNormalizationTests` / `GoldenHarnessNormalizationInvariantTests` を再実行する。API・worker・保存 / 比較で専用対象が失われないことを確認し、正規化バイパスを再導入しない。Lexer / Parser / Diagnostics の出力は変更しない。
   - 効果検証: KSP-697 の106ケース（通常53・stdlib名53）を基準に、同等の対象メタデータ変更で通常側が不変、専用側の更新は契約の担当ケースに限定されることを確認する。1〜2ファイルという値を保証せず、変更された独立契約数・担当ファイル数・残る意味上の expr 差分を分けて実測・記録する。
   - 完了条件: RF 必須ゲートと移管テストが green。579ケース（着手時に件数再確認）の宣言・型・解決先・診断の情報を維持し、メタデータ担当の欠落・意図しない重複がないこと。§8 の正式改訂と通常 / 専用の両方向の回帰が揃うまで完了扱いにしない。
-- [ ] RF-GOLDEN-009: Golden 表示のための nil declSite 互換処理をコンパイラから切り離す（前提: 008）
+- [~] RF-GOLDEN-009: Golden 表示のための nil declSite 互換処理をコンパイラから切り離す（前提: 008）
   - 対象: `HeaderCollection.predeclareBundledTupleHeaders` / Charset 先行登録 / `shouldRestoreDeclSiteForReusableSyntheticSymbol`、`PairTripleNominalAnchorTests`。まず Pair / Triple の nil declSite 要求を、正しい宣言所有・型解決・必要な flags と Golden の実装非依存性を確認するテストへ置き換える。
   - nil 維持の理由を Golden 都合と実際の compiler / metadata 互換性に分け、前者だけを解消する。`isSourceBackedSymbol`、external call / constructor lowering、metadata export / import の挙動が変わるため、source 化された全 shell に declSite を一律復元しない。`--no-stdlib` の fallback と Duration 等の既存例外を保持し、着手時に影響が広ければ nominal 群別の新IDへ分割する。
   - 完了条件: 型解決・source / artifact / no-stdlib の該当経路が green で、Golden 安定性のために宣言位置を偽装する必要がないこと。実行時に必要な互換処理は専用回帰テストとともに残し、単なる Golden の再更新で挙動差を隠さない。
+  - 2026-09-27 実装: `predeclareBundledTupleHeaders` と Charset 先行登録の `setDeclSite(nil)` 強制を削除し、bundled 宣言は実 declSite を保持（Golden 側は RF-GOLDEN-002 の sourceFileID 由来分類と `isExcludedLibrarySymbol` の case-file 判定で nil 不要と確認済み）。`--no-stdlib` fallback shell は維持し、`shouldRestoreDeclSiteForReusableSyntheticSymbol` の allowlist・コメントを実互換契約として明文化。`PairTripleNominalAnchorTests` を宣言所有（bundled file の declSite / sourceFileID）・flags・型解決・`isSourceBackedSymbol` を検証する内容へ更新し、`GoldenHarnessSymbolOriginTests` の nil 前提 pin も新契約へ置き換え。focused gates 成功: `PairTripleNominalAnchorTests`・`--filter Golden` 全 suite（823 Sema ケース含む、全 profile で差分なし）・Pair/Triple/Charset 関連 `diff_kotlinc` 17件・`validate_runtime_abi_links.sh`（全 Swift / 全 diff / 指標は未実行）。
 
 ---
 
