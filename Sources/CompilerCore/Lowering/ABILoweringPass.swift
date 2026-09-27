@@ -730,18 +730,25 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         boxingCalleeTable: BoxingCalleeTable
     ) -> [KIRInstruction]? {
         guard let functionReturnKind,
-              isAnyOrNullableAny(functionReturnKind) || isNonValueClassReference(functionReturnKind, symbols: symbols),
               let valueType = intrinsicArgType(value, arena: module.arena, types: types)
         else {
             return nil
         }
         let rawValueKind = types.kind(of: valueType)
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
-        guard let boxCallee = boxCalleeForPrimitive(
-            resolvedValueKind,
-            boxingCalleeTable: boxingCalleeTable,
-            preferStaticPrimitive: true
-        ) else {
+        // A non-null primitive returned from a `P?`-typed function must be
+        // boxed — not passed through verbatim — because a `P?` slot holds
+        // box-or-sentinel and a raw sentinel-equal scalar (Long.MIN_VALUE,
+        // ULong 2^63, -0.0) would read as `null` at every call site (KUU-854).
+        guard isAnyOrNullableAny(functionReturnKind)
+            || isNonValueClassReference(functionReturnKind, symbols: symbols)
+            || needsBoxingForCopy(sourceKind: resolvedValueKind, targetKind: functionReturnKind),
+              let boxCallee = boxCalleeForPrimitive(
+                  resolvedValueKind,
+                  boxingCalleeTable: boxingCalleeTable,
+                  preferStaticPrimitive: true
+              )
+        else {
             return nil
         }
         var instructions: [KIRInstruction] = []

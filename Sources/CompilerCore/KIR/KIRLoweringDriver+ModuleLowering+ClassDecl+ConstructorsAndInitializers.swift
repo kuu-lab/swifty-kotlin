@@ -656,11 +656,18 @@ extension KIRLoweringDriver {
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let storedValue = normalizedValueForNullablePrimitiveSlot(
+                value,
+                slotType: valueType,
+                types: sema.types,
+                arena: arena,
+                into: &body
+            )
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
                 callee: shared.interner.intern("kk_array_set"),
-                arguments: [receiverID, offsetExpr, value],
+                arguments: [receiverID, offsetExpr, storedValue],
                 result: unusedResult,
                 canThrow: false,
                 thrownResult: nil,

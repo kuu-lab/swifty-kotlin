@@ -102,7 +102,8 @@ public func __kk_string_toULongOrNull(_ strRaw: Int) -> Int {
     guard let value = UInt64(source) else {
         return runtimeNullSentinelInt
     }
-    return Int(bitPattern: UInt(value))
+    // ULong? slots hold box-or-sentinel: 2^63 bit-equals the sentinel (KUU-854).
+    return kk_box_ulong_nonnull(Int(bitPattern: UInt(value)))
 }
 
 @_cdecl("__kk_string_toUByteOrNull_radix")
@@ -186,7 +187,7 @@ public func __kk_string_toULongOrNull_radix(
     guard let value = UInt64(source, radix: radix) else {
         return runtimeNullSentinelInt
     }
-    return Int(bitPattern: UInt(truncatingIfNeeded: value))
+    return kk_box_ulong_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: value)))
 }
 
 @_cdecl("__kk_string_toULongOrNull_radix_flat")
@@ -282,7 +283,8 @@ public func __kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
     guard let parsed = runtimeParseDouble(trimmed) else {
         return runtimeNullSentinelInt
     }
-    return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
+    // Double? slots hold box-or-sentinel: -0.0 bit-equals the sentinel (KUU-854).
+    return kk_box_double_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern)))
 }
 
 @_cdecl("__kk_string_toDoubleOrNull_flat")
@@ -346,7 +348,9 @@ public func __kk_string_toLongOrNull(_ strRaw: Int) -> Int {
     guard let value = Int64(source) else {
         return runtimeNullSentinelInt
     }
-    return Int(truncatingIfNeeded: value)
+    // Long? slots hold box-or-sentinel: Long.MIN_VALUE bit-equals the
+    // sentinel (KUU-854).
+    return kk_box_long_nonnull(Int(truncatingIfNeeded: value))
 }
 
 @_cdecl("__kk_string_toFloat")
@@ -379,7 +383,9 @@ public func __kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
     guard let parsed = runtimeParseFloat(trimmed) else {
         return runtimeNullSentinelInt
     }
-    return runtimeFloatBitsToInt(parsed)
+    // Float? slots hold box-or-sentinel: -0.0f collides with the sentinel
+    // under the f32 null comparison (KUU-854).
+    return kk_box_float(runtimeFloatBitsToInt(parsed))
 }
 
 @_cdecl("__kk_string_toBoolean")
