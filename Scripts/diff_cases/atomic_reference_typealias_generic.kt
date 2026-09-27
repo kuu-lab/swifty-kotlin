@@ -3,6 +3,7 @@
 package diff
 
 import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.fetchAndUpdate
 
 fun appendAtomically(atomic: AtomicReference<String>): String =
     atomic.fetchAndUpdate { it + "x" }
