@@ -497,6 +497,13 @@ public final class SymbolTable {
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
 
+    /// Globals that carry `.importedLibrary` but whose storage is defined by
+    /// this compilation — `.klib` modules ship serialized IR without a
+    /// precompiled object, so the backend must emit a real slot instead of
+    /// an extern reference. Populated when KlibBodyLowerer materializes
+    /// top-level fields, enum entries and object singletons.
+    private var klibDefinedGlobalSymbols: Set<SymbolID> = []
+
     /// KUU-655: an `override` whose own declaration carries no default value
     /// expressions still accepts calls that omit the overridden parameter
     /// (Kotlin inherits the base's default). `OverrideDefaultArgumentInheritance`
@@ -1054,6 +1061,17 @@ public final class SymbolTable {
 
     public func externalLinkName(for symbol: SymbolID) -> String? {
         externalLinkNames[symbol]
+    }
+
+    /// Marks an `.importedLibrary`-flagged global as storage-defined by this
+    /// compilation (`.klib` globals have no precompiled object file behind
+    /// them — their serialized IR bodies are materialized into KIR here).
+    public func markKlibDefinedGlobal(_ symbol: SymbolID) {
+        klibDefinedGlobalSymbols.insert(symbol)
+    }
+
+    public func isKlibDefinedGlobal(_ symbol: SymbolID) -> Bool {
+        klibDefinedGlobalSymbols.contains(symbol)
     }
 
     public func setFunctionABIReturnType(_ type: TypeID, for symbol: SymbolID) {
@@ -2214,6 +2232,13 @@ public final class SemaModule {
     /// lowering pass reads + parses each body on first expansion instead of
     /// paying for every artifact up front.
     public var importedInlineFunctions: ImportedInlineFunctionStore
+    /// `.klib` modules whose declarations were imported through
+    /// `loadImportedLibrarySymbols`. The decoded IR and the
+    /// `(fileIndex, signatureIndex) → SymbolID` map stay alive here so KIR
+    /// lowering can materialize serialized bodies into this compilation's
+    /// arena (they are `internal` because `LoadedKlibModule` is a
+    /// `DataFlowSemaPhase` detail type).
+    var klibModules: [DataFlowSemaPhase.LoadedKlibModule] = []
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
     /// in the transient `BundledSyntheticStubRegistration` thread-local, which

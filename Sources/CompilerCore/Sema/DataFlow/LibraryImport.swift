@@ -21,9 +21,9 @@ extension DataFlowSemaPhase {
         /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
         /// Kotlin `.klib` modules discovered on the search path: manifest
-        /// parsed and version-gated, container kept open for the IR import
-        /// stages that follow.
-        let klibModules: [KlibModule]
+        /// parsed and version-gated, container and decoded IR kept open for
+        /// the body materialization that runs during KIR lowering.
+        let klibModules: [LoadedKlibModule]
     }
 
     func loadImportedLibrarySymbols(
@@ -44,7 +44,7 @@ extension DataFlowSemaPhase {
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
-        var klibModules: [KlibModule] = []
+        var klibModules: [LoadedKlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
 
@@ -54,22 +54,32 @@ extension DataFlowSemaPhase {
                 == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
         }
 
+        /// Registers records and returns the `(record, symbol)` pairs so the
+        /// caller can rebuild producer-side identity maps (`.klib` body
+        /// materialization resolves `(fileIndex, signatureIndex)` back to the
+        /// assigned symbols).
+        @discardableResult
         func registerRecords(
             _ records: [ImportedLibrarySymbolRecord],
             metadataPath: String,
             libraryModuleFQN: InternedString?,
             inlineKIRDir: String?,
             stdlibArtifact: Bool
-        ) {
+        ) -> [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] {
+            var registered: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
+            registered.reserveCapacity(records.count)
             for record in records {
-                registerRecord(
+                if let symbol = registerRecord(
                     record,
                     metadataPath: metadataPath,
                     libraryModuleFQN: libraryModuleFQN,
                     inlineKIRDir: inlineKIRDir,
                     stdlibArtifact: stdlibArtifact
-                )
+                ) {
+                    registered.append((record: record, symbol: symbol))
+                }
             }
+            return registered
         }
 
         func registerRecord(
@@ -78,9 +88,9 @@ extension DataFlowSemaPhase {
             libraryModuleFQN: InternedString?,
             inlineKIRDir: String?,
             stdlibArtifact: Bool
-        ) {
+        ) -> SymbolID? {
             guard !record.fqName.isEmpty else {
-                return
+                return nil
             }
             let name = record.fqName.last ?? interner.intern("_")
             var flags: SymbolFlags = [.synthetic, .importedLibrary]
@@ -154,28 +164,37 @@ extension DataFlowSemaPhase {
                 inlineKIRDir: inlineKIRDir,
                 isStdlibArtifact: stdlibArtifact
             ))
+            return symbol
         }
 
         for libraryDir in libraryDirs {
             if libraryDir.hasSuffix(".klib") {
                 if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
-                    klibModules.append(module)
                     let stdlibArtifact = isStdlibArtifact(libraryDir)
                     if stdlibArtifact {
                         stdlibArtifactLoaded = true
                         stdlibModuleName = interner.intern(module.uniqueName)
                     }
-                    registerRecords(
-                        materializeKlibRecords(
-                            module: module,
-                            interner: interner,
-                            diagnostics: diagnostics
-                        ),
+                    let (records, ir) = materializeKlibRecords(
+                        module: module,
+                        interner: interner,
+                        diagnostics: diagnostics
+                    )
+                    let registered = registerRecords(
+                        records,
                         metadataPath: "\(libraryDir)/ir",
                         libraryModuleFQN: interner.intern(module.uniqueName),
                         inlineKIRDir: nil,
                         stdlibArtifact: stdlibArtifact
                     )
+                    if let ir {
+                        klibModules.append(finalizeKlibModule(
+                            module: module,
+                            ir: ir,
+                            registered: registered,
+                            symbols: symbols
+                        ))
+                    }
                 }
                 continue
             }
@@ -1403,7 +1422,8 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         symbols: SymbolTable
     ) {
-        guard record.kind == .function || record.kind == .property || record.kind == .field || record.kind == .constructor,
+        guard record.kind == .function || record.kind == .property || record.kind == .field
+              || record.kind == .backingField || record.kind == .constructor,
               record.fqName.count >= 2
         else {
             return
