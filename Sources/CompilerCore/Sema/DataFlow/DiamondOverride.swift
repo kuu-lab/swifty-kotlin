@@ -274,15 +274,17 @@ extension DataFlowSemaPhase {
         }
 
         // `ULongRange.isEmpty` is source-backed on the bundled ULongRange
-        // declaration. The built-in declaration also implements both
-        // ClosedRange and OpenEndRange, so this concrete member resolves their
-        // shared interface override while the nominal owner moves to source.
-        let ulongRangeFQName = [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-            interner.intern("ULongRange"),
+        // declaration and `UIntRange.isEmpty` remains the residual extension
+        // in RangeMembership.kt. The built-in declarations also implement
+        // both ClosedRange and OpenEndRange, so that concrete member resolves
+        // their shared interface override while the nominal owner moves to
+        // source.
+        let unsignedRangeFQNames: Set<[InternedString]> = [
+            ["kotlin", "ranges", "UIntRange"].map(interner.intern),
+            ["kotlin", "ranges", "ULongRange"].map(interner.intern),
         ]
-        if symbols.symbol(ownerSymbol)?.fqName == ulongRangeFQName {
+        if let ownerFQName = symbols.symbol(ownerSymbol)?.fqName,
+           unsignedRangeFQNames.contains(ownerFQName) {
             let isEmptyName = interner.intern("isEmpty")
             for extensionSymbol in symbols.allSymbols() {
                 guard extensionSymbol.kind == .function,

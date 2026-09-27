@@ -167,15 +167,8 @@ extension DataFlowSemaPhase {
         // `Iterable<Byte/Short/Int/Long/Float/Double>`, confirmed via
         // diff_kotlinc.sh), so it was dropped entirely rather than
         // migrated.
-        registerSyntheticConstructor(
-            ownerSymbol: classSymbol,
-            ownerType: rangeType,
-            parameterTypes: [types.uintType, types.uintType],
-            parameterNames: ["start", "end"],
-            externalLinkName: "__kk_uint_rangeTo",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1314: the public constructor is declared by bundled source
+        // (`UIntRange/Stdlib.kt`) on the same `__kk_uint_rangeTo` factory.
     }
 
     func registerSyntheticULongRangeStub(
