@@ -9,8 +9,9 @@ import kotlin.internal.KsSymbolName
  *
  * The atomic storage stays in the runtime `kk_atomic_ref_array_*` box and CAS
  * uses identity semantics. These members add the bounds checks the stdlib
- * contract requires and keep the element type marshal correct for every `T`,
- * including nullable value types such as `Int?`.
+ * contract requires and bridge through `private external` members so `T` stays
+ * on the class-type-parameter marshal path rather than the function-generic
+ * extern boundary (which mis-decodes nullable value types such as `Int?`).
  */
 @SinceKotlin("2.1")
 @ExperimentalAtomicApi
