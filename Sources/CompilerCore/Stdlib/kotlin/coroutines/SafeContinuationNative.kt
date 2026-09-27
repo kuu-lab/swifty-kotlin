@@ -27,7 +27,12 @@ internal class SafeContinuation<in T> internal constructor(
 
     // KSwiftK stores Result as a runtime box. Keep the box intact so successful
     // null values and failures remain distinguishable from the state markers.
-    private val resultRef = AtomicReference<Any?>(initialResult)
+    private val resultRef = AtomicReference<Any?>(
+        if (initialResult === CoroutineSingletons.UNDECIDED ||
+            initialResult === CoroutineSingletons.RESUMED ||
+            initialResult === COROUTINE_SUSPENDED
+        ) initialResult else Result.success(initialResult)
+    )
 
     public override fun resumeWith(result: Result<T>) {
         while (true) {

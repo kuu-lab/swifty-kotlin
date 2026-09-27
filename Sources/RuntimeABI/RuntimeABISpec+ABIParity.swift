@@ -111,9 +111,17 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_copaque_pointer_new", parameters: [
             p("address", .intptr),
         ]),
-        abiParitySpec("kk_coroutine_continuation_context", parameters: [
+        abiParitySpec("__kk_coroutine_continuation_context", parameters: [
             p("continuation", .intptr),
             p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_coroutine_continuation_resume_with", parameters: [
+            p("continuation", .intptr),
+            p("resultRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("kk_coroutine_continuation_context", parameters: [
+            p("continuation", .intptr),
         ]),
         abiParitySpec("kk_coroutine_continuation_resume", parameters: [
             p("continuation", .intptr),
@@ -122,7 +130,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_coroutine_continuation_resume_with", parameters: [
             p("continuation", .intptr),
             p("resultRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
         ], returnType: .void),
         abiParitySpec("kk_coroutine_continuation_resume_with_exception", parameters: [
             p("continuation", .intptr),

@@ -581,34 +581,46 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "resume",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: continuationType,
-            externalLinkName: "kk_coroutine_continuation_resume",
-            returnType: types.unitType,
-            parameters: [(
-                name: "value",
-                type: continuationTType
-            )],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "resumeWithException",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: continuationType,
-            externalLinkName: "kk_coroutine_continuation_resume_with_exception",
-            returnType: types.unitType,
-            parameters: [(
-                name: "exception",
-                type: exceptionType
-            )],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg,
+            name: interner.intern("resume"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "resume",
+                packageFQName: kotlinCoroutinesPkg,
+                receiverType: continuationType,
+                externalLinkName: "kk_coroutine_continuation_resume",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "value",
+                    type: continuationTType
+                )],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg,
+            name: interner.intern("resumeWithException"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "resumeWithException",
+                packageFQName: kotlinCoroutinesPkg,
+                receiverType: continuationType,
+                externalLinkName: "kk_coroutine_continuation_resume_with_exception",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "exception",
+                    type: exceptionType
+                )],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         let resultOfContinuationTType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,

@@ -1,5 +1,7 @@
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.EmptyCoroutineContext
 
 private class Probe : Continuation<Int> {
@@ -18,6 +20,8 @@ fun main() {
     val source: Continuation<Int> = Probe()
     println(source.context === EmptyCoroutineContext)
     source.resumeWith(Result.success(11))
+    source.resume(12)
+    try { source.resumeWithException(IllegalStateException("resume-exception")) } catch (e: IllegalStateException) { println(e.message) }
     checkThrownMembers()
 }
 
