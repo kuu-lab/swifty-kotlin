@@ -2728,7 +2728,7 @@
     - `kotlin.ranges.LongRange.Companion.EMPTY` — val Companion.EMPTY: LongRange  -- `final val EMPTY`
   - 完了（2026-09-25）: `LongRange.Companion.EMPTY` を Kotlin source-backed extension property として実装し、直接表記・Companion 明示表記の Golden / kotlinc diff ケースを追加。artifact-based GoldenHarness 出力一致、対象 kotlinc diff 1/1、Runtime ABI external-link 5/5、TODO ID 検査を確認。Sema Golden 全 suite は未実行（フィルタが全 Sema ケースを処理するため）。
 
-- [ ] KSP-1311: kotlin.ranges.OpenEndRange.OpenEndRange の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1311: kotlin.ranges.OpenEndRange.OpenEndRange の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges.OpenEndRange` / receiver `OpenEndRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/OpenEndRange/OpenEndRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2740,6 +2740,7 @@
     - `kotlin.ranges.OpenEndRange.endExclusive` — val OpenEndRange.endExclusive: #A  -- `abstract val endExclusive`
     - `kotlin.ranges.OpenEndRange.isEmpty` — fun OpenEndRange.isEmpty(): Boolean  -- `open fun isEmpty(): kotlin/Boolean`
     - `kotlin.ranges.OpenEndRange.start` — val OpenEndRange.start: #A  -- `abstract val start`
+  - 完了（2026-09-27）: `OpenEndRange/OpenEndRange.kt` に `start`/`endExclusive`/`contains`/`isEmpty` のメンバー宣言を source-backed で追加（`contains`/`isEmpty` は `@KsSymbolName`、`start`/`endExclusive` は synthetic residual の `__kk_range_*` 外部リンクを維持 = `Map.size` パターン）。`ULongRange.endExclusive` のオーバーライド宣言を補完し、オーバーロード解決で兄弟インタフェース経由の同一メンバー（`ClosedRange`/`OpenEndRange` の `contains`）が ambiguous 扱いになる回帰を `pickMostSpecific` の member unification で修正。Golden 全 914 ケース・対象 kotlinc diff・Runtime ABI リンク検証・TODO ID 検査を確認。
 
 - [ ] KSP-1312: kotlin.ranges.UIntProgression top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.UIntProgression` / top-level

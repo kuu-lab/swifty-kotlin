@@ -672,7 +672,13 @@ final class ExprTypeChecker {
                         }
                         return signature.parameterTypes.count == 1
                     }
-                let hasApplicableRangeMember = ctx.resolver.resolveCall(
+                // Viability, not a unique winner: a receiver that conforms to
+                // both ClosedRange and OpenEndRange offers the same `contains`
+                // member through two supertype paths, which resolveCall reports
+                // as ambiguous. This check only decides whether the bundled
+                // member surface can handle the call, so probe for at least one
+                // applicable member instead.
+                let hasApplicableRangeMember = !ctx.resolver.probeCall(
                     candidates: rangeMemberCandidates,
                     call: CallExpr(
                         range: range,
@@ -682,7 +688,7 @@ final class ExprTypeChecker {
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
                     ctx: ctx.semaCtx
-                ).chosenCallee != nil
+                ).viableCandidates.isEmpty
                 if !hasBundledRangeCandidate,
                    !hasApplicableRangeMember,
                    let diagnostic = resolved.diagnostic
@@ -775,7 +781,13 @@ final class ExprTypeChecker {
                         }
                         return signature.parameterTypes.count == 1
                     }
-                let hasApplicableRangeMember = ctx.resolver.resolveCall(
+                // Viability, not a unique winner: a receiver that conforms to
+                // both ClosedRange and OpenEndRange offers the same `contains`
+                // member through two supertype paths, which resolveCall reports
+                // as ambiguous. This check only decides whether the bundled
+                // member surface can handle the call, so probe for at least one
+                // applicable member instead.
+                let hasApplicableRangeMember = !ctx.resolver.probeCall(
                     candidates: rangeMemberCandidates,
                     call: CallExpr(
                         range: range,
@@ -785,7 +797,7 @@ final class ExprTypeChecker {
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
                     ctx: ctx.semaCtx
-                ).chosenCallee != nil
+                ).viableCandidates.isEmpty
                 if !hasBundledRangeCandidate,
                    !hasApplicableRangeMember,
                    let diagnostic = resolved.diagnostic
