@@ -96,7 +96,11 @@ extension ExprTypeChecker {
             return boolType
         }
         if (op == .equal || op == .notEqual),
-           equalityHasDisjointFinalTypes(lhs, rhs, sema: sema)
+           equalityHasIncompatibleBuiltinTypes(
+               equalityDeclaredType(lhsID, inferred: lhs, sema: sema),
+               equalityDeclaredType(rhsID, inferred: rhs, sema: sema),
+               sema: sema
+           )
         {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
@@ -670,36 +674,54 @@ extension ExprTypeChecker {
         }
     }
 
-    // Kotlin rejects equality when both operand types are final and cannot
-    // describe the same value. Keep interfaces, open classes, nullable values,
-    // and type parameters on the normal equals path: a common subtype or null
-    // can make those comparisons meaningful.
-    private func equalityHasDisjointFinalTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
-        guard sema.types.isDefinitelyNonNull(lhs), sema.types.isDefinitelyNonNull(rhs),
+    // Use the declaration type for smart-cast references. Kotlin only warns
+    // when a comparison becomes incompatible after smart casting.
+    private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
+        guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
+        if let declared = sema.symbols.propertyType(for: symbol) { return declared }
+        if let owner = sema.symbols.valueParameterOwner(for: symbol),
+           let signature = sema.symbols.functionSignature(for: owner),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           signature.parameterTypes.indices.contains(index)
+        {
+            return signature.parameterTypes[index]
+        }
+        return inferred
+    }
+
+    // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or
+    // String is involved. Ordinary classes may implement cross-type equals.
+    // Type-parameter bounds and enum/value-class diagnostics have additional
+    // warning rules and remain on the existing path.
+    private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        func erasedOperand(_ type: TypeID) -> TypeID? {
+            let nonNull = sema.types.makeNonNullable(type)
+            switch sema.types.kind(of: nonNull) {
+            case .typeParam, .intersection:
+                return nil
+            case let .classType(classType):
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: classType.classSymbol,
+                    args: classType.args.map { _ in .star },
+                    nullability: .nonNull
+                )))
+            default:
+                return nonNull
+            }
+        }
+        guard let lhs = erasedOperand(lhs), let rhs = erasedOperand(rhs),
               !sema.types.isSubtype(lhs, rhs), !sema.types.isSubtype(rhs, lhs)
         else { return false }
 
-        func isFinal(_ type: TypeID) -> Bool {
+        func requiresCompatibleOperand(_ type: TypeID) -> Bool {
             switch sema.types.kind(of: type) {
-            case .primitive, .stringStruct, .unit:
+            case .primitive, .stringStruct:
                 return true
-            case let .classType(classType):
-                guard let symbol = sema.symbols.symbol(classType.classSymbol) else { return false }
-                switch symbol.kind {
-                case .object, .enumClass:
-                    return true
-                case .class:
-                    return !symbol.flags.contains(.openType)
-                        && !symbol.flags.contains(.abstractType)
-                        && !symbol.flags.contains(.sealedType)
-                default:
-                    return false
-                }
             default:
                 return false
             }
         }
-        return isFinal(lhs) && isFinal(rhs)
+        return requiresCompatibleOperand(lhs) || requiresCompatibleOperand(rhs)
     }
 
     private func coroutineContextType(sema: SemaModule, interner: StringInterner) -> TypeID? {
