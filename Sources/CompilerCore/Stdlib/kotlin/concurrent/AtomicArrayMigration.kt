@@ -12,8 +12,10 @@ import kotlin.internal.KsSymbolName
 // bundled extension does not bind to the array length).
 // Migration source: Sources/Runtime/RuntimeAtomic.swift
 //   __kk_atomic_int_array_* / __kk_atomic_long_array_*
-// CAS/arithmetic cores (compareAndExchange, fetchAndAdd, addAndFetch) and the
-// lambda-driven fetchAndUpdateAt remain runtime bridges.
+// CAS/arithmetic cores (compareAndExchange, fetchAndAdd, addAndFetch) remain
+// runtime bridges. The lambda-driven update operators are CAS retry loops on
+// this layer: fetchAndUpdateAt lives in atomics/AtomicArrayMigration.kt, while
+// updateAt / updateAndFetchAt are defined below (KSP-1103).
 
 // ---- AtomicIntArray ----
 
@@ -102,6 +104,22 @@ public fun AtomicIntArray.getAndDecrement(index: Int): Int = fetchAndAddAt(index
 public fun AtomicIntArray.decrementAndFetchAt(index: Int): Int = addAndFetchAt(index, -1)
 
 public fun AtomicIntArray.decrementAndGet(index: Int): Int = addAndFetchAt(index, -1)
+
+public fun AtomicIntArray.updateAt(index: Int, transform: (Int) -> Int): Unit {
+    while (true) {
+        val old = loadAt(index)
+        val newValue = transform(old)
+        if (compareAndSetAt(index, old, newValue)) return
+    }
+}
+
+public fun AtomicIntArray.updateAndFetchAt(index: Int, transform: (Int) -> Int): Int {
+    while (true) {
+        val old = loadAt(index)
+        val newValue = transform(old)
+        if (compareAndSetAt(index, old, newValue)) return newValue
+    }
+}
 
 // ---- AtomicLongArray ----
 
