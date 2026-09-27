@@ -545,15 +545,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticObjectProperty(
-            ownerSymbol: continuationSymbol,
-            ownerType: continuationType,
-            name: "context",
-            propertyType: kotlinCoroutineContextType,
-            externalLinkName: "kk_coroutine_continuation_context",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("context"),
+            arity: 0
+        ) {
+            registerSyntheticObjectProperty(
+                ownerSymbol: continuationSymbol,
+                ownerType: continuationType,
+                name: "context",
+                propertyType: kotlinCoroutineContextType,
+                externalLinkName: "kk_coroutine_continuation_context",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineTopLevelProperty(
             named: "coroutineContext",
             packageFQName: kotlinCoroutinesPkg,
@@ -609,21 +615,27 @@ extension DataFlowSemaPhase {
             args: [.invariant(continuationTType)],
             nullability: .nonNull
         )))
-        registerSyntheticCoroutineMember(
-            ownerSymbol: continuationSymbol,
-            ownerType: continuationType,
-            name: "resumeWith",
-            externalLinkName: "kk_coroutine_continuation_resume_with",
-            returnType: types.unitType,
-            parameters: [(
-                name: "result",
-                type: resultOfContinuationTType
-            )],
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resumeWith"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: continuationSymbol,
+                ownerType: continuationType,
+                name: "resumeWith",
+                externalLinkName: "kk_coroutine_continuation_resume_with",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "result",
+                    type: resultOfContinuationTType
+                )],
+                typeParameterSymbols: [continuationTypeParameterSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let continuationOfUnitType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.in(types.unitType)],

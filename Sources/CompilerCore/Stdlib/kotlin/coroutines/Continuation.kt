@@ -7,6 +7,14 @@
 
 package kotlin.coroutines
 
-// KSP-1131: keep the public nominal declarations in bundled Kotlin source.
-// Constructors and members remain owned by their dedicated coroutine TODOs.
-public interface Continuation<in T>
+import kotlin.internal.KsSymbolName
+
+// KSP-1131/1139: the continuation contract is declared in Kotlin source;
+// the runtime bridges serve compiler-created continuation handles.
+public interface Continuation<in T> {
+    @KsSymbolName("kk_coroutine_continuation_context")
+    public val context: CoroutineContext
+
+    @KsSymbolName("kk_coroutine_continuation_resume_with")
+    public fun resumeWith(result: Result<T>)
+}

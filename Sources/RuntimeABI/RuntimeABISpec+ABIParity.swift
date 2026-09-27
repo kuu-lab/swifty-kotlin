@@ -113,6 +113,7 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_coroutine_continuation_context", parameters: [
             p("continuation", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_coroutine_continuation_resume", parameters: [
             p("continuation", .intptr),
@@ -121,6 +122,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_coroutine_continuation_resume_with", parameters: [
             p("continuation", .intptr),
             p("resultRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ], returnType: .void),
         abiParitySpec("kk_coroutine_continuation_resume_with_exception", parameters: [
             p("continuation", .intptr),
