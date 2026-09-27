@@ -1,9 +1,10 @@
 @testable import CompilerCore
+import RuntimeABI
 import Testing
 
 @Suite
 struct IterableIteratorSourceMigrationTests {
-    @Test func iteratorHasThrowingSourceDeclaration() throws {
+    @Test func iteratorHasSourceDeclarationAndThrowingBridge() throws {
         let source = """
         fun probe(values: Iterable<Int>): Iterator<Int> = values.iterator()
         """
@@ -20,8 +21,9 @@ struct IterableIteratorSourceMigrationTests {
             let file = try #require(sema.symbols.sourceFileID(for: member))
             #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/collections/Iterable.kt")
             #expect(sema.symbols.externalLinkName(for: member) == "kk_iterable_iterator")
-            let signature = try #require(sema.symbols.functionSignature(for: member))
-            #expect(signature.canThrow)
+            // KsSymbolName calls take their exception channel from RuntimeABI.
+            let bridge = try #require(RuntimeABISpec.byName["kk_iterable_iterator"])
+            #expect(bridge.isThrowing)
         }
     }
 }
