@@ -84,12 +84,13 @@ extension DataFlowSemaPhase {
         // registered property here so expressions like `r.first` type-check as
         // UInt. Keep the link names aligned to the bridge that's actually used
         // so they don't dangle on a symbol slated for removal.
+        // KSP-1315: `start`, `endInclusive`, and `endExclusive` moved to the
+        // bundled `UIntRange/UIntRange.kt` extension declarations; `end`
+        // remains a legacy alias with no Kotlin API surface.
         for property in [
-            ("start", "__kk_range_first"),
             ("end", "__kk_range_last"),
             ("first", "__kk_range_first"),
             ("last", "__kk_range_last"),
-            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
