@@ -430,8 +430,20 @@ final class ObjectLiteralLowerer {
             candidates: candidates,
             argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             sema: sema
-        ),
-        sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+        )
+        else {
+            return
+        }
+        // Source-backed constructors — bundled stdlib or imported .kklib
+        // declarations — carry a linkable external body, so their non-empty
+        // externalLinkName must not suppress the call (the same rule
+        // emitSuperConstructorDelegation applies for named classes). Only
+        // synthetic shells with no real body and runtime factory constructors
+        // (whose ABI returns a fresh box instead of initializing `this`) are
+        // skipped.
+        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
+            || sema.symbols.isSourceBackedSymbol(superCtorSymbol),
+            !driver.callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
         else {
             return
         }

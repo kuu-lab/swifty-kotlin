@@ -2378,7 +2378,7 @@
   - 同 PR のバグ修正: diff 検証で top-level `Delegates.notNull()` の try/catch が `KSWIFTK-LINK-0003` で panic する実コンパイラバグを発見。`rewriteDelegateAccesses` が合成 `get`/`set` accessor call を `thrownResult: nil` で挿入するため、try body 内の accessor 例外が catch dispatch に届かず caller に伝播していた。guard region の (exceptionSlot, exceptionTypeSlot, thrownTarget) を sibling wiring または init block から回復して accessor call に同じ配線を施すよう修正し、`TopLevelDelegateThrowRoutingTests`（3件: get/set/fallback）で回帰固定。
   - 検証: `swift build` PASS、`TopLevelDelegateThrowRoutingTests` 3件 PASS、`LocalDelegatePropertyKIRTests` 13件 PASS、Sema golden（`stdlib_kotlin_properties_Delegates_Delegates_n`）PASS、対象 diff case PASS、delegate/try/use/runCatching 関連26 diff cases PASS、`check_todo_ids.sh` PASS、`validate_runtime_abi_links.sh` PASS、`git diff --check` PASS。全 Golden / 全 diff / 全 Swift テストは未実行（CI に委譲）。
 
-- [ ] KSP-1275: kotlin.properties.ObservableProperty top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1275: kotlin.properties.ObservableProperty top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.ObservableProperty` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/properties/ObservableProperty/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2387,6 +2387,9 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.properties.ObservableProperty.<init>` — constructor ()  -- `constructor <init>(#A)`
+  - 2026-09-27 完了: 監査エントリは stale（`Sources/CompilerCore/Stdlib/kotlin/properties/ObservableProperty.kt` に既に source-backed 実装済みで canonical signature も一致）。`__kk_*`/`kk_*` bridge、Synthetic stub、RuntimeABISpec エントリ、name-string 特例は対象シンボルに存在しない。
+  - 同 PR のバグ修正: `--stdlib-library`（.kklib artifact）モードで `object : ObservableProperty(v)` の無名オブジェクトが super constructor を呼ばず `value` がゼロ初期化のまま残る実コンパイラバグを発見。`emitObjectLiteralSuperConstructorCall`（ObjectLiteralLowerer）と `emitNamedObjectSuperConstructorCall`（KIRLoweringDriver+ObjectInitializer）が、super ctor の `externalLinkName` が非空なら無条件に skip しており、imported .kklib ctor（artifact object 側に実 body を持つ）への call が一度も emit されなかった。named class 側の `emitSuperConstructorDelegation` と同じく「`synthetic` かつ source-backed でない stub」＋ runtime factory ctor（`__kk_*_new` 系）は引き続き skip し、source-backed ctor の非空 externalLinkName は artifact への link として call を emit するよう修正した。回帰は `stdlib_kotlin_properties_ObservableProperty_n_n` diff case で固定。
+  - 検証: `swift build` PASS、`stdlib_kotlin_properties_ObservableProperty_n_n` diff case PASS（kotlinc と一致）、object literal 既存 diff case 4件（object_literal_class_inheritance / object_literal_qualified_this_property_initializer / object_literal_mutable_iterator / mock_objects）PASS、Sema golden suite（820件、対象 golden を含む）PASS、`check_todo_ids.sh` PASS、`validate_runtime_abi_links.sh` PASS、`git diff --check` PASS。全 Golden（Lexer/Parser/Diagnostics）・全 diff・全 Swift テストは未実行（CI に委譲）。
 
 - [ ] KSP-1281: kotlin.ranges top-level の未実装 stdlib API を実装する（21 件）
   - 対象: `kotlin.ranges` / top-level
