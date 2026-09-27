@@ -6,11 +6,30 @@ private struct RuntimeWeakLiteralBox {
 
 /// Only compiler literals and explicit intern() calls enter this pool.
 /// Ordinary string construction must retain reference identity for AtomicReference.
-private final class RuntimeStringLiteralPool: @unchecked Sendable {
+final class RuntimeStringLiteralPool: @unchecked Sendable {
     private let lock = NSLock()
     // Swift String equality normalizes Unicode. Kotlin identity pooling must
     // keep distinct UTF-8/UTF-16 sequences (e.g. composed/decomposed accents).
     private var boxesByBytes: [[UInt8]: RuntimeWeakLiteralBox] = [:]
+    private var insertionsSincePruning = 0
+
+    @discardableResult
+    func pruneReleasedEntries() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return pruneReleasedEntriesWhileLocked()
+    }
+
+    private func pruneReleasedEntriesWhileLocked() -> Int {
+        let previousCount = boxesByBytes.count
+        boxesByBytes = boxesByBytes.filter { _, entry in
+            guard let box = entry.box else { return false }
+            let raw = Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+            return runtimeStringBox(fromRaw: raw) === box
+        }
+        insertionsSincePruning = 0
+        return previousCount - boxesByBytes.count
+    }
 
     func intern(bytes: [UInt8], preferred: RuntimeStringBox? = nil) -> Int {
         lock.lock()
@@ -20,6 +39,13 @@ private final class RuntimeStringLiteralPool: @unchecked Sendable {
             if runtimeStringBox(fromRaw: raw) === box {
                 return raw
             }
+        }
+        // Weak values alone would retain the byte-array keys indefinitely.
+        // Periodically remove both entries and keys after their object dies or
+        // is explicitly released from the runtime registry.
+        insertionsSincePruning += 1
+        if insertionsSincePruning >= 64 {
+            _ = pruneReleasedEntriesWhileLocked()
         }
         let box = preferred ?? RuntimeStringBox(String(decoding: bytes, as: UTF8.self))
         let raw: Int

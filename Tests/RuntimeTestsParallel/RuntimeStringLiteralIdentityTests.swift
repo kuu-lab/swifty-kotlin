@@ -34,4 +34,19 @@ struct RuntimeStringLiteralIdentityTests {
         #expect(runtimeStringBox(fromRaw: replacement)?.value == "released-literal-identity")
         #expect(literal("released-literal-identity") == replacement)
     }
+
+    @Test
+    func releasedObjectsDoNotLeavePermanentPoolKeys() {
+        let pool = RuntimeStringLiteralPool()
+        let handles = (0 ..< 128).map { index in
+            pool.intern(bytes: Array("released-pool-key-\(index)".utf8))
+        }
+        // All entries remain valid while their runtime objects are registered.
+        #expect(pool.pruneReleasedEntries() == 0)
+        for handle in handles {
+            #expect(runtimeReleaseObject(handle))
+        }
+        #expect(pool.pruneReleasedEntries() == handles.count)
+        #expect(pool.pruneReleasedEntries() == 0)
+    }
 }
