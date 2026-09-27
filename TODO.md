@@ -1393,7 +1393,7 @@
     - `kotlin.concurrent.AtomicIntArray.length` — val AtomicIntArray.length: Int  -- `final val length`
     - `kotlin.concurrent.AtomicIntArray.toString` — fun AtomicIntArray.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1091: kotlin.concurrent.AtomicLong top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1091: kotlin.concurrent.AtomicLong top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicLong` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicLong/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1402,6 +1402,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicLong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicLong/Stdlib.kt` に `public external fun AtomicLong(value: Long): AtomicLong` を `@KsSymbolName("kk_atomic_long_create")` で source-backed 実装として追加した（KSP-1087 の AtomicInt / KSP-1093 の AtomicLongArray と同じ top-level factory 規約）。`AtomicLong(value)` 呼び出しは overload resolution の duplicate-signature フィルタで residual synthetic `<init>(Long)` が除かれ source fun に束縛される。`kk_atomic_long_create` Runtime 関数 / RuntimeABISpec エントリ / 合成 `<init>(Long)` 登録は残余 scalar surface（value プロパティ・コアメソッド群）との共有のため保持し、name-string 特例は無し。
 
 - [ ] KSP-1092: kotlin.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.AtomicLong` / receiver `AtomicLong`
