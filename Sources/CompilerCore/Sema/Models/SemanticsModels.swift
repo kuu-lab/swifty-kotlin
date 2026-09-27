@@ -559,7 +559,7 @@ public final class SymbolTable {
         importedMemberIndexShapes[symbol]
     }
 
-    private func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
+    func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
         lock.lock()
         defer { lock.unlock() }
         guard let loader = lazyImportedMetadataLoader,

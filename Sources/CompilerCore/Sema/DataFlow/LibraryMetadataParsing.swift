@@ -335,6 +335,7 @@ extension DataFlowSemaPhase {
             )
             return fallback
         }
+
         if record.arity != functionType.params.count || record.isSuspend != functionType.isSuspend {
             diagnostics.warning(
                 "KSWIFTK-LIB-0005",
@@ -668,6 +669,9 @@ extension DataFlowSemaPhase {
             .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
         else {
             return type
+        }
+        if types.nominalTypeParameterSymbols(for: ownerSymbol).isEmpty {
+            symbols.ensureLazyImportedMetadataLoaded(for: ownerSymbol)
         }
         let actualSymbols = types.nominalTypeParameterSymbols(for: ownerSymbol)
         guard !actualSymbols.isEmpty,

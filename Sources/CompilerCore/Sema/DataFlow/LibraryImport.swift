@@ -26,7 +26,7 @@ extension DataFlowSemaPhase {
     /// sink is connected to `SemaModule` after the import phase constructs it.
     final class ImportedLibraryLazyLoaderState {
         var importedInlineFunctions: ImportedInlineFunctionStore
-        var inlineFunctionSink: ((SymbolID, KIRFunction) -> Void)?
+        var descriptorSink: ((SymbolID, ImportedInlineFunctionStore.Descriptor) -> Void)?
         var bundledIndex: BundledDeclarationIndex = .empty
         /// Indexed inline bodies kept unparsed past materialization. They are
         /// resolved on demand once lowering knows which callees the module
@@ -424,6 +424,14 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 bundledIndex: lazyLoaderState.bundledIndex,
                 indexedBindingsBySymbol: bindingsBySymbol
+            )
+            self.normalizeImportedMemberBinding(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                cache: cache
             )
             }
             // Stored on `lazyLoaderState` itself; weak captures break the
@@ -979,63 +987,39 @@ extension DataFlowSemaPhase {
         let cache = LibraryMetadataCache()
         for binding in work.importedBindings {
             guard binding.isMaterialized else { continue }
-            switch binding.record.kind {
-            case .function, .constructor:
-                guard let signature = symbols.functionSignature(for: binding.symbol) else {
-                    continue
-                }
-                let normalize: (TypeID) -> TypeID = { type in
-                    self.normalizeImportedOwnerTypeParameters(
-                        type,
-                        record: binding.record,
-                        symbols: symbols,
-                        types: types,
-                        diagnostics: diagnostics,
-                        interner: interner,
-                        metadataPath: binding.metadataPath,
-                        cache: cache,
-                        allowPlaceholders: binding.isStdlibArtifact
-                    )
-                }
-                let ownerTypeParameters = symbols.parentSymbol(for: binding.symbol)
-                    .map { types.nominalTypeParameterSymbols(for: $0) } ?? []
-                let ownerCount = min(signature.classTypeParameterCount, ownerTypeParameters.count)
-                let normalizedTypeParameterSymbols = ownerCount == 0
-                    ? signature.typeParameterSymbols
-                    : Array(ownerTypeParameters.prefix(ownerCount))
-                        + signature.typeParameterSymbols.dropFirst(ownerCount)
-                let normalizedUpperBoundsList = signature.typeParameterUpperBoundsList.map { $0.map(normalize) }
-                for index in 0 ..< min(signature.classTypeParameterCount, normalizedTypeParameterSymbols.count) {
-                    guard index < normalizedUpperBoundsList.count else {
-                        continue
-                    }
-                    let upperBounds = normalizedUpperBoundsList[index]
-                    let typeParameterSymbol = normalizedTypeParameterSymbols[index]
-                    if !upperBounds.isEmpty,
-                       symbols.typeParameterUpperBounds(for: typeParameterSymbol).isEmpty
-                    {
-                        symbols.setTypeParameterUpperBounds(upperBounds, for: typeParameterSymbol)
-                    }
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: signature.receiverType.map(normalize),
-                        parameterTypes: signature.parameterTypes.map(normalize),
-                        returnType: normalize(signature.returnType),
-                        isSuspend: signature.isSuspend,
-                        canThrow: signature.canThrow,
-                        valueParameterSymbols: signature.valueParameterSymbols,
-                        valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-                        valueParameterIsVararg: signature.valueParameterIsVararg,
-                        typeParameterSymbols: normalizedTypeParameterSymbols,
-                        reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
-                        typeParameterUpperBoundsList: normalizedUpperBoundsList,
-                        classTypeParameterCount: signature.classTypeParameterCount
-                    ),
-                    for: binding.symbol
-                )
-            case .property, .field:
-                let propertyType = importedPropertyType(
+            normalizeImportedMemberBinding(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                cache: cache
+            )
+        }
+    }
+
+    private func normalizeImportedMemberBinding(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        cache: LibraryMetadataCache?
+    ) {
+        switch binding.record.kind {
+        case .function, .constructor:
+            guard let signature = symbols.functionSignature(for: binding.symbol) else {
+                return
+            }
+            if let parentSymbol = symbols.parentSymbol(for: binding.symbol),
+               let parent = symbols.symbol(parentSymbol),
+               isNominalLayoutTargetSymbol(parent.kind)
+            {
+                symbols.ensureLazyImportedMetadataLoaded(for: parentSymbol)
+            }
+            let normalize: (TypeID) -> TypeID = { type in
+                self.normalizeImportedOwnerTypeParameters(
+                    type,
                     record: binding.record,
                     symbols: symbols,
                     types: types,
@@ -1045,10 +1029,64 @@ extension DataFlowSemaPhase {
                     cache: cache,
                     allowPlaceholders: binding.isStdlibArtifact
                 )
-                symbols.setPropertyType(propertyType, for: binding.symbol)
-            default:
-                continue
             }
+            let ownerTypeParameters = symbols.parentSymbol(for: binding.symbol)
+                .map { types.nominalTypeParameterSymbols(for: $0) } ?? []
+            let ownerCount = min(signature.classTypeParameterCount, ownerTypeParameters.count)
+            let normalizedTypeParameterSymbols = ownerCount == 0
+                ? signature.typeParameterSymbols
+                : Array(ownerTypeParameters.prefix(ownerCount))
+                    + signature.typeParameterSymbols.dropFirst(ownerCount)
+            let normalizedUpperBoundsList = signature.typeParameterUpperBoundsList.map { $0.map(normalize) }
+            for index in 0 ..< min(signature.classTypeParameterCount, normalizedTypeParameterSymbols.count) {
+                guard index < normalizedUpperBoundsList.count else {
+                    continue
+                }
+                let upperBounds = normalizedUpperBoundsList[index]
+                let typeParameterSymbol = normalizedTypeParameterSymbols[index]
+                if !upperBounds.isEmpty,
+                   symbols.typeParameterUpperBounds(for: typeParameterSymbol).isEmpty
+                {
+                    symbols.setTypeParameterUpperBounds(upperBounds, for: typeParameterSymbol)
+                }
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: signature.receiverType.map(normalize),
+                    parameterTypes: signature.parameterTypes.map(normalize),
+                    returnType: normalize(signature.returnType),
+                    isSuspend: signature.isSuspend,
+                    canThrow: signature.canThrow,
+                    valueParameterSymbols: signature.valueParameterSymbols,
+                    valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                    valueParameterIsVararg: signature.valueParameterIsVararg,
+                    typeParameterSymbols: normalizedTypeParameterSymbols,
+                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                    typeParameterUpperBoundsList: normalizedUpperBoundsList,
+                    classTypeParameterCount: signature.classTypeParameterCount
+                ),
+                for: binding.symbol
+            )
+        case .property, .field:
+            if let parentSymbol = symbols.parentSymbol(for: binding.symbol),
+               let parent = symbols.symbol(parentSymbol),
+               isNominalLayoutTargetSymbol(parent.kind)
+            {
+                symbols.ensureLazyImportedMetadataLoaded(for: parentSymbol)
+            }
+            let propertyType = importedPropertyType(
+                record: binding.record,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                metadataPath: binding.metadataPath,
+                cache: cache,
+                allowPlaceholders: binding.isStdlibArtifact
+            )
+            symbols.setPropertyType(propertyType, for: binding.symbol)
+        default:
+            return
         }
     }
 
@@ -2050,7 +2088,7 @@ extension DataFlowSemaPhase {
     ) {
         func resolveOne(_ symbol: SymbolID) -> KIRFunction? {
             guard let binding = state.pendingInlineBindings.removeValue(forKey: symbol) else {
-                return state.importedInlineFunctions[symbol]
+                return nil
             }
             if let name = binding.record.fqName.last,
                var siblings = state.pendingInlineSymbolsByName[name]
@@ -2062,7 +2100,23 @@ extension DataFlowSemaPhase {
                     state.pendingInlineSymbolsByName[name] = siblings
                 }
             }
-            guard let signature = symbols.functionSignature(for: symbol),
+            guard let inlinePath = resolvedImportedInlineKIRPath(
+                binding,
+                diagnostics: diagnostics,
+                interner: interner
+            ) else {
+                return nil
+            }
+            let signature = symbols.functionSignature(for: symbol)
+            let descriptor = ImportedInlineFunctionStore.Descriptor(
+                path: inlinePath,
+                signature: signature,
+                name: binding.record.fqName.last ?? interner.intern("_")
+            )
+            state.importedInlineFunctions.register(descriptor, for: symbol)
+            state.descriptorSink?(symbol, descriptor)
+
+            guard let signature,
                   let function = loadImportedInlineFunctionBody(
                       binding,
                       symbol: symbol,
@@ -2076,8 +2130,6 @@ extension DataFlowSemaPhase {
             else {
                 return nil
             }
-            state.importedInlineFunctions[symbol] = function
-            state.inlineFunctionSink?(symbol, function)
             return function
         }
 
