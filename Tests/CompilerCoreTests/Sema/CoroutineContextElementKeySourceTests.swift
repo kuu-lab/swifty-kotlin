@@ -51,4 +51,31 @@ struct CoroutineContextElementKeySourceTests {
         let item = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Item")]))
         #expect(sema.symbols.directSupertypes(for: item).contains(marker))
     }
+
+    @Test
+    func wildcardPackageDoesNotReplaceQualifiedSupertypePrefix() throws {
+        let imported = """
+        package imported.collision
+        interface Marker
+        """
+        let qualified = """
+        package collision
+        interface Marker
+        """
+        let source = """
+        import imported.collision.*
+        class Item : collision.Marker
+        fun marker(): collision.Marker = Item()
+        """
+        let ctx = makeContextFromSources([imported, qualified, source])
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let marker = try #require(sema.symbols.lookup(fqName: ["collision", "Marker"].map(ctx.interner.intern)))
+        let unrelated = try #require(sema.symbols.lookup(fqName: ["imported", "collision", "Marker"].map(ctx.interner.intern)))
+        let item = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Item")]))
+        let supertypes = sema.symbols.directSupertypes(for: item)
+        #expect(supertypes.contains(marker))
+        #expect(!supertypes.contains(unrelated))
+    }
 }

@@ -261,7 +261,7 @@ extension DataFlowSemaPhase {
             // An imported classifier (including an alias) may qualify a nested
             // supertype, e.g. CoroutineContext.Key<E>. Resolve that prefix before
             // looking for a root-qualified path so the inheritance edge is kept.
-            for importDecl in imports {
+            for importDecl in imports where !importDecl.isWildcard {
                 let importedName = importDecl.alias ?? importDecl.path.last
                 if importedName == path.first {
                     append(importDecl.path + path.dropFirst())
