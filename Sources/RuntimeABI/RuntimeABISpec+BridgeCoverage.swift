@@ -383,6 +383,9 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
+            // KSP-1192: ImmutableBlob.asCPointer/asUCPointer private impl bridge.
+            bridgeSpec("__kk_immutable_blob_as_cpointer", section: "Native", params: ["blobRaw", "offset"],
+            isThrowing: false),
             bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
             isThrowing: false),
             // withTimeout reports an expired deadline as a catchable

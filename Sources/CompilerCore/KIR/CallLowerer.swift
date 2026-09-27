@@ -2011,6 +2011,9 @@ final class CallLowerer {
         case ("toUByte", sema.types.uintType, sema.types.ubyteType): interner.intern("kk_uint_to_ubyte")
         case ("toUByte", sema.types.ulongType, sema.types.ubyteType): interner.intern("kk_ulong_to_ubyte")
         case ("toUByte", sema.types.ubyteType, sema.types.ubyteType): nil
+        case ("toUByte", sema.types.ushortType, sema.types.ubyteType): interner.intern("kk_ushort_to_ubyte")
+        case ("toUByte", sema.types.byteType, sema.types.ubyteType): interner.intern("kk_byte_to_ubyte")
+        case ("toUByte", sema.types.shortType, sema.types.ubyteType): interner.intern("kk_short_to_ubyte")
         case ("toUShort", sema.types.intType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
         case ("toUShort", sema.types.longType, sema.types.ushortType): interner.intern("kk_long_to_ushort")
         case ("toUShort", sema.types.uintType, sema.types.ushortType): interner.intern("kk_uint_to_ushort")
