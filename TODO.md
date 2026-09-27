@@ -1910,7 +1910,8 @@
     - `kotlin.coroutines.intrinsics.createCoroutineUnintercepted` — fun SuspendFunction1.createCoroutineUnintercepted(, Continuation): Continuation  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.coroutines/SuspendFunction1<#A, #B>).kotlin.coroutines.intrinsics/createCoroutineUnintercepted(#A, kotlin.coroutines/Continuation<#B>): kotlin.coroutines/Continuation<kotlin/Unit>`
     - `kotlin.coroutines.intrinsics.startCoroutineUninterceptedOrReturn` — fun SuspendFunction1.startCoroutineUninterceptedOrReturn(, Continuation): Any  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.coroutines/SuspendFunction1<#A, #B>).kotlin.coroutines.intrinsics/startCoroutineUninterceptedOrReturn(#A, kotlin.coroutines/Continuation<#B>): kotlin/Any?`
 
-- [ ] KSP-1155: kotlin.coroutines.intrinsics.CoroutineSingletons.CoroutineSingletons の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1155: kotlin.coroutines.intrinsics.CoroutineSingletons.CoroutineSingletons の未実装 stdlib API を実装する（3 件）
+  - KUU-699: `IntrinsicsNative.kt` の source enum を参照時の generated API 生成対象に追加。配列ループの enum 型を保持し name/ordinal lowering を維持。values/entries/valueOf・宣言順・例外を単体 kotlinc diff / Sema Golden で確認。共通 CI 待ち。
   - 対象: `kotlin.coroutines.intrinsics.CoroutineSingletons` / receiver `CoroutineSingletons`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/intrinsics/CoroutineSingletons/CoroutineSingletons.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
