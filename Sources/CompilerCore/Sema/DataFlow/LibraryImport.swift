@@ -19,6 +19,10 @@ extension DataFlowSemaPhase {
         /// second independent read has no diagnostic on failure and is
         /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
+        /// Kotlin `.klib` modules discovered on the search path: manifest
+        /// parsed and version-gated, container kept open for the IR import
+        /// stages that follow.
+        let klibModules: [KlibModule]
     }
 
     func loadImportedLibrarySymbols(
@@ -39,6 +43,7 @@ extension DataFlowSemaPhase {
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        var klibModules: [KlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
 
@@ -49,6 +54,12 @@ extension DataFlowSemaPhase {
         }
 
         for libraryDir in libraryDirs {
+            if libraryDir.hasSuffix(".klib") {
+                if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
+                    klibModules.append(module)
+                }
+                continue
+            }
             let stdlibArtifact = isStdlibArtifact(libraryDir)
             let manifestInfo: LibraryManifestInfo
             if let cached = cache?.cachedManifestInfo(libraryDir: libraryDir, target: options.target) {
@@ -173,7 +184,7 @@ extension DataFlowSemaPhase {
                 "Stdlib library artifact '\(options.stdlibLibraryPath!)' could not be loaded",
                 range: nil
             )
-            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [], stdlibModuleName: nil)
+            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [], stdlibModuleName: nil, klibModules: [])
         }
 
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
@@ -352,7 +363,8 @@ extension DataFlowSemaPhase {
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
             importedBindings: importedBindings,
-            stdlibModuleName: stdlibModuleName
+            stdlibModuleName: stdlibModuleName,
+            klibModules: klibModules
         )
     }
 
