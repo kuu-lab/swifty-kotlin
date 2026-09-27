@@ -415,6 +415,10 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // outThrown channel regardless of whether their callee name appears
                 // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
+                    if isSyntheticAccessor, let s = callSymbol,
+                       symbols?.functionSignature(for: s)?.canThrow == true {
+                        return true
+                    }
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
                 }()

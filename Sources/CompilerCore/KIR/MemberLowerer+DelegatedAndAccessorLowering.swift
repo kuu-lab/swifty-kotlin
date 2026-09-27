@@ -555,7 +555,8 @@ extension MemberLowerer {
                     }
                 },
                 parameterTypes: accessorKind == .setter ? [propertyType] : [],
-                returnType: returnType
+                returnType: returnType,
+                canThrow: true
             ),
             for: syntheticAccessorSymbol
         )

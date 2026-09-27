@@ -678,6 +678,10 @@ extension DataFlowSemaPhase {
         if let reusableSyntheticSymbol {
             nestedSymbol = reusableSyntheticSymbol
             symbols.removeFlags(.synthetic, for: nestedSymbol)
+            symbols.insertFlags(flags, for: nestedSymbol)
+            if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
+                symbols.setDeclSite(declSite, for: nestedSymbol)
+            }
         } else {
             nestedSymbol = symbols.define(
                 kind: kind,
@@ -1142,6 +1146,8 @@ extension DataFlowSemaPhase {
                 fqName: nestedFQName,
                 namespacePrefix: "$iface",
                 declSite: nestedInterface.range,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
                 ast: ast,
                 symbols: symbols,
                 types: types,

@@ -80,13 +80,14 @@ struct MapFirstNotNullOfSourceMigrationTests {
             }
             #expect(entryPropertyCalls.count == 3, "Expected Map.Entry key/value calls in both transforms")
             for callID in entryPropertyCalls {
-                let binding = try #require(sema.bindings.callBinding(for: callID))
-                let chosen = binding.chosenCallee
-                let signature = try #require(sema.symbols.functionSignature(for: chosen))
-                let receiverType = try #require(signature.receiverType)
+                let chosen = try #require(sema.bindings.identifierSymbol(for: callID))
                 let symbol = try #require(sema.symbols.symbol(chosen))
-                #expect(nominalOwnerFQName(for: receiverType) == entryFQName)
-                #expect(sema.symbols.externalLinkName(for: chosen) == (symbol.name == ctx.interner.intern("key") ? "__kk_pair_first" : "__kk_pair_second"))
+                let owner = try #require(sema.symbols.parentSymbol(for: chosen))
+                #expect(sema.symbols.symbol(owner)?.fqName == entryFQName)
+                #expect(symbol.kind == .property)
+                #expect(!symbol.flags.contains(.synthetic))
+                #expect(sema.symbols.isSourceBackedSymbol(chosen))
+                #expect(sema.symbols.externalLinkName(for: chosen) == nil)
             }
         }
     }

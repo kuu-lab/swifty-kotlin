@@ -373,7 +373,7 @@ extension DataFlowSemaPhase {
         // Kotlin default imports are considered after primitive/builtin names
         // in resolveTypeRefForInheritance. Supertype roots have no primitive
         // representation, so they can use the default-import packages here.
-        if path.count == 1 {
+        do {
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 let candidatePath = defaultPackage + path
                 if let symbol = symbols.lookupAll(fqName: candidatePath)
@@ -514,7 +514,7 @@ extension DataFlowSemaPhase {
             }
             // Kotlin default imports also apply to type arguments (e.g.
             // class X : Comparable<Int>), so search the standard default-import packages.
-            if path.count == 1 {
+            do {
                 for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                     let candidatePath = defaultPackage + path
                     if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)

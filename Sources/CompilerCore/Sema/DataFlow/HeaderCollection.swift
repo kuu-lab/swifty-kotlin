@@ -2052,7 +2052,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func shouldRestoreDeclSiteForReusableSyntheticSymbol(
+    func shouldRestoreDeclSiteForReusableSyntheticSymbol(
         fqName: [InternedString],
         interner: StringInterner
     ) -> Bool {
@@ -2064,6 +2064,7 @@ extension DataFlowSemaPhase {
         // nominals while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
         if resolvedFQName == ["kotlin", "collections", "Iterator"]
+            || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
             // KSP-1259: reusing the synthetic Debugging object shell must still
@@ -2124,6 +2125,8 @@ extension DataFlowSemaPhase {
         fqName: [InternedString],
         namespacePrefix: String,
         declSite: SourceRange,
+        currentPackageFQName: [InternedString]? = nil,
+        imports: [ImportDecl] = [],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -2186,6 +2189,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: fqName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
                     diagnostics: diagnostics
                 )
             }
