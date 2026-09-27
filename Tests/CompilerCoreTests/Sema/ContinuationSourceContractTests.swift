@@ -34,7 +34,7 @@ struct ContinuationSourceContractTests {
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         }
     }
 }

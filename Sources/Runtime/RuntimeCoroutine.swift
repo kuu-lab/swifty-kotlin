@@ -1937,7 +1937,8 @@ public func kk_start_coroutine_unintercepted_or_return(
 private func startUninterceptedCoroutineFromResume(
     entryPointRaw: Int,
     continuation: Int,
-    completionContinuation: Int
+    completionContinuation: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
     var thrown = 0
     let result = startCoroutineUninterceptedOrReturn(
@@ -1950,11 +1951,15 @@ private func startUninterceptedCoroutineFromResume(
         return
     }
     if thrown != 0 {
-        kk_coroutine_continuation_resume_with_exception(completionContinuation, thrown)
+        __kk_coroutine_continuation_resume_with(
+            completionContinuation, runtimeResultFailure(thrown), outThrown
+        )
         return
     }
     if result != Int(bitPattern: kk_coroutine_suspended()) {
-        kk_coroutine_continuation_resume(completionContinuation, result)
+        __kk_coroutine_continuation_resume_with(
+            completionContinuation, runtimeResultSuccess(result), outThrown
+        )
     }
 }
 
@@ -2199,9 +2204,10 @@ public func __kk_coroutine_continuation_resume_with(
            !resultBox.isSuccess
         {
             if start.completionContinuation != 0 {
-                kk_coroutine_continuation_resume_with_exception(
+                __kk_coroutine_continuation_resume_with(
                     start.completionContinuation,
-                    resultBox.exception
+                    runtimeResultFailure(resultBox.exception),
+                    outThrown
                 )
             }
             return
@@ -2209,7 +2215,8 @@ public func __kk_coroutine_continuation_resume_with(
         startUninterceptedCoroutineFromResume(
             entryPointRaw: start.entryPointRaw,
             continuation: continuation,
-            completionContinuation: start.completionContinuation
+            completionContinuation: start.completionContinuation,
+            outThrown: outThrown
         )
         return
     }
