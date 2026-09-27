@@ -7,6 +7,7 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
+// KSP-1312: Keep the UIntProgression nominal and its Companion source-backed.
 // KSP-1313: Keep UIntProgression's public receiver members source-backed.
 public open class UIntProgression internal constructor(
     start: UInt,
