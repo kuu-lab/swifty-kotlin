@@ -1476,13 +1476,15 @@
     - `kotlin.concurrent.AtomicNativePtr.toString` — fun AtomicNativePtr.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicNativePtr.value` — val AtomicNativePtr.value: NativePtr  -- `final var value`
 
-- [ ] KSP-1097: kotlin.concurrent.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1097: kotlin.concurrent.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicReference` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicReference/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicReference_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicReference_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicReference_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicReference/Stdlib.kt` に nominal class 宣言を `kotlin/concurrent/Stdlib.kt` から移し、`@KsSymbolName("kk_atomic_ref_create")` 付き bodiless `public constructor(value: T)` を source-backed 実装として追加した（Triple / ULongRange / KSP-1095 AtomicNativePtr と同じ規約）。残留する合成 ctor の二重登録を防ぐため `BundledDeclarationIndex` が bundled class の `<init>` arity を索引するようにし（AST パスは `collectBundledNominalMembers`、artifact 取込パスは `makeMemberKey` の `.constructor` 追加でカバー）、`registerAtomicConstructor` に `shouldSkipRegistration` ガードを追加。`kk_atomic_ref_create` Runtime 関数 / RuntimeABISpec エントリは `<init>` が再利用する既存 link として保持。`value` / `load` / `store` / `exchange` 等の残余 surface は KSP-1098 の責務として維持。name-string 特例は無し（`CallTypeChecker` / `CallSupportLowerer` の `kk_atomic_ref_array_of` 特例は配列ファクトリのもので対象外）。`AtomicReferenceTopLevelSourceTests` で ctor の source-backed 属性・link・`chosenCallee` を固定。
+  - 完了確認（2026-09-27）: Sema Golden 全体、`AtomicReferenceTopLevelSourceTests` / `AtomicTopLevelSourceTests` / atomic・bundled-index 関連スイート、`swift build`、`bash Scripts/check_todo_ids.sh`、`bash Scripts/validate_runtime_abi_links.sh`、`git diff --check` を確認。JVM kotlinc に Kotlin/Native-only API がないため diff case は `DEBT-DIFF-001` の `SKIP-DIFF` とした。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicReference.<init>` — constructor ()  -- `constructor <init>(#A)`
 
