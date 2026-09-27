@@ -57,6 +57,11 @@ final class InlineLoweringPass: LoweringPass {
                 unitType: unitType
             )
         }
+        // Calls to bodyless callees must never reach codegen: their bodies
+        // are not emitted, so an unexpanded call dangles at link time.
+        // Diagnose the residue deterministically instead of letting it
+        // surface as a missing symbol in the linker.
+        diagnoseMandatoryInlineResidue(module: module, index: index, ctx: ctx)
         module.recordLowering(Self.name)
     }
 
