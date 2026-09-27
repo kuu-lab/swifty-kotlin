@@ -330,6 +330,21 @@ extension ExprLowerer {
                     return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                 }()
 
+                // Arrays have their own storage ABI and are not Collection handles.
+                // Implicit `size` reads in extension bodies must use the same
+                // array primitive as an explicit `this.size` read.
+                if memberStr == "size", !implicitMemberUsesAccessor,
+                   ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(nonNullReceiverType)
+                {
+                    emitNonThrowingCall(
+                        callee: interner.intern("__kk_array_size"),
+                        arg: receiverExprID,
+                        result: result,
+                        into: &instructions
+                    )
+                    return result
+                }
+
                 if receiverMayBeCollection, memberStr == "size", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
                         callee: interner.intern("__kk_collection_size"),

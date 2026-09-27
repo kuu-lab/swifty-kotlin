@@ -1,5 +1,8 @@
 package diff
 
+private fun <T> Array<T>.implicitSize(): Int = size
+private fun IntArray.implicitSize(): Int = size
+
 fun main() {
     val source = arrayOf(3, 1, 2)
     println(source.plus(4).toList())
@@ -14,6 +17,7 @@ fun main() {
     println(ints.plus(4).toList())
     println(ints.plus(intArrayOf(4, 5)).toList())
     println(ints.plus(listOf(4, 5)).toList())
-    println(ints.plusElement(4).toList())
     println(ints.toList())
+    println(source.implicitSize())
+    println(ints.implicitSize())
 }
