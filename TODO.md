@@ -1461,7 +1461,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicNativePtr.<init>` — constructor (NativePtr)  -- `constructor <init>(kotlin.native.internal/NativePtr)`
 
-- [ ] KSP-1096: kotlin.concurrent.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1096: kotlin.concurrent.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.concurrent.AtomicNativePtr` / receiver `AtomicNativePtr`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicNativePtr/AtomicNativePtr.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1474,6 +1474,8 @@
     - `kotlin.concurrent.AtomicNativePtr.getAndSet` — fun AtomicNativePtr.getAndSet(NativePtr): NativePtr  -- `final fun getAndSet(kotlin.native.internal/NativePtr): kotlin.native.internal/NativePtr`
     - `kotlin.concurrent.AtomicNativePtr.toString` — fun AtomicNativePtr.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicNativePtr.value` — val AtomicNativePtr.value: NativePtr  -- `final var value`
+  - 完了根拠: `AtomicNativePtr/AtomicNativePtr.kt` に `@Volatile var value` と `getAndSet` / `compareAndSet` / `compareAndExchange` / `toString` を source-backed member として追加し、class 宣言を `AtomicNativePtr/Stdlib.kt` から実装ファイルへ移した（`Stdlib.kt` は top-level factory を持たないため削除）。secondary constructor の `val value = value` が self-binding で backing を保存していなかった既存不具合は、primary constructor パラメータ + メンバ初期化式の形に変えて解消し、`DetachedObjectGraph.attach()` の往復で実行確認した。対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、name-string 特例は存在せず削除対象なし。
+  - 完了確認（2026-09-27）: Sema Golden 全体、`AtomicTopLevelSourceTests`、`AtomicNativePtrConstructorSourceTests`、`swift build`、`bash Scripts/check_todo_ids.sh`、`bash Scripts/validate_runtime_abi_links.sh`、`git diff --check`、対象 diff ケース（`SKIP-DIFF (DEBT-DIFF-001)` として skip）を確認。全 Swift テスト・全 Golden・全 diff ケースは未実行（CI に委譲）。なお `AtomicTopLevelSourceTests` / `AtomicNativePtrConstructorSourceTests` は #7275 で削除済み（golden / diff ケースが代替カバレッジ）。
 
 - [ ] KSP-1097: kotlin.concurrent.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicReference` / top-level
