@@ -123,11 +123,18 @@ RF-LOWER-INLINE-010 で、固定回数を撤廃する前に必要な契約を
 index と scheduler に追加した:
 
 - 必須展開の判定は `InlineExpansionIndex.isMandatoryExpansionCall`
-  （callSymbol:callee:inlineFunctionsByName:）が担う。`inlineTarget`
-  と同じ束縛規則で、残存 `.call` の callee が `bodylessInlineSymbols`
-  （`isInlineOnly` 宣言＋imported inline 全件）に属するかだけを見る。
-  通常 `inline` 関数・非展開対象への call は本体が object に emit
-  されるため残存は合法であり、診断対象にしない。
+  （callSymbol:callee:inlineFunctionsByName:interner:externalLinkName:）
+  が担う。`inlineTarget` と同じ束縛規則で、残存 `.call` の callee が
+  `bodylessInlineSymbols`（`isInlineOnly` 宣言＋imported inline 全件）に
+  属するかだけを見る。通常 `inline` 関数・非展開対象への call は本体が
+  object に emit されるため残存は合法であり、診断対象にしない。
+  既知 symbol に加えて callee テキストがその symbol の emit 名
+  （宣言名か externalLinkName）を指すことを要求する: codegen は
+  callee テキストで束縛するため、CallLowerer の bridge 書き換え
+  （例: `Worker.execute` の呼び出しが `kk_worker_execute` になって
+  元の symbol を持ち続ける）で retarget された call は別の emit 済み
+  symbol にリンクし、残存しても正しい。retarget 後の callee が一意な
+  bodyless 候補を指すときだけ by-name 規則で報告する。
 - 循環検出は `recursiveBodylessCallees` が担う。bodyless callee 間の
   現在本体の `.call` 辺グラフで自分自身へ戻れる symbol（自己呼び出し・
   相互再帰）と、そこへ到達する symbol を backward closure で集める。

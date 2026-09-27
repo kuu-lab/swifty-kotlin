@@ -82,7 +82,9 @@ extension InlineLoweringPass {
                       index.isMandatoryExpansionCall(
                           callSymbol: callSymbol,
                           callee: callee,
-                          inlineFunctionsByName: byName
+                          inlineFunctionsByName: byName,
+                          interner: ctx.interner,
+                          externalLinkName: { ctx.sema?.symbols.externalLinkName(for: $0) }
                       )
                 else {
                     continue

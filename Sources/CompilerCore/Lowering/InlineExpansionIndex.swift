@@ -300,13 +300,35 @@ final class InlineExpansionIndex {
     /// binding rule as `inlineTarget` (a known symbol binds to its own
     /// snapshot only; a symbol-unknown call takes the unique by-name
     /// candidate) without materializing a deferred body.
+    ///
+    /// A known symbol is only mandatory while the callee text still names
+    /// that symbol's emitted identity -- the declared name or its external
+    /// link name. Codegen binds `.call` by callee text, so a call whose
+    /// callee was rewritten to a different name (e.g. a CallLowerer bridge
+    /// rewrite that keeps the original symbol) no longer binds to the
+    /// bodyless symbol: leaving it is correct, and only the name-based rule
+    /// below can still mark it.
     func isMandatoryExpansionCall(
         callSymbol: SymbolID?,
         callee: InternedString,
-        inlineFunctionsByName: [InternedString: [SymbolID]]
+        inlineFunctionsByName: [InternedString: [SymbolID]],
+        interner: StringInterner,
+        externalLinkName: (SymbolID) -> String?
     ) -> Bool {
         if let callSymbol {
-            return bodylessInlineSymbols.contains(callSymbol)
+            guard bodylessInlineSymbols.contains(callSymbol) else {
+                return false
+            }
+            let declaredName = allFunctionsBySymbol[callSymbol]?.name
+                ?? inlineFunctionsBySymbol[callSymbol]?.name
+                ?? importedStore.descriptors[callSymbol]?.name
+            if callee == declaredName || declaredName == nil {
+                return true
+            }
+            if let linkName = externalLinkName(callSymbol),
+               interner.intern(linkName) == callee {
+                return true
+            }
         }
         guard let candidates = inlineFunctionsByName[callee], candidates.count == 1 else {
             return false
