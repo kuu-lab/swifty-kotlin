@@ -539,6 +539,11 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    let primitiveArrayType = primitiveVarargArrayType(
+                        elementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
+                        interner: interner
+                    )
                     boxNonSpreadVarargArguments(
                         argIndices,
                         in: &boxedArguments,
@@ -553,8 +558,9 @@ final class CallSupportLowerer {
                         argIndices: argIndices,
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
-                        listifyResult: !preserveArrayVarargs,
-                        boxPrimitiveElements: !preserveArrayVarargs,
+                        listifyResult: !preserveArrayVarargs && primitiveArrayType == nil,
+                        boxPrimitiveElements: !preserveArrayVarargs && primitiveArrayType == nil,
+                        resultType: primitiveArrayType,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -576,6 +582,11 @@ final class CallSupportLowerer {
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
+                    resultType: primitiveVarargArrayType(
+                        elementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
+                        interner: interner
+                    ),
                     instructions: &instructions
                 )
                 normalized.append(emptyArray)
