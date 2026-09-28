@@ -263,13 +263,13 @@ extension BuildASTPhase {
         let functionName = declarationFunctionName(from: nodeID, in: arena, interner: interner)
         let valueParams = declarationValueParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let explicitReceiverType = declarationReceiverType(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let contextReceiverTypes = declarationContextReceiverTypes(
+        let contextReceivers = declarationContextReceivers(
             from: nodeID,
             in: arena,
             interner: interner,
             astArena: astArena
         )
-        let receiverType = explicitReceiverType ?? contextReceiverTypes.first
+        let receiverType = explicitReceiverType ?? contextReceivers.first?.ref
         let returnType = declarationReturnType(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let body = declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -283,6 +283,7 @@ extension BuildASTPhase {
             annotations: annotations,
             typeParams: typeParams,
             receiverType: receiverType,
+            contextReceiverNames: explicitReceiverType == nil ? contextReceivers.map(\.name) : [],
             valueParams: valueParams,
             returnType: returnType,
             body: body,

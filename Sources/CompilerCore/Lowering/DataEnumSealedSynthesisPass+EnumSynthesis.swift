@@ -511,7 +511,7 @@ extension DataEnumSealedSynthesisPass {
             // interface method with a default body) has a real
             // implementation for entries that don't override it, so those
             // must call it, not abort.
-            let baseSymbolID: SymbolID? = {
+            let baseSymbolID: SymbolID? = sema.symbols.enumEntryDispatchBaseSymbol(for: dispatch.id) ?? {
                 let suffix = interner.resolve(dispatch.name).dropFirst(dispatchPrefix.count)
                 guard let rawValue = Int32(suffix) else { return nil }
                 return SymbolID(rawValue: rawValue)
@@ -538,9 +538,16 @@ extension DataEnumSealedSynthesisPass {
                         thrownResult: nil
                     ))
                 } else {
+                    let baseCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: baseSymbolID),
+                                                        !linkName.isEmpty
+                    {
+                        interner.intern(linkName)
+                    } else {
+                        baseSymbolInfo.name
+                    }
                     body.append(.call(
                         symbol: baseSymbolID,
-                        callee: baseSymbolInfo.name,
+                        callee: baseCallee,
                         arguments: [receiverRef] + argumentRefs,
                         result: fallthroughResult,
                         canThrow: false,

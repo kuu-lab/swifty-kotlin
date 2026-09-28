@@ -1,0 +1,18 @@
+symbol fq=__local_0.direct[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.UIntRange
+symbol fq=__local_1.explicit[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.UIntRange
+symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_ranges_UIntRange_Companion_Companion_n package=golden.sema
+  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
+expr e@4:29 name(UIntRange) type=kotlin.ranges.UIntRange.Companion ref=kotlin.ranges.UIntRange[kind=class]
+expr e@4:29#1 memberCall recv=e@4:29 callee=EMPTY args=[] type=kotlin.ranges.UIntRange call=kotlin.ranges.EMPTY.$get[kind=fun;recv=kotlin.ranges.UIntRange.Companion;params=]
+expr e@4:5 localDecl direct mutable=0 type=UIntRange init=e@4:29#1 type=Unit ref=__local_0.direct[kind=local]
+expr e@5:31 name(UIntRange) type=kotlin.ranges.UIntRange ref=kotlin.ranges.UIntRange[kind=class]
+expr e@5:31#1 memberCall recv=e@5:31 callee=Companion args=[] type=kotlin.ranges.UIntRange.Companion ref=kotlin.ranges.UIntRange.Companion[kind=obj]
+expr e@5:31#2 memberCall recv=e@5:31#1 callee=EMPTY args=[] type=kotlin.ranges.UIntRange call=kotlin.ranges.EMPTY.$get[kind=fun;recv=kotlin.ranges.UIntRange.Companion;params=]
+expr e@5:5 localDecl explicit mutable=0 type=UIntRange init=e@5:31#2 type=Unit ref=__local_1.explicit[kind=local]
+expr e@6:13 name(direct) type=kotlin.ranges.UIntRange ref=__local_0.direct[kind=local]
+expr e@6:13#1 memberCall recv=e@6:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.ClosedRange.isEmpty[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=;gen=1] targs=[UInt]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@7:13 name(explicit) type=kotlin.ranges.UIntRange ref=__local_1.explicit[kind=local]
+expr e@7:13#1 memberCall recv=e@7:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.ClosedRange.isEmpty[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=;gen=1] targs=[UInt]
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

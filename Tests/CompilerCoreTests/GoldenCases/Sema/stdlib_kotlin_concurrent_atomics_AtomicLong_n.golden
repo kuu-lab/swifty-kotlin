@@ -1,0 +1,47 @@
+symbol fq=golden.sema.atomicLongCompoundAssign.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongCompoundAssign.$0.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongCompoundAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong,Long] ret=Unit
+symbol fq=golden.sema.atomicLongDecrementAndFetch.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongDecrementAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong] ret=Long
+symbol fq=golden.sema.atomicLongIncrementAndFetch.$2.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongIncrementAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong] ret=Long
+symbol fq=golden.sema.atomicLongMinusAssign.$3.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongMinusAssign.$3.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongMinusAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong,Long] ret=Unit
+symbol fq=golden.sema.atomicLongPlusAssign.$4.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongPlusAssign.$4.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongPlusAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong,Long] ret=Unit
+symbol fq=golden.sema.atomicLongUpdate.$5.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongUpdate.$5.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongUpdateAndFetch.$6.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongUpdateAndFetch.$6.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongUpdateAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong,fn{p=Long;ret=Long}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong,(Long) -> Long] ret=Long
+symbol fq=golden.sema.atomicLongUpdate[kind=fun;params=kotlin.concurrent.AtomicLong,fn{p=Long;ret=Long}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong,(Long) -> Long] ret=Unit
+file fstdlib_kotlin_concurrent_atomics_AtomicLong_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicLongIncrementAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong] fun atomicLongIncrementAndFetch sym=golden.sema.atomicLongIncrementAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong]
+  decl golden.sema.atomicLongDecrementAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong] fun atomicLongDecrementAndFetch sym=golden.sema.atomicLongDecrementAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong]
+  decl golden.sema.atomicLongPlusAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long] fun atomicLongPlusAssign sym=golden.sema.atomicLongPlusAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long]
+  decl golden.sema.atomicLongMinusAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long] fun atomicLongMinusAssign sym=golden.sema.atomicLongMinusAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long]
+  decl golden.sema.atomicLongCompoundAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long] fun atomicLongCompoundAssign sym=golden.sema.atomicLongCompoundAssign[kind=fun;params=kotlin.concurrent.AtomicLong,Long]
+  decl golden.sema.atomicLongUpdate[kind=fun;params=kotlin.concurrent.AtomicLong,fn{p=Long;ret=Long}] fun atomicLongUpdate sym=golden.sema.atomicLongUpdate[kind=fun;params=kotlin.concurrent.AtomicLong,fn{p=Long;ret=Long}]
+  decl golden.sema.atomicLongUpdateAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong,fn{p=Long;ret=Long}] fun atomicLongUpdateAndFetch sym=golden.sema.atomicLongUpdateAndFetch[kind=fun;params=kotlin.concurrent.AtomicLong,fn{p=Long;ret=Long}]
+expr e@7:61 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongIncrementAndFetch.$2.atomic[kind=vparam]
+expr e@7:61#1 memberCall recv=e@7:61 callee=incrementAndFetch args=[] type=Long call=kotlin.concurrent.atomics.incrementAndFetch[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@9:61 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongDecrementAndFetch.$1.atomic[kind=vparam]
+expr e@9:61#1 memberCall recv=e@9:61 callee=decrementAndFetch args=[] type=Long call=kotlin.concurrent.atomics.decrementAndFetch[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@11:67 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongPlusAssign.$4.atomic[kind=vparam]
+expr e@11:85 name(delta) type=Long ref=golden.sema.atomicLongPlusAssign.$4.delta[kind=vparam]
+expr e@11:67#1 memberCall recv=e@11:67 callee=plusAssign args=[_:e@11:85] type=Unit call=kotlin.concurrent.atomics.plusAssign[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@13:68 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongMinusAssign.$3.atomic[kind=vparam]
+expr e@13:87 name(delta) type=Long ref=golden.sema.atomicLongMinusAssign.$3.delta[kind=vparam]
+expr e@13:68#1 memberCall recv=e@13:68 callee=minusAssign args=[_:e@13:87] type=Unit call=kotlin.concurrent.atomics.minusAssign[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@16:15 name(delta) type=Long ref=golden.sema.atomicLongCompoundAssign.$0.delta[kind=vparam]
+expr e@16:5 compoundAssign(plusAssign) name=atomic value=e@16:15 type=Unit ref=golden.sema.atomicLongCompoundAssign.$0.atomic[kind=vparam] call=kotlin.concurrent.atomics.plusAssign[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@17:15 name(delta) type=Long ref=golden.sema.atomicLongCompoundAssign.$0.delta[kind=vparam]
+expr e@17:5 compoundAssign(minusAssign) name=atomic value=e@17:15 type=Unit ref=golden.sema.atomicLongCompoundAssign.$0.atomic[kind=vparam] call=kotlin.concurrent.atomics.minusAssign[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@20:77 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongUpdate.$5.atomic[kind=vparam]
+expr e@20:91 name(transform) type=(Long) -> Long ref=golden.sema.atomicLongUpdate.$5.transform[kind=vparam]
+expr e@20:77#1 memberCall recv=e@20:77 callee=update args=[_:e@20:91] type=Unit call=kotlin.concurrent.atomics.update[kind=fun;recv=kotlin.concurrent.AtomicLong;params=fn{p=Long;ret=Long}]
+expr e@22:85 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongUpdateAndFetch.$6.atomic[kind=vparam]
+expr e@22:107 name(transform) type=(Long) -> Long ref=golden.sema.atomicLongUpdateAndFetch.$6.transform[kind=vparam]
+expr e@22:85#1 memberCall recv=e@22:85 callee=updateAndFetch args=[_:e@22:107] type=Long call=kotlin.concurrent.atomics.updateAndFetch[kind=fun;recv=kotlin.concurrent.AtomicLong;params=fn{p=Long;ret=Long}]

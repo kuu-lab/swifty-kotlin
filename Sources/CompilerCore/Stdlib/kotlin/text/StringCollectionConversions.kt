@@ -1,7 +1,6 @@
 package kotlin.text
 
 import kswiftk.internal.*
-import kotlin.collections.CharIterator
 import kotlin.collections.HashSet
 import kotlin.collections.IndexedValue
 import kotlin.collections.Iterable
@@ -19,21 +18,6 @@ import kotlin.sequences.emptySequence
 // Collection conversions and iterator helpers migrated from the string runtime
 // bridges. String is covered by these CharSequence extensions through the
 // CharSequence implementation supplied by the compiler.
-
-private class CharSequenceCharIterator(
-    private val source: CharSequence
-) : CharIterator() {
-    private var index = 0
-
-    override fun hasNext(): Boolean = index < source.length
-
-    override fun nextChar(): Char {
-        if (!hasNext()) throw NoSuchElementException()
-        val result = source[index]
-        index++
-        return result
-    }
-}
 
 public fun CharSequence.toList(): List<Char> {
     val result = mutableListOf<Char>()
@@ -122,8 +106,6 @@ public fun CharSequence.toSortedSet(): MutableSet<Char> {
     for (element in sorted) result.add(element)
     return result
 }
-
-public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
 
 public fun CharSequence.asIterable(): Iterable<Char> {
     if (this is String && isEmpty()) return emptyList()

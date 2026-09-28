@@ -240,7 +240,6 @@ extension DataFlowSemaPhase {
                 else {
                     continue
                 }
-
                 let candidates = baseFunctions.filter { candidate in
                     guard let candidateSignature = symbols.functionSignature(for: candidate),
                           let rawReceiverType = candidateSignature.receiverType
@@ -248,8 +247,12 @@ extension DataFlowSemaPhase {
                         return false
                     }
                     let candidateReceiverType = effectiveReceiverTypes[candidate] ?? rawReceiverType
-                    guard (candidateReceiverType == enumType
-                              || types.isSubtype(enumType, candidateReceiverType)),
+                    guard receiverMatchesEnum(
+                              candidateReceiverType,
+                              enumType: enumType,
+                              enumSymbol: ownerSymbol,
+                              types: types
+                          ),
                           bodySignature.receiverType == enumType,
                           // BUG-A: `typeParameterSymbols` also carries the
                           // *enclosing class's* own type parameters for a
@@ -262,7 +265,8 @@ extension DataFlowSemaPhase {
                           candidateSignature.typeParameterSymbols.count == candidateSignature.classTypeParameterCount,
                           candidateSignature.reifiedTypeParameterIndices.isEmpty,
                           !candidateSignature.isSuspend,
-                          bodySignature.typeParameterSymbols.isEmpty,
+                          bodySignature.typeParameterSymbols.count
+                              == bodySignature.classTypeParameterCount,
                           bodySignature.reifiedTypeParameterIndices.isEmpty,
                           !bodySignature.isSuspend,
                           candidateSignature.parameterTypes == bodySignature.parameterTypes
@@ -326,6 +330,29 @@ extension DataFlowSemaPhase {
                 for: helperSymbol
             )
             symbols.setEnumEntryDispatchTargets(targets, for: helperSymbol)
+            symbols.setEnumEntryDispatchBaseSymbol(baseSymbol, for: helperSymbol)
         }
+    }
+
+    /// Whether calls on an enum-typed receiver can resolve to a member whose
+    /// declared receiver is `candidateReceiverType`. An inherited member
+    /// (e.g. `kotlin.Enum<T>.toString`) keeps the declaring class's generic
+    /// receiver, which `isSubtype` rejects against the concrete enum, so the
+    /// erased nominal ancestry is the right granularity for dispatch.
+    private func receiverMatchesEnum(
+        _ candidateReceiverType: TypeID,
+        enumType: TypeID,
+        enumSymbol: SymbolID,
+        types: TypeSystem
+    ) -> Bool {
+        if candidateReceiverType == enumType
+            || types.isSubtype(enumType, candidateReceiverType)
+        {
+            return true
+        }
+        guard case let .classType(classType) = types.kind(of: candidateReceiverType) else {
+            return false
+        }
+        return types.isNominalSubtypeSymbol(enumSymbol, of: classType.classSymbol)
     }
 }
