@@ -607,6 +607,50 @@ struct CoroutineSyntheticStubTests {
     }
 
     @Test
+    func testKotlinxCoroutineFoundationUsesBundledDeclarations() throws {
+        let source = """
+        package sample
+
+        import kotlinx.coroutines.*
+
+        @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class,
+            InternalCoroutinesApi::class, FlowPreview::class,
+            ExperimentalForInheritanceCoroutinesApi::class, ObsoleteCoroutinesApi::class)
+        fun cancellation(message: String): CancellationException = CancellationException(message)
+
+        fun timeoutAsCancellation(timeout: TimeoutCancellationException): CancellationException = timeout
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let root = ["kotlinx", "coroutines"].map { interner.intern($0) }
+            let alias = try #require(sema.symbols.lookup(fqName: root + [interner.intern("CancellationException")]))
+            let canonical = try #require(sema.symbols.lookup(
+                fqName: ["kotlin", "coroutines", "cancellation", "CancellationException"].map { interner.intern($0) }
+            ))
+            #expect(sema.symbols.symbol(alias)?.kind == .typeAlias)
+            #expect(sema.symbols.symbol(alias)?.flags.contains(.synthetic) == false)
+            #expect(sema.symbols.typeAliasUnderlyingType(for: alias) == sema.symbols.propertyType(for: canonical))
+
+            for name in ["JobCancellationException", "TimeoutCancellationException"] {
+                let subclass = try #require(sema.symbols.lookup(fqName: root + [interner.intern(name)]))
+                #expect(sema.symbols.symbol(subclass)?.flags.contains(.synthetic) == false)
+                #expect(sema.symbols.directSupertypes(for: subclass).contains(canonical))
+            }
+            for name in ["ExperimentalCoroutinesApi", "DelicateCoroutinesApi", "InternalCoroutinesApi",
+                "FlowPreview", "ExperimentalForInheritanceCoroutinesApi", "ObsoleteCoroutinesApi"] {
+                let annotation = try #require(sema.symbols.lookup(fqName: root + [interner.intern(name)]))
+                #expect(sema.symbols.symbol(annotation)?.flags.contains(.synthetic) == false)
+            }
+        }
+    }
+
+    @Test
     func testCoroutineContextNestedTypeContract() throws {
         let source = """
         package sample
