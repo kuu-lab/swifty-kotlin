@@ -1788,7 +1788,8 @@ extension ExprTypeChecker {
             for nestedID in nestedClasses {
                 guard let nested = ctx.cachedSymbol(nestedID),
                       (nested.kind == .class || nested.kind == .enumClass),
-                      !nested.flags.contains(.abstractType)
+                      !nested.flags.contains(.abstractType),
+                      !nested.flags.contains(.innerClass)
                 else { continue }
                 let constructors = sema.symbols.lookupAll(
                     fqName: nested.fqName + [interner.intern("<init>")]
