@@ -643,7 +643,7 @@ struct NativeConcurrentSyntheticStubTests {
 
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
         #expect(sema.symbols.symbol(constructor)?.flags.contains(.synthetic) == false)
-        #expect(signature.receiverType == nil)
+        #expect(signature.receiverType == exceptionType)
         #expect(signature.valueParameterHasDefaultValues == [false])
         #expect(
             sema.symbols.externalLinkName(for: constructor)
