@@ -747,7 +747,10 @@ extension DataFlowSemaPhase {
         // bridges. AbstractSet and its subclasses remain intentionally abstract
         // skeletal collection types even when those bridges cover every
         // inherited member in the compiler's abstract-member set.
+        // An expect class may declare its abstract contract only in the actual
+        // implementation; an empty expect body is therefore not suspicious.
         if !hasAbstractMember,
+           !symbolInfo.flags.contains(.expectDeclaration),
            !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
         {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
