@@ -531,6 +531,28 @@ extension CompilerCoreTests {
         #expect(function.params.isEmpty)
     }
 
+    @Test func testImplicitMemberReferenceBeatsSameNamedPackageProperty() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        val flush: Int = 7
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let member = try #require(sema.bindings.identifierSymbols[ref])
+        let owner = try #require(sema.symbols.parentSymbol(for: member))
+        #expect(sema.symbols.symbol(owner)?.kind == .interface)
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+    }
+
     /// The implicit-receiver fallback must leave a top-level `::function`
     /// unchanged, even when that reference occurs inside an extension body.
     @Test func testTopLevelCallableReferenceInsideExtensionRemainsReceiverless() throws {

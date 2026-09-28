@@ -1549,6 +1549,22 @@ extension ExprTypeChecker {
         let effectiveReceiverType = unboundClassType ?? receiverType
 
         var candidates: [SymbolID] = []
+        // Resolve receiver members before the bare-property shortcut below:
+        // a package `val flush` must not hide `Writer.flush` for `::flush` in
+        // implicit-receiver scope. Local declarations retain lexical priority.
+        let hasLocalDeclaration = locals[member] != nil
+        let implicitMemberCandidates: [SymbolID] = {
+            guard receiver == nil, !hasLocalDeclaration,
+                  let implicitReceiver = ctx.implicitReceiverType
+            else { return [] }
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: member,
+                receiverType: sema.types.makeNonNullable(implicitReceiver),
+                sema: sema,
+                interner: interner
+            )
+            return ctx.filterByVisibility(members).0
+        }()
         // REFL-CTOR: set when `candidates` were filled with constructor
         // symbols for a bare `::Foo` reference below. A constructor
         // signature's `receiverType` field carries the class type for the
@@ -1650,7 +1666,12 @@ extension ExprTypeChecker {
                 }
                 return symbol.kind == .property
             }
-            if let propertySymbol = propertyCandidates.first {
+            let packagePropertyShadowedByMember = propertyCandidates.first.map { propertySymbol in
+                let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
+                    .flatMap { sema.symbols.symbol($0)?.kind }
+                return !implicitMemberCandidates.isEmpty && (ownerKind == .package || ownerKind == nil)
+            } ?? false
+            if let propertySymbol = propertyCandidates.first, !packagePropertyShadowedByMember {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
                 let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
                 // KSP-496/KSP-505: a bare `::member` reference to a member
@@ -1762,21 +1783,9 @@ extension ExprTypeChecker {
         // implicit receiver before a same-named package function. Lexical
         // scope lookup does not walk inherited member scopes. A local
         // function still shadows the receiver's member.
-        let hasLocalFunction = locals[member].flatMap { ctx.cachedSymbol($0.symbol) }?.kind == .function
-        if receiver == nil, !hasLocalFunction,
-           let implicitReceiver = ctx.implicitReceiverType
-        {
-            let members = driver.helpers.collectMemberFunctionCandidates(
-                named: member,
-                receiverType: sema.types.makeNonNullable(implicitReceiver),
-                sema: sema,
-                interner: interner
-            )
-            let (visibleMembers, _) = ctx.filterByVisibility(members)
-            if !visibleMembers.isEmpty {
-                candidates = visibleMembers
-                isImplicitlyBoundMember = true
-            }
+        if !implicitMemberCandidates.isEmpty {
+            candidates = implicitMemberCandidates
+            isImplicitlyBoundMember = true
         }
 
         // A nested class constructor (`Outer::Nested`) is stored under
