@@ -11,7 +11,7 @@ struct RuntimeImmutableBlobTests {
         _ = kk_array_set(shorts, 2, 256, nil)
         _ = kk_array_set(shorts, 3, -1, nil)
 
-        let blob = kk_immutable_blob_of(shorts)
+        let blob = kk_immutable_blob_of(shorts, 4)
         #expect(blob != shorts)
         #expect(kk_byteArray_size(blob) == 4)
         #expect(kk_native_byteArray_getByteAt(blob, 0) == 65)
@@ -24,7 +24,7 @@ struct RuntimeImmutableBlobTests {
     }
 
     @Test func emptyFactoryReturnsEmptyBlob() {
-        let blob = kk_immutable_blob_of(kk_array_new(0))
+        let blob = kk_immutable_blob_of(kk_array_new(0), 0)
         #expect(blob != 0)
         #expect(kk_byteArray_size(blob) == 0)
     }

@@ -246,7 +246,7 @@ public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Ne
 /// factory receives the raw Short vararg array; each element is truncated to
 /// one byte just as Kotlin/Native's ImmutableBlob constructor does.
 @_cdecl("__kk_immutable_blob_of")
-public func kk_immutable_blob_of(_ elementsRaw: Int) -> Int {
+public func kk_immutable_blob_of(_ elementsRaw: Int, _: Int) -> Int {
     guard let elements = runtimeArrayBox(from: elementsRaw) else {
         return 0
     }
