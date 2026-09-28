@@ -1559,6 +1559,7 @@ extension ExprTypeChecker {
         // reference is, or `(Int) -> Foo` would gain a spurious leading `Foo`
         // parameter.
         var isConstructorReference = false
+        var isImplicitlyBoundMember = false
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1757,6 +1758,24 @@ extension ExprTypeChecker {
             }
         }
 
+        // Within a class or extension body, `::member` uses the active
+        // implicit receiver. Lexical scope lookup does not walk inherited
+        // member scopes, so probe the receiver's nominal hierarchy too.
+        if receiver == nil, candidates.isEmpty,
+           let implicitReceiver = ctx.implicitReceiverType
+        {
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: member,
+                receiverType: sema.types.makeNonNullable(implicitReceiver),
+                sema: sema,
+                interner: interner
+            )
+            if !members.isEmpty {
+                candidates = members
+                isImplicitlyBoundMember = true
+            }
+        }
+
         // A nested class constructor (`Outer::Nested`) is stored under
         // `Outer.Nested.<init>`, just as bare `::Nested` is under
         // `Nested.<init>`. Ordinary member lookup by the short name misses it.
@@ -1788,7 +1807,8 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured. A constructor
         // reference has no receiver at all; see `isConstructorReference`'s
         // declaration above for why it is folded into the "bound" side here.
-        let isBoundReceiver = (receiver != nil && unboundClassType == nil) || isConstructorReference
+        let isBoundReceiver = (receiver != nil && unboundClassType == nil)
+            || isConstructorReference || isImplicitlyBoundMember
 
         // BUG-164: callable references must also support SAM-conversion to a
         // functional interface expected type, the same way lambda literals do.
@@ -1870,6 +1890,9 @@ extension ExprTypeChecker {
             // REFL-003: Tag the callable reference as KFunction so KIR
             // lowering can emit type identity metadata.
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
+            if isImplicitlyBoundMember {
+                sema.bindings.markImplicitReceiverMember(id, name: member)
+            }
             if unboundClassType != nil && !isConstructorReference {
                 sema.bindings.markUnboundCallableRef(id)
             }

@@ -1370,6 +1370,20 @@ final class LambdaLowerer {
             // safely resolve — not memory corruption from reading a
             // wrong-typed object's fields.
             captureArguments.append(implicitReceiver)
+        } else if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+                  let targetSymbol,
+                  let declaredReceiver = sema.symbols.functionSignature(for: targetSymbol)?.receiverType,
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                  let activeType = arena.exprType(implicitReceiver),
+                  sema.types.isSubtype(
+                      sema.types.makeNonNullable(activeType),
+                      sema.types.makeNonNullable(declaredReceiver)
+                  )
+        {
+            // A bare `::member` in an extension function is a bound method
+            // reference: its wrapper forwards the captured extension receiver
+            // before the explicit arguments.
+            captureArguments.append(implicitReceiver)
         }
 
         // BUG-B: a bare `::name` reference to a LOCAL function that itself

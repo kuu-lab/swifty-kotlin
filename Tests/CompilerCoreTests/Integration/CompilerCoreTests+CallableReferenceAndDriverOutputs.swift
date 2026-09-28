@@ -475,6 +475,34 @@ extension CompilerCoreTests {
         #expect(sema.symbols.symbol(result.classSymbol)?.fqName.map { ctx.interner.resolve($0) } == ["Outer", "Nested"])
     }
 
+    /// KUU-917: a bare reference in an extension body binds its receiver,
+    /// including members inherited through an interface.
+    @Test func testExtensionBareMemberReferenceBindsImplicitReceiver() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected bound member function type.")
+            return
+        }
+        #expect(function.params.isEmpty)
+        #expect(function.returnType == sema.types.make(.primitive(.int, .nonNull)))
+    }
+
     /// REFL-EXTPROP: `String::length` is a package-level extension property
     /// (`Sources/CompilerCore/Stdlib/kotlin/String.kt`) registered under its
     /// declaring package's FQ name, not under `kotlin.String`'s -- the
