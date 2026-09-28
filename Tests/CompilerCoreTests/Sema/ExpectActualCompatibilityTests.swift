@@ -4,6 +4,31 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testUnresolvedExpectExtensionRemainsCallable() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            expect fun Short.reverseByteOrder(): Short
+            fun fromShort(value: Short): Short = value.reverseByteOrder()
+            fun UShort.rb(): UShort = toShort().reverseByteOrder().toUShort()
+            """
+        )
+        try runSema(ctx)
+
+        // Missing actual is diagnosed independently of overload resolution.
+        // Both member-style calls must still bind the expect declaration.
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.compactMap(\.code)
+        #expect(codes.contains("KSWIFTK-MPP-UNRESOLVED"))
+        #expect(!codes.contains("KSWIFTK-SEMA-0002"), "Expect extension must be a viable call candidate: \(ctx.diagnostics.diagnostics)")
+        #expect(!codes.contains("KSWIFTK-SEMA-0003"), "Expect extension must not become ambiguous: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        let resolvedCalls = sema.bindings.callBindings.values.filter { $0.chosenCallee == expectSymbol }
+        #expect(resolvedCalls.count == 2, "Both member-style calls must bind the expect declaration")
+    }
+
     private struct TestCase {
         let name: String
         let sources: [String]
