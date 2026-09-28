@@ -11,24 +11,20 @@ struct ImplicitPrimitiveConversionTests {
         fun Byte.byteShort(): Short = toShort()
         fun Byte.byteUnsigned(): UInt = toUInt()
         fun Byte.byteFloat(): Float = toFloat()
-        fun Byte.byteChar(): Char = toChar()
         fun Short.shortInt(): Int = toInt()
         fun Short.shortByte(): Byte = toByte()
         fun Short.shortDouble(): Double = toDouble()
         fun Short.shortUByte(): UByte = toUByte()
-        fun Short.shortChar(): Char = toChar()
         """
         let expectedLinks: [(function: String, link: String?)] = [
             ("byteInt", nil),
             ("byteShort", nil),
             ("byteUnsigned", "kk_int_to_uint"),
             ("byteFloat", "kk_int_to_float"),
-            ("byteChar", "kk_byte_to_char"),
             ("shortInt", nil),
             ("shortByte", "kk_int_to_byte"),
             ("shortDouble", "kk_int_to_double_bits"),
             ("shortUByte", "kk_int_to_ubyte"),
-            ("shortChar", "kk_short_to_char"),
         ]
 
         try withTemporaryFile(contents: source) { path in

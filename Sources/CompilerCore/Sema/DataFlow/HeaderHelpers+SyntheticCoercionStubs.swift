@@ -295,6 +295,8 @@ extension DataFlowSemaPhase {
             // extension body resolves through these kotlin.toX stubs. Share
             // the existing runtime bridges and mark representation-preserving
             // conversions for a KIR copy (there is no identity runtime symbol).
+            // Byte/Short.toChar() is error-level deprecated in Kotlin 2.3;
+            // leave it on the existing explicit receiver deprecation path.
             let smallIntegerConversions: [(
                 name: String, link: String, receiver: TypeID, result: TypeID
             )] = [
@@ -307,7 +309,6 @@ extension DataFlowSemaPhase {
                 ("toDouble", "kk_int_to_double_bits", types.byteType, types.doubleType),
                 ("toUByte", "kk_int_to_ubyte", types.byteType, types.ubyteType),
                 ("toUShort", "kk_int_to_ushort", types.byteType, types.ushortType),
-                ("toChar", "kk_byte_to_char", types.byteType, types.charType),
                 ("toByte", "kk_int_to_byte", types.shortType, types.byteType),
                 ("toInt", "kk_primitive_identity", types.shortType, types.intType),
                 ("toLong", "kk_primitive_identity", types.shortType, types.longType),
@@ -317,7 +318,6 @@ extension DataFlowSemaPhase {
                 ("toDouble", "kk_int_to_double_bits", types.shortType, types.doubleType),
                 ("toUByte", "kk_int_to_ubyte", types.shortType, types.ubyteType),
                 ("toUShort", "kk_int_to_ushort", types.shortType, types.ushortType),
-                ("toChar", "kk_short_to_char", types.shortType, types.charType),
             ]
             for stub in smallIntegerConversions {
                 registerSyntheticCoercionFunction(
