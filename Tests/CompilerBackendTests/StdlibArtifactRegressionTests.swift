@@ -174,10 +174,12 @@ struct StdlibArtifactRegressionTests {
                 from: try findKIRFunctionBody(named: "sumMutableList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must use generic hasNext: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must use generic next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must not force list hasNext: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must not force list next: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_list_iterator"), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must use list next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_iterable_iterator"), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
             #expect(!mutableListCallees.contains("kk_range_iterator"), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
 
             try LoweringPhase().run(ctx)
