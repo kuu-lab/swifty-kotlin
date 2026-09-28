@@ -135,6 +135,29 @@ extension DataFlowSemaPhase {
                 }
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
+                if resolved.flags.contains(.importedLibrary), let usageRange {
+                    let fileID = usageRange.start.file
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
+                        let label = resolved.visibility == .internal ? "internal" : "private"
+                        diagnostics?.error(
+                            resolved.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot access '\(interner.resolve(shortName))': it is \(label).",
+                            range: usageRange
+                        )
+                        return types.errorType
+                    }
+                }
                 let resolvedArgs = resolveTypeArgRefs(
                     argRefs,
                     ast: ast,

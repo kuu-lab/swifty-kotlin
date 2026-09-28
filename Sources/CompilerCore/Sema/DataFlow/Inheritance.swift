@@ -5,6 +5,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine = DiagnosticEngine(),
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
@@ -19,6 +20,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     types: types,
+                    diagnostics: diagnostics,
                     interner: interner
                 )
             }
@@ -35,6 +37,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
         guard let symbol = bindings.declSymbols[declID],
@@ -84,6 +87,31 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner
             ) {
+                if let imported = symbols.symbol(resolved.symbol),
+                   imported.flags.contains(.importedLibrary),
+                   let fileID = symbols.sourceFileID(for: symbol)
+                       ?? symbols.symbol(symbol)?.declSite?.start.file {
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(imported, fromFile: fileID, enclosingClass: nil) {
+                        let name = imported.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                        diagnostics.error(
+                            imported.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot inherit from '\(name)': it is not visible in this module.",
+                            range: symbols.symbol(symbol)?.declSite
+                        )
+                        continue
+                    }
+                }
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -168,6 +196,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 types: types,
+                diagnostics: diagnostics,
                 interner: interner
             )
         }
