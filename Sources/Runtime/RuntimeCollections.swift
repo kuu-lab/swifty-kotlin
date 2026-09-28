@@ -301,10 +301,10 @@ public func kk_emptyList() -> Int {
 
 @_cdecl("__kk_list_size")
 public func kk_list_size(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return 0
+    if let list = runtimeListBox(from: listRaw) {
+        return list.count
     }
-    return list.count
+    return runtimeSourceCollectionSize(listRaw) ?? 0
 }
 
 @_cdecl("__kk_list_get")
@@ -315,6 +315,9 @@ public func kk_list_get(
 ) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let result = runtimeSourceListGet(listRaw, index: index, outThrown: outThrown) {
+            return result
+        }
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
@@ -350,10 +353,13 @@ public func kk_enum_entries_get(
 
 @_cdecl("kk_list_is_empty")
 public func kk_list_is_empty(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(1)
+    if let list = runtimeListBox(from: listRaw) {
+        return kk_box_bool(list.count == 0 ? 1 : 0)
     }
-    return kk_box_bool(list.count == 0 ? 1 : 0)
+    if let isEmpty = runtimeSourceCollectionIsEmpty(listRaw) {
+        return kk_box_bool(isEmpty != 0 ? 1 : 0)
+    }
+    return kk_box_bool(1)
 }
 
 @_cdecl("kk_list_iterator")

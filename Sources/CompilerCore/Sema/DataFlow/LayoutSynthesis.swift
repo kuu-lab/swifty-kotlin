@@ -424,6 +424,26 @@ extension DataFlowSemaPhase {
             // for runtime-created objects (e.g. CharSequence.length at slot 2).
             .filter { !$0.flags.contains(.extensionMemberAlias) }
 
+        let isList = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "List"
+        if isList {
+            // Runtime's __kk_list_get fallback dispatches source implementations
+            // through the List itable. Keep get(index) at slot 0 independently
+            // of when synthetic iterator or bundled-source symbols are defined.
+            return methods.sorted { lhs, rhs in
+                let lhsIsGet = interner.resolve(lhs.name) == "get"
+                    && (symbols.functionSignature(for: lhs.id)?.parameterTypes.count == 1)
+                let rhsIsGet = interner.resolve(rhs.name) == "get"
+                    && (symbols.functionSignature(for: rhs.id)?.parameterTypes.count == 1)
+                if lhsIsGet != rhsIsGet {
+                    return lhsIsGet && !rhsIsGet
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
         let isSequence = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
             && interner.resolve(nominalSymbol.fqName[1]) == "sequences"

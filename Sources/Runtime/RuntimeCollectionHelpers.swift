@@ -120,6 +120,9 @@ let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
 )
+private let runtimeListInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.List"
+)
 private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
@@ -136,6 +139,8 @@ private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
 // own vtable method count (2 slots) is untouched by KSP-960, which only
 // changes Collection's synthetic member registration.
 private let runtimeCollectionSizeGetterSlot = 4
+private let runtimeCollectionIsEmptyMethodSlot = 0
+private let runtimeListGetMethodSlot = 0
 // Map properties are ordered alphabetically after Map's two methods:
 // entries, keys, size, values.
 private let runtimeMapEntriesGetterSlot = 2
@@ -166,6 +171,50 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
         runtimeStructuredPanic("Collection.size dispatch threw exception handle \(thrown)")
     }
     return result
+}
+
+/// Dispatch a source-defined Collection.isEmpty override. A custom List may
+/// implement this independently of size, so deriving it from size is not
+/// equivalent to calling the member.
+@inline(__always)
+func runtimeSourceCollectionIsEmpty(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeCollectionSizeInterfaceTypeID),
+        runtimeCollectionIsEmptyMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Collection.isEmpty dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// List.get(index) is slot 0 of List's own methods (LayoutSynthesis).
+/// Preserve the caller's exception slot so user-defined get can throw.
+@inline(__always)
+func runtimeSourceListGet(
+    _ rawValue: Int,
+    index: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeListInterfaceTypeID),
+        runtimeListGetMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, index, outThrown)
 }
 
 @inline(__always)
