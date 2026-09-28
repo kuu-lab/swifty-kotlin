@@ -732,7 +732,9 @@ final class AtomicRefArrayBox {
 
     init(size: Int) {
         storage = .allocate(capacity: max(0, size))
-        storage.initialize(repeating: 0)
+        // A fresh slot is Kotlin null. Using a raw zero here is decoded as
+        // the value zero when T is a nullable primitive (KUU-933).
+        storage.initialize(repeating: runtimeNullSentinelInt)
     }
 
     deinit {
