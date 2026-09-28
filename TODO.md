@@ -1744,7 +1744,7 @@
     - `kotlin.concurrent.atomics.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
 
-- [ ] KSP-1118: kotlin.concurrent.atomics.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1118: kotlin.concurrent.atomics.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLongArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicLongArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1754,6 +1754,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicLongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.concurrent.atomics.AtomicLongArray.<init>` — constructor (LongArray)  -- `constructor <init>(kotlin/LongArray)`
+  - 完了根拠 (2026-09-28): 対象の 2 コンストラクタは KSP-1119 で `atomics/AtomicLongArray/Stdlib.kt` に追加済みの source-backed factory（`AtomicLongArray(Int)` は `kk_atomic_long_array_create` への external bridge、`AtomicLongArray(LongArray)` は public コピー実装）で充足済み。本 PR では未カバーだった完了ゲートを補完: golden ケース `stdlib_kotlin_concurrent_atomics_AtomicLongArray_n_n.kt`、diff ケース同名、`AtomicLongArrayCanonicalSourceMigrationTests`（canonical パッケージでの source-backed 解決と特殊経路の不使用を固定）を追加。bridge/stub 整理の対象となる `__kk_*`/`kk_*` 関数や stub 登録・name-string 特例の新規削除はなし（既存の合成パスガード `hasSourceBackedAtomicArrayFactory` が既に AtomicLongArray をカバー）。
 
 - [x] KSP-1119: kotlin.concurrent.atomics.AtomicLongArray.AtomicLongArray の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLongArray` / receiver `AtomicLongArray`
