@@ -455,10 +455,30 @@ extension CallLowerer {
             interner: interner
         )
         let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
-        let callSymbol: SymbolID? = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
+        let rangeInterfaceCallee = closedRangeInterfaceRuntimeName(
+            memberName: interner.resolve(calleeName),
+            receiverExpr: receiver.expr,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        )
+        let callSymbol: SymbolID?
+        if runtimeSetMemberCallee.map({ $0 == loweredCallee }) == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
-            ? nil
-            : chosenCallee
+        {
+            callSymbol = nil
+        } else if let rangeInterfaceCallee, rangeInterfaceCallee == loweredCallee {
+            // When the range interface dispatch remapped the callee to a
+            // concrete runtime bridge, retaining the bound interface symbol
+            // lets the backend prefer the symbol's own externalLinkName over
+            // the remapped name (KSP-1311: `OpenEndRange.contains/isEmpty` are
+            // serialized with __kk_range_* links that are invalid for the
+            // floating-point range handle).
+            callSymbol = nil
+        } else {
+            callSymbol = chosenCallee
+        }
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
         // so lower the concrete Double/Float overload directly to the range ABI.
         // The source-backed generic declaration remains available for overload

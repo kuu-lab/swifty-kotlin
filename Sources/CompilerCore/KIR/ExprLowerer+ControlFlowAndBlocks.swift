@@ -3049,6 +3049,7 @@ extension ExprLowerer {
                     exprID: exprID,
                     elementID: lhsID,
                     containerID: rhsID,
+                    containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
                     interner: interner,
@@ -3086,6 +3087,7 @@ extension ExprLowerer {
                 exprID: exprID,
                 elementID: lhsID,
                 containerID: rhsID,
+                containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
                 interner: interner,
@@ -3105,6 +3107,7 @@ extension ExprLowerer {
         exprID: ExprID,
         elementID: KIRExprID,
         containerID: KIRExprID,
+        containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
         interner: StringInterner,
@@ -3119,14 +3122,29 @@ extension ExprLowerer {
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil
         {
-            let calleeName: InternedString = if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
-                                                !linkName.isEmpty
+            let containerType = sema.bindings.exprTypes[containerExpr] ?? sema.types.anyType
+            let calleeName: InternedString
+            if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
+               !linkName.isEmpty
             {
-                interner.intern(linkName)
+                calleeName = interner.intern(linkName)
+            } else if let rangeCallee = driver.callLowerer.closedRangeInterfaceRuntimeName(
+                memberName: "contains",
+                receiverExpr: containerExpr,
+                receiverType: containerType,
+                chosenCallee: callBinding.chosenCallee,
+                sema: sema,
+                interner: interner
+            ) {
+                // The generic `ClosedRange<T>.contains`/`OpenEndRange<T>.contains`
+                // interface residuals carry no external link; on a concrete range
+                // receiver they must dispatch through the runtime bridge, the
+                // same as the `r.contains(x)` member-call path.
+                calleeName = rangeCallee
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
-                sym.name
+                calleeName = sym.name
             } else {
-                interner.intern("contains")
+                calleeName = interner.intern("contains")
             }
             instructions.append(.call(
                 symbol: callBinding.chosenCallee,
