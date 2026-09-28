@@ -40,6 +40,7 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlin.Triple[kind=class;gen=3]",
         "artifact|kotlin.Triple.<init>[kind=ctor;recv=kotlin.Triple<T0,T1,T2>;params=T0,T1,T2;gen=3]",
         "artifact|kotlin.collections.Iterable[kind=iface;gen=1]",
+        // Keep the nested interface and its property accessors in the artifact contract.
         "artifact|kotlin.collections.Map.Entry[kind=iface;gen=2]",
         "artifact|kotlin.collections.Map.Entry.key[kind=prop]",
         "artifact|kotlin.collections.Map.Entry.value[kind=prop]",
