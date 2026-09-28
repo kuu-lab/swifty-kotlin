@@ -1353,7 +1353,7 @@
     - `kotlin.concurrent.AtomicArray.toString` — fun AtomicArray.toString(): String  -- `final fun toString(): kotlin/String`
   - 完了根拠: `AtomicArray/AtomicArray.kt` に7 APIを source-backed 実装として追加し、既存の reference-array ABI を利用。Runtime 関数と ABI spec は `kotlin.concurrent.atomics` でも共有されるため保持し、legacy package 専用の合成 stub/name-string 特例は存在しない。Sema golden suite / Runtime ABI link validation / TODO ID 検査は pass。kotlinc diff は Kotlin/Native 専用 API のため `SKIP-DIFF (DEBT-DIFF-001)`。
 
-- [ ] KSP-1087: kotlin.concurrent.AtomicInt top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1087: kotlin.concurrent.AtomicInt top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicInt` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicInt/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1362,6 +1362,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicInt.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicInt/Stdlib.kt` に `public external fun AtomicInt(value: Int): AtomicInt` を `@KsSymbolName("kk_atomic_int_create")` で source-backed 実装として追加した（KSP-1093 の AtomicLongArray と同じ top-level factory 規約）。`AtomicInt(value)` 呼び出しは overload resolution の duplicate-signature フィルタで residual synthetic `<init>(Int)` が除かれ source fun に束縛される。`kk_atomic_int_create` Runtime 関数 / RuntimeABISpec エントリ / 合成 `<init>(Int)` 登録は `java.util.concurrent.atomic.AtomicInteger` との共有と残余 surface のため保持し、name-string 特例は無し。
 
 - [x] KSP-1088: kotlin.concurrent.AtomicInt.AtomicInt の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.AtomicInt` / receiver `AtomicInt`
