@@ -13,6 +13,16 @@ extension BundledStdlibExecutionTests {
             import kotlinx.io.bytestring.startsWith
             import kotlinx.io.bytestring.endsWith
             import kotlinx.io.bytestring.buildByteString
+            import kotlinx.io.bytestring.unsafe.UnsafeByteStringApi
+            import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
+
+            @OptIn(UnsafeByteStringApi::class)
+            fun checkUnsafeSharing() {
+                val array = byteArrayOf(66)
+                val wrapped = UnsafeByteStringOperations.wrapUnsafe(array)
+                array[0] = 67
+                println(wrapped[0])
+            }
 
             fun main() {
                 val input = byteArrayOf(65, 66, 67)
@@ -30,6 +40,7 @@ extension BundledStdlibExecutionTests {
                 println(bytes == ByteString(byteArrayOf(65, 66, 67)))
                 println(bytes.compareTo(ByteString(byteArrayOf(65, 66, 68))) < 0)
                 println(bytes)
+                println(ByteString(65, 66).decodeToString())
                 val builder = ByteStringBuilder(2)
                 builder.append(65.toByte())
                 builder.append(byteArrayOf(66, 67))
@@ -38,9 +49,10 @@ extension BundledStdlibExecutionTests {
                 println(built.decodeToString())
                 println("é".encodeToByteString().decodeToString())
                 println(buildByteString { append(69.toByte()) }.decodeToString())
+                checkUnsafeSharing()
             }
             """,
-            expectedOutput: "65\n66\nBC\n1\n2\ntrue\ntrue\ntrue\ntrue\nByteString(size=3 hex=414243)\nABC\né\nE\n"
+            expectedOutput: "65\n66\nBC\n1\n2\ntrue\ntrue\ntrue\ntrue\nByteString(size=3 hex=414243)\nAB\nABC\né\nE\n67\n"
         )
     }
 }
