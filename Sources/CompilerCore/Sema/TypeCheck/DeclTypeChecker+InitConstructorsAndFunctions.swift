@@ -399,7 +399,11 @@ extension DeclTypeChecker {
                     call: callExpr,
                     expectedType: delegation.kind == .this
                         ? constructorOwnerType(ownerSymbol, ctx: ctx)
-                        : nil,
+                        : constructorSuperclassType(
+                            ownerSymbol: ownerSymbol,
+                            superclassSymbol: explicitSuperclassSymbol,
+                            ctx: ctx
+                        ),
                     ctx: sema
                 )
                 if let diagnostic = resolved.diagnostic {
@@ -424,6 +428,25 @@ extension DeclTypeChecker {
         }
         return ctx.sema.types.make(.classType(ClassType(
             classSymbol: ownerSymbol,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
+    }
+
+    /// A secondary `super(...)` delegates to the instantiated superclass in
+    /// the class header. Its type arguments are known even when none of the
+    /// constructor arguments mention them.
+    private func constructorSuperclassType(
+        ownerSymbol: SymbolID?,
+        superclassSymbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard let ownerSymbol, let superclassSymbol else { return nil }
+        let typeArguments = ctx.sema.symbols.supertypeTypeArgs(
+            for: ownerSymbol, supertype: superclassSymbol
+        )
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: superclassSymbol,
             args: typeArguments,
             nullability: .nonNull
         )))
