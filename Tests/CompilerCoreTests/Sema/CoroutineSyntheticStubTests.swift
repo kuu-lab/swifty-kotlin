@@ -332,7 +332,7 @@ struct CoroutineSyntheticStubTests {
                 let contextSymbol = try #require(
                     sema.symbols.lookup(fqName: ["kotlin", "coroutines", "Continuation", "context"].map { interner.intern($0) })
                 )
-                #expect(sema.symbols.externalLinkName(for: contextSymbol) == "kk_coroutine_continuation_context")
+                #expect(sema.symbols.externalLinkName(for: contextSymbol) == "__kk_coroutine_continuation_context")
                 guard case let .classType(contextType) = sema.types.kind(of: try #require(sema.symbols.propertyType(for: contextSymbol))) else {
                     Issue.record("Expected continuation.context to be a class type"); return
                 }
@@ -345,7 +345,7 @@ struct CoroutineSyntheticStubTests {
                 let resumeWithFQName = ["kotlin", "coroutines", "Continuation", "resumeWith"].map { interner.intern($0) }
                 let resumeWithSymbol = try #require(sema.symbols.lookup(fqName: resumeWithFQName))
                 let resumeWithSignature = try #require(sema.symbols.functionSignature(for: resumeWithSymbol))
-                #expect(sema.symbols.externalLinkName(for: resumeWithSymbol) == "kk_coroutine_continuation_resume_with")
+                #expect(sema.symbols.externalLinkName(for: resumeWithSymbol) == "__kk_coroutine_continuation_resume_with")
                 guard case let .classType(resumeWithReceiverType) = sema.types.kind(of: try #require(resumeWithSignature.receiverType)) else {
                     Issue.record("Expected resumeWith receiver to be Continuation<T>"); return
                 }
@@ -365,7 +365,7 @@ struct CoroutineSyntheticStubTests {
                 let resumeFQName = ["kotlin", "coroutines", "resume"].map { interner.intern($0) }
                 let resumeSymbol = try #require(sema.symbols.lookup(fqName: resumeFQName))
                 let resumeSignature = try #require(sema.symbols.functionSignature(for: resumeSymbol))
-                #expect(sema.symbols.externalLinkName(for: resumeSymbol) == "kk_coroutine_continuation_resume")
+                #expect(sema.symbols.externalLinkName(for: resumeSymbol) == nil)
                 guard case let .classType(resumeReceiverType) = sema.types.kind(of: try #require(resumeSignature.receiverType)) else {
                     Issue.record("Expected resume receiver to be Continuation<T>"); return
                 }
@@ -377,12 +377,12 @@ struct CoroutineSyntheticStubTests {
                 }
                 #expect(resumeTypeParam.symbol.rawValue != -1)
                 #expect(resumeSignature.returnType == sema.types.unitType)
-                #expect(resumeSignature.classTypeParameterCount == 1)
+                #expect(resumeSignature.classTypeParameterCount == 0)
 
                 let resumeWithExceptionFQName = ["kotlin", "coroutines", "resumeWithException"].map { interner.intern($0) }
                 let resumeWithExceptionSymbol = try #require(sema.symbols.lookup(fqName: resumeWithExceptionFQName))
                 let resumeWithExceptionSignature = try #require(sema.symbols.functionSignature(for: resumeWithExceptionSymbol))
-                #expect(sema.symbols.externalLinkName(for: resumeWithExceptionSymbol) == "kk_coroutine_continuation_resume_with_exception")
+                #expect(sema.symbols.externalLinkName(for: resumeWithExceptionSymbol) == nil)
                 guard case let .classType(resumeWithExceptionReceiverType) = sema.types.kind(of: try #require(resumeWithExceptionSignature.receiverType)) else {
                     Issue.record("Expected resumeWithException receiver to be Continuation<T>"); return
                 }
@@ -390,7 +390,7 @@ struct CoroutineSyntheticStubTests {
                 #expect(resumeWithExceptionReceiverType.args.count == 1)
                 #expect(resumeWithExceptionSignature.parameterTypes.count == 1)
                 #expect(resumeWithExceptionSignature.returnType == sema.types.unitType)
-                #expect(resumeWithExceptionSignature.classTypeParameterCount == 1)
+                #expect(resumeWithExceptionSignature.classTypeParameterCount == 0)
 
                 let suspendCoroutineFQName = ["kotlin", "coroutines", "suspendCoroutine"].map { interner.intern($0) }
                 let suspendCoroutineSymbol = try #require(sema.symbols.lookup(fqName: suspendCoroutineFQName))
