@@ -3049,6 +3049,7 @@ extension ExprLowerer {
                     exprID: exprID,
                     elementID: lhsID,
                     containerID: rhsID,
+                    containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
                     interner: interner,
@@ -3086,6 +3087,7 @@ extension ExprLowerer {
                 exprID: exprID,
                 elementID: lhsID,
                 containerID: rhsID,
+                containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
                 interner: interner,
@@ -3105,6 +3107,7 @@ extension ExprLowerer {
         exprID: ExprID,
         elementID: KIRExprID,
         containerID: KIRExprID,
+        containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
         interner: StringInterner,
@@ -3123,6 +3126,19 @@ extension ExprLowerer {
                                                 !linkName.isEmpty
             {
                 interner.intern(linkName)
+            } else if let receiverType = sema.bindings.exprTypes[containerExpr],
+                      let rangeLink = driver.callLowerer.closedRangeInterfaceRuntimeName(
+                          memberName: "contains",
+                          receiverExpr: containerExpr,
+                          receiverType: receiverType,
+                          chosenCallee: callBinding.chosenCallee,
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                // KUU-932: the interface member can lack a link name even
+                // though ordinary range.contains() uses this runtime bridge.
+                rangeLink
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
                 sym.name
             } else {
