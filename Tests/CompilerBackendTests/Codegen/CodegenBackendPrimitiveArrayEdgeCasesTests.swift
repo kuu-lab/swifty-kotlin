@@ -8,6 +8,35 @@ import Testing
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
 
     @Test
+    func testArrayReceiverExtensionBareSizeMatchesExplicitReceiver() throws {
+        let source = """
+        fun CharArray.bareSize(): Int = size
+        fun CharArray.explicitSize(): Int = this.size
+        fun IntArray.bareSize(): Int = size
+        fun IntArray.explicitSize(): Int = this.size
+        fun IntArray.localSize(): Int {
+            val size = 41
+            return size
+        }
+        fun String.bareLength(): Int = length
+        class Box(val size: Int) {
+            fun bareSize(): Int = size
+        }
+
+        fun main() {
+            val chars = charArrayOf('a', 'b', 'c', 'd')
+            val ints = intArrayOf(2, 4, 6)
+            println("${chars.bareSize()}:${chars.explicitSize()}")
+            println("${ints.bareSize()}:${ints.explicitSize()}")
+            println("${charArrayOf().bareSize()}:${intArrayOf().bareSize()}")
+            println("${"abc".bareLength()}:${Box(27).bareSize()}")
+            println(ints.localSize())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "ArrayReceiverBareSize", expected: "4:4\n3:3\n0:0\n3:27\n41\n")
+    }
+
+    @Test
     func testPrimitiveArrayZeroInit() throws {
         let source = """
         fun main() {

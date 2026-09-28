@@ -363,6 +363,25 @@ extension ExprLowerer {
                     return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                 }()
 
+                // Primitive and generic Kotlin arrays are not Collection subtypes.
+                // An implicit `size` inside an array-receiver extension must use
+                // the same array length intrinsic as an explicit `this.size`;
+                // otherwise the property falls through to an unwritten slot.
+                if memberStr == "size", !implicitMemberUsesAccessor,
+                   let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
+                   receiverSymbol.fqName.count == 2,
+                   receiverSymbol.fqName.first == interner.intern("kotlin"),
+                   KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name)
+                {
+                    emitNonThrowingCall(
+                        callee: interner.intern("__kk_array_size"),
+                        arg: receiverExprID,
+                        result: result,
+                        into: &instructions
+                    )
+                    return result
+                }
+
                 if receiverMayBeCollection, memberStr == "size", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
                         callee: interner.intern("__kk_collection_size"),
