@@ -633,7 +633,9 @@ struct CoroutineSyntheticStubTests {
             let elementInfo = try #require(sema.symbols.symbol(elementSymbol))
             #expect(elementInfo.kind == .interface)
             #expect(elementInfo.visibility == .public)
-            #expect(elementInfo.flags.contains(.synthetic))
+            // KUU-695: Element is source-backed now, so it no longer carries
+            // the synthetic shell's flag.
+            #expect(!elementInfo.flags.contains(.synthetic))
             #expect(sema.symbols.parentSymbol(for: elementSymbol) == coroutineContextSymbol)
             #expect(sema.symbols.directSupertypes(for: elementSymbol) == [coroutineContextSymbol])
 
