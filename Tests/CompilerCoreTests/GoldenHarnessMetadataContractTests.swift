@@ -93,6 +93,9 @@ struct GoldenHarnessMetadataContractTests {
         "inner_class.kt",
         "list_distinctBy_nullable_key.kt",
         "local_decl.kt",
+        // Constructor-property visibility fixtures intentionally reject access.
+        "primary_constructor_private_access.kt",
+        "primary_constructor_protected_access.kt",
         "sealed_when_missing_branch.kt",
         // stdlib surface cases carrying errors — flagged for individual
         // investigation; they must not silently grow either.
@@ -134,6 +137,8 @@ struct GoldenHarnessMetadataContractTests {
     /// mechanical-acceptance guard as the diagnostic inventory.
     private static let errorTypeCaseBasenames: Set<String> = [
         "inner_class.kt",
+        "primary_constructor_private_access.kt",
+        "primary_constructor_protected_access.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "use_site_variance.kt",
