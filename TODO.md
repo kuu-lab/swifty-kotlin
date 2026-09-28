@@ -1782,7 +1782,7 @@
     - `kotlin.concurrent.atomics.AtomicLongArray.toString` — fun AtomicLongArray.toString(): String  -- `final fun toString(): kotlin/String`
   - 完了根拠 (2026-09-26): `AtomicLongArray/AtomicLongArray.kt` に `@ExperimentalAtomicApi` の source-backed class 宣言を追加し、`compareAndExchange` / `compareAndSet` / `length` / `size` / `toString` の 5 件を class member として実装した。`size` は `kk_atomic_long_array_size` への `__kkSize` private external bridge 経由、`compareAndExchange` / `compareAndSet` は `compareAndExchangeAt`、`length` / `toString` は `size` / `loadAt` に委譲する。class 化で `.synthetic` を要求する `AtomicLongArray(Int, init)` 特別経路が失われるため、`AtomicLongArray/Stdlib.kt` に `AtomicLongArray(Int)`（`kk_atomic_long_array_create` bridge）/`AtomicLongArray(LongArray)`/`AtomicLongArray(Int, init)` の source-backed factory を追加して通常解決へ移した（KSP-1118 の 2 件と KSP-1100 の該当 1 件も兼ねる）。既存 `*At` 合成 stub と runtime bridge は継続利用のため保持。
 
-- [ ] KSP-1121: kotlin.concurrent.atomics.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（8 件）
+- [x] KSP-1121: kotlin.concurrent.atomics.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.concurrent.atomics.AtomicNativePtr` / receiver `AtomicNativePtr`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicNativePtr/AtomicNativePtr.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1798,6 +1798,7 @@
     - `kotlin.concurrent.atomics.AtomicNativePtr.store` — fun AtomicNativePtr.store(NativePtr): Unit  -- `final fun store(kotlin.native.internal/NativePtr)`
     - `kotlin.concurrent.atomics.AtomicNativePtr.toString` — fun AtomicNativePtr.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicNativePtr.value` — val AtomicNativePtr.value: NativePtr  -- `final var value`
+  - 完了根拠 (2026-09-28): `atomics/AtomicNativePtr/AtomicNativePtr.kt` を新規作成し、`load` / `store` / `exchange` / `getAndSet` / `compareAndSet` / `compareAndExchange` / `toString` の 7 API を `kotlin.concurrent.atomics` 配下の source-backed `public` extension として実装（field-backed `value` member への sequential 委譲）。`AtomicNativePtr` には `__kk_atomic_native_ptr_*` Runtime 系が存在しないため `registerAtomicNativePtrSurface` の裸シンボルを吐くだけの同名 synthetic member 6 件（load/store/exchange/getAndSet/compareAndSet/compareAndExchange）を削除し、atomic-migration bundled-extension fallback で source decl が member 解決に勝つことを golden で固定（`value` は `kotlin.concurrent.atomics.AtomicNativePtr.value[kind=prop]` member を維持 — 同名 extension property は登録時に sibling 関数 decl の body を失わせるため source 化不可）。`swift build`、`--stdlib-only` artifact build、対象 Golden case（worker render を committed golden と一致確認済み）、対象 diff case（SKIP-DIFF: DEBT-DIFF-001）、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` を確認済み。全テストスイートと全 diff ケースは未実行（CI）。
 
 - [x] KSP-1122: kotlin.concurrent.atomics.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicReference` / top-level
