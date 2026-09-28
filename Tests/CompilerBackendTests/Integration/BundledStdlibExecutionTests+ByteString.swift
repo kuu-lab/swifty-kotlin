@@ -47,15 +47,16 @@ extension BundledStdlibExecutionTests {
                 val builder = ByteStringBuilder(2)
                 builder.append(65.toByte())
                 builder.append(byteArrayOf(66, 67))
+                builder.append(ByteString(byteArrayOf(68)))
                 val built = builder.toByteString()
-                builder.append(68.toByte())
+                builder.append(byteArrayOf(69, 70), 1)
                 println(built.decodeToString())
                 println("é".encodeToByteString().decodeToString())
                 println(buildByteString { append(69.toByte()) }.decodeToString())
                 checkUnsafeSharing()
             }
             """,
-            expectedOutput: "65\n66\nBC\n1\n2\ntrue\ntrue\ntrue\ntrue\nByteString(size=3 hex=414243)\nAB\n-1\nByteString(size=2 hex=00ff)\nABC\né\nE\n67\n"
+            expectedOutput: "65\n66\nBC\n1\n2\ntrue\ntrue\ntrue\ntrue\nByteString(size=3 hex=414243)\nAB\n-1\nByteString(size=2 hex=00ff)\nABCD\né\nE\n67\n"
         )
     }
 }

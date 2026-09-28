@@ -28,7 +28,18 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         offset++
     }
 
-    public fun append(array: ByteArray, startIndex: Int = 0, endIndex: Int = array.size) {
+    // Keep the one- and two-argument overloads explicit. The compiler also
+    // sees the extension append(vararg Byte), and the defaulted array member
+    // can otherwise leave append(ByteArray) without a viable overload.
+    public fun append(array: ByteArray) {
+        append(array, 0, array.size)
+    }
+
+    public fun append(array: ByteArray, startIndex: Int) {
+        append(array, startIndex, array.size)
+    }
+
+    public fun append(array: ByteArray, startIndex: Int, endIndex: Int) {
         require(startIndex <= endIndex) { "startIndex ($startIndex) > endIndex ($endIndex)" }
         if (startIndex < 0 || endIndex > array.size) {
             throw IndexOutOfBoundsException("startIndex ($startIndex) and endIndex ($endIndex) out of bounds")
