@@ -39,7 +39,7 @@ expr e@9:24#1 memberCall recv=e@9:24 callee=remove args=[index:e@9:47] type=Int 
 expr e@9:5 localDecl indexed mutable=0 type=Int init=e@9:24#1 type=Unit ref=__local_4.indexed[kind=local]
 expr e@10:28 name(mutable) type=kotlin.collections.MutableList<Int> ref=__local_0.mutable[kind=local]
 expr e@10:43 int(2) type=Int
-expr e@10:28#1 memberCall recv=e@10:28 callee=remove args=[_:e@10:43] type=Boolean call=kotlin.collections.MutableList.remove[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;gen=1] targs=[Int]
+expr e@10:28#1 memberCall recv=e@10:28 callee=remove args=[_:e@10:43] type=Boolean call=kotlin.collections.MutableCollection.remove[kind=fun;recv=kotlin.collections.MutableCollection<T0>;params=T0;gen=1] targs=[Int]
 expr e@10:5 localDecl element mutable=0 type=Boolean init=e@10:28#1 type=Unit ref=__local_5.element[kind=local]
 expr e@11:22 name(mutable) type=kotlin.collections.MutableList<Int> ref=__local_0.mutable[kind=local]
 expr e@11:22#1 memberCall recv=e@11:22 callee=removeFirst args=[] type=Int call=kotlin.collections.removeFirst[kind=fun;recv=kotlin.collections.MutableList<T0>;params=;gen=1] targs=[Int]
