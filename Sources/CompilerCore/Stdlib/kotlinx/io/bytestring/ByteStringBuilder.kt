@@ -39,7 +39,7 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         append(array, startIndex, array.size)
     }
 
-    public fun append(array: ByteArray, startIndex: Int, endIndex: Int) {
+    public fun append(array: ByteArray, startIndex: Int = 0, endIndex: Int = array.size) {
         require(startIndex <= endIndex) { "startIndex ($startIndex) > endIndex ($endIndex)" }
         if (startIndex < 0 || endIndex > array.size) {
             throw IndexOutOfBoundsException("startIndex ($startIndex) and endIndex ($endIndex) out of bounds")
