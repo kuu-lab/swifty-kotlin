@@ -806,6 +806,7 @@ extension CallLowerer {
         // boxes. Handle the safe-call form here after the receiver null check;
         // otherwise the generic fallback emits an undefined `name` symbol.
         if tryLowerKCallableNameAccess(
+            propertySymbol: sema.bindings.identifierSymbol(for: exprID),
             receiverType: nonNullSafeReceiverType,
             receiverID: loweredReceiverID,
             result: result,

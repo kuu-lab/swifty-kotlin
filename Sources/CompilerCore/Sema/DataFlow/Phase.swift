@@ -538,6 +538,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
         )
+        validateTypeAliasCycles(
+            symbols: symbols, types: types, diagnostics: ctx.diagnostics
+        )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -605,7 +608,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
-        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
+        synthesizeNominalLayouts(
+            symbols: symbols, types: types,
+            interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

@@ -46,6 +46,26 @@ struct CodegenBackendEnumEdgeCoverageTests {
         )
     }
 
+    @Test
+    func testEnumEntryBodyImplicitNameUsesCurrentEntry() throws {
+        let source = """
+        enum class E {
+            A {
+                override fun describe(): String = "base-" + name
+            };
+            abstract fun describe(): String
+        }
+
+        fun main() { println(E.A.describe()) }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumEntryBodyImplicitName",
+            expected: "base-A\n"
+        )
+    }
+
     /// DEBT-DIFF-007: elements returned by `values()`/`entries` cross an
     /// Any-erased collection boundary as `RuntimeIntBox` handles, while the
     /// enum HOF lambda consumes a raw ordinal. The lambda entry point must

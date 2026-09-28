@@ -229,6 +229,40 @@ enum TypeRefParserCore {
             return functionType
         }
 
+        // Parenthesized type group: `(Type)`, most commonly used to allow a
+        // trailing `?` to bind to an entire function type rather than just its
+        // return type — `((Int) -> Int)?` is a nullable function type, while
+        // `(Int) -> Int?` is a non-nullable function returning `Int?`. Kotlin's
+        // grammar allows this grouping around any type, not just function
+        // types, so this is attempted whenever `(` did not already parse as a
+        // function type above.
+        if tokens[start].kind == .symbol(.lParen),
+           let closeParen = findMatchingCloseParen(in: tokens, from: start),
+           let inner = parseTypeRefPrefix(
+               tokens,
+               from: start + 1,
+               interner: interner,
+               astArena: astArena,
+               options: options,
+               diagnostics: diagnostics,
+               recursionDepth: recursionDepth + 1
+           ),
+           inner.next == closeParen
+        {
+            var next = closeParen + 1
+            var ref = inner.ref
+            if next < tokens.count, tokens[next].kind == .symbol(.question) {
+                next += 1
+                ref = nullableVariant(of: ref, astArena: astArena)
+            }
+            if next < tokens.count, tokens[next].kind == .symbol(.arrow) {
+                // `(T) -> U` reaching here means the caller disallowed function
+                // types; returning just `T` would leave `-> U` dangling.
+                return nil
+            }
+            return (ref, next)
+        }
+
         guard let firstName = identifier(
             from: tokens[start],
             interner: interner,
@@ -821,6 +855,29 @@ enum TypeRefParserCore {
             return colonIndex + 1
         default:
             return segmentStart
+        }
+    }
+
+    /// Returns a `TypeRefID` equivalent to `ref` but with its `nullable` flag
+    /// set, rebuilding the arena entry when necessary. Used when a `?` suffix
+    /// follows a parenthesized type group, e.g. `((Int) -> Int)?`.
+    private static func nullableVariant(of ref: TypeRefID, astArena: ASTArena) -> TypeRefID {
+        switch astArena.typeRef(ref) {
+        case let .named(path, args, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.named(path: path, args: args, nullable: true))
+        case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.functionType(
+                contextReceivers: contextReceivers,
+                receiver: receiver,
+                params: params,
+                returnType: returnType,
+                isSuspend: isSuspend,
+                nullable: true
+            ))
+        case let .annotated(base, annotations):
+            return astArena.appendTypeRef(.annotated(base: nullableVariant(of: base, astArena: astArena), annotations: annotations))
+        case .intersection, .none:
+            return ref
         }
     }
 

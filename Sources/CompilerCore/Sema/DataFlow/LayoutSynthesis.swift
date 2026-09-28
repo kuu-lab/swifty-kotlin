@@ -1,36 +1,140 @@
 
 extension DataFlowSemaPhase {
-    func synthesizeNominalLayouts(symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
+    /// KUU-809: `.kklib` metadata is attacker-controlled input. A crafted
+    /// artifact can declare an arbitrarily deep acyclic supertype chain (or a
+    /// cyclic graph), so the traversal below runs off an explicit worklist —
+    /// never the native call stack — and refuses to follow edges beyond these
+    /// bounds, reporting them as validation errors instead.
+    static let maxNominalLayoutInheritanceDepth = 1024
+    static let maxNominalLayoutTypeCount = 1_000_000
+
+    func synthesizeNominalLayouts(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine,
+        maxInheritanceDepth: Int = DataFlowSemaPhase.maxNominalLayoutInheritanceDepth,
+        maxTypeCount: Int = DataFlowSemaPhase.maxNominalLayoutTypeCount
+    ) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
         guard !nominalIDs.isEmpty else { return }
-        let topoOrder = buildTopoOrder(nominalIDs: nominalIDs, symbols: symbols)
+        let topoOrder = buildTopoOrder(
+            nominalIDs: nominalIDs,
+            symbols: symbols,
+            interner: interner,
+            diagnostics: diagnostics,
+            maxInheritanceDepth: maxInheritanceDepth,
+            maxTypeCount: maxTypeCount
+        )
         for nominalID in topoOrder {
             synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
         }
     }
 
-    private func buildTopoOrder(nominalIDs: [SymbolID], symbols: SymbolTable) -> [SymbolID] {
+    /// Iterative post-order DFS producing the same deterministic order as a
+    /// recursive visit: a nominal is appended after all of its supertype
+    /// nominals, children explored in ascending raw-ID order. Cycles are
+    /// reported once per re-entered node and the offending edge is skipped;
+    /// nodes beyond `maxInheritanceDepth`/`maxTypeCount` are refused with a
+    /// single diagnostic each.
+    private func buildTopoOrder(
+        nominalIDs: [SymbolID],
+        symbols: SymbolTable,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine,
+        maxInheritanceDepth: Int,
+        maxTypeCount: Int
+    ) -> [SymbolID] {
         var topoOrder: [SymbolID] = []
-        var visited: Set<SymbolID> = []
+        topoOrder.reserveCapacity(min(nominalIDs.count, maxTypeCount))
+        var finished: Set<SymbolID> = []
+        var inProgress: Set<SymbolID> = []
+        var reportedCycleTargets: Set<SymbolID> = []
+        var reportedDepthViolation = false
+        var reportedCountViolation = false
 
-        func visit(_ symbolID: SymbolID) {
-            guard visited.insert(symbolID).inserted else { return }
-            let superNominals = symbols.directSupertypes(for: symbolID)
+        func sortedSuperNominals(of symbolID: SymbolID) -> [SymbolID] {
+            symbols.directSupertypes(for: symbolID)
                 .filter { superID in
                     guard let superSymbol = symbols.symbol(superID) else { return false }
                     return isNominalLayoutTargetSymbol(superSymbol.kind)
                 }
                 .sorted(by: { $0.rawValue < $1.rawValue })
-            for superNominal in superNominals {
-                visit(superNominal)
-            }
-            topoOrder.append(symbolID)
         }
 
         for nominalID in nominalIDs {
-            visit(nominalID)
+            if finished.contains(nominalID) { continue }
+            if finished.count >= maxTypeCount {
+                if !reportedCountViolation {
+                    reportedCountViolation = true
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-SUPER-COUNT",
+                        "Nominal type count exceeds the supported maximum of \(maxTypeCount); "
+                            + "remaining types keep no synthesized layout.",
+                        range: symbols.symbol(nominalID)?.declSite
+                    )
+                }
+                break
+            }
+            inProgress.insert(nominalID)
+            var worklist: [(node: SymbolID, supers: [SymbolID], nextIndex: Int)] = [
+                (nominalID, sortedSuperNominals(of: nominalID), 0)
+            ]
+            while let frame = worklist.last {
+                if frame.nextIndex < frame.supers.count {
+                    worklist[worklist.count - 1].nextIndex += 1
+                    let superNominal = frame.supers[frame.nextIndex]
+                    if inProgress.contains(superNominal) {
+                        // The supertype is still on the DFS path: the edge
+                        // closes a cycle. Layout cannot give a cyclic graph a
+                        // consistent base-first order, so reject it.
+                        if reportedCycleTargets.insert(superNominal).inserted {
+                            let name = symbols.symbol(superNominal)
+                                .map { renderFQName($0.fqName, interner: interner) } ?? "?"
+                            diagnostics.error(
+                                "KSWIFTK-SEMA-SUPER-CYCLE",
+                                "Cyclic supertype reference involving \(name); the edge is ignored.",
+                                range: symbols.symbol(superNominal)?.declSite
+                            )
+                        }
+                        continue
+                    }
+                    if finished.contains(superNominal) { continue }
+                    if worklist.count >= maxInheritanceDepth {
+                        if !reportedDepthViolation {
+                            reportedDepthViolation = true
+                            diagnostics.error(
+                                "KSWIFTK-SEMA-SUPER-DEPTH",
+                                "Inheritance chain exceeds the maximum supported depth of "
+                                    + "\(maxInheritanceDepth); deeper supertypes are ignored.",
+                                range: symbols.symbol(superNominal)?.declSite
+                            )
+                        }
+                        continue
+                    }
+                    if finished.count + inProgress.count >= maxTypeCount {
+                        if !reportedCountViolation {
+                            reportedCountViolation = true
+                            diagnostics.error(
+                                "KSWIFTK-SEMA-SUPER-COUNT",
+                                "Nominal type count exceeds the supported maximum of \(maxTypeCount); "
+                                    + "remaining types keep no synthesized layout.",
+                                range: symbols.symbol(superNominal)?.declSite
+                            )
+                        }
+                        continue
+                    }
+                    inProgress.insert(superNominal)
+                    worklist.append((superNominal, sortedSuperNominals(of: superNominal), 0))
+                } else {
+                    topoOrder.append(frame.node)
+                    inProgress.remove(frame.node)
+                    finished.insert(frame.node)
+                    worklist.removeLast()
+                }
+            }
         }
         return topoOrder
     }

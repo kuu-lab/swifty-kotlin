@@ -1,0 +1,48 @@
+symbol fq=__local_0.double[kind=local] kind=local vis=private flags=_ type=(Int) -> Int
+symbol fq=__local_1.increment[kind=local] kind=local vis=private flags=_ type=(Int) -> Int
+symbol fq=__local_2.combined[kind=local] kind=local vis=private flags=_ type=(Int) -> Int
+symbol fq=golden.sema.applyTwice.$0.x[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.applyTwice[kind=fun;recv=fn{p=Int;ret=Int};params=Int] kind=function vis=public flags=_ sig=recv=(Int) -> Int params=[Int] ret=Int
+symbol fq=golden.sema.functionTypeReceiverExtension[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.then.$1.A[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.then.$1.B[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.then.$1.C[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.then.$1.g[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.then[kind=fun;recv=fn{p=T0;ret=T1};params=fn{p=T1;ret=T2};gen=3] kind=function vis=public flags=_ sig=recv=(golden.sema.then.$1.A) -> golden.sema.then.$1.B params=[(golden.sema.then.$1.B) -> golden.sema.then.$1.C] ret=(golden.sema.then.$1.A) -> golden.sema.then.$1.C
+file ffunction_type_receiver_extension package=golden.sema
+  decl golden.sema.then[kind=fun;recv=fn{p=T0;ret=T1};params=fn{p=T1;ret=T2};gen=3] fun then sym=golden.sema.then[kind=fun;recv=fn{p=T0;ret=T1};params=fn{p=T1;ret=T2};gen=3]
+  decl golden.sema.applyTwice[kind=fun;recv=fn{p=Int;ret=Int};params=Int] fun applyTwice sym=golden.sema.applyTwice[kind=fun;recv=fn{p=Int;ret=Int};params=Int]
+  decl golden.sema.functionTypeReceiverExtension[kind=fun;params=] fun functionTypeReceiverExtension sym=golden.sema.functionTypeReceiverExtension[kind=fun;params=]
+expr e@4:64 name(g) type=(golden.sema.then.$1.B) -> golden.sema.then.$1.C ref=golden.sema.then.$1.g[kind=vparam]
+expr e@4:66 this type=(golden.sema.then.$1.A) -> golden.sema.then.$1.B
+expr e@4:71 name(it) type=golden.sema.then.$1.A ref=s-0
+expr e@4:66#1 call callee=e@4:66 args=[_:e@4:71] type=golden.sema.then.$1.B
+expr e@4:64#1 call callee=e@4:64 args=[_:e@4:66#1] type=golden.sema.then.$1.C
+expr e@4:62 lambda params=[] body=e@4:64#1 type=(golden.sema.then.$1.A) -> golden.sema.then.$1.C
+expr e@5:46 this type=(Int) -> Int
+expr e@5:51 this type=(Int) -> Int
+expr e@5:56 name(x) type=Int ref=golden.sema.applyTwice.$0.x[kind=vparam]
+expr e@5:51#1 call callee=e@5:51 args=[_:e@5:56] type=Int
+expr e@5:46#1 call callee=e@5:46 args=[_:e@5:51#1] type=Int
+expr e@8:34 name(it) type=Int ref=s-1
+expr e@8:39 int(2) type=Int
+expr e@8:34#1 binary(multiply) lhs=e@8:34 rhs=e@8:39 type=Int
+expr e@8:32 lambda params=[] body=e@8:34#1 type=(Int) -> Int
+expr e@8:5 localDecl double mutable=0 type=(Int)->Int init=e@8:32 type=Unit ref=__local_0.double[kind=local]
+expr e@9:37 name(it) type=Int ref=s-2
+expr e@9:42 int(1) type=Int
+expr e@9:37#1 binary(add) lhs=e@9:37 rhs=e@9:42 type=Int
+expr e@9:35 lambda params=[] body=e@9:37#1 type=(Int) -> Int
+expr e@9:5 localDecl increment mutable=0 type=(Int)->Int init=e@9:35 type=Unit ref=__local_1.increment[kind=local]
+expr e@10:20 name(double) type=(Int) -> Int ref=__local_0.double[kind=local]
+expr e@10:32 name(increment) type=(Int) -> Int ref=__local_1.increment[kind=local]
+expr e@10:20#1 memberCall recv=e@10:20 callee=then args=[_:e@10:32] type=(Int) -> Int call=golden.sema.then[kind=fun;recv=fn{p=T0;ret=T1};params=fn{p=T1;ret=T2};gen=3] targs=[Int,Int,Int]
+expr e@10:5 localDecl combined mutable=0 type=_ init=e@10:20#1 type=Unit ref=__local_2.combined[kind=local]
+expr e@11:12 name(combined) type=(Int) -> Int ref=__local_2.combined[kind=local]
+expr e@11:21 int(3) type=Int
+expr e@11:12#1 call callee=e@11:12 args=[_:e@11:21] type=Int
+expr e@11:26 name(double) type=(Int) -> Int ref=__local_0.double[kind=local]
+expr e@11:44 int(1) type=Int
+expr e@11:26#1 memberCall recv=e@11:26 callee=applyTwice args=[_:e@11:44] type=Int call=golden.sema.applyTwice[kind=fun;recv=fn{p=Int;ret=Int};params=Int]
+expr e@11:12#2 binary(add) lhs=e@11:12#1 rhs=e@11:26#1 type=Int
+expr e@11:5 return value=e@11:12#2 type=Nothing
