@@ -456,14 +456,20 @@ extension DataFlowSemaPhase {
         if isMutableList {
             // kk_list_subList falls back to this interface for Kotlin-defined
             // mutable lists, where subList must return the implementation's
-            // live mutable view instead of a snapshot.
+            // live mutable view instead of a snapshot. The set bridge also
+            // dispatches through this itable when writing to that source view.
             return methods.sorted { lhs, rhs in
-                let lhsIsSubList = interner.resolve(lhs.name) == "subList"
-                    && (symbols.functionSignature(for: lhs.id)?.parameterTypes.count == 2)
-                let rhsIsSubList = interner.resolve(rhs.name) == "subList"
-                    && (symbols.functionSignature(for: rhs.id)?.parameterTypes.count == 2)
-                if lhsIsSubList != rhsIsSubList {
-                    return lhsIsSubList && !rhsIsSubList
+                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
+                    let name = interner.resolve(symbol.name)
+                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
+                    if name == "subList" && arity == 2 { return 0 }
+                    if name == "set" && arity == 2 { return 1 }
+                    return 2
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot {
+                    return lhsSlot < rhsSlot
                 }
                 return lhs.id.rawValue < rhs.id.rawValue
             }

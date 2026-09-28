@@ -146,6 +146,7 @@ private let runtimeCollectionIsEmptyMethodSlot = 0
 private let runtimeListGetMethodSlot = 0
 private let runtimeListIteratorAtMethodSlot = 1
 private let runtimeMutableListSubListMethodSlot = 0
+private let runtimeMutableListSetMethodSlot = 1
 // Map properties are ordered alphabetically after Map's two methods:
 // entries, keys, size, values.
 private let runtimeMapEntriesGetterSlot = 2
@@ -263,6 +264,28 @@ func runtimeSourceMutableListSubList(
         to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
     )
     return fn(rawValue, fromIndex, toIndex, outThrown)
+}
+
+/// Preserve writes to Kotlin-defined mutable list views instead of treating
+/// every MutableList as a Swift RuntimeListBox.
+@inline(__always)
+func runtimeSourceMutableListSet(
+    _ rawValue: Int,
+    index: Int,
+    element: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMutableListInterfaceTypeID),
+        runtimeMutableListSetMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, index, element, outThrown)
 }
 
 @inline(__always)

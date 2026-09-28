@@ -67,6 +67,8 @@ struct CodegenBackendCustomListBridgeTests {
             println(sub[0])
             sub[0] = 42
             println(list[1])
+            println(list.set(0, 11))
+            println(list[0])
             println(list.listIterator(1).next())
             try {
                 list.subList(-1, 1)
@@ -89,7 +91,7 @@ struct CodegenBackendCustomListBridgeTests {
         try assertKotlinOutput(
             source,
             moduleName: "CustomMutableListBridge",
-            expected: "2\n42\n42\nnegative-index\npast-end\nreversed-range\n"
+            expected: "2\n42\n1\n11\n42\nnegative-index\npast-end\nreversed-range\n"
         )
     }
 }

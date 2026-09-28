@@ -929,7 +929,15 @@ public func kk_mutable_list_addAll_at(
 public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
+        if let result = runtimeSourceMutableListSet(
+            listRaw,
+            index: index,
+            element: element,
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
         return 0
     }
     let values = list.values
