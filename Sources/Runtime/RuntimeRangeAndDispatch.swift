@@ -1182,9 +1182,28 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
 }
 
 @_cdecl("__kk_range_endExclusive")
-public func kk_range_endExclusive(_ rangeRaw: Int) -> Int {
+public func kk_range_endExclusive(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_endExclusive")
+    }
+    outThrown?.pointee = 0
+    let reachesMaximum: Bool = switch range.kind {
+    case .charRange, .charProgression:
+        range.last == 0xFFFF
+    case .intRange, .intProgression:
+        range.last == Int(Int32.max)
+    case .longRange, .longProgression:
+        range.last == Int.max
+    case .uintRange, .uintProgression:
+        UInt32(truncatingIfNeeded: range.last) == UInt32.max
+    case .ulongRange, .ulongProgression:
+        UInt(bitPattern: range.last) == UInt.max
+    }
+    if reachesMaximum {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(
+            message: "Cannot return the exclusive upper bound of a range that includes MAX_VALUE."
+        ))
+        return runtimeExceptionCaughtSentinel
     }
     return range.last &+ 1
 }
