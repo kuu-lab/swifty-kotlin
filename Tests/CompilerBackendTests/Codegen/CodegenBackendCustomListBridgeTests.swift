@@ -9,8 +9,8 @@ struct CodegenBackendCustomListBridgeTests {
         let source = """
         interface CustomList : List<Int>
 
-        class CustomListImpl(private val backing: List<Int>) : CustomList {
-            override val size: Int get() = 42
+        class CustomListImpl(private val backing: List<Int>, private val declaredSize: Int = 42) : CustomList {
+            override val size: Int get() = declaredSize
             override fun isEmpty(): Boolean = false
             override fun iterator(): Iterator<Int> = backing.iterator()
             override fun contains(element: Int): Boolean = backing.contains(element)
@@ -37,13 +37,16 @@ struct CodegenBackendCustomListBridgeTests {
             println(list[1])
             println(concrete.listIterator(1).next())
             println(list.listIterator(2).next())
+            val zeroSize: Collection<Int> = CustomListImpl(listOf(1), 0)
+            println(zeroSize.size)
+            println(zeroSize.isEmpty())
         }
         """
 
         try assertKotlinOutput(
             source,
             moduleName: "CustomListBridge",
-            expected: "42\n42\n42\nfalse\nfalse\nfalse\n2\n2\n2\n3\n"
+            expected: "42\n42\n42\nfalse\nfalse\nfalse\n2\n2\n2\n3\n0\nfalse\n"
         )
     }
 
@@ -65,13 +68,28 @@ struct CodegenBackendCustomListBridgeTests {
             sub[0] = 42
             println(list[1])
             println(list.listIterator(1).next())
+            try {
+                list.subList(-1, 1)
+            } catch (e: IndexOutOfBoundsException) {
+                println("negative-index")
+            }
+            try {
+                list.subList(0, 4)
+            } catch (e: IndexOutOfBoundsException) {
+                println("past-end")
+            }
+            try {
+                list.subList(2, 1)
+            } catch (e: IllegalArgumentException) {
+                println("reversed-range")
+            }
         }
         """
 
         try assertKotlinOutput(
             source,
             moduleName: "CustomMutableListBridge",
-            expected: "2\n42\n42\n"
+            expected: "2\n42\n42\nnegative-index\npast-end\nreversed-range\n"
         )
     }
 }
