@@ -86,21 +86,24 @@ extension ExprTypeChecker {
         // on the left (`x?.let { Result.failure(it) } ?: RESUME`). Resolve only
         // an independent name reference early: arbitrary RHS expressions may
         // read locals modified while checking the LHS and must keep their order.
-        let isSafeLetElvisFailure = if op == .elvis,
-            case let .safeMemberCall(_, member, _, args, _) = ast.arena.expr(lhsID),
-            interner.resolve(member) == "let", args.count == 1,
-            case let .lambdaLiteral(_, lambdaBodyID, _, _) = ast.arena.expr(args[0].expr)
+        let isSafeLetElvisFailure: Bool
+        if op == .elvis,
+           case let .safeMemberCall(_, member, _, args, _) = ast.arena.expr(lhsID),
+           interner.resolve(member) == "let", args.count == 1,
+           case let .lambdaLiteral(_, lambdaBodyID, _, _) = ast.arena.expr(args[0].expr)
         {
             let bodyID: ExprID? = if case let .blockExpr(_, trailing, _) = ast.arena.expr(lambdaBodyID) {
                 trailing
             } else {
                 lambdaBodyID
             }
-            if let bodyID,
+            isSafeLetElvisFailure = if let bodyID,
                case let .memberCall(_, method, typeArgs, _, _) = ast.arena.expr(bodyID),
                interner.resolve(method) == "failure", typeArgs.isEmpty
             { true } else { false }
-        } else { false }
+        } else {
+            isSafeLetElvisFailure = false
+        }
         let earlyElvisRhs: TypeID? = {
             guard isSafeLetElvisFailure, expectedType == nil,
                   case let .nameRef(rhsName, _) = ast.arena.expr(rhsID),
