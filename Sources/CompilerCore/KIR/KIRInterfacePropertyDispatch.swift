@@ -42,13 +42,26 @@ func kirInterfacePropertyGetterSlots(
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             let isSyntheticCollectionSize = isCollectionOrMap && property.name == sizeName
+            // BUG-240: Map's other runtime-bridged view properties
+            // (keys/values/entries/size) need itable getter slots too so a
+            // custom Map — delegated (`class C : Map<K,V> by d`) or
+            // hand-written — stays observable through `kk_map_keys` /
+            // `kk_map_values` / `kk_map_entries`, whose non-box path looks
+            // the getter up dynamically.
+            let isSyntheticMapProperty = interfaceInfo.fqName == knownNames.kotlinCollectionsMapFQName
+                && [
+                    interner.intern("entries"), interner.intern("keys"),
+                    sizeName, interner.intern("values"),
+                ].contains(property.name)
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `length`) are read through their external link, not an
             // itable slot — leave them out of the property getter table.
-            // Collection/Map `size` is the exception: its runtime bridge can
-            // fall back to source-backed itable dispatch for custom views.
+            // Collection/Map runtime-backed properties are the exception: their
+            // bridges can fall back to source-backed itable dispatch for custom
+            // views.
             if let linkName = sema.symbols.externalLinkName(for: id),
                !linkName.isEmpty,
+               !isSyntheticMapProperty,
                !isSyntheticCollectionSize
             {
                 return nil
@@ -56,10 +69,15 @@ func kirInterfacePropertyGetterSlots(
             // Likewise for synthetic runtime members registered on an otherwise
             // Kotlin-declared interface: only declarations that exist in Kotlin
             // (source, or the same declaration imported from a precompiled
-            // library) own an itable getter slot. Collection/Map `size` is the
-            // intentional exception: source-backed generic helpers need custom
-            // implementations to remain observable through the existing bridge.
-            guard property.declSite != nil || property.flags.contains(.importedLibrary) || isSyntheticCollectionSize else {
+            // library) own an itable getter slot. Collection/Map runtime-backed
+            // properties are intentional exceptions: source-backed generic
+            // helpers need custom implementations to remain observable through
+            // the existing bridge.
+            guard property.declSite != nil
+                || property.flags.contains(.importedLibrary)
+                || isSyntheticCollectionSize
+                || isSyntheticMapProperty
+            else {
                 return nil
             }
             return (symbol: id, name: property.name)
