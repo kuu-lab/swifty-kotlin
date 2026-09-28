@@ -608,7 +608,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
-        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
+        synthesizeNominalLayouts(
+            symbols: symbols, types: types,
+            interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

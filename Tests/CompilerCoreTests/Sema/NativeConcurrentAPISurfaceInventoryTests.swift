@@ -36,6 +36,7 @@ struct NativeConcurrentAPISurfaceInventoryTests {
         TopLevelEntry(name: "activeWorkers", kind: .property, todo: nil),
         TopLevelEntry(name: "asCPointer", kind: .function, todo: nil),
         TopLevelEntry(name: "atomicLazy", kind: .function, todo: nil),
+        TopLevelEntry(name: "attach", kind: .function, todo: nil),
         TopLevelEntry(name: "attachObjectGraphInternal", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation0", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation1", kind: .function, todo: nil),
