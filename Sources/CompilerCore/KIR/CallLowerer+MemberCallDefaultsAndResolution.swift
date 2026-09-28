@@ -624,10 +624,36 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
+        // A source-backed rangeUntil result can retain its nominal
+        // OpenEndRange<Float/Double> type even if the element-type side channel
+        // is absent on the member receiver expression. Only use the nominal
+        // fallback for expressions tracked as runtime ranges: user-defined
+        // OpenEndRange implementations must keep their own member dispatch.
+        let nominalFloatingPointElementType: TypeID? = {
+            guard sema.bindings.isRangeExpr(receiverExpr)
+                || sema.bindings.identifierSymbol(for: receiverExpr).map({
+                    sema.bindings.isRangeSymbol($0)
+                }) == true,
+                case let .classType(classType) = sema.types.kind(
+                    of: sema.types.makeNonNullable(receiverType)
+                ),
+                let symbol = sema.symbols.symbol(classType.classSymbol),
+                symbol.fqName.map(interner.resolve) == ["kotlin", "ranges", "OpenEndRange"]
+            else {
+                return nil
+            }
+            switch classType.args.first {
+            case let .invariant(type), let .out(type), let .in(type):
+                return sema.types.makeNonNullable(type)
+            case .star, nil:
+                return nil
+            }
+        }()
         let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverExpr)
             ?? sema.bindings.identifierSymbol(for: receiverExpr).flatMap {
                 sema.bindings.floatingPointRangeElementType(forSymbol: $0)
             }
+            ?? nominalFloatingPointElementType
         if let floatingPointElementType,
            floatingPointElementType == sema.types.floatType || floatingPointElementType == sema.types.doubleType
         {
