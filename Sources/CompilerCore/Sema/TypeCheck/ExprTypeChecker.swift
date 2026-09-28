@@ -605,6 +605,47 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) == .intRange {
+            // A same-element contains member shadows a user extension for the
+            // in operator, just as it does for an explicit member call. Keep
+            // cross-type arguments on the extension overload path below.
+            if sema.types.makeNonNullable(elementType) == sema.types.intType {
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: containsName,
+                    receiverType: rangeSourceReceiverType,
+                    sema: sema,
+                    interner: interner
+                ).filter { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.flags.contains(.operatorFunction),
+                          let signature = sema.symbols.functionSignature(for: candidate)
+                    else { return false }
+                    return signature.parameterTypes.count == 1
+                }
+                let memberCall = ctx.resolver.resolveCall(
+                    candidates: memberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: containsName,
+                        args: [CallArg(type: elementType)]
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: rangeSourceReceiverType,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = memberCall.chosenCallee {
+                    sema.bindings.bindCall(
+                        exprID,
+                        binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: memberCall.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map { _, value in value },
+                            parameterMapping: memberCall.parameterMapping
+                        )
+                    )
+                    return
+                }
+            }
             let scopedRangeUserCandidates = driver.callChecker
                 .collectScopedRangeUserExtensionCandidates(
                     named: containsName,
@@ -714,6 +755,47 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) == .uintRange {
+            // A same-element contains member shadows a user extension for the
+            // in operator, just as it does for an explicit member call. Keep
+            // cross-type arguments on the extension overload path below.
+            if sema.types.makeNonNullable(elementType) == sema.types.uintType {
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: containsName,
+                    receiverType: rangeSourceReceiverType,
+                    sema: sema,
+                    interner: interner
+                ).filter { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.flags.contains(.operatorFunction),
+                          let signature = sema.symbols.functionSignature(for: candidate)
+                    else { return false }
+                    return signature.parameterTypes.count == 1
+                }
+                let memberCall = ctx.resolver.resolveCall(
+                    candidates: memberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: containsName,
+                        args: [CallArg(type: elementType)]
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: rangeSourceReceiverType,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = memberCall.chosenCallee {
+                    sema.bindings.bindCall(
+                        exprID,
+                        binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: memberCall.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map { _, value in value },
+                            parameterMapping: memberCall.parameterMapping
+                        )
+                    )
+                    return
+                }
+            }
             let scopedRangeUserCandidates = driver.callChecker
                 .collectScopedRangeUserExtensionCandidates(
                     named: containsName,
