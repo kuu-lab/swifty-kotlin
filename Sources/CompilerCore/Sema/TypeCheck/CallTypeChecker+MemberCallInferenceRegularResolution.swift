@@ -1316,6 +1316,17 @@ extension CallTypeChecker {
                             guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
                                 return false
                             }
+                            // A member extension declared in a companion is
+                            // callable only when that companion is in lexical
+                            // scope or explicitly imported. Scope lookup above
+                            // already covers both; the global short-name
+                            // fallback must not expose it to every file.
+                            if let parent = sema.symbols.parentSymbol(for: candidate),
+                               let owner = sema.symbols.parentSymbol(for: parent),
+                               sema.symbols.companionObjectSymbol(for: owner) == parent
+                            {
+                                return false
+                            }
                             // kotlin.math is not a Kotlin default import. Do not let this
                             // member fallback bypass an explicit import for either the
                             // bundled source declarations or their imported-library forms.
