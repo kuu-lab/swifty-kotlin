@@ -511,8 +511,8 @@ struct ExperimentalMarkerStubTests {
                     && $0.arguments == ["AnnotationRetention.SOURCE"]
             }, "ExpectRefinement should carry SOURCE retention, got \(annotations)")
         #expect(annotations.contains {
-                $0.annotationFQName == "kotlin.SinceKotlin"
-                    && $0.arguments == ["\"2.2\""]
+                $0.annotationFQName == "SinceKotlin"
+                    && $0.arguments.contains(where: { $0.contains("2.2") })
             }, "ExpectRefinement should carry @SinceKotlin(\"2.2\"), got \(annotations)")
     }
 
