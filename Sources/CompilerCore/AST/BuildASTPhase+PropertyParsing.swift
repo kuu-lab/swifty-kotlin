@@ -96,6 +96,25 @@ extension BuildASTPhase {
             }
             return childID
         }).first {
+            // An inline `get() { ... }` may leave the accessor header on the
+            // property and its body as a sibling block. It is not a property
+            // accessor container in that case.
+            let directTokens = collectDirectTokens(from: nodeID, in: arena)
+            if let accessorStart = inlineAccessorStartIndex(in: directTokens) {
+                let headerTokens = Array(directTokens[accessorStart...])
+                if case .softKeyword(.get) = headerTokens[0].kind {
+                    getter = PropertyAccessorDecl(
+                        range: arena.node(nodeID).range,
+                        kind: .getter,
+                        parameterName: nil,
+                        body: accessorBody(
+                            statementID: nodeID, headerTokens: headerTokens,
+                            in: arena, interner: interner, astArena: astArena
+                        )
+                    )
+                    return (getter, setter)
+                }
+            }
             for child in arena.children(of: accessorBlockID) {
                 processAccessorChild(
                     child,
@@ -551,6 +570,27 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> FunctionBody {
+        // A block following `get() = call { ... }` is the call's trailing
+        // lambda, not a block-bodied getter. Parse it with the expression.
+        if let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) {
+            var exprTokens = Array(headerTokens[(assignIndex + 1)...])
+            if let trailingBlock = arena.children(of: statementID).compactMap({ child -> NodeID? in
+                guard case let .node(nodeID) = child,
+                      arena.node(nodeID).kind == .block else { return nil }
+                return nodeID
+            }).first {
+                exprTokens.append(contentsOf: collectTokens(from: trailingBlock, in: arena))
+            }
+            exprTokens.removeAll { $0.kind == .symbol(.semicolon) }
+            if let exprID = ExpressionParser(
+                tokens: ArraySlice(exprTokens), interner: interner,
+                astArena: astArena, diagnostics: diagnostics
+            ).parse(), let range = astArena.exprRange(exprID) {
+                return .expr(exprID, range)
+            }
+            return .unit
+        }
+
         if let nestedBlockID = arena.children(of: statementID).compactMap({ child -> NodeID? in
             guard case let .node(nodeID) = child,
                   arena.node(nodeID).kind == .block
@@ -568,24 +608,7 @@ extension BuildASTPhase {
             return .block(exprs, arena.node(nestedBlockID).range)
         }
 
-        guard let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) else {
-            return .unit
-        }
-        let exprTokens = headerTokens[(assignIndex + 1)...].filter { token in
-            token.kind != .symbol(.semicolon)
-        }
-        guard !exprTokens.isEmpty else {
-            return .unit
-        }
-        let parser = ExpressionParser(
-            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
-        )
-        guard let exprID = parser.parse(),
-              let range = astArena.exprRange(exprID)
-        else {
-            return .unit
-        }
-        return .expr(exprID, range)
+        return .unit
     }
 
     // MARK: - Explicit Backing Field (Kotlin 2.0)
