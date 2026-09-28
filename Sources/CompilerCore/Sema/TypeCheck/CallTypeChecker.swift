@@ -1698,6 +1698,7 @@ final class CallTypeChecker {
         }
 
         var candidates: [SymbolID]
+        var callImplicitReceiverType = ctx.implicitReceiverType
         var callInvisible: [SemanticSymbol] = []
         if let calleeName {
             let allCallCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -1712,6 +1713,45 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if candidates.isEmpty,
+               locals[calleeName] == nil,
+               let activeReceiverType = ctx.implicitReceiverType,
+               driver.helpers.collectMemberFunctionCandidates(
+                   named: calleeName,
+                   receiverType: sema.types.makeNonNullable(activeReceiverType),
+                   sema: sema,
+                   interner: interner
+               ).isEmpty
+            {
+                // The scope chain can contain an enclosing class's private
+                // method, but an anonymous object's symbol is not itself a
+                // member of that class for visibility checks. Resolve the
+                // method against the lexical receiver that owns it.
+                for lexicalReceiverType in ctx.outerReceiverTypes.reversed().map(\.type) {
+                    let outerType = sema.types.makeNonNullable(lexicalReceiverType)
+                    guard let outerClassSymbol = driver.helpers.nominalSymbol(
+                        of: outerType,
+                        types: sema.types
+                    ) else {
+                        continue
+                    }
+                    let outerCandidates = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: outerType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let outerContext = ctx.copying(enclosingClassSymbol: outerClassSymbol)
+                    let visibleOuterCandidates = outerContext.filterByVisibility(outerCandidates).visible
+                    guard !visibleOuterCandidates.isEmpty else {
+                        continue
+                    }
+                    candidates = visibleOuterCandidates
+                    callImplicitReceiverType = outerType
+                    callInvisible = []
+                    break
+                }
+            }
             if calleeName == knownNames.toList,
                let implicitReceiverType = ctx.implicitReceiverType
             {
@@ -1750,11 +1790,17 @@ final class CallTypeChecker {
                         sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
                     }
                 }()
-                if sym.kind == .function || localIsCallableValue || local.type == sema.types.errorType {
+                if sym.kind == .function
+                    || (sym.kind != .class && localIsCallableValue)
+                    || local.type == sema.types.errorType
+                {
                     // Callable local declarations shadow imported and top-level
                     // callables of the same name. Non-callable values do not:
                     // `val emptyList = emptyList<Int>()` must not hide a later
-                    // `emptyList<String>()` call.
+                    // `emptyList<String>()` call. A `.class`-kind local
+                    // (KUU-555 named local class) is likewise not a callable
+                    // value — `Local(...)` must reach its constructor through
+                    // the KSP-CAP-006 merge below.
                     candidates = sym.kind == .function ? [local.symbol] : []
                     resolvedFromLocalShadow = true
                 }
@@ -2590,6 +2636,23 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
             }
+            // Nested class member scopes are chained lexically, so a bare
+            // member call can arrive here with a candidate owned by an outer
+            // class. Resolve it against that enclosing receiver's type rather
+            // than the inner class's implicit receiver.
+            // Object-literal outer receivers carry a capture symbol; leave
+            // those to the later implicit-receiver tower so KIR can load
+            // `this@Outer` from the captured field (kuu_544).
+            let callImplicitReceiverType = ctx.outerReceiverTypes.reversed().first { outerReceiver in
+                guard outerReceiver.symbol == nil,
+                      let outerClass = resolveClassType(outerReceiver.type, sema: sema)?.classSymbol
+                else {
+                    return false
+                }
+                return candidates.contains { candidate in
+                    sema.symbols.parentSymbol(for: candidate) == outerClass
+                }
+            }?.type ?? ctx.implicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2598,7 +2661,7 @@ final class CallTypeChecker {
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                implicitReceiverType: ctx.implicitReceiverType,
+                implicitReceiverType: callImplicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -2838,7 +2901,8 @@ final class CallTypeChecker {
         if let callableCalleeType,
            let result = inferCallableValueInvocation(
                id, calleeType: callableCalleeType, callableTarget: callableTarget,
-               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType
+               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType,
+               arityPolicy: .receiverOptionallyExplicit
            )
         {
             return result

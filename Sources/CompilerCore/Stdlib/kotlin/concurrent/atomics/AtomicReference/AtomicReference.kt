@@ -35,3 +35,42 @@ private external fun <T> AtomicReference<T>.__kkAtomicRefCompareAndExchange(
 @SinceKotlin("2.1")
 public fun <T> AtomicReference<T>.compareAndExchange(expectedValue: T, newValue: T): T =
     __kkAtomicRefCompareAndExchange(expectedValue, newValue)
+
+// fetchAndUpdate / update / updateAndFetch are CAS retry loops built on the
+// runtime-backed load/compareAndExchange members, matching the stdlib contract
+// (KSP-1107). The receivers are written against `kotlin.concurrent.AtomicReference`
+// directly: spelling the typealias receiver binds T to the alias's own
+// type-parameter symbol, and the member calls (whose signatures carry the
+// nominal class T) then fail constraint solving inside the bundled stdlib
+// build. The alias expands to the same class, so atomics callers see the
+// identical signature. CAS success is tested with `===` against the returned
+// witness (identity CAS), mirroring kotlin.concurrent.compareAndSet.
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun <T> kotlin.concurrent.AtomicReference<T>.fetchAndUpdate(transform: (T) -> T): T {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndExchange(old, newValue) === old) return old
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun <T> kotlin.concurrent.AtomicReference<T>.update(transform: (T) -> T): Unit {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndExchange(old, newValue) === old) return
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun <T> kotlin.concurrent.AtomicReference<T>.updateAndFetch(transform: (T) -> T): T {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndExchange(old, newValue) === old) return newValue
+    }
+}

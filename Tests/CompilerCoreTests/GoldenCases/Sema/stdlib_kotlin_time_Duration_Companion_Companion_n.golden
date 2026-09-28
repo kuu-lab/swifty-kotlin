@@ -47,7 +47,7 @@ expr e@20:26#1 memberCall recv=e@20:26 callee=days args=[] type=kotlin.time.Dura
 expr e@13:18 call callee=e@13:18#1 args=[_:e@14:9#1,_:e@14:24#1,_:e@14:40#1,_:e@15:9#1,_:e@15:25#1,_:e@15:42#1,_:e@16:9#1,_:e@16:25#1,_:e@16:42#1,_:e@17:9#1,_:e@17:20#1,_:e@17:32#1,_:e@18:9#1,_:e@18:20#1,_:e@18:32#1,_:e@19:9#1,_:e@19:18#1,_:e@19:28#1,_:e@20:9#1,_:e@20:17#1,_:e@20:26#1] type=kotlin.collections.List<out kotlin.time.Duration> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[kotlin.time.Duration]
 expr e@13:5 localDecl values mutable=0 type=_ init=e@13:18 type=Unit ref=__local_0.values[kind=local]
 expr e@23:13 name(values) type=kotlin.collections.List<out kotlin.time.Duration> ref=__local_0.values[kind=local]
-expr e@23:13#1 memberCall recv=e@23:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@23:13#1 memberCall recv=e@23:13 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@24:13 name(Duration) type=kotlin.time.Duration ref=kotlin.time.Duration[kind=class]
 expr e@24:13#1 memberCall recv=e@24:13 callee=Companion args=[] type=kotlin.time.Duration.Companion ref=kotlin.time.Duration.Companion[kind=obj]

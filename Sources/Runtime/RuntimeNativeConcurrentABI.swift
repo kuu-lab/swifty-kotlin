@@ -63,6 +63,58 @@ private final class WorkerIDRegistry: @unchecked Sendable {
 
 }
 
+/// Registry of live workers backing `Worker.Companion.activeWorkers` and
+/// `Worker.Companion.fromCPointer`. Maps each worker's stable ID (assigned by
+/// `workerIDRegistry`) to its runtime handle so the public surface hands back
+/// the same `Worker` identity `kk_worker_new` produced. Entries are added when
+/// a worker box materializes and removed on `requestTermination`.
+private let activeWorkerRegistry = ActiveWorkerRegistry()
+
+private final class ActiveWorkerRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handleByID: [Int: Int] = [:]
+
+    func register(id: Int, handle: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        handleByID[id] = handle
+    }
+
+    func unregister(id: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        handleByID.removeValue(forKey: id)
+    }
+
+    func handle(forID id: Int) -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        return handleByID[id]
+    }
+
+    /// Live worker handles ordered by worker ID for a deterministic list.
+    func activeHandles() -> [Int] {
+        lock.lock()
+        defer { lock.unlock() }
+        return handleByID.sorted { $0.key < $1.key }.map { $0.value }
+    }
+}
+
+/// Registers `handle` under the worker ID derived from `workerIDRegistry`.
+/// Called by every entry point that materializes a `RuntimeWorkerBox`.
+func registerActiveWorker(handle: Int) {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: handle) else { return }
+    let workerID = workerIDRegistry.id(for: UInt(bitPattern: pointer))
+    activeWorkerRegistry.register(id: workerID, handle: handle)
+}
+
+/// Removes `handle` from the active-worker registry after termination.
+func unregisterActiveWorker(handle: Int) {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: handle) else { return }
+    let workerID = workerIDRegistry.id(for: UInt(bitPattern: pointer))
+    activeWorkerRegistry.unregister(id: workerID)
+}
+
 /// Returns the monotonic integer ID for a Worker.
 ///
 /// - Parameter workerHandle: opaque handle produced by `kk_worker_new`.
@@ -427,12 +479,43 @@ public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) 
     return 0
 }
 
-/// Returns the worker bound to the calling thread, for `WorkerBoundReference.worker`
-/// (KSP-1253). Exposed only to stdlib sources — not the public `Worker.Companion.current`
-/// surface, which is a separate task (KSP-1251).
+/// Returns the worker bound to the calling thread. Backs both
+/// `WorkerBoundReference.worker` (KSP-1253) and the public
+/// `Worker.Companion.current` surface (KSP-1251).
 @_cdecl("__kk_native_concurrent_current_worker")
 public func __kk_native_concurrent_current_worker() -> Int {
     runtimeCurrentWorkerHandle()
+}
+
+/// Returns the live workers tracked by `activeWorkerRegistry`, ordered by
+/// worker ID for a deterministic list. Backs `Worker.Companion.activeWorkers`
+/// (KSP-1251). The calling thread's worker is resolved first so the lazily
+/// materialized main worker is always listed, matching the upstream contract
+/// that `activeWorkers` covers the current worker.
+@_cdecl("__kk_native_concurrent_active_workers")
+public func __kk_native_concurrent_active_workers() -> Int {
+    _ = runtimeCurrentWorkerHandle()
+    return registerRuntimeObject(RuntimeListBox(elements: activeWorkerRegistry.activeHandles()))
+}
+
+/// Resolves a `COpaquePointer` produced by `kk_worker_as_cpointer` (whose
+/// address is the worker's stable ID) back into the live worker handle.
+/// Backs `Worker.Companion.fromCPointer` (KSP-1251). Returns 0 for invalid
+/// pointers or IDs of workers that already terminated.
+@_cdecl("__kk_native_concurrent_worker_from_cpointer")
+public func __kk_native_concurrent_worker_from_cpointer(_ pointerHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: pointerHandle) else {
+        return 0
+    }
+    let address: UInt
+    if let box = tryCast(ptr, to: RuntimeCOpaquePointerBox.self) {
+        address = box.address
+    } else if let box = tryCast(ptr, to: RuntimeCPointerBox.self) {
+        address = box.address
+    } else {
+        return 0
+    }
+    return activeWorkerRegistry.handle(forID: Int(bitPattern: address)) ?? 0
 }
 
 // MARK: - ABI-003  TransferMode

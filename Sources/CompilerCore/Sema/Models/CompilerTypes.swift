@@ -22,7 +22,8 @@ public struct TargetTriple: Equatable {
             let arch = "arm64"
         #endif
         #if os(Linux)
-            return TargetTriple(arch: arch, vendor: "unknown", os: "linux-gnu", osVersion: nil)
+            let linuxArch = arch == "arm64" ? "aarch64" : arch
+            return TargetTriple(arch: linuxArch, vendor: "unknown", os: "linux-gnu", osVersion: nil)
         #else
             return TargetTriple(arch: arch, vendor: "apple", os: "macosx", osVersion: nil)
         #endif
@@ -85,8 +86,10 @@ public struct CompilerOptions: Equatable {
 
     /// Path to the incremental compilation cache directory, if any.
     /// Incremental compilation is enabled when either this is non-nil or the
-    /// `incremental` frontend flag is set; when enabled and a cache is
-    /// available, exact no-op builds restore the previous output artifact.
+    /// `incremental` frontend flag is set; without an explicit path the cache
+    /// lives in the compiler-managed per-user cache directory, never in the
+    /// workspace. When enabled and an authenticated cache is available, exact
+    /// no-op builds restore the previous output artifact.
     public var incrementalCachePath: String?
 
     /// When true, compile only the bundled/residual stdlib into a .kklib.

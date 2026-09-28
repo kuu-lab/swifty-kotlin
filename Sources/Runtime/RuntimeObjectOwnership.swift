@@ -25,7 +25,7 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
         // A pinned or StableRef target still has an external root. Refusing
         // the explicit release keeps those root contracts intact; the owner
         // can retry after unpin/dispose has completed.
-        guard !state.pinnedObjects.contains(key), state.stableRefCounts[key] == nil else {
+        guard state.pinnedObjectCounts[key] == nil, state.stableRefCounts[key] == nil else {
             return false
         }
         return state.objectPointers.remove(key) != nil
@@ -53,7 +53,10 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     let key = UInt(bitPattern: pointer)
     removeRuntimeObjectMetadata(forObjectKey: key)
     runtimeForgetFrozenObject(rawValue)
-    Unmanaged<AnyObject>.fromOpaque(pointer).release()
+    // Primitive box handles are tagged (kk_box_* / registerTaggedPrimitiveBox):
+    // the registry key is the tagged bits, but ARC release needs the base object.
+    let basePointer = runtimePrimitiveBoxBasePointer(from: rawValue) ?? pointer
+    Unmanaged<AnyObject>.fromOpaque(basePointer).release()
     return true
 }
 

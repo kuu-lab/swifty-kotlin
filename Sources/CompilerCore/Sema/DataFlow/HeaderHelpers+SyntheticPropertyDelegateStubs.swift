@@ -21,15 +21,27 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerFindAssociatedObjectFunction(
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1324: `findAssociatedObject` is bundled Kotlin source
+        // (Stdlib/kotlin/reflect/AssociatedObjects.kt) when the stdlib is
+        // included; register the synthetic fallback only when it is absent.
+        if !bundledIndex.contains(
+            ownerFQName: kotlinReflectPkg + [interner.intern("KClass")],
+            name: interner.intern("findAssociatedObject"),
+            arity: 0
+        ) {
+            registerFindAssociatedObjectFunction(
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
         let kPropertySymbol = ensureInterfaceSymbol(
             named: "KProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
+        let kCallableFQName = kotlinReflectPkg + [interner.intern("KCallable")]
+        let hasSourceBackedKCallable = bundledIndex.containsNominal(fqName: kCallableFQName)
+            || symbols.lookup(fqName: kCallableFQName).map(symbols.isSourceBackedSymbol) == true
 
         // STDLIB-REFLECT-066: Register kotlin.reflect.KType and typeOf<T>() stubs
         registerSyntheticKTypeStubs(
@@ -43,9 +55,10 @@ extension DataFlowSemaPhase {
             kotlinReflectPkg: kotlinReflectPkg
         )
 
-        // Register `name` property on KProperty (inherited from KCallable).
+        // Keep synthetic members only when no source-backed KCallable declaration
+        // can provide the properties through KProperty inheritance.
         let stringType = types.stringType
-        if let kPropertyInfo = symbols.symbol(kPropertySymbol) {
+        if !hasSourceBackedKCallable, let kPropertyInfo = symbols.symbol(kPropertySymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kPropertyInfo.fqName + [namePropName]
             if symbols.lookup(fqName: namePropFQ) == nil {
@@ -78,9 +91,8 @@ extension DataFlowSemaPhase {
         let kCallableSymbol = ensureInterfaceSymbol(
             named: "KCallable", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
-        // KCallable is source-backed when the bundled stdlib is present. Keep
-        // its generic shell and properties here so early synthetic declarations
-        // can refer to the same symbols before bundled headers are collected.
+        // Keep KCallable's generic shell so early synthetic declarations can
+        // refer to it before bundled headers are collected.
         let returnTypeParameterName = interner.intern("R")
         let returnTypeParameterFQ = (symbols.symbol(kCallableSymbol)?.fqName
             ?? kotlinReflectPkg + [interner.intern("KCallable")]) + [returnTypeParameterName]
@@ -104,7 +116,7 @@ extension DataFlowSemaPhase {
             [kCallableSymbol], to: kPropertySymbol,
             symbols: symbols, types: types
         )
-        if let kCallableInfo = symbols.symbol(kCallableSymbol) {
+        if !hasSourceBackedKCallable, let kCallableInfo = symbols.symbol(kCallableSymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kCallableInfo.fqName + [namePropName]
             if symbols.lookup(fqName: namePropFQ) == nil {
