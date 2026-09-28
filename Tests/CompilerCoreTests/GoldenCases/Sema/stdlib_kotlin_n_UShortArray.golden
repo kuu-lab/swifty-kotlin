@@ -4,7 +4,7 @@ symbol fq=__local_2.storage[kind=local] kind=local vis=private flags=_ type=kotl
 symbol fq=__local_3.storageView[kind=local] kind=local vis=private flags=_ type=kotlin.UShortArray
 symbol fq=__local_4.values[kind=local] kind=local vis=private flags=_ type=kotlin.UShortArray
 symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file fstdlib_kotlin_n_UShortArray package=golden.sema
+file fstdlib_kotlin_n_UShortArray package=golden.sema annotations=[@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
   decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
 expr e@4:29 int(0) type=Int
 expr e@4:17 call callee=e@4:17#1 args=[_:e@4:29] type=kotlin.UShortArray
