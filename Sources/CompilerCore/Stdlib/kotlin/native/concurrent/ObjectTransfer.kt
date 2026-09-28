@@ -31,6 +31,10 @@ public enum class TransferMode(public val value: Int) {
     UNSAFE(1)
 }
 
+@ObsoleteWorkersApi
+public val TransferMode.entries: kotlin.enums.EnumEntries<TransferMode>
+    get() = enumEntries<TransferMode>()
+
 /**
  * A detached object graph keeps an opaque stable pointer until it is attached.
  *
