@@ -224,6 +224,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "capacity", type: .intptr),
                 RuntimeABIParameter(name: "loadFactorBits", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Collection",
