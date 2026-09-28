@@ -970,17 +970,36 @@ final class CallTypeChecker {
         }
 
         // --- STDLIB-REFLECT-066: typeOf<T>() — inline reified reflection ---
-        if let calleeName,
-           args.isEmpty,
-           calleeName == knownNames.typeOf,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
-        {
-            // Resolve the KType return type from the stub.
-            let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-            if let stubSymbol = candidates.first(where: { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-                return signature.reifiedTypeParameterIndices.contains(0)
-            }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
+        let typeOfIntrinsicFQName = [
+            interner.intern("kotlin"), interner.intern("reflect"), interner.intern("typeOf"),
+        ]
+        let isQualifiedReflectTypeOf = calleePath == typeOfIntrinsicFQName
+        let isUnqualifiedTypeOf = calleeName.map {
+            $0 == knownNames.typeOf && !isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+        } ?? false
+        if args.isEmpty, isQualifiedReflectTypeOf || isUnqualifiedTypeOf {
+            // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
+            // intrinsic owner. A same-named non-synthetic user declaration
+            // still shadows the unqualified special-call path, but the bundled
+            // intrinsic itself no longer counts as shadowing. The qualified
+            // `kotlin.reflect.typeOf` spelling cannot be shadowed.
+            let typeOfName = interner.intern("typeOf")
+            let hasNonSyntheticUserCandidate = isUnqualifiedTypeOf
+                && !isQualifiedReflectTypeOf
+                && ctx.cachedScopeLookup(typeOfName).contains { candidate in
+                    guard let sym = ctx.cachedSymbol(candidate),
+                          !sym.flags.contains(.synthetic)
+                    else { return false }
+                    return sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == nil
+                }
+            let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(typeOfName)).visible
+            if !hasNonSyntheticUserCandidate,
+               let stubSymbol = candidates.first(where: { candidate in
+                   sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == .typeOf
+               }) ?? candidates.first(where: { candidate in
+                   guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                   return signature.reifiedTypeParameterIndices.contains(0)
+               }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
                 let typeArg = explicitTypeArgs.first ?? sema.types.anyType
                 sema.bindings.bindCall(
                     id,
