@@ -22,7 +22,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         import kotlinx.cinterop.NativePtr
         import kotlinx.cinterop.StableRef
 
-        @KsSymbolName("kk_cpointer_address")
+        @KsSymbolName("kk_copaque_pointer_address")
         private external fun pointerAddress(pointer: COpaquePointer?): NativePtr
 
         fun main() {
