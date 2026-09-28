@@ -977,17 +977,105 @@ struct NativeConcurrentSyntheticStubTests {
     func testWorkerCompanionStartIsRegistered() throws {
         let (sema, interner) = try sharedSema()
 
-        let companionFQName = ["kotlin", "native", "concurrent", "Worker", "Companion"]
-            .map { interner.intern($0) }
-        let startFQName = companionFQName + [interner.intern("start")]
-        let methods = sema.symbols.lookupAll(fqName: startFQName)
-        #expect(!methods.isEmpty, "Expected Worker.Companion.start to be registered")
+        // KSP-1251: Worker.Companion.start is a source-backed package-level
+        // extension on the Companion receiver, matching the Kotlin/Native
+        // signature start(errorReporting: Boolean = true, name: String? = null).
+        let companionSymbol = try symbol(
+            ["kotlin", "native", "concurrent", "Worker", "Companion"],
+            sema: sema,
+            interner: interner
+        )
+        let companionType = try #require(sema.symbols.propertyType(for: companionSymbol))
 
-        let method = try #require(methods.first)
+        let startFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("concurrent"),
+            interner.intern("start"),
+        ]
+        let methods = sema.symbols.lookupAll(fqName: startFQName)
+        let method = try #require(
+            methods.first(where: {
+                sema.symbols.isSourceBackedSymbol($0)
+                    && sema.symbols.functionSignature(for: $0)?.receiverType == companionType
+            }),
+            "Expected source-backed Worker.Companion.start to be registered"
+        )
         let sig = try #require(sema.symbols.functionSignature(for: method))
-        #expect(sig.parameterTypes == [sema.types.makeNullable(sema.types.stringType)])
-        #expect(sig.valueParameterHasDefaultValues == [true])
-        #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_new")
+        #expect(sig.parameterTypes == [
+            sema.types.booleanType,
+            sema.types.makeNullable(sema.types.stringType),
+        ])
+        #expect(sig.valueParameterHasDefaultValues == [true, true])
+        #expect(sema.symbols.externalLinkName(for: method) == nil)
+    }
+
+    @Test
+    func testWorkerCompanionSurfaceIsSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+
+        let companionSymbol = try symbol(
+            ["kotlin", "native", "concurrent", "Worker", "Companion"],
+            sema: sema,
+            interner: interner
+        )
+        let companionType = try #require(sema.symbols.propertyType(for: companionSymbol))
+        let workerType = try classType(
+            ["kotlin", "native", "concurrent", "Worker"],
+            sema: sema,
+            interner: interner
+        )
+        let nullableCOpaquePointerType = sema.types.makeNullable(try cOpaquePointerType(
+            sema: sema,
+            interner: interner
+        ))
+        let workerListType = try classType(
+            ["kotlin", "collections", "List"],
+            sema: sema,
+            interner: interner,
+            args: [.invariant(workerType)]
+        )
+
+        let functionFQName = { (name: String) in
+            [
+                interner.intern("kotlin"),
+                interner.intern("native"),
+                interner.intern("concurrent"),
+                interner.intern(name),
+            ]
+        }
+
+        for (name, arity) in [("fromCPointer", 1), ("start", 2)] {
+            let method = try #require(
+                sema.symbols.lookupAll(fqName: functionFQName(name)).first(where: {
+                    sema.symbols.isSourceBackedSymbol($0)
+                        && sema.symbols.functionSignature(for: $0)?.receiverType == companionType
+                        && sema.symbols.functionSignature(for: $0)?.parameterTypes.count == arity
+                }),
+                "Expected source-backed Worker.Companion.\(name)/\(arity)"
+            )
+            #expect(sema.symbols.externalLinkName(for: method) == nil)
+            let signature = try #require(sema.symbols.functionSignature(for: method))
+            #expect(signature.returnType == workerType)
+            if name == "fromCPointer" {
+                #expect(signature.parameterTypes == [nullableCOpaquePointerType])
+            }
+        }
+
+        for (name, expectedType) in [
+            ("activeWorkers", workerListType),
+            ("current", workerType),
+        ] {
+            let propSymbol = try #require(
+                sema.symbols.lookupAll(fqName: functionFQName(name)).first(where: {
+                    sema.symbols.isSourceBackedSymbol($0)
+                        && sema.symbols.extensionPropertyReceiverType(for: $0) == companionType
+                }),
+                "Expected source-backed Worker.Companion.\(name) property"
+            )
+            #expect(sema.symbols.propertyType(for: propSymbol) == expectedType)
+            #expect(sema.symbols.externalLinkName(for: propSymbol) == nil)
+        }
     }
 
     // MARK: - Future<T> class

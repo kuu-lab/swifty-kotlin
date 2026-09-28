@@ -28,6 +28,29 @@ extension DataFlowSemaPhase {
             classSymbol = created
         }
 
+        // KSP-1316: Keep the Companion nominal available for the bundled
+        // source-backed UIntRange.Companion.EMPTY extension.
+        if symbols.companionObjectSymbol(for: classSymbol) == nil {
+            let companionName = interner.intern("Companion")
+            let companionFQName = classFQName + [companionName]
+            let companionSymbol: SymbolID
+            if let imported = symbols.lookupAll(fqName: companionFQName).first {
+                companionSymbol = imported
+                symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            } else {
+                companionSymbol = symbols.define(
+                    kind: .object,
+                    name: companionName,
+                    fqName: companionFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            }
+            symbols.setCompanionObjectSymbol(companionSymbol, for: classSymbol)
+        }
+
         let rangeType = types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],

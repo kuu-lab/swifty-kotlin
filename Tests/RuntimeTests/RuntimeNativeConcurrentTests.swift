@@ -365,6 +365,62 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
         #expect(old == refA)
         #expect(__kk_atomic_ref_load(atomicRef) == refB)
     }
+
+    @Test func concurrentCompareAndExchangeOnlyOneSucceeds() {
+        let iterations = 32
+        for _ in 0..<50 {
+            let initial = registerRuntimeObject(RuntimeStringBox("initial"))
+            let atomicRef = kk_atomic_ref_create(initial)
+            let candidates = (0..<iterations).map { i in
+                registerRuntimeObject(RuntimeStringBox("candidate-\(i)"))
+            }
+            let lock = NSLock()
+            nonisolated(unsafe) var successCount = 0
+            nonisolated(unsafe) var failureCount = 0
+
+            DispatchQueue.concurrentPerform(iterations: iterations) { i in
+                let candidate = candidates[i]
+                let old = __kk_atomic_ref_compareAndExchange(atomicRef, initial, candidate)
+                lock.lock()
+                if old == initial {
+                    successCount += 1
+                } else {
+                    failureCount += 1
+                }
+                lock.unlock()
+            }
+
+            #expect(successCount == 1, "Exactly one thread must succeed in CAS with the initial value")
+            #expect(failureCount == iterations - 1, "All other threads must fail the CAS")
+            let finalVal = __kk_atomic_ref_load(atomicRef)
+            #expect(finalVal != initial)
+            #expect(candidates.contains(finalVal))
+        }
+    }
+
+    @Test func concurrentExchangeReturnsUniqueOldValues() {
+        let iterations = 32
+        let initial = registerRuntimeObject(RuntimeStringBox("start"))
+        let atomicRef = kk_atomic_ref_create(initial)
+        let candidates = (0..<iterations).map { i in
+            registerRuntimeObject(RuntimeStringBox("exchange-\(i)"))
+        }
+        let lock = NSLock()
+        nonisolated(unsafe) var returnedOldValues = [Int]()
+
+        DispatchQueue.concurrentPerform(iterations: iterations) { i in
+            let candidate = candidates[i]
+            let old = __kk_atomic_ref_exchange(atomicRef, candidate)
+            lock.lock()
+            returnedOldValues.append(old)
+            lock.unlock()
+        }
+
+        #expect(returnedOldValues.count == iterations)
+        let uniqueReturned = Set(returnedOldValues)
+        #expect(uniqueReturned.count == iterations, "Every exchange must return a unique previous reference without duplicates")
+        #expect(uniqueReturned.contains(initial), "The initial reference must be observed by exactly one exchange")
+    }
 }
 
 // ---------------------------------------------------------------------------

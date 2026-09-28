@@ -1,8 +1,13 @@
-import kotlin.text.HexFormat
+fun configureHexFormatBuilder(builder: kotlin.text.HexFormat.Builder): Boolean {
+    val bytesBuilder = builder.bytes
+    val numberBuilder = builder.number
+    builder.upperCase = !builder.upperCase
+    builder.bytes { byteSeparator = ":" }
+    builder.number { prefix = "0x" }
+    return builder.upperCase && bytesBuilder.byteSeparator.isNotEmpty() && numberBuilder.prefix.isNotEmpty()
+}
 
-fun describeHexFormatBuilder(builder: kotlin.text.HexFormat.Builder): Boolean =
-    builder.upperCase && builder.bytes.byteSeparator.isEmpty() && builder.number.prefix.isEmpty()
-
+@OptIn(kotlin.ExperimentalStdlibApi::class)
 fun main() {
-    println(HexFormat.Default.upperCase)
+    println(kotlin.text.HexFormat.Default.upperCase)
 }
