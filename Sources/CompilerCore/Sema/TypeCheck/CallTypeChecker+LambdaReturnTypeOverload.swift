@@ -26,6 +26,7 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         preInferredNonLambdaArgTypes: [Int: TypeID] = [:],
         expectedTypeOverrides: [Int: TypeID] = [:],
+        contextualCallResultType: TypeID? = nil,
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
         lambdaContextOverrides: [Int: TypeInferenceContext] = [:],
@@ -146,7 +147,31 @@ extension CallTypeChecker {
                         resolver: ctx.resolver,
                         sema: sema
                     )
-                    contextualArgExpectedTypes[index] = expectation.type
+                    // For a generic scope function such as `T.let(block: (T) -> R): R`,
+                    // the expected call result fixes R before the lambda body is
+                    // inferred. Keep the receiver-derived T in the expected lambda
+                    // while replacing only its matching return type parameter.
+                    let contextualLambdaType: TypeID? = {
+                        guard let contextualCallResultType,
+                              candidates.count == 1,
+                              let signature = sema.symbols.functionSignature(for: candidates[0]),
+                              case let .typeParam(resultParam) = sema.types.kind(of: signature.returnType),
+                              let expectedLambdaType = expectation.type,
+                              case let .functionType(fn) = sema.types.kind(of: expectedLambdaType),
+                              case let .typeParam(lambdaResultParam) = sema.types.kind(of: fn.returnType),
+                              lambdaResultParam.symbol == resultParam.symbol
+                        else { return expectation.type }
+                        return sema.types.make(.functionType(FunctionType(
+                            contextReceivers: fn.contextReceivers,
+                            receiver: fn.receiver,
+                            params: fn.params,
+                            returnType: contextualCallResultType,
+                            isSuspend: fn.isSuspend,
+                            nullability: fn.nullability,
+                            throws: fn.throws
+                        )))
+                    }()
+                    contextualArgExpectedTypes[index] = contextualLambdaType
                     if declaresConcreteLambdaParameterTypes(
                         at: index,
                         argumentCount: args.count,
