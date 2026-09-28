@@ -22,7 +22,9 @@ public interface CoroutineContext {
         public override fun <R> fold(initial: R, operation: (R, Element) -> R): R =
             operation(initial, this)
 
-        public override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext =
-            if (this.key == key) EmptyCoroutineContext else this
+        public override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext {
+            if (this.key == key) return EmptyCoroutineContext
+            return this
+        }
     }
 }
