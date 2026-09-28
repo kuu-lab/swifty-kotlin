@@ -1528,7 +1528,7 @@
     - `kotlin.concurrent.atomics.fetchAndUpdateAt` — fun AtomicArray.fetchAndUpdateAt(Int, Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicArray<#A>).kotlin.concurrent.atomics/fetchAndUpdateAt(kotlin/Int, kotlin/Function1<#A, #A>): #A`
     - `kotlin.concurrent.atomics.updateAndFetchAt` — fun AtomicArray.updateAndFetchAt(Int, Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.concurrent.atomics/AtomicArray<#A>).kotlin.concurrent.atomics/updateAndFetchAt(kotlin/Int, kotlin/Function1<#A, #A>): #A`
 
-- [ ] KSP-1102: kotlin.concurrent.atomics.AtomicInt の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1102: kotlin.concurrent.atomics.AtomicInt の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicInt`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicInt.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1542,6 +1542,7 @@
     - `kotlin.concurrent.atomics.plusAssign` — fun AtomicInt.plusAssign(Int): Unit  -- `final fun (kotlin.concurrent.atomics/AtomicInt).kotlin.concurrent.atomics/plusAssign(kotlin/Int)`
     - `kotlin.concurrent.atomics.update` — fun AtomicInt.update(Function1): Unit  -- `final inline fun (kotlin.concurrent.atomics/AtomicInt).kotlin.concurrent.atomics/update(kotlin/Function1<kotlin/Int, kotlin/Int>)`
     - `kotlin.concurrent.atomics.updateAndFetch` — fun AtomicInt.updateAndFetch(Function1): Int  -- `final inline fun (kotlin.concurrent.atomics/AtomicInt).kotlin.concurrent.atomics/updateAndFetch(kotlin/Function1<kotlin/Int, kotlin/Int>): kotlin/Int`
+  - 完了根拠 (2026-09-27): `atomics/AtomicInt/AtomicInt.kt` に `plusAssign` / `minusAssign`（`operator`、`addAndFetch` 委譲）、`incrementAndFetch` / `decrementAndFetch`（`addAndFetch(±1)`）、`update` / `updateAndFetch`（`load` + `compareAndSet` の CAS ループ、`inline`）の 6 件を source-backed extension として追加。対象シンボルは extension のため合成 member stub 登録・`__kk_*` / `kk_*` 専用 Runtime 関数・name-string 特例は存在せず削除対象なし（`kk_atomic_int_*` cdecls は `java.util.concurrent.atomic.AtomicInteger` が継続利用のため保持）。検証: `swift build`、Sema Golden suite（`GoldenSemaGoldenTests/matchesGolden`、102 batches）で新規 case のみ差分、全 6 call が `kotlin.concurrent.atomics.*` extension に resolve することを golden で確認、対象 diff case `passed=1`、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` 確認済み。他 Golden suite・全 diff ケース・全テストは未実行（CI に委譲）。
 
 - [ ] KSP-1103: kotlin.concurrent.atomics.AtomicIntArray の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicIntArray`
