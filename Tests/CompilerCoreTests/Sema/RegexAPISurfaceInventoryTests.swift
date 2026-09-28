@@ -136,6 +136,18 @@ struct RegexAPISurfaceInventoryTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
+    private func publicExternalLink(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        let interned = fqPath.map { interner.intern($0) }
+        guard let sym = sema.symbols.lookupAll(fqName: interned).first(where: {
+            sema.symbols.symbol($0)?.visibility == .public
+        }) else { return nil }
+        return sema.symbols.externalLinkName(for: sym)
+    }
+
     private func allExternalLinks(
         fqPath: [String],
         sema: SemaModule,
@@ -144,6 +156,31 @@ struct RegexAPISurfaceInventoryTests {
         let interned = fqPath.map { interner.intern($0) }
         return Set(
             sema.symbols.lookupAll(fqName: interned)
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
+    }
+
+    private func allSymbolsAreSourceBacked(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let interned = fqPath.map { interner.intern($0) }
+        let symbols = sema.symbols.lookupAll(fqName: interned).filter {
+            sema.symbols.symbol($0)?.visibility == .public
+        }
+        return !symbols.isEmpty && symbols.allSatisfy { sema.symbols.isSourceBackedSymbol($0) }
+    }
+
+    private func publicExternalLinks(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Set<String> {
+        let interned = fqPath.map { interner.intern($0) }
+        return Set(
+            sema.symbols.lookupAll(fqName: interned)
+                .filter { sema.symbols.symbol($0)?.visibility == .public }
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
     }
@@ -243,7 +280,8 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "__kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
+        #expect(link == nil, "Regex.matches must remain source-backed")
+        #expect(allSymbolsAreSourceBacked(fqPath: ["kotlin", "text", "Regex", "matches"], sema: sema, interner: interner))
     }
 
     @Test func testRegexContainsMatchInIsRegistered() throws {
@@ -253,28 +291,30 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "__kk_regex_containsMatchIn_flat",
-                       "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
+        #expect(link == nil, "Regex.containsMatchIn must remain source-backed")
+        #expect(allSymbolsAreSourceBacked(fqPath: ["kotlin", "text", "Regex", "containsMatchIn"], sema: sema, interner: interner))
     }
 
     @Test func testRegexFindIsRegistered() throws {
         let (sema, interner) = try sharedSema()
-        let link = externalLink(
+        let link = publicExternalLink(
             fqPath: ["kotlin", "text", "Regex", "find"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "__kk_regex_find_flat", "Regex.find must link to kk_regex_find")
+        #expect(link == nil, "Regex.find must remain source-backed")
+        #expect(allSymbolsAreSourceBacked(fqPath: ["kotlin", "text", "Regex", "find"], sema: sema, interner: interner))
     }
 
     @Test func testRegexFindAllIsRegistered() throws {
         let (sema, interner) = try sharedSema()
-        let link = externalLink(
+        let link = publicExternalLink(
             fqPath: ["kotlin", "text", "Regex", "findAll"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "__kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
+        #expect(link == nil, "Regex.findAll must remain source-backed")
+        #expect(allSymbolsAreSourceBacked(fqPath: ["kotlin", "text", "Regex", "findAll"], sema: sema, interner: interner))
     }
 
     @Test func testRegexMatchEntireIsRegistered() throws {
@@ -284,8 +324,8 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "__kk_regex_matchEntire_flat",
-                       "Regex.matchEntire must link to kk_regex_matchEntire")
+        #expect(link == nil, "Regex.matchEntire must remain source-backed")
+        #expect(allSymbolsAreSourceBacked(fqPath: ["kotlin", "text", "Regex", "matchEntire"], sema: sema, interner: interner))
     }
 
     @Test func testRegexReplaceWithLambdaIsRegistered() throws {
@@ -295,10 +335,8 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(
-            links.contains("__kk_regex_replace_lambda"),
-            "Regex.replace(input, transform) must link to __kk_regex_replace_lambda"
-        )
+        #expect(links.isEmpty, "Regex.replace overloads must remain source-backed")
+        #expect(allSymbolsAreSourceBacked(fqPath: ["kotlin", "text", "Regex", "replace"], sema: sema, interner: interner))
     }
 
     // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
@@ -493,9 +531,8 @@ struct RegexAPISurfaceInventoryTests {
         }, "Expected .matches(...) member call")
 
         let binding = try #require(sema.bindings.callBinding(for: callExpr))
-        #expect(
-            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat"
-        )
+        #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
     @Test func testRegexContainsMatchInMemberCallResolvesCorrectly() throws {
@@ -511,9 +548,8 @@ struct RegexAPISurfaceInventoryTests {
         }, "Expected .containsMatchIn(...) member call")
 
         let binding = try #require(sema.bindings.callBinding(for: callExpr))
-        #expect(
-            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_containsMatchIn_flat"
-        )
+        #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
     @Test func testRegexFindMemberCallResolvesCorrectly() throws {
@@ -529,9 +565,8 @@ struct RegexAPISurfaceInventoryTests {
         }, "Expected .find(...) member call")
 
         let binding = try #require(sema.bindings.callBinding(for: callExpr))
-        #expect(
-            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_find_flat"
-        )
+        #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
     @Test func testRegexMatchEntireMemberCallResolvesCorrectly() throws {
@@ -547,9 +582,8 @@ struct RegexAPISurfaceInventoryTests {
         }, "Expected .matchEntire(...) member call")
 
         let binding = try #require(sema.bindings.callBinding(for: callExpr))
-        #expect(
-            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matchEntire_flat"
-        )
+        #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
     }
 
     @Test func testRegexFromLiteralCallResolvesCorrectly() throws {
@@ -620,20 +654,12 @@ struct RegexAPISurfaceInventoryTests {
     @Test func testMandatoryAPISymbolsAreAllRegistered() throws {
         let (sema, interner) = try sharedSema()
 
-        // Each (fqPath, expectedLinkName) pair must be present.
-        // nil linkName means we only check symbol existence, not the link.
+        // Runtime-backed entries must retain their ABI links.
         let mandatoryLinks: [([String], String)] = [
             // Constructors (class <init> in kotlin.text)
             (["kotlin", "text", "Regex", "<init>"], "__kk_regex_create_flat"),
             (["kotlin", "text", "Regex", "<init>"], "__kk_regex_create_with_option_flat"),
             (["kotlin", "text", "Regex", "<init>"], "__kk_regex_create_with_options_flat"),
-            // Member functions
-            (["kotlin", "text", "Regex", "matches"], "__kk_regex_matches_flat"),
-            (["kotlin", "text", "Regex", "containsMatchIn"], "__kk_regex_containsMatchIn_flat"),
-            (["kotlin", "text", "Regex", "find"], "__kk_regex_find_flat"),
-            (["kotlin", "text", "Regex", "findAll"], "__kk_regex_findAll_flat"),
-            (["kotlin", "text", "Regex", "matchEntire"], "__kk_regex_matchEntire_flat"),
-            (["kotlin", "text", "Regex", "replace"], "__kk_regex_replace_lambda"),
             // Companion
             (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "__kk_regex_from_literal_flat"),
             // String extension runtime bridges
@@ -668,6 +694,13 @@ struct RegexAPISurfaceInventoryTests {
                 sema.symbols.lookup(fqName: interned) != nil,
                 Comment(rawValue: "Missing public API symbol: \(fqPath.joined(separator: "."))")
             )
+        }
+
+        for member in ["matches", "containsMatchIn", "find", "findAll", "matchEntire", "replace"] {
+            let fqPath = ["kotlin", "text", "Regex", member]
+            let links = publicExternalLinks(fqPath: fqPath, sema: sema, interner: interner)
+            #expect(links.isEmpty, Comment(rawValue: "Expected source-backed API: " + fqPath.joined(separator: ".")))
+            #expect(allSymbolsAreSourceBacked(fqPath: fqPath, sema: sema, interner: interner))
         }
     }
 

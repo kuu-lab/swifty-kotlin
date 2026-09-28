@@ -227,14 +227,17 @@ struct NativeConcurrentTopLevelSourceTests {
         let sema = try #require(context.sema)
         let package = ["kotlin", "native", "internal"]
         let expectedLinks = [
+            "__nativeConcurrentActiveWorkers": "__kk_native_concurrent_active_workers",
             "__nativeConcurrentAttachObjectGraph": "__kk_native_concurrent_attach_object_graph",
             "__nativeConcurrentConsumeFuture": "__kk_native_concurrent_consume_future",
+            "__nativeConcurrentCurrentWorker": "__kk_native_concurrent_current_worker",
             "__nativeConcurrentDetachObjectGraph": "__kk_native_concurrent_detach_object_graph",
             "__nativeConcurrentExecuteImpl": "__kk_native_concurrent_execute_impl",
             "__nativeConcurrentStartWorker": "__kk_native_concurrent_start_worker",
             "__nativeConcurrentTerminateWorker": "__kk_native_concurrent_terminate_worker",
             "__nativeConcurrentWaitForMultipleFutures": "__kk_native_concurrent_wait_for_multiple_futures",
             "__nativeConcurrentWaitWorkerTermination": "__kk_native_concurrent_wait_worker_termination",
+            "__nativeConcurrentWorkerFromCPointer": "__kk_native_concurrent_worker_from_cpointer",
         ]
 
         for (name, link) in expectedLinks {

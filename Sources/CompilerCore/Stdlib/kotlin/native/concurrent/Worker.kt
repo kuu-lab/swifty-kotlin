@@ -3,8 +3,11 @@
 package kotlin.native.concurrent
 
 import kotlin.internal.KsSymbolName
+import kotlin.native.internal.__nativeConcurrentActiveWorkers
+import kotlin.native.internal.__nativeConcurrentCurrentWorker
 import kotlin.native.internal.__nativeConcurrentStartWorker
 import kotlin.native.internal.__nativeConcurrentTerminateWorker
+import kotlin.native.internal.__nativeConcurrentWorkerFromCPointer
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 
@@ -108,3 +111,24 @@ public inline fun <R> withWorker(
         __nativeConcurrentTerminateWorker(worker)
     }
 }
+
+// MARK: Worker.Companion
+//
+// KSP-1251: the public Worker.Companion surface is Kotlin source backed. The
+// Worker nominal type (and its Companion object) remains synthetic, so these
+// are package-level extensions on the Companion receiver — the same shape the
+// other companion-scoped stdlib APIs use (Int.Companion, CharRange.Companion).
+
+public fun Worker.Companion.start(errorReporting: Boolean = true, name: String? = null): Worker =
+    __nativeConcurrentStartWorker(errorReporting, name)
+
+public val Worker.Companion.current: Worker
+    get() = __nativeConcurrentCurrentWorker()
+
+@Deprecated("Use kotlinx.cinterop.StableRef instead", level = DeprecationLevel.WARNING)
+public fun Worker.Companion.fromCPointer(pointer: COpaquePointer?): Worker =
+    if (pointer != null) __nativeConcurrentWorkerFromCPointer(pointer) else throw IllegalArgumentException()
+
+@ExperimentalStdlibApi
+public val Worker.Companion.activeWorkers: List<Worker>
+    get() = __nativeConcurrentActiveWorkers()
