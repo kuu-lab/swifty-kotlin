@@ -22,6 +22,6 @@ expr e@4:5 localDecl captures mutable=0 type=_ init=e@4:20#1 type=Unit ref=__loc
 expr e@5:12 name(destructured) type=kotlin.text.MatchResult.Destructured ref=__local_1.destructured[kind=local]
 expr e@5:12#1 memberCall recv=e@5:12 callee=component10 args=[] type=String call=kotlin.text.component10[kind=fun;recv=kotlin.text.MatchResult.Destructured;params=]
 expr e@5:41 name(captures) type=kotlin.collections.List<String> ref=__local_2.captures[kind=local]
-expr e@5:41#1 memberCall recv=e@5:41 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@5:41#1 memberCall recv=e@5:41 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@5:12#2 binary(add) lhs=e@5:12#1 rhs=e@5:41#1 type=String
 expr e@5:5 return value=e@5:12#2 type=Nothing

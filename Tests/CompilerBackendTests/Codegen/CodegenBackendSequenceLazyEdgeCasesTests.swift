@@ -143,6 +143,28 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testGenerateSequenceIteratorPullsOnlyElementsRequestedByJoinToStringLimit() throws {
+        let source = """
+        fun main() {
+            var seen = 0
+            val tracked = generateSequence(1) { seen++; it + 1 }
+            println(tracked.joinToString(", ", "", "", 3, "..."))
+            println("seen=$seen")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceIteratorPullsLazily",
+            expected:
+                """
+                1, 2, 3, ...
+                seen=3
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testGenerateSequenceTerminatesOnNull() throws {
         let source = """
         fun main() {
