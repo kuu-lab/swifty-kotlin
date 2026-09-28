@@ -34,9 +34,9 @@ public interface MutableCollection<E> : Collection<E>, MutableIterable<E> {
 
     @KsSymbolName("__kk_mutable_collection_removeAll")
     @IgnorableReturnValue
-    public external fun removeAll(elements: Collection<E>): Boolean
+    public external fun removeAll(elements: Collection<out E>): Boolean
 
     @KsSymbolName("__kk_mutable_collection_retainAll")
     @IgnorableReturnValue
-    public external fun retainAll(elements: Collection<E>): Boolean
+    public external fun retainAll(elements: Collection<out E>): Boolean
 }
