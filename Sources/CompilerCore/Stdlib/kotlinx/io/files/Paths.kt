@@ -9,12 +9,17 @@ package kotlinx.io.files
 
 /** A string path in the host's POSIX filesystem. */
 public class Path internal constructor(private val path: String, @Suppress("UNUSED_PARAMETER") marker: Boolean) {
+    // This compiler mis-types block-bodied getters at call sites, so the
+    // bodies delegate to private member functions; call sites see the same
+    // property signatures.
     public val parent: Path?
-        get() {
-            if (path.isEmpty() || path == "/" || !path.contains('/')) return null
-            val prefix = path.substringBeforeLast('/')
-            return Path(if (prefix.isEmpty()) "/" else prefix)
-        }
+        get() = computeParent()
+
+    private fun computeParent(): Path? {
+        if (path.isEmpty() || path == "/" || !path.contains('/')) return null
+        val prefix = path.substringBeforeLast('/')
+        return Path(if (prefix.isEmpty()) "/" else prefix)
+    }
 
     public val name: String
         get() = if (path.isEmpty() || path == "/") "" else path.substringAfterLast('/')
@@ -26,7 +31,15 @@ public class Path internal constructor(private val path: String, @Suppress("UNUS
         get() = isAbsolute
 
     public val segments: List<String>
-        get() = path.split("/").filter { it.isNotEmpty() }
+        get() = computeSegments()
+
+    private fun computeSegments(): List<String> {
+        val result = mutableListOf<String>()
+        for (part in path.split("/")) {
+            if (part.isNotEmpty()) result.add(part)
+        }
+        return result
+    }
 
     override fun toString(): String = path
     override fun hashCode(): Int = path.hashCode()
