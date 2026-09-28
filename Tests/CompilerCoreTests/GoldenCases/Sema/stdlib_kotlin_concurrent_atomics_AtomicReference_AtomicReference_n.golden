@@ -1,0 +1,50 @@
+symbol fq=__local_0.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicReference<String>
+symbol fq=__local_1.loaded[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_2.exchanged[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_3.oldSet[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_4.expected[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_5.compared[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_6.current[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=golden.sema.atomicReferenceReceiverMembers[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+file fstdlib_kotlin_concurrent_atomics_AtomicReference_AtomicReference_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicReferenceReceiverMembers[kind=fun;params=] fun atomicReferenceReceiverMembers sym=golden.sema.atomicReferenceReceiverMembers[kind=fun;params=]
+expr e@8:34 string(initial) type=String
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:34] type=kotlin.concurrent.AtomicReference<String> call=kotlin.concurrent.AtomicReference.<init>[kind=ctor;params=T0;gen=1] targs=[String]
+expr e@8:5 localDecl atomic mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.atomic[kind=local]
+expr e@9:18 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@9:18#1 memberCall recv=e@9:18 callee=load args=[] type=String call=kotlin.concurrent.AtomicReference.load[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=;gen=1] targs=[String]
+expr e@9:5 localDecl loaded mutable=0 type=_ init=e@9:18#1 type=Unit ref=__local_1.loaded[kind=local]
+expr e@10:5 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@10:18 string(stored) type=String
+expr e@10:5#1 memberCall recv=e@10:5 callee=store args=[_:e@10:18] type=Unit call=kotlin.concurrent.AtomicReference.store[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0;gen=1] targs=[String]
+expr e@11:21 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@11:37 string(exchanged) type=String
+expr e@11:21#1 memberCall recv=e@11:21 callee=exchange args=[_:e@11:37] type=String call=kotlin.concurrent.AtomicReference.exchange[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0;gen=1] targs=[String]
+expr e@11:5 localDecl exchanged mutable=0 type=_ init=e@11:21#1 type=Unit ref=__local_2.exchanged[kind=local]
+expr e@12:18 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@12:35 string(getAndSet) type=String
+expr e@12:18#1 memberCall recv=e@12:18 callee=getAndSet args=[_:e@12:35] type=String call=kotlin.concurrent.getAndSet[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0;gen=1] targs=[String]
+expr e@12:5 localDecl oldSet mutable=0 type=_ init=e@12:18#1 type=Unit ref=__local_3.oldSet[kind=local]
+expr e@13:20 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@13:20#1 memberCall recv=e@13:20 callee=load args=[] type=String call=kotlin.concurrent.AtomicReference.load[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=;gen=1] targs=[String]
+expr e@13:5 localDecl expected mutable=0 type=_ init=e@13:20#1 type=Unit ref=__local_4.expected[kind=local]
+expr e@14:20 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@14:46 name(expected) type=String ref=__local_4.expected[kind=local]
+expr e@14:56 string(compared) type=String
+expr e@14:20#1 memberCall recv=e@14:20 callee=compareAndExchange args=[_:e@14:46,_:e@14:56] type=String call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicReference<T0?>;params=T0,T0;gen=1] targs=[String]
+expr e@14:5 localDecl compared mutable=0 type=_ init=e@14:20#1 type=Unit ref=__local_5.compared[kind=local]
+expr e@15:5 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@15:20 string(assigned) type=String
+expr e@15:5#1 memberAssign recv=e@15:5 callee=value value=e@15:20 type=Unit ref=kotlin.concurrent.AtomicReference.value[kind=prop]
+expr e@16:19 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@16:19#1 memberCall recv=e@16:19 callee=value args=[] type=String ref=kotlin.concurrent.AtomicReference.value[kind=prop]
+expr e@16:5 localDecl current mutable=0 type=_ init=e@16:19#1 type=Unit ref=__local_6.current[kind=local]
+expr e@17:14 name(loaded) type=String ref=__local_1.loaded[kind=local]
+expr e@17:22 name(exchanged) type=String ref=__local_2.exchanged[kind=local]
+expr e@17:33 name(oldSet) type=String ref=__local_3.oldSet[kind=local]
+expr e@17:41 name(compared) type=String ref=__local_5.compared[kind=local]
+expr e@17:51 name(current) type=String ref=__local_6.current[kind=local]
+expr e@17:61 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=__local_0.atomic[kind=local]
+expr e@17:61#1 memberCall recv=e@17:61 callee=toString args=[] type=String call=kotlin.Any.toString[kind=fun;recv=kotlin.Any;params=]
+expr e@17:12 stringTemplate[expr(e@17:14),lit(:),expr(e@17:22),lit(:),expr(e@17:33),lit(:),expr(e@17:41),lit(:),expr(e@17:51),lit(:),expr(e@17:61#1)] type=String
+expr e@17:5 return value=e@17:12 type=Nothing

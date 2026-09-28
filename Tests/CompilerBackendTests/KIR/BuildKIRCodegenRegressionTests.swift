@@ -833,6 +833,7 @@ struct BuildKIRCodegenRegressionTests {
     @Test
     func testUShortArrayStorageConstructorUsesSignedArrayViewBridge() throws {
         let source = """
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
         fun main(): Short {
             val storage = shortArrayOf(1, -1)
             val values = UShortArray(storage)

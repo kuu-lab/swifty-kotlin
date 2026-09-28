@@ -20,12 +20,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify-todo-ids:
-    name: Verification 0/5 (TODO ID duplicate check)
+  verify-action-pins:
+    name: Verify remote Action pins
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 Scripts/check_action_pins.py
+
+  verify-todo-ids:
+    name: Verification 0/5 (TODO ID duplicate check)
+    needs: verify-action-pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Check for duplicate TODO task IDs
@@ -34,9 +43,12 @@ jobs:
         run: bash Scripts/check_mutation_fuzzer_keywords.sh
       - name: Check Swift test parallelism overrides
         run: bash Scripts/test_swift_test_parallelism.sh
+      - name: Check workflows install npm tools via npm ci only
+        run: bash Scripts/check_workflow_npm_install.sh
 
   build-debug-tests:
     name: Build debug Swift test bundle once
+    needs: verify-action-pins
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -47,7 +59,7 @@ jobs:
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
@@ -94,7 +106,7 @@ jobs:
             echo "- Compilation CAS excluded: \`$SWIFT_CAS_PATH\`"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload debug test bundle artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: |
@@ -106,8 +118,8 @@ jobs:
 
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/6)
-    needs: build-debug-tests
-    if: ${{ always() }}
+    needs: [verify-action-pins, build-debug-tests]
+    if: ${{ always() && needs.verify-action-pins.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -140,7 +152,7 @@ jobs:
         run: |
           echo "Shared debug test build concluded: ${{ needs.build-debug-tests.result }}" >&2
           exit 1
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
@@ -150,7 +162,7 @@ jobs:
       - name: Show toolchain versions
         run: swift --version
       - name: Download debug test bundle artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: ${{ runner.temp }}/swift-debug-tests-artifact
@@ -234,8 +246,8 @@ jobs:
 
   verify-self-hosted:
     name: Verification 2-3/5 (Backend, Runtime, CLI, and LSP, shard ${{ matrix.shard_label }}/4)
-    needs: build-debug-tests
-    if: ${{ always() }}
+    needs: [verify-action-pins, build-debug-tests]
+    if: ${{ always() && needs.verify-action-pins.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -264,7 +276,7 @@ jobs:
         run: |
           echo "Shared debug test build concluded: ${{ needs.build-debug-tests.result }}" >&2
           exit 1
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
@@ -276,7 +288,7 @@ jobs:
       - name: Show toolchain versions
         run: swift --version
       - name: Download debug test bundle artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: ${{ runner.temp }}/swift-debug-tests-artifact
@@ -348,10 +360,11 @@ jobs:
 
   verify-repository-checks:
     name: Verification 4/5 (Repository Checks)
+    needs: verify-action-pins
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate loc report
         run: |
           mkdir -p "$RUNNER_TEMP/refactoring-metrics"
@@ -366,28 +379,30 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload loc report artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: refactoring-metrics-${{ github.run_id }}
           path: ${{ runner.temp }}/refactoring-metrics/loc_report.tsv
           if-no-files-found: error
           retention-days: 30
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
       - name: Install jscpd
         run: |
           jscpd_prefix="$RUNNER_TEMP/jscpd"
+          mkdir -p "$jscpd_prefix"
+          cp .github/ci-tools/package.json .github/ci-tools/package-lock.json .github/ci-tools/.npmrc "$jscpd_prefix/"
           for attempt in 1 2 3; do
-            if npm install --prefix "$jscpd_prefix" --no-save jscpd@4.0.8; then
+            if npm ci --prefix "$jscpd_prefix" --ignore-scripts; then
               echo "$jscpd_prefix/node_modules/.bin" >> "$GITHUB_PATH"
               exit 0
             fi
             echo "Attempt $attempt failed, retrying in $((attempt * 5))s..."
             sleep $((attempt * 5))
           done
-          echo "npm install failed after 3 attempts" >&2
+          echo "npm ci failed after 3 attempts" >&2
           exit 1
       - name: Run jscpd
         run: |
@@ -429,17 +444,19 @@ jobs:
             echo '## Verification 4/5 reproduce'
             echo '```bash'
             echo 'bash Scripts/loc_report.sh'
-            echo 'npm install --prefix "$RUNNER_TEMP/jscpd" --no-save jscpd@4.0.8'
+            echo 'mkdir -p "$RUNNER_TEMP/jscpd" && cp .github/ci-tools/{package.json,package-lock.json,.npmrc} "$RUNNER_TEMP/jscpd/"'
+            echo 'npm ci --prefix "$RUNNER_TEMP/jscpd" --ignore-scripts'
             echo 'PATH="$RUNNER_TEMP/jscpd/node_modules/.bin:$PATH" jscpd --config .jscpd-ci.json --output /tmp/kswiftk-jscpd-report'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-release-kswiftc:
     name: Build release kswiftc once
+    needs: verify-action-pins
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
@@ -477,7 +494,7 @@ jobs:
             echo "- Archive size: \`$(du -h "$archive_path" | cut -f1)\`"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload release compiler artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: |
@@ -487,10 +504,68 @@ jobs:
           retention-days: 30
           compression-level: 0
 
+  # Detects whether a pull request touches O2-relevant paths. The O2 diff
+  # lane below is gated on this output; non-PR events always report true.
+  detect-diff-trigger:
+    name: Detect O2 diff trigger changes
+    needs: verify-action-pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      o2: ${{ steps.detect.outputs.o2 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: detect
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "o2=true" >> "$GITHUB_OUTPUT"
+            echo "Event \`$EVENT_NAME\` is not pull_request; O2 diff lane enabled." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          base_label="$PR_BASE_SHA"
+          if ! git fetch --depth 1 origin "$PR_BASE_SHA" 2>/dev/null; then
+            git fetch --depth 50 origin "$PR_BASE_REF"
+            base_label="$PR_BASE_REF"
+          fi
+
+          changed="$(git diff --name-only FETCH_HEAD HEAD)"
+          pattern='^(Sources/CompilerBackend/|Sources/CompilerCore/(KIR|Lowering|Driver|Stdlib)/|Sources/Runtime/|Sources/RuntimeABI/|Sources/KSwiftKCLI/|Scripts/diff_cases/|Scripts/diff_[^/]*\.sh|\.github/workflows/(ci|nightly-o2-diff)\.yml)'
+          matched=""
+          if [[ -n "$changed" ]]; then
+            matched="$(echo "$changed" | grep -E "$pattern" || true)"
+          fi
+
+          {
+            echo "## O2 diff lane trigger detection"
+            echo
+            echo "- Base: \`$base_label\`"
+            echo "- Changed files: $(echo "$changed" | grep -c . || true)"
+            if [[ -n "$matched" ]]; then
+              echo "- Trigger-matching files:"
+              echo "$matched" | sed 's/^/  - `/;s/$/`/'
+            else
+              echo "- No trigger-matching files; O2 diff lane skipped"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -n "$matched" ]]; then
+            echo "o2=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "o2=false" >> "$GITHUB_OUTPUT"
+          fi
+
   verify-diff:
     name: Verification 5/5 (kotlinc Diff${{ matrix.optimization_suffix }}, shard ${{ matrix.shard_label }}/4)
-    needs: build-release-kswiftc
-    if: ${{ always() }}
+    needs: [verify-action-pins, build-release-kswiftc, detect-diff-trigger]
+    if: ${{ always() && needs.verify-action-pins.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
@@ -518,27 +593,6 @@ jobs:
             optimization: O0
             optimization_flags: ""
             optimization_suffix: ""
-          # Keep a separate optimized diff lane alongside the baseline lane.
-          - shard_index: 0
-            shard_label: 1
-            optimization: O2
-            optimization_flags: "-O2"
-            optimization_suffix: " O2"
-          - shard_index: 1
-            shard_label: 2
-            optimization: O2
-            optimization_flags: "-O2"
-            optimization_suffix: " O2"
-          - shard_index: 2
-            shard_label: 3
-            optimization: O2
-            optimization_flags: "-O2"
-            optimization_suffix: " O2"
-          - shard_index: 3
-            shard_label: 4
-            optimization: O2
-            optimization_flags: "-O2"
-            optimization_suffix: " O2"
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLIN_COMPILER_SHA256: "c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e"
@@ -549,7 +603,7 @@ jobs:
         run: |
           echo "Shared release kswiftc build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
           exit 1
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify Kotlin compiler archive integrity policy
         if: matrix.shard_index == 0 && matrix.optimization == 'O0'
         run: bash Scripts/test_verify_kotlin_compiler_archive.sh
@@ -562,7 +616,7 @@ jobs:
       - name: Show toolchain versions
         run: swift --version
       - name: Download release compiler artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: ${{ runner.temp }}/kswiftc-release-artifact
@@ -580,21 +634,21 @@ jobs:
           test -x "$install_dir/kswiftc"
           echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
       - name: Cache pinned Kotlin compiler archive
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
             ${{ runner.temp }}/kotlin-compiler-cache/kotlin-compiler-${{ env.KOTLIN_VERSION }}.zip
             ${{ runner.temp }}/kotlin-tools
           key: kotlin-tools-${{ env.KOTLIN_VERSION }}-${{ env.KOTLIN_COMPILER_SHA256 }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
       - name: Cache kotlinc reference jars
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ runner.temp }}/kotlinc-ref-cache
           key: kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-${{ hashFiles('Scripts/diff_cases/**/*.kt') }}
           restore-keys: |
             kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: "21"
@@ -677,7 +731,7 @@ jobs:
           exit 1
       - name: Upload kotlinc diff failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: kotlinc-diff-regression-${{ github.run_id }}-${{ matrix.optimization }}-shard-${{ matrix.shard_label }}
           path: |
@@ -685,5 +739,164 @@ jobs:
             ${{ runner.temp }}/diff_kotlinc_artifacts
             ${{ runner.temp }}/diff_diagnostics_report.tsv
             ${{ runner.temp }}/diff_diagnostics_artifacts
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # Optimized diff lane, kept separate so pull requests can gate it on
+  # detect-diff-trigger's path check (job-level `if` cannot read the matrix
+  # context). merge_group and workflow_dispatch always report o2=true, and a
+  # failed detection job fails open. nightly-o2-diff.yml sweeps the full
+  # corpus at -O2 every night regardless.
+  verify-diff-o2:
+    name: Verification 5/5 (kotlinc Diff${{ matrix.optimization_suffix }}, shard ${{ matrix.shard_label }}/4)
+    needs: [verify-action-pins, build-release-kswiftc, detect-diff-trigger]
+    if: ${{ always() && needs.verify-action-pins.result == 'success' && needs.detect-diff-trigger.outputs.o2 != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - shard_index: 0
+            shard_label: 1
+            optimization: O2
+            optimization_flags: "-O2"
+            optimization_suffix: " O2"
+          - shard_index: 1
+            shard_label: 2
+            optimization: O2
+            optimization_flags: "-O2"
+            optimization_suffix: " O2"
+          - shard_index: 2
+            shard_label: 3
+            optimization: O2
+            optimization_flags: "-O2"
+            optimization_suffix: " O2"
+          - shard_index: 3
+            shard_label: 4
+            optimization: O2
+            optimization_flags: "-O2"
+            optimization_suffix: " O2"
+    env:
+      KOTLIN_VERSION: "2.3.10"
+      KOTLINX_COROUTINES_VERSION: "1.10.2"
+    steps:
+      - name: Fail when the shared release build failed
+        if: needs.build-release-kswiftc.result != 'success'
+        run: |
+          echo "Shared release kswiftc build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Download release compiler artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/kswiftc-release-artifact
+      - name: Verify and extract release compiler artifact
+        run: |
+          artifact_dir="$RUNNER_TEMP/kswiftc-release-artifact"
+          install_dir="$RUNNER_TEMP/kswiftc-release"
+          (
+            cd "$artifact_dir"
+            sha256sum --check kswiftc-release.tar.zst.sha256
+          )
+          rm -rf "$install_dir"
+          mkdir -p "$install_dir"
+          tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
+          test -x "$install_dir/kswiftc"
+          echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
+      - name: Cache Kotlin compiler and coroutines jar
+        id: cache-kotlin
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/kotlin-tools
+          key: kotlin-tools-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
+      - name: Cache kotlinc reference jars
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/kotlinc-ref-cache
+          key: kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-${{ hashFiles('Scripts/diff_cases/**/*.kt') }}
+          restore-keys: |
+            kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-
+      - name: Setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Kotlin compiler
+        run: |
+          TOOLS_DIR="${RUNNER_TEMP}/kotlin-tools"
+          KOTLIN_DIR="${TOOLS_DIR}/kotlin"
+          mkdir -p "$KOTLIN_DIR"
+
+          if [ ! -f "${KOTLIN_DIR}/kotlinc/bin/kotlinc" ]; then
+            zip_path="${TOOLS_DIR}/kotlin-compiler.zip"
+            for attempt in 1 2 3 4 5; do
+              if curl -fSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 120 \
+                -o "$zip_path" \
+                "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"; then
+                break
+              fi
+              echo "Kotlin compiler download attempt $attempt failed; retrying in $((attempt * 10))s..." >&2
+              rm -f "$zip_path"
+              sleep $((attempt * 10))
+            done
+            if [ ! -f "$zip_path" ]; then
+              echo "Failed to download Kotlin compiler after 5 attempts" >&2
+              exit 1
+            fi
+            unzip -q "$zip_path" -d "$KOTLIN_DIR"
+          fi
+          echo "${KOTLIN_DIR}/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Verify prerequisites
+        run: |
+          java -version
+          kotlinc -version
+          "$KSWIFTC" --version || true
+      - name: Run kotlinc diff regression cases
+        id: diff_kotlinc
+        continue-on-error: true
+        env:
+          DIFF_REPORT: ${{ runner.temp }}/diff_kotlinc_report.tsv
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_kotlinc_artifacts
+          DIFF_COMPILE_TIMEOUT: "180"
+          DIFF_RUN_TIMEOUT: "30"
+          DIFF_LOG_PASS: "0"
+          KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
+          KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
+          KSWIFTK_KIR_VERIFY: "1"
+          DIFF_KSWIFTC_FLAGS: ${{ matrix.optimization_flags }}
+        run: |
+          DIFF_WORKERS="$(nproc)" \
+            bash Scripts/diff_kotlinc.sh \
+              --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
+              --report "$DIFF_REPORT" Scripts/diff_cases
+      - name: Summarize kotlinc diff artifacts
+        if: always() && steps.diff_kotlinc.outcome != 'cancelled'
+        env:
+          DIFF_REPORT: ${{ runner.temp }}/diff_kotlinc_report.tsv
+        run: bash Scripts/diff_kotlinc_ci_summary.sh --report "$DIFF_REPORT"
+      - name: Fail when kotlinc diff regression mismatches exist
+        if: steps.diff_kotlinc.outcome == 'failure'
+        run: |
+          echo "kotlinc diff regression cases failed." >&2
+          exit 1
+      - name: Upload kotlinc diff failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kotlinc-diff-regression-${{ github.run_id }}-${{ matrix.optimization }}-shard-${{ matrix.shard_label }}
+          path: |
+            ${{ runner.temp }}/diff_kotlinc_report.tsv
+            ${{ runner.temp }}/diff_kotlinc_artifacts
           if-no-files-found: ignore
           retention-days: 30

@@ -45,7 +45,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let symbols1 = SymbolTable()
             let types1 = TypeSystem()
             let diagnostics1 = DiagnosticEngine()
-            var inlineFns1: [SymbolID: KIRFunction] = [:]
+            let inlineFns1 = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -53,7 +53,7 @@ struct LibraryMetadataCacheBehaviorTests {
                 types: types1,
                 diagnostics: diagnostics1,
                 interner: sharedInterner,
-                importedInlineFunctions: &inlineFns1,
+                importedInlineFunctions: inlineFns1,
                 cache: cache
             )
 
@@ -83,7 +83,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let symbols2 = SymbolTable()
             let types2 = TypeSystem()
             let diagnostics2 = DiagnosticEngine()
-            var inlineFns2: [SymbolID: KIRFunction] = [:]
+            let inlineFns2 = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -91,7 +91,7 @@ struct LibraryMetadataCacheBehaviorTests {
                 types: types2,
                 diagnostics: diagnostics2,
                 interner: sharedInterner,
-                importedInlineFunctions: &inlineFns2,
+                importedInlineFunctions: inlineFns2,
                 cache: cache
             )
 
@@ -149,7 +149,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -157,7 +157,7 @@ struct LibraryMetadataCacheBehaviorTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -229,7 +229,7 @@ struct LibraryMetadataCacheBehaviorTests {
                     let symbols = SymbolTable()
                     let types = TypeSystem()
                     let diagnostics = DiagnosticEngine()
-                    var inlineFns: [SymbolID: KIRFunction] = [:]
+                    let inlineFns = ImportedInlineFunctionStore()
                     let phase = DataFlowSemaPhase()
 
                     let start = Date().timeIntervalSinceReferenceDate
@@ -239,7 +239,7 @@ struct LibraryMetadataCacheBehaviorTests {
                         types: types,
                         diagnostics: diagnostics,
                         interner: ctx.interner,
-                        importedInlineFunctions: &inlineFns
+                        importedInlineFunctions: inlineFns
                     )
                     let elapsed = Date().timeIntervalSinceReferenceDate - start
                     total += elapsed
@@ -272,7 +272,7 @@ struct LibraryMetadataCacheBehaviorTests {
                     let symbols = SymbolTable()
                     let types = TypeSystem()
                     let diagnostics = DiagnosticEngine()
-                    var inlineFns: [SymbolID: KIRFunction] = [:]
+                    let inlineFns = ImportedInlineFunctionStore()
                     let phase = DataFlowSemaPhase()
 
                     let start = Date().timeIntervalSinceReferenceDate
@@ -282,7 +282,7 @@ struct LibraryMetadataCacheBehaviorTests {
                         types: types,
                         diagnostics: diagnostics,
                         interner: ctx.interner,
-                        importedInlineFunctions: &inlineFns,
+                        importedInlineFunctions: inlineFns,
                         cache: cache
                     )
                     let elapsed = Date().timeIntervalSinceReferenceDate - start

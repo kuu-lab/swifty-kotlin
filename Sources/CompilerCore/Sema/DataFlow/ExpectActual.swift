@@ -1,9 +1,4 @@
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#endif
 
 // MPP-001: Validate expect/actual declarations.
 // In Kotlin MPP, an `expect` declaration in common code must be implemented by a
@@ -90,15 +85,7 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         if expect.kind == .annotationClass, actual.kind == .typeAlias {
             // Check if the typealias's underlying type points to an annotation class
-            // Use retry mechanism for robust resolution in concurrent environments
-            let underlyingType = getTypeAliasUnderlyingTypeWithRetry(
-                for: actual.id,
-                symbols: symbols,
-                maxRetries: 3,
-                baseDelay: 0.001
-            )
-
-            guard let resolvedType = underlyingType else {
+            guard let resolvedType = symbols.typeAliasUnderlyingType(for: actual.id) else {
                 return false
             }
 
@@ -555,28 +542,6 @@ extension DataFlowSemaPhase {
         default:
             return false
         }
-    }
-
-    /// Retry mechanism for getting typealias underlying type with exponential backoff
-    private func getTypeAliasUnderlyingTypeWithRetry(
-        for symbol: SymbolID,
-        symbols: SymbolTable,
-        maxRetries: Int,
-        baseDelay: TimeInterval
-    ) -> TypeID? {
-        for attempt in 0..<maxRetries {
-            if let underlyingType = symbols.typeAliasUnderlyingType(for: symbol) {
-                return underlyingType
-            }
-
-            // In CI environments, use shorter delays to avoid timing issues
-            if attempt < maxRetries - 1 {
-                // Minimal delay for CI environments with exponential backoff
-                let delay = baseDelay * pow(2.0, Double(attempt))
-                Thread.sleep(forTimeInterval: delay)
-            }
-        }
-        return nil
     }
 
     private func expectActualNominalSymbolsMatch(

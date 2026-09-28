@@ -13,6 +13,8 @@ struct SemanticsAndUtilitiesRegressionTests {
             """
             package sample0
 
+                    @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
                     import kotlin.concurrent.atomics.AtomicInt
 
                     fun main() {
@@ -148,6 +150,8 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testAtomicLongArrayInConcurrentPackageIsResolved
             """
             package sample8
+
+                    @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 
                     import kotlin.concurrent.AtomicLongArray
 

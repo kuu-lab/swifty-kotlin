@@ -62,7 +62,7 @@ struct InlineExpansionIndexTests {
 
         let index = InlineExpansionIndex(
             module: makeModule([inlineDecl, bodylessDecl, lambdaBody, regularDecl]),
-            importedInlineFunctions: [imported.symbol: imported]
+            importedInlineFunctions: ImportedInlineFunctionStore(functions: [imported.symbol: imported])
         )
 
         // Module `inline` declaration: expansion target, module origin, not bodyless.
@@ -106,7 +106,7 @@ struct InlineExpansionIndexTests {
 
         let index = InlineExpansionIndex(
             module: makeModule([moduleDecl]),
-            importedInlineFunctions: [imported.symbol: imported]
+            importedInlineFunctions: ImportedInlineFunctionStore(functions: [imported.symbol: imported])
         )
 
         // The target table holds the imported body; the module table keeps
@@ -130,7 +130,7 @@ struct InlineExpansionIndexTests {
         )
         let index = InlineExpansionIndex(
             module: makeModule([inlineDecl]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
         let byName = index.inlineFunctionsByName
 
@@ -153,7 +153,7 @@ struct InlineExpansionIndexTests {
         )
         let index = InlineExpansionIndex(
             module: makeModule([mutexWithLock]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
         let byName = index.inlineFunctionsByName
         let unrelatedSymbol = SymbolID(rawValue: 99)
@@ -161,7 +161,7 @@ struct InlineExpansionIndexTests {
         // The by-name table does contain a unique `withLock` candidate, but a
         // call whose symbol is *known* and not an expansion target must not
         // take it.
-        #expect(byName[interner.intern("withLock")]?.map(\.symbol) == [mutexWithLock.symbol])
+        #expect(byName[interner.intern("withLock")] == [mutexWithLock.symbol])
         #expect(index.inlineTarget(
             callSymbol: unrelatedSymbol,
             callee: interner.intern("withLock"),
@@ -185,7 +185,7 @@ struct InlineExpansionIndexTests {
         )
         let index = InlineExpansionIndex(
             module: makeModule([only, first, second]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
         let byName = index.inlineFunctionsByName
 
@@ -233,7 +233,7 @@ struct InlineExpansionIndexTests {
         )
         let index = InlineExpansionIndex(
             module: makeModule([bodylessDecl, caller]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
 
         #expect(index.bodylessCallees(of: caller.symbol) == [bodyless])
@@ -251,7 +251,7 @@ struct InlineExpansionIndexTests {
         )
         let index = InlineExpansionIndex(
             module: makeModule([recursive]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
 
         #expect(index.bodylessCallees(of: recursive.symbol).isEmpty)
@@ -273,7 +273,7 @@ struct InlineExpansionIndexTests {
         )
         var index = InlineExpansionIndex(
             module: makeModule([bodylessDecl, caller]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
         #expect(index.pendingBodylessCallers(interner: interner) == [caller.symbol])
 
@@ -322,11 +322,11 @@ struct InlineExpansionIndexTests {
 
         let forwardIndex = InlineExpansionIndex(
             module: makeModule(orderedDecls + [bodylessDecl]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
         let reversedIndex = InlineExpansionIndex(
             module: makeModule(reversedDecls + [bodylessDecl]),
-            importedInlineFunctions: [:]
+            importedInlineFunctions: ImportedInlineFunctionStore()
         )
 
         // Expected order: "alpha" 0-param (sym 10), "alpha" 1-param (sym 20),

@@ -108,6 +108,13 @@ func resolveEnumOrdinalToNameCallee(
     else {
         return nil
     }
+    // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
+    // the default bare-name rendering, so string interpolation on an
+    // enum-typed value (`"${Op.MUL}"`) matches an explicit `.toString()`
+    // call instead of always printing the entry name.
+    if let override = enumToStringOverrideHelper(for: symbol, symbols: sema.symbols, interner: interner) {
+        return (override.name, override.symbol)
+    }
     let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
     let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
         sema.symbols.symbol(id).map { $0.kind == .function } ?? false

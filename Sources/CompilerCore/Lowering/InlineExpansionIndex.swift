@@ -3,16 +3,25 @@
 /// dependency queries the scheduling loops consume.
 ///
 /// The index is built once per module from the arena declarations and the
-/// imported inline-KIR table, then updated in place as nested bodyless calls
-/// are expanded. Which body a symbol maps to can change between rounds; the
+/// imported inline store, then updated in place as nested bodyless calls are
+/// expanded. Which body a symbol maps to can change between rounds; the
 /// classification (`origin`, `isBodyless`, membership in each table) is fixed
 /// at build time.
+///
+/// Imported bodies are deferred: the store hands the index a descriptor
+/// (resolved artifact path, signature, declared name) per symbol instead of a
+/// parsed body, and the index asks the store to read + parse + materialize a
+/// body only when `inlineTarget` first resolves a call to it. A descriptor
+/// that fails to materialize is dropped from the target set, the by-name
+/// candidates, `bodylessInlineSymbols`, and `origins` — the same absence a
+/// failed eager import produced.
 ///
 /// Two tables cover the two lookup roles:
 ///
 /// * `inlineFunctionsBySymbol` -- expansion targets: module `inline`
-///   declarations plus imported inline bodies, keyed by callee symbol. Only
-///   this table can supply the body spliced at a `.call` site.
+///   declarations plus materialized imported inline bodies, keyed by callee
+///   symbol. Only this table can supply the body spliced at a `.call` site.
+///   Deferred descriptors fill it on first use.
 /// * `allFunctionsBySymbol` -- every module-declared function (regular
 ///   functions, `inline` declarations, and lambda bodies), which is the table
 ///   lambda resolution uses to map a `symbolRef` argument back to its body.
@@ -22,7 +31,7 @@
 /// inline body filling the target table where the module declares the same
 /// symbol non-inline), so the tables stay separate rather than merging into a
 /// single entry record.
-struct InlineExpansionIndex {
+final class InlineExpansionIndex {
     /// Where an expansion target's body came from.
     enum Origin: Sendable {
         /// Declared `inline` in this module's arena.
@@ -32,7 +41,7 @@ struct InlineExpansionIndex {
     }
 
     /// Expansion targets keyed by callee symbol: module `inline`
-    /// declarations plus imported inline bodies.
+    /// declarations plus materialized imported inline bodies.
     private(set) var inlineFunctionsBySymbol: [SymbolID: KIRFunction]
 
     /// Module-declared bodies keyed by symbol: every function in the arena
@@ -44,24 +53,36 @@ struct InlineExpansionIndex {
     /// `isInlineOnly` auto-inline functions plus every imported inline
     /// symbol (the metadata does not carry `isInlineOnly`, and an artifact
     /// omits auto-inline bodies). A call to one of these must be expanded
-    /// away rather than left for the linker.
-    let bodylessInlineSymbols: Set<SymbolID>
+    /// away rather than left for the linker. Deferred descriptors count too:
+    /// their body will be parsed on demand when a call resolves to them.
+    private(set) var bodylessInlineSymbols: Set<SymbolID>
 
     /// Pre-expansion bodies for every schedulable symbol -- the union of
     /// both tables, with the module declaration winning on collision --
-    /// frozen when the index is built. Each scheduling round re-expands
-    /// these originals against the improving snapshots so a body is never
-    /// spliced twice.
-    let originalBodies: [SymbolID: KIRFunction]
+    /// frozen when the body enters the index. Deferred descriptors join on
+    /// materialization, so a parsed imported body is scheduled by the
+    /// bodyless-snapshot rounds just like an eagerly imported one was. Each
+    /// scheduling round re-expands these originals against the improving
+    /// snapshots so a body is never spliced twice.
+    private(set) var originalBodies: [SymbolID: KIRFunction]
 
     /// Where each expansion target's body was sourced (`nil` for symbols
     /// that are not expansion targets).
     private(set) var origins: [SymbolID: Origin]
 
-    /// Snapshot the module's functions and the imported inline table.
-    /// Imported bodies fill only symbols no module `inline` declaration
-    /// owns; every imported symbol is still marked bodyless.
-    init(module: KIRModule, importedInlineFunctions: [SymbolID: KIRFunction]) {
+    /// The lazily-resolved imported bodies: descriptors for symbols not yet
+    /// parsed, plus the already-materialized cache the index mirrors into
+    /// `inlineFunctionsBySymbol`.
+    private let importedStore: ImportedInlineFunctionStore
+
+    /// The module arena deferred materialization rebinds expression IDs into.
+    private let arena: KIRArena
+
+    /// Snapshot the module's functions and the imported inline store.
+    /// Materialized imported bodies fill only symbols no module `inline`
+    /// declaration owns; every imported symbol — materialized or still a
+    /// descriptor — is marked bodyless.
+    init(module: KIRModule, importedInlineFunctions: ImportedInlineFunctionStore) {
         var inlineFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
         var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
         var origins: [SymbolID: Origin] = [:]
@@ -73,14 +94,20 @@ struct InlineExpansionIndex {
                 origins[function.symbol] = .module
             }
         }
-        for symbol in importedInlineFunctions.keys.sorted(by: { $0.rawValue < $1.rawValue })
+        for symbol in importedInlineFunctions.functions.keys.sorted(by: { $0.rawValue < $1.rawValue })
             where inlineFunctionsBySymbol[symbol] == nil
         {
-            inlineFunctionsBySymbol[symbol] = importedInlineFunctions[symbol]
+            inlineFunctionsBySymbol[symbol] = importedInlineFunctions.functions[symbol]
+            origins[symbol] = .imported
+        }
+        for symbol in importedInlineFunctions.descriptors.keys
+            where inlineFunctionsBySymbol[symbol] == nil
+        {
             origins[symbol] = .imported
         }
         var bodyless = Set(inlineFunctionsBySymbol.filter { $0.value.isInlineOnly }.keys)
-        bodyless.formUnion(importedInlineFunctions.keys)
+        bodyless.formUnion(importedInlineFunctions.functions.keys)
+        bodyless.formUnion(importedInlineFunctions.descriptors.keys)
         var originalBodies = allFunctionsBySymbol
         for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue })
             where originalBodies[symbol] == nil
@@ -92,6 +119,8 @@ struct InlineExpansionIndex {
         self.bodylessInlineSymbols = bodyless
         self.originalBodies = originalBodies
         self.origins = origins
+        self.importedStore = importedInlineFunctions
+        self.arena = module.arena
     }
 
     // MARK: - Classification
@@ -110,10 +139,11 @@ struct InlineExpansionIndex {
     }
 
     /// Whether `symbol` maps to an expansion target (module `inline` or
-    /// imported inline), as opposed to a module-only body that lambda
-    /// resolution can still reach through `allFunctionsBySymbol`.
+    /// imported inline — resolved or still deferred), as opposed to a
+    /// module-only body that lambda resolution can still reach through
+    /// `allFunctionsBySymbol`.
     func isExpansionTarget(_ symbol: SymbolID) -> Bool {
-        inlineFunctionsBySymbol[symbol] != nil
+        inlineFunctionsBySymbol[symbol] != nil || importedStore.descriptors[symbol] != nil
     }
 
     // MARK: - Call-site target resolution
@@ -134,29 +164,64 @@ struct InlineExpansionIndex {
     func inlineTarget(
         callSymbol: SymbolID?,
         callee: InternedString,
-        inlineFunctionsByName: [InternedString: [KIRFunction]]
+        inlineFunctionsByName: [InternedString: [SymbolID]]
     ) -> KIRFunction? {
-        if let callSymbol, let target = inlineFunctionsBySymbol[callSymbol] {
-            return target
-        }
-        if callSymbol != nil {
-            return nil
+        if let callSymbol {
+            if let target = inlineFunctionsBySymbol[callSymbol] {
+                return target
+            }
+            guard importedStore.descriptors[callSymbol] != nil else {
+                return nil
+            }
+            return materializeImportedBody(for: callSymbol)
         }
         guard let candidates = inlineFunctionsByName[callee], candidates.count == 1 else {
             return nil
         }
-        return candidates[0]
+        let symbol = candidates[0]
+        if let target = inlineFunctionsBySymbol[symbol] {
+            return target
+        }
+        guard importedStore.descriptors[symbol] != nil else {
+            return nil
+        }
+        return materializeImportedBody(for: symbol)
+    }
+
+    /// Resolves a deferred descriptor: read + parse the artifact and rebind
+    /// it into the module arena, then fold it into the target table and the
+    /// schedulable originals so later bodyless rounds see it exactly like an
+    /// eagerly imported body. On failure the symbol drops out of every set
+    /// the eager path would never have put it in.
+    private func materializeImportedBody(for symbol: SymbolID) -> KIRFunction? {
+        guard let function = importedStore.function(for: symbol, arena: arena) else {
+            origins[symbol] = nil
+            bodylessInlineSymbols.remove(symbol)
+            return nil
+        }
+        inlineFunctionsBySymbol[symbol] = function
+        if originalBodies[symbol] == nil {
+            originalBodies[symbol] = function
+        }
+        return function
     }
 
     /// By-name view of the expansion targets, consulted only at
-    /// symbol-unknown call sites. Targets are sorted by symbol before
+    /// symbol-unknown call sites. Deferred descriptors contribute their
+    /// declared name without a parse. Candidates are sorted by symbol before
     /// grouping so candidate order within each name never depends on
     /// dictionary enumeration order.
-    var inlineFunctionsByName: [InternedString: [KIRFunction]] {
-        Dictionary(
-            grouping: inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue }),
-            by: \.name
-        )
+    var inlineFunctionsByName: [InternedString: [SymbolID]] {
+        var groups: [InternedString: [SymbolID]] = [:]
+        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            groups[function.name, default: []].append(symbol)
+        }
+        for (symbol, descriptor) in importedStore.descriptors.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            where inlineFunctionsBySymbol[symbol] == nil
+        {
+            groups[descriptor.name, default: []].append(symbol)
+        }
+        return groups
     }
 
     // MARK: - Bodyless dependency info
@@ -231,7 +296,7 @@ struct InlineExpansionIndex {
 
     /// Records an expanded snapshot for `symbol` in every table that holds
     /// it -- the module table and/or the expansion-target table.
-    mutating func recordExpansion(of symbol: SymbolID, to function: KIRFunction) {
+    func recordExpansion(of symbol: SymbolID, to function: KIRFunction) {
         if inlineFunctionsBySymbol[symbol] != nil {
             inlineFunctionsBySymbol[symbol] = function
         }

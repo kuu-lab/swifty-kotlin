@@ -1,0 +1,60 @@
+symbol fq=__for_0.element[kind=local] kind=local vis=private flags=_ type=Byte
+symbol fq=__local_0.size[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.first[kind=local] kind=local vis=private flags=_ type=Byte
+symbol fq=__local_2.indexed[kind=local] kind=local vis=private flags=_ type=Byte
+symbol fq=__local_3.iterator[kind=local] kind=local vis=private flags=_ type=kotlin.collections.ByteIterator
+symbol fq=__local_4.created[kind=local] kind=local vis=private flags=_ type=kotlin.native.ImmutableBlob
+symbol fq=__local_5.count[kind=local] kind=local vis=private flags=mutable type=Int
+symbol fq=golden.sema.iterateCreatedBlob[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.readBlobMembers.$0.blob[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readBlobMembers[kind=fun;params=kotlin.native.ImmutableBlob] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.ImmutableBlob] ret=Int
+file fstdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.readBlobMembers[kind=fun;params=kotlin.native.ImmutableBlob] fun readBlobMembers sym=golden.sema.readBlobMembers[kind=fun;params=kotlin.native.ImmutableBlob]
+  decl golden.sema.iterateCreatedBlob[kind=fun;params=] fun iterateCreatedBlob sym=golden.sema.iterateCreatedBlob[kind=fun;params=]
+expr e@9:16 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.readBlobMembers.$0.blob[kind=vparam]
+expr e@9:16#1 memberCall recv=e@9:16 callee=size args=[] type=Int ref=kotlin.native.ImmutableBlob.size[kind=prop]
+expr e@9:5 localDecl size mutable=0 type=_ init=e@9:16#1 type=Unit ref=__local_0.size[kind=local]
+expr e@10:17 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.readBlobMembers.$0.blob[kind=vparam]
+expr e@10:26 int(0) type=Int
+expr e@10:17#1 memberCall recv=e@10:17 callee=get args=[_:e@10:26] type=Byte call=kotlin.native.ImmutableBlob.get[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int]
+expr e@10:5 localDecl first mutable=0 type=_ init=e@10:17#1 type=Unit ref=__local_1.first[kind=local]
+expr e@11:19 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.readBlobMembers.$0.blob[kind=vparam]
+expr e@11:24 int(1) type=Int
+expr e@11:19#1 indexedAccess receiver=e@11:19 indices=[e@11:24] type=Byte call=kotlin.native.ImmutableBlob.get[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int]
+expr e@11:5 localDecl indexed mutable=0 type=_ init=e@11:19#1 type=Unit ref=__local_2.indexed[kind=local]
+expr e@12:20 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.readBlobMembers.$0.blob[kind=vparam]
+expr e@12:20#1 memberCall recv=e@12:20 callee=iterator args=[] type=kotlin.collections.ByteIterator call=kotlin.native.ImmutableBlob.iterator[kind=fun;recv=kotlin.native.ImmutableBlob;params=]
+expr e@12:5 localDecl iterator mutable=0 type=_ init=e@12:20#1 type=Unit ref=__local_3.iterator[kind=local]
+expr e@13:16 name(size) type=Int ref=__local_0.size[kind=local]
+expr e@13:23 int(0) type=Int
+expr e@13:16#1 binary(greaterThan) lhs=e@13:16 rhs=e@13:23 type=Boolean
+expr e@13:28 name(first) type=Byte ref=__local_1.first[kind=local]
+expr e@13:37 name(indexed) type=Byte ref=__local_2.indexed[kind=local]
+expr e@13:28#1 binary(equal) lhs=e@13:28 rhs=e@13:37 type=Boolean
+expr e@13:16#2 binary(logicalAnd) lhs=e@13:16#1 rhs=e@13:28#1 type=Boolean
+expr e@13:48 name(iterator) type=kotlin.collections.ByteIterator ref=__local_3.iterator[kind=local]
+expr e@13:48#1 memberCall recv=e@13:48 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[Byte]
+expr e@13:16#3 binary(logicalAnd) lhs=e@13:16#2 rhs=e@13:48#1 type=Boolean
+expr e@13:68 int(1) type=Int
+expr e@13:75 int(0) type=Int
+expr e@13:12 if cond=e@13:16#3 then=e@13:68 else=e@13:75 type=Int
+expr e@13:5 return value=e@13:12 type=Nothing
+expr e@17:35 int(1) type=Short
+expr e@17:38 int(2) type=Short
+expr e@17:41 int(3) type=Short
+expr e@17:19 call callee=e@17:19#1 args=[_:e@17:35,_:e@17:38,_:e@17:41] type=kotlin.native.ImmutableBlob call=kotlin.native.immutableBlobOf[kind=fun;params=*Short]
+expr e@17:5 localDecl created mutable=0 type=_ init=e@17:19 type=Unit ref=__local_4.created[kind=local]
+expr e@18:17 int(0) type=Int
+expr e@18:5 localDecl count mutable=1 type=_ init=e@18:17 type=Unit ref=__local_5.count[kind=local]
+expr e@19:21 name(created) type=kotlin.native.ImmutableBlob ref=__local_4.created[kind=local]
+expr e@20:13 name(element) type=Byte ref=__for_0.element[kind=local]
+expr e@20:23 int(0) type=Int
+expr e@20:13#1 binary(greaterThan) lhs=e@20:13 rhs=e@20:23 type=Boolean
+expr e@21:22 int(1) type=Int
+expr e@21:13 compoundAssign(plusAssign) name=count value=e@21:22 type=Unit ref=__local_5.count[kind=local]
+expr e@20:26 blockExpr stmts=[e@21:13] trailing=_ type=Unit
+expr e@20:9 if cond=e@20:13#1 then=e@20:26 else=_ type=Unit
+expr e@19:30 blockExpr stmts=[] trailing=e@20:9 type=Unit
+expr e@19:5 for var=element iterable=e@19:21 body=e@19:30 type=Unit ref=__for_0.element[kind=local]
+expr e@24:12 name(count) type=Int ref=__local_5.count[kind=local]
+expr e@24:5 return value=e@24:12 type=Nothing

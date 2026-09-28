@@ -35,21 +35,16 @@ public struct FileFingerprint: Equatable, Codable {
         contentHash != other.contentHash
     }
 
-    private static func sha256Hex(_ data: Data) -> String {
-        if data.isEmpty {
-            return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        }
-        var hash = [UInt8](repeating: 0, count: 32)
-        let bytes: [UInt8] = Array(data)
-        bytes.withUnsafeBufferPointer { buffer in
-            guard let ptr = buffer.baseAddress else { return }
-            sha256(UnsafeRawPointer(ptr), data.count, &hash)
-        }
-        return hash.map { String(format: "%02x", $0) }.joined()
+    static func sha256Hex(_ data: Data) -> String {
+        sha256Bytes(data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func sha256Bytes(_ data: Data) -> [UInt8] {
+        sha256(Array(data))
     }
 
     /// Minimal SHA-256 implementation (no external dependency).
-    private static func sha256(_ data: UnsafeRawPointer, _ length: Int, _ output: inout [UInt8]) {
+    private static func sha256(_ input: [UInt8]) -> [UInt8] {
         let k: [UInt32] = [
             0x428A_2F98, 0x7137_4491, 0xB5C0_FBCF, 0xE9B5_DBA5,
             0x3956_C25B, 0x59F1_11F1, 0x923F_82A4, 0xAB1C_5ED5,
@@ -79,7 +74,7 @@ public struct FileFingerprint: Equatable, Codable {
         var h7: UInt32 = 0x5BE0_CD19
 
         // Pre-processing: pad the message
-        var message = [UInt8](UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self), count: length))
+        var message = input
         let originalLength = message.count
         message.append(0x80)
         while message.count % 64 != 56 {
@@ -126,12 +121,14 @@ public struct FileFingerprint: Equatable, Codable {
         }
 
         let result: [UInt32] = [h0, h1, h2, h3, h4, h5, h6, h7]
+        var output = [UInt8](repeating: 0, count: 32)
         for (i, word) in result.enumerated() {
             output[i * 4 + 0] = UInt8((word >> 24) & 0xFF)
             output[i * 4 + 1] = UInt8((word >> 16) & 0xFF)
             output[i * 4 + 2] = UInt8((word >> 8) & 0xFF)
             output[i * 4 + 3] = UInt8(word & 0xFF)
         }
+        return output
     }
 
     private static func rightRotate(_ value: UInt32, by amount: UInt32) -> UInt32 {

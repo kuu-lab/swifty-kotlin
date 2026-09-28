@@ -91,7 +91,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
-        interner: StringInterner
+        arrayName: InternedString
     ) -> Bool {
         guard let receiver, let types, let symbols,
               let receiverType = module.arena.exprType(receiver),
@@ -100,7 +100,7 @@ extension ABILoweringPass {
         else {
             return false
         }
-        return interner.resolve(symbol.name) == "Array"
+        return symbol.name == arrayName
     }
 
     func boxingCallee(

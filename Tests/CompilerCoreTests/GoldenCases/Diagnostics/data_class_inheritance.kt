@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // Diagnostic cases for invalid data class inheritance (STDLIB-DATA-014)
 
 // Case 1: Attempting to inherit from a data class - should be an error.

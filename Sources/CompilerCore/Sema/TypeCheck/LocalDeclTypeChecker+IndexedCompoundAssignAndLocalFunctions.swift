@@ -11,11 +11,23 @@ extension LocalDeclTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID {
         let sema = ctx.sema
+        let interner = ctx.interner
 
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let getName = interner.intern("get")
+        let getCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: getName, receiverType: receiverType, sema: sema, interner: interner
+        )
         var indexTypes: [TypeID] = []
-        for indexExpr in indices {
-            indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: nil))
+        for (position, indexExpr) in indices.enumerated() {
+            let literalExpectedType = contextualIntegerLiteralExpectedType(
+                candidates: getCandidates,
+                parameterIndex: position,
+                indexExpr: indexExpr,
+                ast: ctx.ast,
+                sema: sema
+            )
+            indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType))
         }
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
@@ -39,7 +51,7 @@ extension LocalDeclTypeChecker {
         }
 
         let (elementType, operatorResolved) = resolveIndexedGetElement(
-            id: id, receiverType: receiverType, indexTypes: indexTypes,
+            id: id, receiverType: receiverType, getCandidates: getCandidates, indexTypes: indexTypes,
             range: range, ctx: ctx
         )
 
@@ -59,6 +71,22 @@ extension LocalDeclTypeChecker {
         let resultType = compoundOpResultType(
             assignOp: op, elementType: elementType, valueType: valueType, sema: sema
         )
+
+        // KSWIFTK-BUG: the write-back half of `a[i] op= v` must go through the
+        // same custom operator `set()` that a plain `a[i] = v` would resolve,
+        // not the raw built-in array runtime. Only attempt this when `get()`
+        // itself resolved to a real member (not the built-in array fallback)
+        // and the receiver isn't a genuine array (Array<T>'s `get`/`set` ARE
+        // real resolvable members too, but must still go through the raw
+        // array/boxing path — mirrored from inferIndexedAssignExpr's
+        // `assignReceiverIsArrayLike` guard).
+        if operatorResolved, !isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner) {
+            bindIndexedCompoundAssignSetOperator(
+                id, receiverType: receiverType, indexTypes: indexTypes, valueType: resultType,
+                elementType: elementType, range: range, ctx: ctx
+            )
+        }
+
         driver.emitSubtypeConstraint(
             left: valueType, right: elementType,
             range: ctx.ast.arena.exprRange(valueExpr) ?? range,
@@ -90,10 +118,74 @@ extension LocalDeclTypeChecker {
         return true
     }
 
+    /// True when `receiverType` is one of the compiler's built-in array types
+    /// (Array, IntArray, ByteArray, ...). Mirrors
+    /// CallLowerer+ReceiverTypePredicates.swift's isConcreteArrayLikeType,
+    /// which KIR lowering uses to keep genuine arrays on the raw
+    /// array/boxing runtime path even though `Array<T>` also has real,
+    /// resolvable `get`/`set` member symbols.
+    private func isConcreteArrayLikeReceiverType(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        return knownNames.isArrayLikeName(symbol.name)
+    }
+
+    /// Resolve `operator fun set` for the write-back half of `a[i] op= v` and,
+    /// on success, record it via `IndexedCompoundAssignOperatorBinding` so
+    /// KIR lowering can dispatch to it instead of the raw array runtime. Only
+    /// called once `get()` has already resolved to a real member (see the
+    /// `operatorResolved` / `isConcreteArrayLikeReceiverType` guard at the
+    /// call site); a `get`-only receiver (no matching `set`) is left
+    /// unbound, and KIR lowering keeps its previous (pre-existing) fallback
+    /// behavior for that edge case.
+    private func bindIndexedCompoundAssignSetOperator(
+        _ id: ExprID,
+        receiverType: TypeID,
+        indexTypes: [TypeID],
+        valueType: TypeID,
+        elementType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let setName = interner.intern("set")
+        let setCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: setName, receiverType: receiverType, sema: sema, interner: interner
+        )
+        guard !setCandidates.isEmpty else { return }
+
+        var callArgTypes = indexTypes
+        callArgTypes.append(valueType)
+        let callArgs = callArgTypes.map { CallArg(type: $0) }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: setCandidates,
+            call: CallExpr(range: range, calleeName: setName, args: callArgs),
+            expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.semaCtx
+        )
+        guard let chosenSet = resolved.chosenCallee else { return }
+
+        sema.bindings.bindIndexedCompoundAssignOperator(
+            id,
+            binding: IndexedCompoundAssignOperatorBinding(
+                setCall: CallBinding(
+                    chosenCallee: chosenSet,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
+                    parameterMapping: resolved.parameterMapping
+                ),
+                elementType: elementType
+            )
+        )
+    }
+
     /// Resolve `operator fun get` on the receiver and return (elementType, wasResolved).
     private func resolveIndexedGetElement(
         id: ExprID,
         receiverType: TypeID,
+        getCandidates: [SymbolID],
         indexTypes: [TypeID],
         range: SourceRange,
         ctx: TypeInferenceContext
@@ -101,9 +193,6 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let getName = interner.intern("get")
-        let getCandidates = driver.helpers.collectMemberFunctionCandidates(
-            named: getName, receiverType: receiverType, sema: sema, interner: interner
-        )
         let fallback = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
         ) ?? sema.types.anyType

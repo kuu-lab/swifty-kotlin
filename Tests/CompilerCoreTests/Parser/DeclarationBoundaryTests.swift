@@ -190,5 +190,36 @@ struct DeclarationBoundaryTests {
         """
         #expect(nodeCount(source, kind: .enumEntry) == 2)
     }
+
+    @Test
+    func longModifierPrefixLookaheadIsBoundedAndRecovers() {
+        let modifiers = Array(repeating: "suspend", count: 4_200).joined(separator: "\n")
+        let source = "val answer = 42\n\(modifiers)\nnotADeclaration"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.node(parsed.root).kind == .script)
+    }
+
+    @Test
+    func longContextParameterPrefixLookaheadIsBoundedAndRecovers() {
+        let parameters = (0..<2_100).map { "p\($0): Int" }.joined(separator: ",\n")
+        let source = "val answer = 42\ncontext(\n\(parameters)\n)\nfun next() {}"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
+    }
+
+    @Test
+    func alternatingModifierAndContextPrefixUsesTheSameLookaheadBudget() {
+        let prefixes = Array(repeating: "suspend\ncontext(x: Int)", count: 1_100)
+            .joined(separator: "\n")
+        let source = "val answer = 42\n\(prefixes)\nfun next() {}"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
+    }
 }
 #endif

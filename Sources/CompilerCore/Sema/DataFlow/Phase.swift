@@ -3,19 +3,8 @@ import Foundation
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
-    /// Cached `BuiltinTypeNames` for the active interner. Builtin name
-    /// interning is compilation-invariant, so building it once avoids the
-    /// locked `interner.intern` calls being repeated on every type-reference
-    /// resolution (mirrors `TypeCheckDriver.builtinTypeNamesCache`).
-    private var builtinTypeNamesCache: (names: BuiltinTypeNames, interner: StringInterner)?
-
     func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        if let cached = builtinTypeNamesCache, cached.interner === interner {
-            return cached.names
-        }
-        let names = BuiltinTypeNames(interner: interner)
-        builtinTypeNamesCache = (names, interner)
-        return names
+        BuiltinTypeNames(interner: interner)
     }
 
     init() {}
@@ -311,6 +300,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // KSP-1333: same covariant List contract for KTypeParameter.upperBounds.
+        patchKTypeParameterUpperBoundsType(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         initializeSourceBackedCloseableTypes(
             symbols: symbols,
             types: types,
@@ -372,12 +367,12 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+    ) -> (ImportedInlineFunctionStore, LibraryImportDeferredWork) {
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
         return (importedInlineFunctions, deferredWork)
     }
@@ -543,6 +538,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
         )
+        validateTypeAliasCycles(
+            symbols: symbols, types: types, diagnostics: ctx.diagnostics
+        )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -610,7 +608,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
-        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
+        synthesizeNominalLayouts(
+            symbols: symbols, types: types,
+            interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

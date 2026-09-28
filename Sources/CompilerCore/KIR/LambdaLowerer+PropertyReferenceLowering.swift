@@ -356,12 +356,25 @@ extension LambdaLowerer {
             arena: arena,
             interner: interner,
             propertyConstantInitializers: propertyConstantInitializers
-        ),
-            let getter = arena.function(for: accessor.getterSymbol)
+        )
         else {
             return nil
         }
-        return (accessor.getterSymbol, getter.name)
+        if let getter = arena.function(for: accessor.getterSymbol) {
+            return (accessor.getterSymbol, getter.name)
+        }
+        // REFL-EXTPROP: an extension property imported from a precompiled
+        // stdlib `.kklib` (e.g. `String.length`) links its getter externally
+        // instead of getting a body lowered into *this* arena -- see the
+        // matching external-link-name guard in `ensurePropertyReferenceAccessor`,
+        // which deliberately leaves such a getter absent from the arena
+        // rather than synthesizing a bogus stored-property body for it.
+        if let externalLinkName = sema.symbols.externalLinkName(for: accessor.getterSymbol),
+           !externalLinkName.isEmpty
+        {
+            return (accessor.getterSymbol, interner.intern(externalLinkName))
+        }
+        return nil
     }
 
     private func ensurePropertyReferenceAccessor(
@@ -418,7 +431,20 @@ extension LambdaLowerer {
                 ? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
                 : nil)
 
-        if arena.function(for: getterSymbol) == nil {
+        // REFL-EXTPROP: an extension property imported from a precompiled
+        // stdlib `.kklib` (LibraryImport.swift) already points its
+        // accessor's symbol at a real external link name -- it links
+        // against the library's own compiled getter/setter the same way any
+        // other imported function does, and has no AST `propertyDecl` in
+        // *this* compilation for `emitPropertyReferenceAccessor` to read a
+        // body from. Synthesizing one anyway falls through to that
+        // function's stored-property fallback, which fabricates a
+        // load/storeGlobal body for a property that was never a stored
+        // global to begin with (`String.length` is a computed getter) and
+        // links against a global slot that was never created
+        // (`kk_global_root_slot_kotlin_length`, undefined at link time).
+        let getterIsExternallyLinked = sema.symbols.externalLinkName(for: getterSymbol)?.isEmpty == false
+        if arena.function(for: getterSymbol) == nil, !getterIsExternallyLinked {
             emitPropertyReferenceAccessor(
                 propertySymbol: propertySymbol,
                 accessorSymbol: getterSymbol,
@@ -432,8 +458,10 @@ extension LambdaLowerer {
                 propertyConstantInitializers: propertyConstantInitializers
             )
         }
+        let setterIsExternallyLinked = setterSymbol.flatMap { sema.symbols.externalLinkName(for: $0) }?.isEmpty == false
         if let setterSymbol,
-           arena.function(for: setterSymbol) == nil
+           arena.function(for: setterSymbol) == nil,
+           !setterIsExternallyLinked
         {
             emitPropertyReferenceAccessor(
                 propertySymbol: propertySymbol,

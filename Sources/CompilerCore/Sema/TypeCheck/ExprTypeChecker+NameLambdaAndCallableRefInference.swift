@@ -1145,7 +1145,12 @@ extension ExprTypeChecker {
         }
 
         var lambdaLocals = locals
+        // Outer receiver `this` symbols are reachable inside the lambda even
+        // though the enclosing member's `this` shadows them in `locals` — the
+        // enclosing context (e.g. an object literal) captured them, so the
+        // lambda can capture them through the same chain.
         let outerSymbols = Set(locals.values.map(\.symbol))
+            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema)
             : nil
@@ -1306,6 +1311,24 @@ extension ExprTypeChecker {
             locals: &lambdaLocals,
             expectedType: bodyExpectedType
         )
+        // STDLIB-592 definite assignment: record which outer-scope locals this
+        // lambda body unconditionally initializes, mirroring the blockExpr merge
+        // in ExprTypeChecker.swift. `locals` itself is never mutated here -- the
+        // lambda isn't known to run at this point -- but a caller whose contract
+        // guarantees EXACTLY_ONCE/AT_LEAST_ONCE invocation (applyContractEffects)
+        // can later fold this back into its own definite-assignment state.
+        var callsInPlaceInitializedSymbols: [SymbolID] = []
+        for (name, outerLocal) in locals where !outerLocal.isInitialized {
+            if let lambdaLocal = lambdaLocals[name],
+               lambdaLocal.symbol == outerLocal.symbol,
+               lambdaLocal.isInitialized
+            {
+                callsInPlaceInitializedSymbols.append(outerLocal.symbol)
+            }
+        }
+        if !callsInPlaceInitializedSymbols.isEmpty {
+            sema.bindings.bindContractCallsInPlaceInitializedSymbols(id, symbols: callsInPlaceInitializedSymbols)
+        }
         let captures = driver.captureAnalyzer.collectCapturedOuterSymbols(
             in: body,
             ast: ast,
@@ -1452,6 +1475,26 @@ extension ExprTypeChecker {
             }
         }
 
+        // ── REFL-PRIMOP: Int::plus / Int::times — primitive operator with
+        // no backing symbol ───────────────────────────────────────────────
+        // `plus`/`times` on a primitive numeric receiver are a table-driven
+        // type-inference special case (tryInferRegularMemberCallPrimitiveSpecials),
+        // not a real member declaration -- ordinary candidate lookup below
+        // (`.function || .constructor` on `member`) always comes up empty for
+        // them. Handled first and unconditionally: unlike `Type::member`, a
+        // primitive receiver name never introduces real function/constructor
+        // candidates that this could shadow.
+        if let receiver,
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           locals[receiverName] == nil,
+           let result = inferPrimitiveOperatorCallableRefExpr(
+               id, receiverName: receiverName, member: member,
+               expectedType: expectedType, range: range, ctx: ctx
+           )
+        {
+            return result
+        }
+
         // ── REFL-003: Type::member — unbound callable reference ─────────
         // When the receiver is a name that refers to a class/interface/enum
         // (not an instance variable), treat it as an unbound member reference.
@@ -1505,6 +1548,16 @@ extension ExprTypeChecker {
         let effectiveReceiverType = unboundClassType ?? receiverType
 
         var candidates: [SymbolID] = []
+        // REFL-CTOR: set when `candidates` were filled with constructor
+        // symbols for a bare `::Foo` reference below. A constructor
+        // signature's `receiverType` field carries the class type for the
+        // constructor body's own implicit `this` (MemberHeaderCollection.swift),
+        // not a real extension-style receiver -- `callableFunctionType` must
+        // therefore treat it as already "bound" (excluded from the resulting
+        // function type's parameter list) the same way a bound `obj::method`
+        // reference is, or `(Int) -> Foo` would gain a spurious leading `Foo`
+        // parameter.
+        var isConstructorReference = false
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1528,36 +1581,53 @@ extension ExprTypeChecker {
                         return symbol.kind == .property || symbol.kind == .field
                     }
                     if let propertySymbol = propertyCandidates.first {
-                        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
-                        let ownerTypeForReference = unboundClassType != nil ? nonNullReceiver : nil
-                        let inferredType = kPropertyReferenceType(
-                            ownerType: ownerTypeForReference,
-                            valueType: propertyType,
-                            isMutable: isMutable,
-                            sema: sema,
-                            interner: interner
-                        ) ?? propertyType
-                        let resultType = resolvedPropertyReferenceResultType(
+                        return bindPropertyCallableRef(
+                            id,
+                            propertySymbol: propertySymbol,
+                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                            isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
-                            inferredType: inferredType,
                             sema: sema,
                             interner: interner
                         )
-                        sema.bindings.bindIdentifier(id, symbol: propertySymbol)
-                        sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
-                        sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
-                        if unboundClassType != nil {
-                            sema.bindings.markUnboundCallableRef(id)
+                    }
+                }
+                // REFL-EXTPROP: a package-level extension property (e.g. `val
+                // String.length: Int` in Stdlib/kotlin/String.kt) is registered
+                // under its *declaring package's* FQ name, not under its
+                // receiver class's FQ name the way an extension *function*
+                // gets an alias for (HeaderCollection.swift's `.propertyDecl`
+                // branch never creates the member-FQ alias its `.funDecl`
+                // sibling does at KSP-443) -- so the FQ-based lookup above
+                // never finds `String::length`. Match it the same way
+                // `resolveExtensionPropertyGetter` resolves a plain
+                // `receiver.length` read: scan scope-visible `.property`
+                // symbols for one whose recorded extension receiver type
+                // accepts `nonNullReceiver`.
+                if candidates.isEmpty {
+                    let extensionPropertyCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                        guard let symbol = ctx.cachedSymbol(symbolID),
+                              symbol.kind == .property,
+                              let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID)
+                        else {
+                            return false
                         }
-                        markPropertyReferenceSamConversionIfNeeded(
-                            id,
-                            expectedType: expectedType,
-                            resultType: resultType,
+                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: nonNullReceiver,
+                            declaredReceiver: declaredReceiver,
                             sema: sema
                         )
-                        sema.bindings.bindExprType(id, type: resultType)
-                        return resultType
+                    }
+                    if let propertySymbol = extensionPropertyCandidates.first {
+                        return bindPropertyCallableRef(
+                            id,
+                            propertySymbol: propertySymbol,
+                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                            isUnbound: unboundClassType != nil,
+                            expectedType: expectedType,
+                            sema: sema,
+                            interner: interner
+                        )
                     }
                 }
                 candidates = ctx.cachedScopeLookup(member).filter { symbolID in
@@ -1659,12 +1729,39 @@ extension ExprTypeChecker {
             {
                 candidates = [local.symbol]
             }
+            // REFL-CTOR: a bare `::Foo` where `Foo` names a class/enum class
+            // is a constructor reference `(Args...) -> Foo`. Constructors are
+            // stored under the class's own FQ name with the reserved `<init>`
+            // short name (HeaderHelpers.swift), not under `Foo` itself, so the
+            // `.function || .constructor` scope lookup above never finds them
+            // -- mirrors the KSP-CAP-006 class+ctor lookup CallTypeChecker.swift
+            // uses for a direct call `Foo(...)`.
+            if candidates.isEmpty {
+                let classCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                    guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
+                    return symbol.kind == .class || symbol.kind == .enumClass
+                }
+                if let classSym = classCandidates.first,
+                   let classSymbol = ctx.cachedSymbol(classSym),
+                   !classSymbol.flags.contains(.abstractType)
+                {
+                    let ctorFQName = classSymbol.fqName + [interner.intern("<init>")]
+                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                    if !ctorSymbols.isEmpty {
+                        let (ctorVis, _) = ctx.filterByVisibility(ctorSymbols)
+                        candidates = ctorVis
+                        isConstructorReference = true
+                    }
+                }
+            }
         }
 
         // For unbound type references (Type::member), the receiver is not
         // bound — it becomes a parameter of the function type.  For bound
-        // references (obj::member), the receiver is captured.
-        let isBoundReceiver = receiver != nil && unboundClassType == nil
+        // references (obj::member), the receiver is captured. A constructor
+        // reference has no receiver at all; see `isConstructorReference`'s
+        // declaration above for why it is folded into the "bound" side here.
+        let isBoundReceiver = (receiver != nil && unboundClassType == nil) || isConstructorReference
 
         // BUG-164: callable references must also support SAM-conversion to a
         // functional interface expected type, the same way lambda literals do.
@@ -1789,6 +1886,124 @@ extension ExprTypeChecker {
         sema.bindings.bindCaptureSymbols(id, symbols: fallbackCaptures)
         sema.bindings.bindExprType(id, type: fallbackType)
         return fallbackType
+    }
+
+    /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive
+    /// numeric types where the homogeneous `(T, T) -> T` overload is
+    /// unambiguous -- Byte/Short/Char are excluded because their real
+    /// stdlib `plus`/`times` overloads promote the result to `Int`, unlike
+    /// Int/Long/UInt/ULong/Float/Double's own-type result) have no real
+    /// `plus`/`times` member symbol to resolve: arithmetic on primitives is
+    /// a table-driven type-inference special case
+    /// (`tryInferRegularMemberCallPrimitiveSpecials`), not a function
+    /// declaration. Synthesizes the reference's function type directly and
+    /// records the raw binary operator on `sema.bindings` for KIR lowering
+    /// (`LambdaLowerer.lowerPrimitiveOperatorCallableRef`) to build a
+    /// wrapper around, since there is no symbol for it to call either.
+    ///
+    /// Returns `nil` when `receiverName`/`member` don't name a supported
+    /// primitive-operator pair, so the caller falls through to ordinary
+    /// candidate resolution.
+    private func inferPrimitiveOperatorCallableRefExpr(
+        _ id: ExprID,
+        receiverName: InternedString,
+        member: InternedString,
+        expectedType: TypeID?,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName) else {
+            return nil
+        }
+        let op: BinaryOp
+        switch interner.resolve(member) {
+        case "plus": op = .add
+        case "times": op = .multiply
+        default: return nil
+        }
+        switch primitive {
+        case .int, .long, .uint, .ulong, .float, .double:
+            break
+        default:
+            return nil
+        }
+        let operandType = sema.types.make(.primitive(primitive, .nonNull))
+        let functionType = sema.types.make(.functionType(FunctionType(
+            params: [operandType, operandType],
+            returnType: operandType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let resultType: TypeID
+        if let expectedType, case .functionType = sema.types.kind(of: expectedType) {
+            // Mirrors the symbol-backed branch below: an expected function
+            // type wins over the reference's own inferred type as long as
+            // it's compatible (`fold(0, Int::plus)`'s expected `(Int, Int)
+            // -> Int` accumulator type).
+            driver.emitSubtypeConstraint(
+                left: functionType,
+                right: expectedType,
+                range: range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            resultType = expectedType
+        } else {
+            resultType = functionType
+        }
+        sema.bindings.bindPrimitiveOperatorCallableRef(id, op: op)
+        sema.bindings.bindCallableRefKind(id, kind: .functionRef)
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    /// Binds an unbound `Type::property` (or, when `ownerType` is `nil`, a
+    /// bound `instance::property`) callable reference to `propertySymbol` and
+    /// returns its result type. Shared by the FQ-based owner-member lookup
+    /// and the package-level extension-property fallback in
+    /// `inferCallableRefExpr`, which differ only in how they find
+    /// `propertySymbol`.
+    private func bindPropertyCallableRef(
+        _ id: ExprID,
+        propertySymbol: SymbolID,
+        ownerType: TypeID?,
+        isUnbound: Bool,
+        expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
+        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+        let inferredType = kPropertyReferenceType(
+            ownerType: ownerType,
+            valueType: propertyType,
+            isMutable: isMutable,
+            sema: sema,
+            interner: interner
+        ) ?? propertyType
+        let resultType = resolvedPropertyReferenceResultType(
+            expectedType: expectedType,
+            inferredType: inferredType,
+            sema: sema,
+            interner: interner
+        )
+        sema.bindings.bindIdentifier(id, symbol: propertySymbol)
+        sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
+        sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
+        if isUnbound {
+            sema.bindings.markUnboundCallableRef(id)
+        }
+        markPropertyReferenceSamConversionIfNeeded(
+            id,
+            expectedType: expectedType,
+            resultType: resultType,
+            sema: sema
+        )
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 
     /// Builds the concrete `KProperty0<V>` / `KMutableProperty0<V>` /
@@ -2123,16 +2338,22 @@ extension ExprTypeChecker {
         }
         if let label {
             if let qualifiedType = ctx.resolveQualifiedThis(label: label) {
-                // An extension function's receiver is also addressable by the
-                // function-name label (for example `this@describe`). Bind that
-                // reference to the same synthetic receiver symbol used by KIR
-                // so nested receiver lambdas capture the outer receiver rather
-                // than accidentally reading their own receiver.
-                if let currentDeclSymbol = ctx.currentDeclSymbol,
-                   let currentDecl = sema.symbols.symbol(currentDeclSymbol),
-                   currentDecl.name == label,
-                   sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
+                // An outer receiver whose enclosing `this` is capturable (e.g.
+                // the class around an object literal) binds to its receiver
+                // parameter symbol so capture analysis stores it and KIR
+                // reads the captured value instead of the innermost receiver.
+                if let receiverSymbol = ctx.resolveQualifiedThisReceiverSymbol(label: label) {
+                    sema.bindings.bindIdentifier(id, symbol: receiverSymbol)
+                } else if let currentDeclSymbol = ctx.currentDeclSymbol,
+                          let currentDecl = sema.symbols.symbol(currentDeclSymbol),
+                          currentDecl.name == label,
+                          sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
                 {
+                    // An extension function's receiver is also addressable by the
+                    // function-name label (for example `this@describe`). Bind that
+                    // reference to the same synthetic receiver symbol used by KIR
+                    // so nested receiver lambdas capture the outer receiver rather
+                    // than accidentally reading their own receiver.
                     sema.bindings.bindIdentifier(
                         id,
                         symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)

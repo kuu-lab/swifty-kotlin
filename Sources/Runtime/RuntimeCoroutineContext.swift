@@ -90,20 +90,29 @@ public func kk_coroutine_name_get(_ handleRaw: Int) -> Int {
     return runtimeRegisterObject(resultBox)
 }
 
-/// Create a CoroutineExceptionHandler from a function pointer.
-/// handlerFnPtr is an opaque callable reference (a block entry point) compiled
-/// from the Kotlin lambda `{ context, exception -> ... }`.  Since the compiled
-/// lambda follows the standard KK ABI (first arg = value, second arg = outThrown
-/// pointer), we bitcast it to the 1-arg entry point and invoke it with the
-/// exception raw pointer.  If the function pointer is invalid, the handler falls
-/// back to printing the exception to stderr.
+/// Create a CoroutineExceptionHandler from a function value.
+/// KUU-CORO-101: this is a *synthetic* top-level function
+/// (registerSyntheticCoroutineTopLevelFunction in
+/// HeaderHelpers+SyntheticCoroutineRegistry.swift), confirmed via `--emit kir`
+/// to pass the 2-arg Kotlin lambda `{ context, exception -> ... }` as a
+/// single combined value -- resolved the same way `kk_function_invoke_2`
+/// resolves any Kotlin function value (bare capture-free pointer, or a
+/// `kk_function_create_N`-wrapped box). See
+/// [[function-type-param-abi-split-convention]]: a *bundled* `external fun`
+/// with a function-type parameter (e.g. `__kk_job_invoke_on_completion` in
+/// Job.kt) instead crosses as a split (fnPtr, closureRaw) pair -- do not
+/// confuse the two conventions. Previously this bitcast `handlerFnPtr`
+/// directly to a 1-arg entry point and called it with only the exception,
+/// which is wrong on two counts: it silently dropped the closure environment
+/// (so a handler that captured locals would read garbage) and the context
+/// argument. If the function pointer is invalid, the handler falls back to
+/// printing the exception to stderr.
 @_cdecl("kk_exception_handler_create")
 public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
     let capturedFnPtr = handlerFnPtr
-    let box = RuntimeExceptionHandlerBox { throwableRaw in
+    let box = RuntimeExceptionHandlerBox { contextRaw, throwableRaw in
         if capturedFnPtr != 0 {
-            let entryPoint: KKFunctionEntryPoint1 = unsafeBitCast(capturedFnPtr, to: KKFunctionEntryPoint1.self)
-            _ = entryPoint(throwableRaw, nil)
+            _ = kk_function_invoke_2(capturedFnPtr, contextRaw, throwableRaw, nil)
         } else {
             var message = "Unknown exception"
             if throwableRaw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) {
@@ -128,7 +137,7 @@ public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ 
     else {
         return
     }
-    handler.handler(exceptionRaw)
+    handler.handler(contextRaw, exceptionRaw)
 }
 
 /// Compose two CoroutineContext elements using the + operator.
@@ -353,6 +362,16 @@ public func kk_context_is_active(_ contextRaw: Int) -> Int {
         return 1 // No Job element: kotlinx.coroutines treats this as active.
     }
     return job.isActiveSnapshot() ? 1 : 0
+}
+
+/// KUU-CORO-101: ABI backing for the `CoroutineContext.job` extension
+/// (`kotlinx.coroutines.job`). Returns the Job element's raw handle, or 0 if
+/// the context has none -- the Kotlin wrapper (`Job.kt`) treats 0 as "no Job
+/// element" and throws, matching real kotlinx.coroutines' `error(...)`.
+@_cdecl("kk_context_get_job")
+public func kk_context_get_job(_ contextRaw: Int) -> Int {
+    let ctx = resolveToCoroutineContext(contextRaw)
+    return ctx.jobHandleRaw
 }
 
 /// Extract the CoroutineName from a CoroutineContext.

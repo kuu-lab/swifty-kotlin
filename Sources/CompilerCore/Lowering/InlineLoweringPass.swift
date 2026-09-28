@@ -28,9 +28,9 @@ final class InlineLoweringPass: LoweringPass {
         // The expansion-target index snapshots every body the pass can
         // splice: module declarations (regular, `inline`, lambda bodies) and
         // imported inline metadata, classified per symbol.
-        var index = InlineExpansionIndex(
+        let index = InlineExpansionIndex(
             module: module,
-            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? [:]
+            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore()
         )
 
         // An inline body — or a lambda body that gets spliced into its caller —
@@ -39,7 +39,7 @@ final class InlineLoweringPass: LoweringPass {
         // call to a symbol that no object file defines. Expand those nested
         // calls inside the snapshots first.
         expandNestedBodylessInlineCalls(
-            index: &index,
+            index: index,
             module: module,
             ctx: ctx,
             unitType: unitType
@@ -65,7 +65,7 @@ final class InlineLoweringPass: LoweringPass {
         callerLocations: [SourceRange?],
         function: KIRFunction,
         index: InlineExpansionIndex,
-        inlineFunctionsByName: [InternedString: [KIRFunction]],
+        inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?

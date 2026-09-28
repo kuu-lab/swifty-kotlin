@@ -1,27 +1,24 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
-import kotlin.experimental.ExperimentalTypeInference
+fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = buildList<T>(builderAction)
 
-@ExperimentalTypeInference
-fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = buildList(builderAction)
-
-@ExperimentalTypeInference
-fun <K, V> collectMap(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> = buildMap(builderAction)
+fun <K, V> collectMap(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> = buildMap<K, V>(builderAction) as Map<K, V>
 
 fun main() {
-    val numbers = collect {
+    val numbers = collect<Int> {
         add(1)
         add(2)
         add(3)
     }
 
-    val labels = collectMap {
+    val labels = collectMap<Int, String> {
         put(1, "one")
         put(2, "two")
     }
 
     val generated = sequence {
         yield(numbers[0])
-        yieldAll(numbers)
+        for (n in numbers) {
+            yield(n)
+        }
     }
 
     println(numbers[0] + generated.first())
