@@ -450,6 +450,44 @@ struct ExperimentalMarkerStubTests {
     }
 
     @Test
+    func testExpectRefinementHasSingleSourceOwnedDeclaration() throws {
+        let (sema, interner) = try sharedSema()
+        let fqName = ["kotlin", "experimental", "ExpectRefinement"].map { interner.intern($0) }
+        #expect(sema.bundledIndex.containsNominal(fqName: fqName))
+        let symbols = sema.symbols.lookupAll(fqName: fqName)
+        #expect(symbols.count == 1)
+        let symbol = try #require(symbols.first)
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .annotationClass)
+        #expect(info.declSite != nil)
+        #expect(!info.flags.contains(.synthetic))
+    }
+
+    @Test
+    func testExpectRefinementRemainsAvailableWithoutStdlib() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlin", "experimental", "ExpectRefinement"].map {
+                ctx.interner.intern($0)
+            }
+            let symbols = sema.symbols.lookupAll(fqName: fqName)
+            #expect(symbols.count == 1)
+            let symbol = try #require(symbols.first)
+            #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == true)
+            let constructors = sema.symbols.lookupAll(fqName: fqName + [ctx.interner.intern("<init>")])
+            #expect(constructors.count == 1)
+            let constructor = try #require(constructors.first)
+            #expect(sema.symbols.symbol(constructor)?.flags.contains(.synthetic) == true)
+        }
+    }
+
+    @Test
     func testExpectRefinementCarriesClassTargetAndExperimentalMultiplatformMetadata() throws {
         let (sema, interner) = try sharedSema()
         let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", "ExpectRefinement"], sema: sema, interner: interner))
@@ -495,7 +533,7 @@ struct ExperimentalMarkerStubTests {
         let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
         #expect(constructorInfo.visibility == .public)
-        #expect(constructorInfo.flags.contains(.synthetic))
+        #expect(!constructorInfo.flags.contains(.synthetic))
         #expect(signature.parameterTypes.isEmpty)
         #expect(signature.returnType != sema.types.errorType)
         #expect(sema.symbols.parentSymbol(for: constructor) == symbol)
