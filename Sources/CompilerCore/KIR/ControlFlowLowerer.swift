@@ -1069,8 +1069,25 @@ final class ControlFlowLowerer {
             interner: interner,
             instructions: &instructions
         )
+        // The erased Iterator<T>.next ABI may return a boxed Int for Byte and
+        // Short elements. Normalize it before arithmetic in source-backed
+        // Iterable loops; kk_unbox_int also accepts an already-raw scalar.
+        let loopElementID: KIRExprID
+        switch sema.types.kind(of: loopBinding.elementType) {
+        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
+            let scalar = arena.appendTemporary(type: loopBinding.elementType)
+            emitNonThrowingCall(
+                callee: interner.intern("kk_unbox_int"),
+                arg: nextValueID,
+                result: scalar,
+                into: &instructions
+            )
+            loopElementID = scalar
+        default:
+            loopElementID = nextValueID
+        }
         if let loopVariableSymbol {
-            driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
+            driver.ctx.setLocalValue(loopElementID, for: loopVariableSymbol)
         }
 
         driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
