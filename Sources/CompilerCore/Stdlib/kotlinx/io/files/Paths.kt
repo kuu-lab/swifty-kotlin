@@ -26,7 +26,7 @@ public class Path internal constructor(private val path: String, @Suppress("UNUS
         get() = isAbsolute
 
     public val segments: List<String>
-        get() = path.split('/').filter { it.isNotEmpty() }
+        get() = path.split("/").filter { it.isNotEmpty() }
 
     override fun toString(): String = path
     override fun hashCode(): Int = path.hashCode()
