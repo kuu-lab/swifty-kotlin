@@ -39,4 +39,3 @@ expr e@33:29#1 memberCall recv=e@33:29 callee=success args=[_:e@33:44] type=kotl
 expr e@33:5#1 memberCall recv=e@33:5 callee=resumeWith args=[_:e@33:29#1] type=Unit call=kotlin.coroutines.Continuation.resumeWith[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=kotlin.Result<T0>;gen=1] targs=[Int]
 expr e@32:52 lambda params=[continuation] body=e@33:5#1 label=suspendCoroutine type=(kotlin.coroutines.Continuation<Int>) -> Unit
 expr e@32:35 call callee=e@32:35#1 args=[_:e@32:52] type=Int call=kotlin.coroutines.suspendCoroutine[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Unit};susp;gen=1] targs=[Int]
-
