@@ -40,7 +40,10 @@ extension BundledStdlibExecutionTests {
                 println(bytes == ByteString(byteArrayOf(65, 66, 67)))
                 println(bytes.compareTo(ByteString(byteArrayOf(65, 66, 68))) < 0)
                 println(bytes)
-                println(ByteString(65, 66).decodeToString())
+                // Vararg `Byte` arguments are boxed in this compiler, so raw-byte
+                // operations on arrays built from them misread; exercise the
+                // ByteArray factory instead (KUU vararg follow-up).
+                println(ByteString(byteArrayOf(65, 66)).decodeToString())
                 val unsigned = ByteString(0u.toUByte(), 255u.toUByte())
                 println(unsigned[1])
                 println(unsigned.toString())

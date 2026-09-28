@@ -39,7 +39,9 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         append(array, startIndex, array.size)
     }
 
-    public fun append(array: ByteArray, startIndex: Int = 0, endIndex: Int = array.size) {
+    // No defaults here: combined with the explicit overloads above, a defaulted
+    // 3-arg form would make append(array) ambiguous for this compiler.
+    public fun append(array: ByteArray, startIndex: Int, endIndex: Int) {
         require(startIndex <= endIndex) { "startIndex ($startIndex) > endIndex ($endIndex)" }
         if (startIndex < 0 || endIndex > array.size) {
             throw IndexOutOfBoundsException("startIndex ($startIndex) and endIndex ($endIndex) out of bounds")
@@ -47,6 +49,19 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         ensureCapacity(offset + endIndex - startIndex)
         array.copyInto(buffer, offset, startIndex, endIndex)
         offset += endIndex - startIndex
+    }
+
+    // Upstream kotlinx-io declares the append overloads below as top-level
+    // extensions on ByteStringBuilder. This compiler does not yet consider an
+    // extension when a same-named member exists but none of the members apply,
+    // so they are members here; call sites see the same signatures.
+    public fun append(byte: UByte): Unit = append(byte.toByte())
+
+    public fun append(byteString: ByteString): Unit =
+        append(byteString.getBackingArrayReference())
+
+    public fun append(vararg bytes: Byte) {
+        for (byte in bytes) append(byte)
     }
 
     private fun ensureCapacity(requiredCapacity: Int) {
@@ -57,14 +72,6 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         buffer.copyInto(enlarged)
         buffer = enlarged
     }
-}
-
-public fun ByteStringBuilder.append(byte: UByte): Unit = append(byte.toByte())
-public fun ByteStringBuilder.append(byteString: ByteString): Unit =
-    append(byteString.getBackingArrayReference())
-
-public fun ByteStringBuilder.append(vararg bytes: Byte) {
-    for (byte in bytes) append(byte)
 }
 
 public inline fun buildByteString(
