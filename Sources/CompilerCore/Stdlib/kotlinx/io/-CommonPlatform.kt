@@ -41,3 +41,6 @@ public open class EOFException : IOException {
     public constructor() : super()
     public constructor(message: String?) : super(message)
 }
+
+/** This compiler targets POSIX platforms. */
+internal val isWindows: Boolean = false
