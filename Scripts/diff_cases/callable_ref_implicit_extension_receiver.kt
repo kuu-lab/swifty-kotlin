@@ -6,6 +6,8 @@ class BufferedWriter : Writer {
     override fun flush(): Int = 42
 }
 
+fun flush(): Int = 7
+
 fun Writer.flushLater(): () -> Int = ::flush
 
 fun main() {

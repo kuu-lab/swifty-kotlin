@@ -1759,9 +1759,11 @@ extension ExprTypeChecker {
         }
 
         // Within a class or extension body, `::member` uses the active
-        // implicit receiver. Lexical scope lookup does not walk inherited
-        // member scopes, so probe the receiver's nominal hierarchy too.
-        if receiver == nil, candidates.isEmpty,
+        // implicit receiver before a same-named package function. Lexical
+        // scope lookup does not walk inherited member scopes. A local
+        // function still shadows the receiver's member.
+        let hasLocalFunction = locals[member].flatMap { ctx.cachedSymbol($0.symbol) }?.kind == .function
+        if receiver == nil, !hasLocalFunction,
            let implicitReceiver = ctx.implicitReceiverType
         {
             let members = driver.helpers.collectMemberFunctionCandidates(
@@ -1770,8 +1772,9 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            if !members.isEmpty {
-                candidates = members
+            let (visibleMembers, _) = ctx.filterByVisibility(members)
+            if !visibleMembers.isEmpty {
+                candidates = visibleMembers
                 isImplicitlyBoundMember = true
             }
         }
@@ -1786,10 +1789,12 @@ extension ExprTypeChecker {
         {
             let nestedClasses = sema.symbols.lookupAll(fqName: owner.fqName + [member])
             for nestedID in nestedClasses {
+                let (visibleNested, _) = ctx.filterByVisibility([nestedID])
                 guard let nested = ctx.cachedSymbol(nestedID),
                       (nested.kind == .class || nested.kind == .enumClass),
                       !nested.flags.contains(.abstractType),
-                      !nested.flags.contains(.innerClass)
+                      !nested.flags.contains(.innerClass),
+                      !visibleNested.isEmpty
                 else { continue }
                 let constructors = sema.symbols.lookupAll(
                     fqName: nested.fqName + [interner.intern("<init>")]

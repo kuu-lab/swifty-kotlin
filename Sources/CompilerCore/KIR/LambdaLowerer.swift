@@ -1584,6 +1584,77 @@ final class LambdaLowerer {
                 )
             )
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
+        } else if let callTargetSymbol,
+                  sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+                  let boundReceiver = captureArguments.first,
+                  let dispatch = driver.callLowerer.resolveVirtualDispatch(
+                      callee: callTargetSymbol,
+                      receiverTypeID: arena.exprType(boundReceiver),
+                      sema: sema,
+                      interner: interner
+                  )
+        {
+            // A bound `::member` must retain virtual dispatch. Passing the
+            // interface declaration as a raw callable target would invoke it
+            // directly and bypass the concrete receiver's itable entry.
+            callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+            callableName = syntheticLambdaName(for: exprID, interner: interner)
+            let functionType = boundType.flatMap { typeID -> FunctionType? in
+                guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
+                return ft
+            }
+            let returnType = functionType?.returnType ?? sema.types.anyType
+            let receiverParam = KIRParameter(
+                symbol: needsHOFWrapper
+                    ? syntheticLambdaClosureParamSymbol(lambdaExprID: exprID)
+                    : syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: 0),
+                type: needsHOFWrapper
+                    ? sema.types.intType
+                    : (arena.exprType(boundReceiver) ?? sema.types.anyType)
+            )
+            let valueParams: [KIRParameter] = (functionType?.params ?? []).enumerated().map { index, type in
+                KIRParameter(
+                    symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
+                    type: type
+                )
+            }
+            var body: [KIRInstruction] = [.beginBlock]
+            let receiverRef = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverParam.type)
+            body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
+            var valueRefs: [KIRExprID] = []
+            for valueParam in valueParams {
+                let valueRef = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
+                body.append(.constValue(result: valueRef, value: .symbolRef(valueParam.symbol)))
+                valueRefs.append(valueRef)
+            }
+            let callResult = arena.appendTemporary(type: returnType)
+            body.append(.virtualCall(
+                symbol: callTargetSymbol,
+                callee: callableTargetName(for: callTargetSymbol, sema: sema, interner: interner),
+                receiver: receiverRef,
+                arguments: valueRefs,
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+            switch sema.types.kind(of: returnType) {
+            case .unit, .nothing(.nonNull), .nothing(.nullable):
+                body.append(.returnUnit)
+            default:
+                body.append(.returnValue(callResult))
+            }
+            body.append(.endBlock)
+            let wrapperDecl = arena.appendDecl(.function(KIRFunction(
+                symbol: callableSymbol,
+                name: callableName,
+                params: [receiverParam] + valueParams,
+                returnType: returnType,
+                body: body,
+                isSuspend: functionType?.isSuspend ?? false,
+                isInline: false
+            )))
+            driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
         } else if let callTargetSymbol, needsHOFWrapper {
             // Generate a HOF-ABI wrapper that delegates to the target function.
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)

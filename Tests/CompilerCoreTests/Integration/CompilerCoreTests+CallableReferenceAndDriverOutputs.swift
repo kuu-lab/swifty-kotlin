@@ -480,6 +480,7 @@ extension CompilerCoreTests {
     @Test func testExtensionBareMemberReferenceBindsImplicitReceiver() throws {
         let source = """
         interface Writer { fun flush(): Int }
+        fun flush(): Int = 7
         fun Writer.flushLater(): () -> Int = ::flush
         """
         let ctx = makeContextFromSource(source)
@@ -494,6 +495,9 @@ extension CompilerCoreTests {
             return false
         })
         #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+        let member = try #require(sema.bindings.identifierSymbols[ref])
+        let owner = try #require(sema.symbols.parentSymbol(for: member))
+        #expect(sema.symbols.symbol(owner)?.kind == .interface)
         let type = try #require(sema.bindings.exprTypes[ref])
         guard case let .functionType(function) = sema.types.kind(of: type) else {
             Issue.record("Expected bound member function type.")
@@ -501,6 +505,30 @@ extension CompilerCoreTests {
         }
         #expect(function.params.isEmpty)
         #expect(function.returnType == sema.types.make(.primitive(.int, .nonNull)))
+    }
+
+    @Test func testSuspendImplicitMemberReferenceRetainsSuspendFunctionType() throws {
+        let source = """
+        interface Writer { suspend fun flush(): Int }
+        fun Writer.flushLater(): suspend () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected suspend function reference type.")
+            return
+        }
+        #expect(function.isSuspend)
+        #expect(function.params.isEmpty)
     }
 
     /// The implicit-receiver fallback must leave a top-level `::function`
