@@ -542,7 +542,9 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = arg.type
+            let argType = isVararg[paramIndex] && !arg.isSpread
+                ? (varargIntegerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
+                : arg.type
 
             // A spread argument contributes the element type of its array to
             // the vararg parameter. Recover that type when possible so
@@ -590,6 +592,35 @@ extension OverloadResolver {
             return !(constraints.isEmpty && !call.args.isEmpty)
         }
         return true
+    }
+
+    /// Infer a vararg element against this candidate, rather than treating an
+    /// unsuffixed literal's previously inferred Int as its only possible type.
+    private func varargIntegerLiteralType(
+        _ argument: CallArg,
+        parameterType: TypeID,
+        types: TypeSystem
+    ) -> TypeID? {
+        guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+            return nil
+        }
+        if let value = argument.signedIntegerLiteral {
+            switch primitive {
+            case .byte where (-128...127).contains(value): return types.byteType
+            case .short where (-32768...32767).contains(value): return types.shortType
+            case .long: return types.longType
+            default: return nil
+            }
+        }
+        if let value = argument.unsignedIntegerLiteral {
+            switch primitive {
+            case .ubyte where value <= UInt64(UInt8.max): return types.ubyteType
+            case .ushort where value <= UInt64(UInt16.max): return types.ushortType
+            case .ulong: return types.ulongType
+            default: return nil
+            }
+        }
+        return nil
     }
 
     /// Returns the source-level element type represented by a spread argument.
