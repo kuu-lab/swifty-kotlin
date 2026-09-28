@@ -3,6 +3,12 @@
 import Foundation
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @Suite
 struct TrustedFileSystemTests {
     // MARK: - trustedLoadableFile
@@ -56,6 +62,14 @@ struct TrustedFileSystemTests {
     func testTrustedLoadableFileRejectsGroupWritableAncestorDirectory() throws {
         let parent = try makeFixtureDirectory(permissions: 0o775)
         defer { try? FileManager.default.removeItem(at: parent) }
+        // The fixture's group must be non-administrative for the rejection to
+        // hold; the primary group normally is not (e.g. `staff`, `ubuntu`),
+        // but chgrp defensively in case it is.
+        guard let groupID = nonAdministrativeGroupIDForCurrentUser() else { return }
+        try FileManager.default.setAttributes(
+            [.groupOwnerAccountID: NSNumber(value: groupID)],
+            ofItemAtPath: parent.path
+        )
         let file = parent.appendingPathComponent("libExample.so")
         try writeFile(at: file)
 
@@ -72,6 +86,42 @@ struct TrustedFileSystemTests {
         try writeFile(at: file)
 
         #expect(TrustedFileSystem.trustedLoadableFile(file.path) == nil)
+    }
+
+    @Test
+    func testTrustedLoadableFileAcceptsAdministrativeGroupWritableAncestor() throws {
+        // Standard Homebrew layout: prefix subdirectories such as
+        // /opt/homebrew/Cellar are drwxrwxr-x owned by the installing user and
+        // group `admin`. Skipped when the current user belongs to no
+        // administrative group to chgrp the fixture into.
+        guard let groupID = administrativeGroupIDForCurrentUser() else { return }
+        let parent = try makeFixtureDirectory(permissions: 0o775)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        try FileManager.default.setAttributes(
+            [.groupOwnerAccountID: NSNumber(value: groupID)],
+            ofItemAtPath: parent.path
+        )
+        let file = parent.appendingPathComponent("libExample.so")
+        try writeFile(at: file)
+
+        #expect(TrustedFileSystem.trustedLoadableFile(file.path) != nil)
+    }
+
+    @Test
+    func testTrustedLoadableFileAcceptsAdministrativeGroupWritableFile() throws {
+        // Homebrew keg files may likewise be group-writable to `admin`.
+        guard let groupID = administrativeGroupIDForCurrentUser() else { return }
+        let directory = try makeFixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("libExample.so")
+        try writeFile(at: file)
+        try FileManager.default.setAttributes(
+            [.groupOwnerAccountID: NSNumber(value: groupID),
+             .posixPermissions: NSNumber(value: Int16(0o664))],
+            ofItemAtPath: file.path
+        )
+
+        #expect(TrustedFileSystem.trustedLoadableFile(file.path) != nil)
     }
 
     @Test
@@ -118,6 +168,56 @@ struct TrustedFileSystemTests {
         #expect(TrustedFileSystem.trustedLoadableFile(link.path) == nil)
     }
 
+    // MARK: - inspectLoadableFile
+
+    @Test
+    func testInspectLoadableFileReportsMissingFile() {
+        let missing = "/tmp/does-not-exist-kswiftk-\(UUID().uuidString).so"
+        #expect(
+            TrustedFileSystem.inspectLoadableFile(missing)
+                == .rejected(component: missing, reason: .missing)
+        )
+    }
+
+    @Test
+    func testInspectLoadableFileReportsRelativePath() {
+        #expect(
+            TrustedFileSystem.inspectLoadableFile("libLLVM.so")
+                == .rejected(component: "libLLVM.so", reason: .notAbsolutePath)
+        )
+    }
+
+    @Test
+    func testInspectLoadableFileReportsDirectory() throws {
+        let directory = try makeFixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        #expect(
+            TrustedFileSystem.inspectLoadableFile(directory.path)
+                == .rejected(component: directory.path, reason: .notRegularFile)
+        )
+    }
+
+    @Test
+    func testInspectLoadableFileNamesUntrustedAncestorDirectory() throws {
+        let parent = try makeFixtureDirectory(permissions: 0o775)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        guard let groupID = nonAdministrativeGroupIDForCurrentUser() else { return }
+        try FileManager.default.setAttributes(
+            [.groupOwnerAccountID: NSNumber(value: groupID)],
+            ofItemAtPath: parent.path
+        )
+        let file = parent.appendingPathComponent("libExample.so")
+        try writeFile(at: file)
+
+        guard case .rejected(let component, let reason) = TrustedFileSystem.inspectLoadableFile(file.path) else {
+            Issue.record("expected the group-writable ancestor to be rejected")
+            return
+        }
+        #expect(reason == .unsafeOwnershipOrPermissions)
+        #expect(component == parent.resolvingSymlinksInPath().standardized.path)
+    }
+
     // MARK: - helpers
 
     /// Fixtures that must sit under trusted ancestor directories are placed
@@ -139,6 +239,42 @@ struct TrustedFileSystemTests {
 
     private func writeFile(at url: URL) throws {
         try Data().write(to: url)
+    }
+
+    /// The gid of an administrative group (`admin`, `wheel`, `root`, `sudo`)
+    /// the current user belongs to, or nil when the user belongs to none —
+    /// e.g. a minimal container account.
+    private func administrativeGroupIDForCurrentUser() -> gid_t? {
+        groupIDsForCurrentUser().first {
+            isAdministrativeGroupID($0)
+        }
+    }
+
+    /// The gid of a non-administrative group the current user belongs to —
+    /// almost always the primary group.
+    private func nonAdministrativeGroupIDForCurrentUser() -> gid_t? {
+        groupIDsForCurrentUser().first {
+            !isAdministrativeGroupID($0)
+        }
+    }
+
+    private func isAdministrativeGroupID(_ groupID: gid_t) -> Bool {
+        guard let group = getgrgid(groupID), let name = group.pointee.gr_name else {
+            return false
+        }
+        return TrustedFileSystem.administrativeGroupNames.contains(String(cString: name))
+    }
+
+    private func groupIDsForCurrentUser() -> [gid_t] {
+        let count = getgroups(0, nil)
+        guard count > 0 else {
+            return [getegid()]
+        }
+        var groups = [gid_t](repeating: 0, count: Int(count))
+        guard getgroups(count, &groups) > 0 else {
+            return [getegid()]
+        }
+        return groups + [getegid()]
     }
 }
 #endif

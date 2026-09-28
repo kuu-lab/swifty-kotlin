@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "typealias_recursive.kt",
+      "range": {
+        "start": { "line": 2, "character": 0 },
+        "end": { "line": 2, "character": 15 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ALIAS-CYCLE",
+      "source": "kswiftk",
+      "message": "Cyclic typealias definition detected.",
+      "codeActions": []
+    },
+    {
+      "file": "typealias_recursive.kt",
+      "range": {
+        "start": { "line": 3, "character": 0 },
+        "end": { "line": 3, "character": 15 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ALIAS-CYCLE",
+      "source": "kswiftk",
+      "message": "Cyclic typealias definition detected.",
+      "codeActions": []
+    }
+  ]
+}

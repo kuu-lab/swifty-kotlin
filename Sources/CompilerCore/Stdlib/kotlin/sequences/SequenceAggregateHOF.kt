@@ -744,8 +744,11 @@ public fun <T> Sequence<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, L
     return Pair(matched.toList(), unmatched.toList())
 }
 
-// Shares appendJoinToAppendablePlain/appendJoinToAppendableTransform
-// (Iterables.kt, kotlin.collections) with Iterable.joinTo.
+// KSP-1350: Sequence join-family decls carry the Kotlin 2.3.10 signatures —
+// generic `A : Appendable` buffers and `CharSequence` separator/prefix/postfix/
+// truncated — matching the Iterable counterparts in Iterables.kt, whose shared
+// appendJoinToAppendable* helpers they call through iterator() (KSP-621).
+@IgnorableReturnValue
 public fun <T, A : Appendable> Sequence<T>.joinTo(
     buffer: A,
     separator: CharSequence = ", ",
@@ -753,68 +756,35 @@ public fun <T, A : Appendable> Sequence<T>.joinTo(
     postfix: CharSequence = "",
     limit: Int = -1,
     truncated: CharSequence = "..."
-): A = appendJoinToAppendablePlain(
-    this.iterator(), buffer, separator, prefix, postfix, limit, truncated
-)
+): A = appendJoinToAppendablePlain(this.iterator(), buffer, separator, prefix, postfix, limit, truncated)
 
+@IgnorableReturnValue
 public fun <T, A : Appendable> Sequence<T>.joinTo(
     buffer: A,
-    separator: CharSequence,
-    prefix: CharSequence,
-    postfix: CharSequence,
-    limit: Int,
-    truncated: CharSequence,
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "...",
     transform: (T) -> CharSequence
-): A = appendJoinToAppendableTransform(
-    this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform
-)
+): A = appendJoinToAppendableTransform(this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform)
 
 public fun <T> Sequence<T>.joinToString(
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
-): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...").toString()
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): String = appendJoinToAppendablePlain(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
 
 public fun <T> Sequence<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String
-): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
-
-// The `transform` overloads are spelled per arity because a trailing lambda
-// cannot be bound to the defaulted `String` parameters above.
-public fun <T> Sequence<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
-    transform: (T) -> Any
-): String = appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...", transform).toString()
-
-public fun <T> Sequence<T>.joinToString(
-    separator: String,
-    prefix: String,
-    transform: (T) -> Any
-): String = joinToString(separator, prefix, "", transform)
-
-public fun <T> Sequence<T>.joinToString(
-    separator: String,
-    transform: (T) -> Any
-): String = joinToString(separator, "", "", transform)
-
-public fun <T> Sequence<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
-    transform: (T) -> Any
-): String = appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
-
-public fun <T> Sequence<T>.joinToString(
-    transform: (T) -> Any
-): String = joinToString(", ", "", "", transform)
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "...",
+    transform: (T) -> CharSequence
+): String = appendJoinToAppendableTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 // KSP-442: Sequence terminal operations migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeSequence.swift
 
@@ -850,40 +820,6 @@ public fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
         val element = elements[i]
         if (predicate(element)) return element
         i += 1
-    }
-    return null
-}
-
-public fun <T> Sequence<T>.last(): T {
-    val elements = this.toList()
-    if (elements.size == 0) throw NoSuchElementException("Sequence is empty.")
-    return elements[elements.size - 1]
-}
-
-public fun <T> Sequence<T>.last(predicate: (T) -> Boolean): T {
-    val elements = this.toList()
-    var i = elements.size - 1
-    while (i >= 0) {
-        val element = elements[i]
-        if (predicate(element)) return element
-        i -= 1
-    }
-    throw NoSuchElementException("Sequence contains no element matching the predicate.")
-}
-
-public fun <T> Sequence<T>.lastOrNull(): T? {
-    val elements = this.toList()
-    if (elements.size == 0) return null
-    return elements[elements.size - 1]
-}
-
-public fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
-    val elements = this.toList()
-    var i = elements.size - 1
-    while (i >= 0) {
-        val element = elements[i]
-        if (predicate(element)) return element
-        i -= 1
     }
     return null
 }

@@ -1,0 +1,39 @@
+symbol fq=__for_0.c[kind=local] kind=local vis=private flags=_ type=Char
+symbol fq=__local_0.iterator[kind=local] kind=local vis=private flags=_ type=kotlin.collections.CharIterator
+symbol fq=golden.sema.charSequenceForLoop.$0.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceForLoop[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Char
+symbol fq=golden.sema.charSequenceIterator.$1.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceIteratorProtocol.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceIteratorProtocol[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Char
+symbol fq=golden.sema.charSequenceIterator[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.collections.CharIterator
+symbol fq=golden.sema.stringBuilderIterator.$3.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.stringBuilderIterator[kind=fun;params=kotlin.text.StringBuilder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.StringBuilder] ret=kotlin.collections.CharIterator
+symbol fq=golden.sema.stringIterator[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.CharIterator
+file fstdlib_kotlin_text_CharSequence_iterator package=golden.sema
+  decl golden.sema.charSequenceIterator[kind=fun;params=kotlin.CharSequence] fun charSequenceIterator sym=golden.sema.charSequenceIterator[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.stringIterator[kind=fun;params=] fun stringIterator sym=golden.sema.stringIterator[kind=fun;params=]
+  decl golden.sema.stringBuilderIterator[kind=fun;params=kotlin.text.StringBuilder] fun stringBuilderIterator sym=golden.sema.stringBuilderIterator[kind=fun;params=kotlin.text.StringBuilder]
+  decl golden.sema.charSequenceForLoop[kind=fun;params=kotlin.CharSequence] fun charSequenceForLoop sym=golden.sema.charSequenceForLoop[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceIteratorProtocol[kind=fun;params=kotlin.CharSequence] fun charSequenceIteratorProtocol sym=golden.sema.charSequenceIteratorProtocol[kind=fun;params=kotlin.CharSequence]
+expr e@3:64 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceIterator.$1.source[kind=vparam]
+expr e@3:64#1 memberCall recv=e@3:64 callee=iterator args=[] type=kotlin.collections.CharIterator call=kotlin.text.iterator[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@5:38 string(abc) type=String
+expr e@5:38#1 memberCall recv=e@5:38 callee=iterator args=[] type=kotlin.collections.CharIterator call=kotlin.text.iterator[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@7:66 name(source) type=kotlin.text.StringBuilder ref=golden.sema.stringBuilderIterator.$3.source[kind=vparam]
+expr e@7:66#1 memberCall recv=e@7:66 callee=iterator args=[] type=kotlin.collections.CharIterator call=kotlin.text.iterator[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@10:15 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceForLoop.$0.source[kind=vparam]
+expr e@10:30 name(c) type=Char ref=__for_0.c[kind=local]
+expr e@10:23 return value=e@10:30 type=Nothing
+expr e@10:5 for var=c iterable=e@10:15 body=e@10:23 type=Unit ref=__for_0.c[kind=local]
+expr e@11:12 char(63) type=Char
+expr e@11:5 return value=e@11:12 type=Nothing
+expr e@15:20 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceIteratorProtocol.$2.source[kind=vparam]
+expr e@15:20#1 memberCall recv=e@15:20 callee=iterator args=[] type=kotlin.collections.CharIterator call=kotlin.text.iterator[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@15:5 localDecl iterator mutable=0 type=_ init=e@15:20#1 type=Unit ref=__local_0.iterator[kind=local]
+expr e@16:16 name(iterator) type=kotlin.collections.CharIterator ref=__local_0.iterator[kind=local]
+expr e@16:16#1 memberCall recv=e@16:16 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[Char]
+expr e@16:36 name(iterator) type=kotlin.collections.CharIterator ref=__local_0.iterator[kind=local]
+expr e@16:36#1 memberCall recv=e@16:36 callee=nextChar args=[] type=Char call=kotlin.collections.CharIterator.nextChar[kind=fun;recv=kotlin.collections.CharIterator;params=]
+expr e@16:61 char(63) type=Char
+expr e@16:12 if cond=e@16:16#1 then=e@16:36#1 else=e@16:61 type=Char
+expr e@16:5 return value=e@16:12 type=Nothing
