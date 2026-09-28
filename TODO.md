@@ -2791,7 +2791,7 @@
     - `kotlin.ranges.UIntRange.<init>` — constructor (UInt, UInt)  -- `constructor <init>(kotlin/UInt, kotlin/UInt)`
     - `kotlin.ranges.UIntRange.Companion` — object kotlin.ranges.UIntRange.Companion  -- `final object Companion {`
 
-- [ ] KSP-1315: kotlin.ranges.UIntRange.UIntRange の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1315: kotlin.ranges.UIntRange.UIntRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.UIntRange` / receiver `UIntRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/UIntRange/UIntRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2805,6 +2805,7 @@
     - `kotlin.ranges.UIntRange.hashCode` — fun UIntRange.hashCode(): Int  -- `final fun hashCode(): kotlin/Int`
     - `kotlin.ranges.UIntRange.start` — val UIntRange.start: UInt  -- `final val start`
     - `kotlin.ranges.UIntRange.toString` — fun UIntRange.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了: `UIntRange/UIntRange.kt` に `start` / `endInclusive` / `endExclusive` / `equals` / `hashCode` / `toString` を extension として追加（`isEmpty` は RangeMembership.kt で既に source-backed）。synthetic stub から `start` / `endExclusive` 登録を削除。`start` / `endInclusive` / `isEmpty` の呼び出しは ClosedRange メンバーに解決され、runtime は従来どおり `__kk_range_*` / `kk_structural_eq` 経由。専用 Sema golden shard と `diff_kotlinc.sh` 単一ケースが PASS。
 
 - [x] KSP-1316: kotlin.ranges.UIntRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.UIntRange.Companion` / receiver `Companion`
