@@ -453,15 +453,28 @@ extension DataFlowSemaPhase {
                     paths.append(currentPackageFQName + path)
                 }
                 if let shortName = path.first {
+                    var wildcardPaths: [[InternedString]] = []
                     for importDecl in imports {
                         if let alias = importDecl.alias, alias == shortName {
                             paths.append(importDecl.path)
+                        } else if importDecl.alias == nil,
+                                  importDecl.isWildcard
+                        {
+                            // `import pkg.*` exposes `pkg.Name` as `Name`;
+                            // without this expansion a same-named root-package
+                            // symbol (e.g. the CancellationException
+                            // compatibility class, KSP-1150) shadows the
+                            // wildcard-imported declaration.
+                            wildcardPaths.append(importDecl.path + path)
                         } else if importDecl.alias == nil,
                                   importDecl.path.last == shortName
                         {
                             paths.append(importDecl.path)
                         }
                     }
+                    // Wildcard imports rank below same-package and explicit
+                    // imports, matching Kotlin's unqualified-name precedence.
+                    paths.append(contentsOf: wildcardPaths)
                 }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility
@@ -491,6 +504,10 @@ extension DataFlowSemaPhase {
             for importDecl in imports {
                 if let alias = importDecl.alias, alias == firstComponent {
                     candidatePaths.append(importDecl.path + tail)
+                } else if importDecl.alias == nil,
+                          importDecl.isWildcard
+                {
+                    candidatePaths.append(importDecl.path + path)
                 } else if importDecl.alias == nil,
                           importDecl.path.last == firstComponent
                 {
