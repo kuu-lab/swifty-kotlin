@@ -4,7 +4,7 @@ import Testing
 @Suite
 struct ContinuationSourceContractTests {
     @Test
-    func sourceContractRequiresResumeWithImplementation() throws {
+    func sourceContractUsesDefaultResumeWithImplementation() throws {
         let source = """
         import kotlin.coroutines.*
         class Missing : Continuation<Int> {
@@ -14,7 +14,7 @@ struct ContinuationSourceContractTests {
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ABSTRACT" })
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         }
     }
 
