@@ -437,6 +437,18 @@ extension DataFlowSemaPhase {
                         }
                     }
                 }
+                // Header types are resolved before TypeCheck builds file scopes.
+                // Expand star imports here as well; otherwise a same-named
+                // stdlib class found by the short-name fallback can replace the
+                // imported class in a function signature (KUU-916).
+                if let shortName = path.first {
+                    for importDecl in imports where importDecl.alias == nil {
+                        let imported = symbols.lookupAll(fqName: importDecl.path)
+                        if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                            paths.append(importDecl.path + [shortName])
+                        }
+                    }
+                }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility
                 // alias with the same short name (KSP-1150).
@@ -469,6 +481,12 @@ extension DataFlowSemaPhase {
                           importDecl.path.last == firstComponent
                 {
                     candidatePaths.append(importDecl.path + tail)
+                }
+            }
+            for importDecl in imports where importDecl.alias == nil {
+                let imported = symbols.lookupAll(fqName: importDecl.path)
+                if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                    candidatePaths.append(importDecl.path + path)
                 }
             }
         }
