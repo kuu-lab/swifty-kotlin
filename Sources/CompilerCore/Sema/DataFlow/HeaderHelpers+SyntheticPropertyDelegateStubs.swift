@@ -21,12 +21,21 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerFindAssociatedObjectFunction(
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1324: `findAssociatedObject` is bundled Kotlin source
+        // (Stdlib/kotlin/reflect/AssociatedObjects.kt) when the stdlib is
+        // included; register the synthetic fallback only when it is absent.
+        if !bundledIndex.contains(
+            ownerFQName: kotlinReflectPkg + [interner.intern("KClass")],
+            name: interner.intern("findAssociatedObject"),
+            arity: 0
+        ) {
+            registerFindAssociatedObjectFunction(
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
         let kPropertySymbol = ensureInterfaceSymbol(
             named: "KProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )

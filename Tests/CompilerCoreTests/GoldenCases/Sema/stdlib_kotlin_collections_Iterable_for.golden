@@ -18,7 +18,7 @@ file fstdlib_kotlin_collections_Iterable_for package=golden.sema
   decl golden.sema.customIterableForEach[kind=fun;params=golden.sema.CustomIterable<Int>] fun customIterableForEach sym=golden.sema.customIterableForEach[kind=fun;params=golden.sema.CustomIterable<Int>]
   decl golden.sema.receiverResolution[kind=fun;params=kotlin.collections.List<Int>,kotlin.Array<Int>,kotlin.collections.Map<String,Int>,kotlin.sequences.Sequence<Int>,kotlin.collections.Iterator<Int>,kotlin.IntArray] fun receiverResolution sym=golden.sema.receiverResolution[kind=fun;params=kotlin.collections.List<Int>,kotlin.Array<Int>,kotlin.collections.Map<String,Int>,kotlin.sequences.Sequence<Int>,kotlin.collections.Iterator<Int>,kotlin.IntArray]
 expr e@4:44 name(values) type=kotlin.collections.List<golden.sema.CustomIterable.$class0.T> ref=golden.sema.CustomIterable.values[kind=prop]
-expr e@4:44#1 memberCall recv=e@4:44 callee=iterator args=[] type=kotlin.collections.Iterator<golden.sema.CustomIterable.$class0.T> call=kotlin.collections.Collection.iterator[kind=fun;recv=kotlin.collections.Collection<T0>;params=;gen=1] targs=[golden.sema.CustomIterable.$class0.T]
+expr e@4:44#1 memberCall recv=e@4:44 callee=iterator args=[] type=kotlin.collections.Iterator<golden.sema.CustomIterable.$class0.T> call=kotlin.collections.List.iterator[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1] targs=[golden.sema.CustomIterable.$class0.T]
 expr e@8:5 name(values) type=kotlin.collections.Iterable<String?> ref=golden.sema.iterableForEach.$1.values[kind=vparam]
 expr e@9:17 name(value) type=String? ref=s-0
 expr e@9:26 string(null) type=String

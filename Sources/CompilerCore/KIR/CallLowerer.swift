@@ -916,15 +916,8 @@ final class CallLowerer {
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
         {
-            // Constructor calls need an allocated object as the implicit
-            // receiver (p0). A bare/implicit `Inner(...)` call (no explicit
-            // receiver) is only legal while an enclosing instance is in
-            // scope, so the active implicit receiver -- walked up as many
-            // `$outer` hops as needed for a nested `inner class` calling
-            // another one declared further out -- is the right outer value
-            // when the constructed class turns out to be an inner class.
-            // `allocateAndRegisterConstructedObject` also keeps master's
-            // itable/vtable/KClass/Throwable/local-capture registrations.
+            // Constructor calls need an allocated object as the implicit receiver.
+            // Resolve an inner class's enclosing instance from the active receiver.
             let allocatedObj = allocateAndRegisterConstructedObject(
                 chosen: chosen,
                 boundType: boundType,
@@ -952,7 +945,19 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
-                ?? driver.ctx.activeImplicitReceiverExprID()
+            if implicitReceiver == nil {
+                implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                // A bare call inside an object literal can resolve to a member of
+                // its enclosing class. The literal is the active receiver while
+                // lowering its member body, so use the captured enclosing receiver
+                // when the callee's owner is available as a captured local value.
+                if let owner = sema.symbols.parentSymbol(for: chosen),
+                   owner != driver.ctx.activeImplicitReceiverSymbol(),
+                   let capturedReceiver = driver.ctx.localValue(for: owner)
+                {
+                    implicitReceiver = capturedReceiver
+                }
+            }
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
             {
@@ -1368,6 +1373,8 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_sequence_elementAt",
             "kk_iterable_iterator",
+            "kk_mutex_unlock",
+            "kk_semaphore_release",
             "__kk_file_readText",
             "__kk_buffered_reader_useLines",
             "__kk_buffered_reader_forEachLine",
@@ -1457,6 +1464,8 @@ final class CallLowerer {
             "__kk_mutable_map_clear",
             "__kk_mutable_map_putAll",
             "__kk_list_get",
+            "kk_mutex_unlock",
+            "kk_semaphore_release",
             "kk_sequence_elementAt",
             "kk_iterator_next",
             "kk_list_iterator_next",
