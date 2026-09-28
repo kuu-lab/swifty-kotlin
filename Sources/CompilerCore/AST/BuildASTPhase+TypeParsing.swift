@@ -100,12 +100,12 @@ extension BuildASTPhase {
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
     }
 
-    func declarationContextReceiverTypes(
+    func declarationContextReceivers(
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
-    ) -> [TypeRefID] {
+    ) -> [(name: InternedString?, ref: TypeRefID)] {
         let allTokens = collectTokens(from: nodeID, in: arena)
         // Context receivers are declaration modifiers, so they always precede `fun`.
         // Restricting the scan keeps a `context(...)` function type in the parameter
@@ -125,7 +125,7 @@ extension BuildASTPhase {
         var index = contextIndex + 2
         var depth = 1
         var current: [Token] = []
-        var refs: [TypeRefID] = []
+        var items: [(name: InternedString?, ref: TypeRefID)] = []
         while index < tokens.count, depth > 0 {
             let token = tokens[index]
             if token.kind == .symbol(.lParen) {
@@ -134,15 +134,15 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    if let ref = parseTypeRef(from: current, interner: interner, astArena: astArena) {
-                        refs.append(ref)
+                    if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                        items.append(item)
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
-                if let ref = parseTypeRef(from: current, interner: interner, astArena: astArena) {
-                    refs.append(ref)
+                if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                    items.append(item)
                 }
                 current.removeAll(keepingCapacity: true)
             } else {
@@ -150,7 +150,39 @@ extension BuildASTPhase {
             }
             index += 1
         }
-        return refs
+        return items
+    }
+
+    /// Context parameters may carry a `name:` or `_:` prefix (`context(ctx: Context)` /
+    /// `context(_: Context)`). Split the leading `name :` off so the receiver type still
+    /// parses, returning the name (nil for unnamed or `_`) alongside the type ref.
+    private func parseContextReceiverItem(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (name: InternedString?, ref: TypeRefID)? {
+        var name: InternedString?
+        var typeTokens = tokens
+        if typeTokens.count > 2,
+           typeTokens[1].kind == .symbol(.colon)
+        {
+            switch typeTokens[0].kind {
+            case let .identifier(ident):
+                if interner.resolve(ident) != "_" {
+                    name = ident
+                }
+                typeTokens = Array(typeTokens.dropFirst(2))
+            case let .backtickedIdentifier(ident):
+                name = ident
+                typeTokens = Array(typeTokens.dropFirst(2))
+            default:
+                break
+            }
+        }
+        guard let ref = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            return nil
+        }
+        return (name, ref)
     }
 
     func declarationReturnType(

@@ -7,7 +7,11 @@ import kotlin.native.concurrent.Future
 import kotlin.native.concurrent.TransferMode
 import kotlin.native.concurrent.Worker
 import kotlinx.cinterop.CFunction
+import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
+
+@KsSymbolName("__kk_native_concurrent_active_workers")
+internal external fun __nativeConcurrentActiveWorkers(): List<Worker>
 
 @KsSymbolName("__kk_native_concurrent_attach_object_graph")
 internal external fun __nativeConcurrentAttachObjectGraph(stable: NativePtr): Any?
@@ -15,9 +19,8 @@ internal external fun __nativeConcurrentAttachObjectGraph(stable: NativePtr): An
 @KsSymbolName("__kk_native_concurrent_consume_future")
 internal external fun __nativeConcurrentConsumeFuture(id: Int): Any?
 
-// Backs WorkerBoundReference.worker (KSP-1253) without exposing the broader
-// Worker.Companion surface (activeWorkers / current / fromCPointer / the extra
-// start overload), which remains KSP-1251's task.
+// Backs both WorkerBoundReference.worker (KSP-1253) and the public
+// Worker.Companion.current surface wired up in Worker.kt (KSP-1251).
 @KsSymbolName("__kk_native_concurrent_current_worker")
 internal external fun __nativeConcurrentCurrentWorker(): Worker
 
@@ -51,3 +54,6 @@ internal external fun <T> __nativeConcurrentWaitForMultipleFutures(
 
 @KsSymbolName("__kk_native_concurrent_wait_worker_termination")
 internal external fun __nativeConcurrentWaitWorkerTermination(worker: Worker): Unit
+
+@KsSymbolName("__kk_native_concurrent_worker_from_cpointer")
+internal external fun __nativeConcurrentWorkerFromCPointer(pointer: COpaquePointer): Worker

@@ -109,8 +109,10 @@ private fun containsULong(value: ULong, first: ULong, last: ULong, step: Long): 
         return false
     }
     val diff = if (value >= first) value - first else first - value
-    val unsignedStep = if (step > 0L) step.toULong() else (-step).toULong()
-    return diff % unsignedStep == 0uL
+    // Negative steps sign-extend when widened to ULong, so take the
+    // magnitude before the modulo or descending members never match.
+    val magnitude = if (step < 0L) (-step).toULong() else step.toULong()
+    return diff % magnitude == 0uL
 }
 
 @KsSymbolName("__kk_range_contains")
@@ -145,6 +147,6 @@ public operator fun UIntProgression.contains(value: UInt): Boolean = containsUIn
 
 // Keep ULong membership on the Kotlin body: the signed runtime bridge cannot
 // compare values whose high bit is set.
-public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step)
+public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step.toLong())
 
 public operator fun ULongProgression.contains(value: ULong): Boolean = containsULong(value, first, last, step)

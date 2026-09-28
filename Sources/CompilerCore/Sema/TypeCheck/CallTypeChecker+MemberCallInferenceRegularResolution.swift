@@ -1156,8 +1156,18 @@ extension CallTypeChecker {
             // call would stop at the zero-argument member and never reach the
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
-                guard calleeName == knownNames.toString, !args.isEmpty else {
+                let memberName = interner.resolve(calleeName)
+                guard memberName == "toString" || memberName == "replace" else {
                     return []
+                }
+                if memberName == "toString" {
+                    guard !args.isEmpty else { return [] }
+                } else {
+                    guard args.count == 2,
+                          ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
+                    else {
+                        return []
+                    }
                 }
                 let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
                 return sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -1170,11 +1180,44 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    return extensionSyntheticFallbackReceiverMatches(
+                    guard extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
                         sema: sema
-                    )
+                    ) else {
+                        return false
+                    }
+                    if memberName == "toString" {
+                        return true
+                    }
+
+                    // String has a legacy member-shaped `replace(Regex, String)`
+                    // candidate. Keep the bundled CharSequence transform overload
+                    // beside it so its function parameter supplies the lambda's
+                    // implicit `it` type before overload resolution rejects the
+                    // String replacement candidate.
+                    func isNominalType(_ type: TypeID, fqName: [String]) -> Bool {
+                        guard let nominal = driver.helpers.nominalSymbol(of: type, types: sema.types),
+                              let symbol = sema.symbols.symbol(nominal)
+                        else {
+                            return false
+                        }
+                        return symbol.fqName.map(interner.resolve) == fqName
+                    }
+                    guard args.count == 2,
+                          signature.parameterTypes.count == 2,
+                          isNominalType(declaredReceiver, fqName: ["kotlin", "CharSequence"]),
+                          isNominalType(signature.parameterTypes[0], fqName: ["kotlin", "text", "Regex"]),
+                          case let .functionType(transformType) = sema.types.kind(
+                              of: sema.types.makeNonNullable(signature.parameterTypes[1])
+                          ),
+                          transformType.params.count == 1,
+                          isNominalType(transformType.params[0], fqName: ["kotlin", "text", "MatchResult"]),
+                          isNominalType(transformType.returnType, fqName: ["kotlin", "CharSequence"])
+                    else {
+                        return false
+                    }
+                    return true
                 }
             }()
             let memberCandidates = sourceBackedOverloads + standardMemberCandidates
@@ -1930,15 +1973,12 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // Regex keeps a String-specific runtime bridge for the historical
-        // `(MatchResult) -> String` overload alongside the source-backed
-        // CharSequence overload whose transform returns CharSequence. Lambda
+        // Older imported stdlib artifacts may still expose a String callback
+        // bridge alongside the bundled CharSequence declaration. Lambda
         // preparation intentionally erases return types while finding a shared
-        // input shape, which would otherwise leave these two overloads
-        // ambiguous even after the lambda body has produced a String. Once the
-        // body type is known, prefer the bridge only when its String callback is
-        // actually applicable; custom CharSequence callbacks continue through
-        // the source declaration.
+        // input shape, so prefer that compatibility bridge only when it is
+        // actually present and applicable; bundled source continues through
+        // the CharSequence declaration.
         if memberNameText == "replace",
            args.count == 2,
            sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,

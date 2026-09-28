@@ -1,0 +1,52 @@
+symbol fq=__local_0.keys[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Set<String>
+symbol fq=__local_1.size[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_2.valuesView[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Collection<Int?>
+symbol fq=golden.sema.ProbeMap[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.abstractMapSurface.$0.amount[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.abstractMapSurface.$0.key[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.abstractMapSurface.$0.other[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.abstractMapSurface.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.abstractMapSurface[kind=fun;params=kotlin.collections.AbstractMap<String,Int?>,Any?,String,Int?] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.AbstractMap<String, Int?>,Any?,String,Int?] ret=Int?
+file fstdlib_kotlin_collections_AbstractMap_AbstractMap_n package=golden.sema
+  decl golden.sema.ProbeMap[kind=class] class ProbeMap sym=golden.sema.ProbeMap[kind=class]
+  decl golden.sema.abstractMapSurface[kind=fun;params=kotlin.collections.AbstractMap<String,Int?>,Any?,String,Int?] fun abstractMapSurface sym=golden.sema.abstractMapSurface[kind=fun;params=kotlin.collections.AbstractMap<String,Int?>,Any?,String,Int?]
+expr e@10:17 call callee=e@10:17#1 args=[] type=kotlin.collections.Map<String, out Int?> call=kotlin.collections.emptyMap[kind=fun;params=;gen=2] targs=[String,Int?]
+expr e@10:17#2 memberCall recv=e@10:17 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int?>> ref=kotlin.collections.Map.entries[kind=prop]
+expr e@19:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@19:24 name(key) type=String ref=golden.sema.abstractMapSurface.$0.key[kind=vparam]
+expr e@19:5#1 memberCall recv=e@19:5 callee=containsKey args=[_:e@19:24] type=Boolean call=kotlin.collections.AbstractMap.containsKey[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=T0;gen=2] targs=[String,Int?]
+expr e@20:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@20:26 name(amount) type=Int? ref=golden.sema.abstractMapSurface.$0.amount[kind=vparam]
+expr e@20:5#1 memberCall recv=e@20:5 callee=containsValue args=[_:e@20:26] type=Boolean call=kotlin.collections.AbstractMap.containsValue[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=T1;gen=2] targs=[String,Int?]
+expr e@21:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@21:19 name(other) type=Any? ref=golden.sema.abstractMapSurface.$0.other[kind=vparam]
+expr e@21:5#1 memberCall recv=e@21:5 callee=equals args=[_:e@21:19] type=Boolean call=kotlin.collections.AbstractMap.equals[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=Any?;gen=2] targs=[String,Int?]
+expr e@22:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@22:16 name(key) type=String ref=golden.sema.abstractMapSurface.$0.key[kind=vparam]
+expr e@22:5#1 memberCall recv=e@22:5 callee=get args=[_:e@22:16] type=Int? call=kotlin.collections.AbstractMap.get[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=T0;gen=2] targs=[String,Int?]
+expr e@23:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@23:12 name(key) type=String ref=golden.sema.abstractMapSurface.$0.key[kind=vparam]
+expr e@23:5#1 indexedAccess receiver=e@23:5 indices=[e@23:12] type=Int? call=kotlin.collections.AbstractMap.get[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=T0;gen=2] targs=[String,Int?]
+expr e@24:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@24:5#1 memberCall recv=e@24:5 callee=hashCode args=[] type=Int call=kotlin.collections.AbstractMap.hashCode[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=;gen=2] targs=[String,Int?]
+expr e@25:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@25:5#1 memberCall recv=e@25:5 callee=isEmpty args=[] type=Boolean call=kotlin.collections.AbstractMap.isEmpty[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=;gen=2] targs=[String,Int?]
+expr e@26:5 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@26:5#1 memberCall recv=e@26:5 callee=toString args=[] type=String call=kotlin.collections.AbstractMap.toString[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=;gen=2] targs=[String,Int?]
+expr e@27:29 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@27:29#1 memberCall recv=e@27:29 callee=keys args=[] type=kotlin.collections.Set<String> ref=kotlin.collections.AbstractMap.keys[kind=prop]
+expr e@27:5 localDecl keys mutable=0 type=Set<String> init=e@27:29#1 type=Unit ref=__local_0.keys[kind=local]
+expr e@28:21 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@28:21#1 memberCall recv=e@28:21 callee=size args=[] type=Int ref=kotlin.collections.AbstractMap.size[kind=prop]
+expr e@28:5 localDecl size mutable=0 type=Int init=e@28:21#1 type=Unit ref=__local_1.size[kind=local]
+expr e@29:40 name(values) type=kotlin.collections.AbstractMap<String, Int?> ref=golden.sema.abstractMapSurface.$0.values[kind=vparam]
+expr e@29:40#1 memberCall recv=e@29:40 callee=values args=[] type=kotlin.collections.Collection<Int?> ref=kotlin.collections.AbstractMap.values[kind=prop]
+expr e@29:5 localDecl valuesView mutable=0 type=Collection<Int?> init=e@29:40#1 type=Unit ref=__local_2.valuesView[kind=local]
+expr e@30:5 name(keys) type=kotlin.collections.Set<String> ref=__local_0.keys[kind=local]
+expr e@30:19 name(key) type=String ref=golden.sema.abstractMapSurface.$0.key[kind=vparam]
+expr e@30:5#1 memberCall recv=e@30:5 callee=contains args=[_:e@30:19] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;gen=1]
+expr e@31:5 name(valuesView) type=kotlin.collections.Collection<Int?> ref=__local_2.valuesView[kind=local]
+expr e@31:25 name(amount) type=Int? ref=golden.sema.abstractMapSurface.$0.amount[kind=vparam]
+expr e@31:5#1 memberCall recv=e@31:5 callee=contains args=[_:e@31:25] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;gen=1]
+expr e@32:12 name(size) type=Int ref=__local_1.size[kind=local]
+expr e@32:5 return value=e@32:12 type=Nothing
