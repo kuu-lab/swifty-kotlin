@@ -35,21 +35,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(ownerType, for: classSymbol)
 
-        registerNativeConcurrentConstructor(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            parameters: [(name: "value", type: nativePtrType)],
-            defaultValues: [false],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMutableProperty(
-            ownerSymbol: classSymbol,
-            name: "value",
-            propertyType: nativePtrType,
-            symbols: symbols,
-            interner: interner
-        )
+        // The constructor and field live in bundled Kotlin source. A
+        // synthetic constructor here has no body or runtime link name and
+        // emits a reference to the undefined `AtomicNativePtr` symbol.
         registerNativeConcurrentMemberFunction(
             ownerSymbol: classSymbol,
             ownerType: ownerType,

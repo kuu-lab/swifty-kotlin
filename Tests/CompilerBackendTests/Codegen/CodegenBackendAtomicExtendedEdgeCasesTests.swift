@@ -10,6 +10,37 @@ import Testing
 struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
     @Test
+    func testCodegenAtomicNativePtrConstructorLinksAndStoresInitialValue() throws {
+        let source = """
+        @file:OptIn(
+            kotlin.concurrent.atomics.ExperimentalAtomicApi::class,
+            kotlinx.cinterop.ExperimentalForeignApi::class
+        )
+        import kotlin.concurrent.atomics.AtomicNativePtr
+        import kotlin.internal.KsSymbolName
+        import kotlinx.cinterop.COpaquePointer
+        import kotlinx.cinterop.NativePtr
+        import kotlinx.cinterop.StableRef
+
+        @KsSymbolName("kk_cpointer_address")
+        private external fun pointerAddress(pointer: COpaquePointer?): NativePtr
+
+        fun main() {
+            val first = pointerAddress(null)
+            val reference = StableRef.create("second")
+            val second = pointerAddress(reference.asCPointer())
+            val atomic = AtomicNativePtr(first)
+            println(atomic.value == first)
+            atomic.value = second
+            println(atomic.value == second)
+            println(atomic.value != first)
+            reference.dispose()
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "AtomicNativePtrConstructorLink", expected: "true\ntrue\ntrue\n")
+    }
+
+    @Test
     func testCodegenAtomicIntCASSuccessReturnsTrueAndUpdatesValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1387,4 +1418,3 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
 }
 #endif
-
