@@ -48,41 +48,47 @@ struct CodegenBackendSynchronizedTests {
     }
 
     @Test
-    func testCodegenMutexDoubleUnlockPanicIncludesHelpfulMessage() throws {
+    func testCodegenMutexUnlockOnUnlockedMutexIsCatchableIllegalStateException() throws {
         let source = """
-        import kotlinx.coroutines.*
-        import kotlinx.coroutines.sync.*
+        import kotlinx.coroutines.sync.Mutex
 
-        fun main() = runBlocking {
-            val mutex = Mutex()
-            mutex.unlock()
+        fun main() {
+            try {
+                Mutex().unlock()
+                println("unreachable")
+            } catch (e: IllegalStateException) {
+                println(e.message ?: "missing")
+            }
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutexDoubleUnlock",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutexUnlockIllegalState",
+            expected: "This mutex is not locked\n"
+        )
+    }
 
-            do {
-                _ = try CommandRunner.run(executable: outputBase, arguments: [])
-                Issue.record("Expected Mutex.unlock() to trap on double unlock")
-            } catch let CommandRunnerError.nonZeroExit(failed) {
-                #expect(failed.exitCode != 0)
-                #expect(failed.stderr.contains("KSwiftK panic"))
-                #expect(
-                    failed.stderr.contains("Mutex.unlock() called on an unlocked mutex"),
-                    "Expected panic message to mention the unlocked mutex, got: \(failed.stderr)"
-                )
-            } catch {
-                Issue.record("Unexpected error: \(error)")
+    @Test
+    func testCodegenSemaphoreReleaseBeyondPermitsIsCatchableIllegalStateException() throws {
+        let source = """
+        import kotlinx.coroutines.sync.Semaphore
+
+        fun main() {
+            try {
+                Semaphore(1).release()
+                println("unreachable")
+            } catch (e: IllegalStateException) {
+                println(e.message ?: "missing")
             }
         }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SemaphoreReleaseIllegalState",
+            expected: "The number of released permits cannot be greater than 1\n"
+        )
     }
 }
 #endif

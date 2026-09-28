@@ -742,4 +742,199 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         let r = __kk_op_step(__kk_op_downTo(10, 1), 3, nil)
         #expect(kk_range_sum(r) == 22)
     }
+
+    // MARK: - Boundary iteration termination (KUU-819)
+    //
+    // A signed range whose inclusive endpoint sits at an Int/Long boundary
+    // must stop after emitting it: the wrapping advance used to re-enter a
+    // valid-looking element near the opposite bound and walk almost the
+    // whole 64-bit domain. Every traversal surface is covered here — shared
+    // HOF traverse, reversed traverse, the explicit iterator, sum, and the
+    // take/drop/sorted list builders.
+
+    @Test func boundarySingleton_longMaxToMax_toList() {
+        let range = kk_long_rangeTo(Int.max, Int.max)
+        let list = kk_long_range_toList(range)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max)
+    }
+
+    @Test func boundarySingleton_longMinToMin_toList() {
+        let range = kk_long_rangeTo(Int.min, Int.min)
+        let list = kk_long_range_toList(range)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.min)
+    }
+
+    @Test func boundarySingleton_intMaxToMax_toListAndSum() {
+        let range = kk_op_rangeTo(Int.max, Int.max)
+        let list = kk_range_toList(range)
+        #expect(kk_list_size(list) == 1)
+        let longRange = kk_long_rangeTo(Int.max, Int.max)
+        #expect(kk_range_sum(longRange) == Int.max)
+    }
+
+    @Test func boundaryEndingProgression_longToListTerminates() {
+        // last lands exactly on Int.max — the advance past it must not wrap.
+        let progression = __kk_long_progression_fromClosedRange(0, Int.max - 4, Int.max, 2, nil)
+        let list = kk_long_range_toList(progression)
+        #expect(kk_list_size(list) == 3)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max - 4)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.max)
+    }
+
+    @Test func boundaryEndingProgression_longDescendingToMin() {
+        let progression = __kk_long_progression_fromClosedRange(0, Int.min + 4, Int.min, -2, nil)
+        let list = kk_long_range_toList(progression)
+        #expect(kk_list_size(list) == 3)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.min + 4)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.min)
+    }
+
+    @Test func boundaryEndingRange_reversedToListTerminates() {
+        let rev = kk_range_reversed(kk_long_rangeTo(Int.max - 2, Int.max))
+        let list = kk_long_range_toList(rev)
+        #expect(kk_list_size(list) == 3)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.max - 2)
+    }
+
+    @Test func boundaryReversedTraverse_lastMatchTerminates() {
+        // runtimeSignedRangeTraverseReversed starts at `last` and walks
+        // toward `first`; a singleton at Int.min used to wrap to Int.max.
+        let range = kk_long_rangeTo(Int.min, Int.min)
+        let result = kk_range_findLast(range, unsafeBitCast(rangePredicateNever, to: Int.self), 0, nil)
+        #expect(result == runtimeNullSentinelInt)
+    }
+
+    @Test func boundaryIterator_int_staysExhaustedAfterEndpoint() {
+        let iter = kk_range_iterator(kk_op_rangeTo(Int.max, Int.max), nil)
+        #expect(kk_range_hasNext(iter) == 1)
+        #expect(kk_range_next(iter) == Int.max)
+        #expect(kk_range_hasNext(iter) == 0)
+        // Exhaustion is permanent: further next() calls must not reactivate
+        // the iterator by wrapping into the opposite boundary.
+        _ = kk_range_next(iter)
+        _ = kk_range_next(iter)
+        #expect(kk_range_hasNext(iter) == 0)
+    }
+
+    @Test func boundaryIterator_int_multiElementEndingAtMax() {
+        let iter = kk_range_iterator(kk_op_rangeTo(Int.max - 1, Int.max), nil)
+        var values: [Int] = []
+        while kk_range_hasNext(iter) != 0 {
+            values.append(kk_range_next(iter))
+        }
+        #expect(values == [Int.max - 1, Int.max])
+    }
+
+    @Test func boundaryIterator_long_staysExhaustedAfterEndpoint() {
+        let iter = kk_long_range_iterator(kk_long_rangeTo(Int.max, Int.max))
+        #expect(kk_range_hasNext(iter) == 1)
+        #expect(kk_range_next(iter) == Int.max)
+        #expect(kk_range_hasNext(iter) == 0)
+        _ = kk_range_next(iter)
+        #expect(kk_range_hasNext(iter) == 0)
+    }
+
+    @Test func boundaryIterator_long_descendingToMin() {
+        let iter = kk_long_range_iterator(__kk_long_progression_fromClosedRange(0, Int.min + 1, Int.min, -1, nil))
+        var values: [Int] = []
+        while kk_range_hasNext(iter) != 0 {
+            values.append(kk_range_next(iter))
+        }
+        #expect(values == [Int.min + 1, Int.min])
+    }
+
+    @Test func boundaryIterator_erasedNextThrowsAfterEndpoint() {
+        let iter = kk_range_iterator(kk_op_rangeTo(Int.max - 1, Int.max), nil)
+        var thrown = 0
+        #expect(kk_iterator_next(iter, &thrown) == Int.max - 1)
+        #expect(thrown == 0)
+        #expect(kk_iterator_next(iter, &thrown) == Int.max)
+        #expect(thrown == 0)
+        _ = kk_iterator_next(iter, &thrown)
+        #expect(thrown != 0, "iterator past the inclusive endpoint must throw NoSuchElementException")
+    }
+
+    @Test func boundaryAggregates_int_takeDropSortedSumTerminate() {
+        let range = kk_op_rangeTo(Int.max - 1, Int.max)
+        #expect(kk_list_size(kk_range_take(range, 5, nil)) == 2)
+        #expect(kk_list_size(kk_range_drop(range, 1, nil)) == 1)
+        #expect(kk_list_size(kk_range_sorted(range)) == 2)
+
+        // Int-domain sums wrap at 32 bits: (Int32.max-2 + max-1 + max) mod 2^32.
+        let sumRange = kk_op_rangeTo(2_147_483_645, 2_147_483_647)
+        #expect(kk_range_sum(sumRange) == 2_147_483_642)
+        // Long-domain sums keep the full 64-bit accumulator.
+        let longSumRange = kk_long_rangeTo(Int.max - 2, Int.max)
+        let expectedSum = ((Int.max - 2) &+ (Int.max - 1)) &+ Int.max
+        #expect(kk_range_sum(longSumRange) == expectedSum)
+    }
+
+    @Test func boundaryAggregates_int_descendingToMin() {
+        let range = __kk_op_downTo(Int.min + 1, Int.min)
+        // intProgression sums truncate to 32 bits: elements min+1 -> 1, min -> 0.
+        #expect(kk_range_sum(range) == 1)
+        #expect(kk_list_size(kk_range_take(range, 5, nil)) == 2)
+        #expect(kk_list_size(kk_range_sorted(range)) == 2)
+
+        let longRange = __kk_long_progression_fromClosedRange(0, Int.min + 1, Int.min, -1, nil)
+        #expect(kk_range_sum(longRange) == (Int.min + 1) &+ Int.min)
+    }
+
+    @Test func boundaryCharProgression_largeStepTerminates() {
+        // 'a'..'\uFFFF' step Int.max — the aligned last is 'a' itself; the
+        // advance must stop instead of wrapping the Int accumulator.
+        let aScalar = Int(Unicode.Scalar("a").value)
+        let maxScalar = 0xFFFF
+        let progression = __kk_char_progression_fromClosedRange(
+            0,
+            kk_box_char(aScalar),
+            kk_box_char(maxScalar),
+            1,
+            nil
+        )
+        let stepped = __kk_char_range_step(progression, Int.max, nil)
+        let list = kk_char_range_toList(stepped)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_char(kk_list_get(list, 0)) == aScalar)
+    }
+
+    @Test func boundaryContains_fullSpanSteppedRangeDoesNotTrap() {
+        // (Int.min..Int.max step 3): element - first exceeds Int64 range;
+        // Int.max is reachable since the unsigned distance is 2^64-1 (mod 3 == 0).
+        let range = __kk_op_step(kk_op_rangeTo(Int.min, Int.max), 3, nil)
+        #expect(kk_op_contains(range, Int.max) == 1)
+        #expect(kk_range_contains(range, Int.max) == 1)
+        #expect(kk_op_contains(range, Int.max - 1) == 0)
+    }
+
+    @Test func boundaryContains_fullSpanDescendingRangeDoesNotTrap() {
+        let range = __kk_op_step(__kk_op_downTo(Int.max, Int.min), 3, nil)
+        #expect(kk_op_contains(range, Int.min) == 1)
+        #expect(kk_range_contains(range, Int.min) == 1)
+        #expect(kk_op_contains(range, Int.min + 1) == 0)
+    }
+
+    @Test func boundarySum_intKindWrapsTo32Bits() {
+        // (Int.MIN..Int.MIN+2).sum() wraps in Int32 arithmetic -> -2147483645
+        let range = kk_op_rangeTo(-2_147_483_648, -2_147_483_646)
+        #expect(kk_range_sum(range) == -2_147_483_645)
+        // Long sums wrap at the full 64-bit boundary instead.
+        let longRange = kk_long_rangeTo(Int.min, Int.min + 2)
+        #expect(kk_range_sum(longRange) == -9_223_372_036_854_775_805)
+    }
+
+    @Test func boundaryStep_fullSpanAlignsLastToBoundary() {
+        // distance = 2^64-1 is a multiple of 3, so `last` stays at Int.max.
+        let stepped = __kk_op_step(kk_op_rangeTo(Int.min, Int.max), 3, nil)
+        #expect(kk_range_last(stepped) == Int.max)
+        let even = __kk_op_step(kk_op_rangeTo(Int.min, Int.max), 2, nil)
+        #expect(kk_range_last(even) == Int.max - 1)
+    }
+}
+
+private let rangePredicateNever: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
+    0
 }

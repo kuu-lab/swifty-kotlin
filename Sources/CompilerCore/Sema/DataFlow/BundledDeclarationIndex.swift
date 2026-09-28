@@ -852,11 +852,16 @@ struct BundledDeclarationIndex: Sendable {
         // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single/singleOrNull)
         // require a concrete Collection with a size/indices contract; they cannot
         // be served by the List source for an Iterable receiver.
+        // `iterator` is likewise non-aliased: Iterable.iterator is itself a
+        // declared member (the retained `kk_iterable_iterator` stub carries a
+        // lazy, thrown-channel contract — KSP-998) rather than a default impl
+        // that List's source declaration can stand in for.
         let nonAliasedZeroArgNames = Set([
             interner.intern("any"),
             interner.intern("none"),
             interner.intern("count"),
             interner.intern("first"),
+            interner.intern("iterator"),
             interner.intern("last"),
             interner.intern("single"),
             interner.intern("singleOrNull"),

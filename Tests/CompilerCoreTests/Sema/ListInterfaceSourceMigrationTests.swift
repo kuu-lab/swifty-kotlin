@@ -34,7 +34,7 @@ struct ListInterfaceSourceMigrationTests {
         #expect(listInfo.kind == .interface)
         #expect(!listInfo.flags.contains(.synthetic))
         let sourceFile = try #require(sema.symbols.sourceFileID(for: list))
-        #expect(ctx.sourceManager.path(of: sourceFile) == "__bundled_kotlin/collections/List.kt")
+        #expect(ctx.sourceManager.path(of: sourceFile) == "__bundled_kotlin/collections/List/List.kt")
         #expect(sema.types.nominalTypeParameterVariances(for: list) == [.out])
 
         let collection = try #require(
@@ -66,7 +66,7 @@ struct ListInterfaceSourceMigrationTests {
         #expect(sema.symbols.symbol(get)?.flags.contains(.synthetic) == false)
         #expect(sema.symbols.externalLinkName(for: get) == "__kk_list_get")
         let getFileID = try #require(sema.symbols.sourceFileID(for: get))
-        #expect(ctx.sourceManager.path(of: getFileID) == "__bundled_kotlin/collections/List.kt")
+        #expect(ctx.sourceManager.path(of: getFileID) == "__bundled_kotlin/collections/List/List.kt")
 
         let isEmpty = try #require(
             sema.symbols.lookup(fqName: collections + [interner.intern("List"), interner.intern("isEmpty")])

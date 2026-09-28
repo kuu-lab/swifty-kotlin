@@ -526,7 +526,17 @@ extension CallLowerer {
             let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
             let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
-            if lhsIsFloatingPoint || rhsIsFloatingPoint {
+            // `!=` on a *nullable* Double?/Float? must stay null-aware: a
+            // null operand can never be IEEE-compared, and the runtime null
+            // sentinel's bit pattern equals -0.0, so kk_op_dne/fne's fixed
+            // IEEE comparison would treat a genuine null as -0.0. Defer to
+            // the generic `.binary` path below (op == .notEqual falls through
+            // this switch unchanged), which OperatorLoweringPass routes
+            // through the null-aware kk_nullable_primitive_ne instead.
+            let isNullableFloatingPointNotEqual = op == .notEqual
+                && ((lhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false)
+                    || (rhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false))
+            if (lhsIsFloatingPoint || rhsIsFloatingPoint), !isNullableFloatingPointNotEqual {
                 // BUG-258: a mixed comparison (e.g. `aDouble <= 1`) must widen
                 // the non-floating-point side to the same floating-point type
                 // before comparing -- kk_op_d*/kk_op_f* interpret both
@@ -996,6 +1006,13 @@ extension CallLowerer {
     private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {
         switch types.kind(of: typeID) {
         case .primitive(.double, _), .primitive(.float, _): return true
+        default: return false
+        }
+    }
+
+    private func isNullableFloatingPointType(_ typeID: TypeID, types: TypeSystem) -> Bool {
+        switch types.kind(of: typeID) {
+        case .primitive(.double, .nullable), .primitive(.float, .nullable): return true
         default: return false
         }
     }

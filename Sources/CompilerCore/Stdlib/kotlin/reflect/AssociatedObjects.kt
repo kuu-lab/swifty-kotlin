@@ -19,6 +19,22 @@ package kotlin.reflect
 public annotation class ExperimentalAssociatedObjects
 
 /**
+ * If [T] is an @[AssociatedObjectKey]-annotated annotation class and [this] class is annotated with @[T] (`S::class`),
+ * returns object `S`.
+ *
+ * Otherwise returns `null`.
+ *
+ * The compiler expands this declaration at a concrete call site to the
+ * `__kk_kclass_find_associated_object` runtime entry (see
+ * CallLowerer+KClassReflectMemberCalls.swift); the generic body itself is
+ * never executed for a supported call shape, mirroring the enumValues
+ * intrinsic pattern.
+ */
+@ExperimentalAssociatedObjects
+public inline fun <reified T : Annotation> KClass<*>.findAssociatedObject(): Any? =
+    throw NotImplementedError()
+
+/**
  * An annotation that designates a property or a function returning a key for
  * associated object lookup.
  */
