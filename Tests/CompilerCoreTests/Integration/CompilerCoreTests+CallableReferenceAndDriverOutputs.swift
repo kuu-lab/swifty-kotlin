@@ -438,6 +438,43 @@ extension CompilerCoreTests {
         #expect(ctx.interner.resolve(sema.symbols.symbol(returnClassType.classSymbol)!.name) == "Foo")
     }
 
+    /// KUU-917: a class used as the receiver of a nested constructor reference
+    /// provides the constructor's owner, not a captured receiver argument.
+    @Test func testNestedConstructorReferenceBindsConstructorWithoutReceiver() throws {
+        let source = """
+        class Outer { class Nested(val n: Int) }
+        fun make(): Outer.Nested {
+            val ctor: (Int) -> Outer.Nested = Outer::Nested
+            return ctor(7)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let ctor = try #require(sema.bindings.identifierSymbols[ref])
+        #expect(sema.symbols.symbol(ctor)?.kind == .constructor)
+        #expect(!sema.bindings.isUnboundCallableRef(ref))
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected nested constructor function type.")
+            return
+        }
+        #expect(function.params == [sema.types.make(.primitive(.int, .nonNull))])
+        guard case let .classType(result) = sema.types.kind(of: function.returnType) else {
+            Issue.record("Expected nested constructor result type.")
+            return
+        }
+        #expect(sema.symbols.symbol(result.classSymbol)?.fqName.map { ctx.interner.resolve($0) } == ["Outer", "Nested"])
+    }
+
     /// REFL-EXTPROP: `String::length` is a package-level extension property
     /// (`Sources/CompilerCore/Stdlib/kotlin/String.kt`) registered under its
     /// declaring package's FQ name, not under `kotlin.String`'s -- the

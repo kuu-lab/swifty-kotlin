@@ -770,6 +770,7 @@ extension ExprTypeChecker {
                 invisibleSyms = invisibleFallbackSyms
             }
         }
+
         if let receiverType = ctx.implicitReceiverType {
             let memberType = resolveImplicitReceiverMember(
                 id: id,
@@ -1756,6 +1757,32 @@ extension ExprTypeChecker {
             }
         }
 
+        // A nested class constructor (`Outer::Nested`) is stored under
+        // `Outer.Nested.<init>`, just as bare `::Nested` is under
+        // `Nested.<init>`. Ordinary member lookup by the short name misses it.
+        // Only a type receiver may introduce this fallback.
+        if candidates.isEmpty,
+           let unboundClassType,
+           let (_, owner) = resolveClassTypeSymbol(unboundClassType, sema: sema)
+        {
+            let nestedClasses = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+            for nestedID in nestedClasses {
+                guard let nested = ctx.cachedSymbol(nestedID),
+                      (nested.kind == .class || nested.kind == .enumClass),
+                      !nested.flags.contains(.abstractType)
+                else { continue }
+                let constructors = sema.symbols.lookupAll(
+                    fqName: nested.fqName + [interner.intern("<init>")]
+                )
+                let (visible, _) = ctx.filterByVisibility(constructors)
+                if !visible.isEmpty {
+                    candidates = visible
+                    isConstructorReference = true
+                    break
+                }
+            }
+        }
+
         // For unbound type references (Type::member), the receiver is not
         // bound — it becomes a parameter of the function type.  For bound
         // references (obj::member), the receiver is captured. A constructor
@@ -1843,7 +1870,7 @@ extension ExprTypeChecker {
             // REFL-003: Tag the callable reference as KFunction so KIR
             // lowering can emit type identity metadata.
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
-            if unboundClassType != nil {
+            if unboundClassType != nil && !isConstructorReference {
                 sema.bindings.markUnboundCallableRef(id)
             }
             let captures = receiver.map { recv in
