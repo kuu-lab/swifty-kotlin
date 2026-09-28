@@ -1321,9 +1321,16 @@ extension CallTypeChecker {
                             // scope or explicitly imported. Scope lookup above
                             // already covers both; the global short-name
                             // fallback must not expose it to every file.
+                            // Extensions declared *on* the companion type
+                            // (e.g. `fun Worker.Companion.start`) are also
+                            // parented under the companion symbol (KSP-443);
+                            // they remain visible through normal imports, so
+                            // only member extensions whose declared receiver
+                            // is a different type are excluded here.
                             if let parent = sema.symbols.parentSymbol(for: candidate),
                                let owner = sema.symbols.parentSymbol(for: parent),
-                               sema.symbols.companionObjectSymbol(for: owner) == parent
+                               sema.symbols.companionObjectSymbol(for: owner) == parent,
+                               resolveClassType(recvType, sema: sema)?.classSymbol != parent
                             {
                                 return false
                             }
