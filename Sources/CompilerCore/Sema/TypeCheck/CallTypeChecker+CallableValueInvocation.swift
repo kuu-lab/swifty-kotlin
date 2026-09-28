@@ -43,6 +43,7 @@ extension CallTypeChecker {
             // Generic source-backed rangeUntil resolves through OpenEndRange<T>.
             // Preserve its concrete floating-point element type for the KIR/runtime
             // bridge, just as the legacy scalar range path does for range literals.
+            sema.bindings.markFloatingPointRangeExpr(id)
             sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
         }
 
