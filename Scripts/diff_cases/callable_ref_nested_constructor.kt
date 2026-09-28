@@ -5,5 +5,6 @@ class Outer {
 fun main() {
     val ctor: (Int) -> Outer.Nested = Outer::Nested
     println(ctor(7).n)
-    println(listOf(1, 2).map(Outer::Nested).map { it.n })
+    val nested: List<Outer.Nested> = listOf(1, 2).map(Outer::Nested)
+    println(nested[0].n + nested[1].n)
 }

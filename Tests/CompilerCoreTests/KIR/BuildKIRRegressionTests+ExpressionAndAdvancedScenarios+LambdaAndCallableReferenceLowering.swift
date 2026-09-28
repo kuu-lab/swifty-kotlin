@@ -357,7 +357,8 @@ extension BuildKIRRegressionTests {
         let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
             symbol.kind == .function
                 && ctx.interner.resolve(symbol.name) == "flush"
-                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.kind == .interface
+                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
+                    == [ctx.interner.intern("Writer")]
         }?.id)
         let wrapper = try #require(findAllKIRFunctions(in: module).first { function in
             ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
@@ -375,6 +376,13 @@ extension BuildKIRRegressionTests {
             }
             return false
         })
+        let flushLaterBody = try findKIRFunctionBody(named: "flushLater", in: module, interner: ctx.interner)
+        #expect(flushLaterBody.contains { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_function_create_0"
+            }
+            return false
+        }, "A bound reference returned from a function must carry its receiver at runtime.")
     }
 
     @Test func testImplicitInterfaceCallableRefSamThunkUsesVirtualDispatch() throws {
@@ -393,7 +401,8 @@ extension BuildKIRRegressionTests {
         let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
             symbol.kind == .function
                 && ctx.interner.resolve(symbol.name) == "flush"
-                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.kind == .interface
+                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
+                    == [ctx.interner.intern("Writer")]
         }?.id)
         let thunk = try #require(findAllKIRFunctions(in: module).first { function in
             ctx.interner.resolve(function.name).hasPrefix("kk_sam_ref_thunk_")

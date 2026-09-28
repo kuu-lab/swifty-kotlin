@@ -1836,6 +1836,32 @@ final class LambdaLowerer {
             return callableExpr
         }
 
+        // An implicit `::member` returned from its receiver scope outlives
+        // the KIR callable-value table: another function cannot recover its
+        // captured `this` from that compile-time map. Box it using the same
+        // closure adapter as an escaping lambda, so runtime invocation reads
+        // the receiver from the closure object.
+        let callableValue: KIRExprID
+        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+           !captureArguments.isEmpty,
+           case let .functionType(functionType) = sema.types.kind(of: callableType),
+           let materialized = materializeEscapingCallableValue(
+               exprID: exprID,
+               lambdaSymbol: callableSymbol,
+               lambdaReturnType: functionType.returnType,
+               functionType: functionType,
+               captureArguments: captureArguments,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            callableValue = materialized
+        } else {
+            callableValue = callableExpr
+        }
+
         // REFL-003: Emit KFunction / KProperty type identity tag.
         // The tagging call wraps the callable value with reflection
         // metadata (name, arity, KFunction vs KProperty).  We register
@@ -1844,7 +1870,7 @@ final class LambdaLowerer {
         // correct target symbol and capture arguments.
         if let refKind = sema.bindings.callableRefKind(for: exprID) {
             let taggedExpr = emitCallableRefTypeTag(
-                callableExpr: callableExpr,
+                callableExpr: callableValue,
                 callableType: callableType,
                 refKind: refKind,
                 memberName: memberName,
@@ -1853,16 +1879,19 @@ final class LambdaLowerer {
                 interner: interner,
                 instructions: &instructions
             )
-            driver.ctx.registerCallableValue(
-                taggedExpr,
-                symbol: callableSymbol,
-                callee: callableName,
-                captureArguments: captureArguments
-            )
+            if let callableInfo = driver.ctx.callableValueInfo(for: callableValue) {
+                driver.ctx.registerCallableValue(
+                    taggedExpr,
+                    symbol: callableInfo.symbol,
+                    callee: callableInfo.callee,
+                    captureArguments: callableInfo.captureArguments,
+                    hasClosureParam: callableInfo.hasClosureParam
+                )
+            }
             return taggedExpr
         }
 
-        return callableExpr
+        return callableValue
     }
 
     /// REFL-PRIMOP: builds the wrapper function and REFL-003 tag for a
