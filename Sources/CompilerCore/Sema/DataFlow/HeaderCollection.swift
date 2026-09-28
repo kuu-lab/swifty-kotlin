@@ -2137,6 +2137,9 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
+            // KUU-876: the source-backed InvalidMutabilityException must keep
+            // its bundled declSite when the synthetic anchor is reused.
+            || resolvedFQName == ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
             // KSP-1361: Reusing the synthetic SequenceScope shell must still
             // leave the bundled Kotlin declaration source-backed.
             || resolvedFQName == ["kotlin", "sequences", "SequenceScope"] {
