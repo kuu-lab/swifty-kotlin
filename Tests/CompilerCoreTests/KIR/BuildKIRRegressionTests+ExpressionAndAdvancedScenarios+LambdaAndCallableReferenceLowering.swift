@@ -377,6 +377,41 @@ extension BuildKIRRegressionTests {
         })
     }
 
+    @Test func testImplicitInterfaceCallableRefSamThunkUsesVirtualDispatch() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        class BufferedWriter : Writer { override fun flush(): Int = 42 }
+        fun flush(): Int = 7
+        fun interface Action { fun run(): Int }
+        fun Writer.asAction(): Action = Action(::flush)
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
+            symbol.kind == .function
+                && ctx.interner.resolve(symbol.name) == "flush"
+                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.kind == .interface
+        }?.id)
+        let thunk = try #require(findAllKIRFunctions(in: module).first { function in
+            ctx.interner.resolve(function.name).hasPrefix("kk_sam_ref_thunk_")
+        })
+        #expect(thunk.body.contains { instruction in
+            if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
+                return symbol == interfaceFlush
+            }
+            return false
+        })
+        #expect(!thunk.body.contains { instruction in
+            if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
+                return symbol == interfaceFlush
+            }
+            return false
+        })
+    }
+
     @Test func testLocalCallableValueShadowsSameNamedStdlibExtension() throws {
         let source = """
         fun main(): Int {

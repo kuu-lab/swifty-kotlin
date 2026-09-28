@@ -1199,14 +1199,37 @@ final class LambdaLowerer {
             callArguments.append(paramExpr)
         }
         let callResult = arena.appendTemporary(type: returnType)
-        body.append(.call(
-            symbol: targetSymbol,
-            callee: targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner),
-            arguments: callArguments,
-            result: callResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        let callee = targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner)
+        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+           let receiver = callArguments.first,
+           let receiverType = captureParams.first?.type,
+           let dispatch = driver.callLowerer.resolveVirtualDispatch(
+               callee: targetSymbol,
+               receiverTypeID: receiverType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            body.append(.virtualCall(
+                symbol: targetSymbol,
+                callee: callee,
+                receiver: receiver,
+                arguments: Array(callArguments.dropFirst()),
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+        } else {
+            body.append(.call(
+                symbol: targetSymbol,
+                callee: callee,
+                arguments: callArguments,
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         switch sema.types.kind(of: returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
