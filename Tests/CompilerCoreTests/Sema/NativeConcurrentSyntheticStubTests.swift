@@ -1295,6 +1295,10 @@ struct NativeConcurrentSyntheticStubTests {
             "Expected kotlin.native.concurrent.ThreadLocal annotation to be registered"
         )
         #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
+        #expect(sema.bundledIndex.containsNominal(fqName: fqName))
+        #expect(sema.symbols.lookupAll(fqName: fqName).count == 1)
+        #expect(sema.symbols.symbol(symbol)?.declSite != nil)
+        #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
 
         let annotations = sema.symbols.annotations(for: symbol)
         let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
@@ -1304,6 +1308,26 @@ struct NativeConcurrentSyntheticStubTests {
             Set(targetArguments) == ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
             "Expected PROPERTY and CLASS targets for native @ThreadLocal"
         )
+    }
+
+    @Test
+    func testNativeThreadLocalAnnotationFallbackWithoutStdlib() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlin", "native", "concurrent", "ThreadLocal"].map {
+                ctx.interner.intern($0)
+            }
+            let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+            #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == true)
+            let constructor = try #require(sema.symbols.lookup(fqName: fqName + [ctx.interner.intern("<init>")]))
+            #expect(sema.symbols.symbol(constructor)?.flags.contains(.synthetic) == true)
+        }
     }
 
     @Test
