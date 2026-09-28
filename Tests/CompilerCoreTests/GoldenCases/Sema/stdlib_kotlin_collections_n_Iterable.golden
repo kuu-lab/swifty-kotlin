@@ -6,7 +6,7 @@ expr e@4:51 int(3) type=Int
 expr e@4:54 int(1) type=Int
 expr e@4:57 int(2) type=Int
 expr e@4:44 call callee=e@4:44#1 args=[_:e@4:51,_:e@4:54,_:e@4:57] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[Int]
-expr e@4:44#2 memberCall recv=e@4:44 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.Collection.iterator[kind=fun;recv=kotlin.collections.Collection<T0>;params=;gen=1] targs=[Int]
+expr e@4:44#2 memberCall recv=e@4:44 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.List.iterator[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1] targs=[Int]
 expr e@4:42 lambda params=[] body=e@4:44#2 label=Iterable type=() -> kotlin.collections.Iterator<Int>
 expr e@4:33 call callee=e@4:33#1 args=[_:e@4:42] type=kotlin.collections.Iterable<Int> call=kotlin.collections.Iterable[kind=fun;params=fn{p=;ret=kotlin.collections.Iterator<T0>};gen=1] targs=[Int]
 expr e@4:5 localDecl values mutable=0 type=Iterable<Int> init=e@4:33 type=Unit ref=__local_0.values[kind=local]
