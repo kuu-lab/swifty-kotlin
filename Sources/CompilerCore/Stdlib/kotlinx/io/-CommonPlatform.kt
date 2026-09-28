@@ -43,4 +43,4 @@ public open class EOFException : IOException {
 }
 
 /** This compiler targets POSIX platforms. */
-internal val isWindows: Boolean = false
+internal const val isWindows: Boolean = false
