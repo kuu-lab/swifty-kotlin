@@ -41,6 +41,9 @@ extension BundledStdlibExecutionTests {
                 println(bytes.compareTo(ByteString(byteArrayOf(65, 66, 68))) < 0)
                 println(bytes)
                 println(ByteString(65, 66).decodeToString())
+                val unsigned = ByteString(0u.toUByte(), 255u.toUByte())
+                println(unsigned[1])
+                println(unsigned.toString())
                 val builder = ByteStringBuilder(2)
                 builder.append(65.toByte())
                 builder.append(byteArrayOf(66, 67))
@@ -52,7 +55,7 @@ extension BundledStdlibExecutionTests {
                 checkUnsafeSharing()
             }
             """,
-            expectedOutput: "65\n66\nBC\n1\n2\ntrue\ntrue\ntrue\ntrue\nByteString(size=3 hex=414243)\nAB\nABC\né\nE\n67\n"
+            expectedOutput: "65\n66\nBC\n1\n2\ntrue\ntrue\ntrue\ntrue\nByteString(size=3 hex=414243)\nAB\n-1\nByteString(size=2 hex=00ff)\nABC\né\nE\n67\n"
         )
     }
 }

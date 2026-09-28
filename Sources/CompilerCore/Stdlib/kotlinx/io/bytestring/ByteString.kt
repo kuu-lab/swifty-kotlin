@@ -98,6 +98,17 @@ public fun ByteString(vararg bytes: Byte): ByteString {
     return ByteString.wrap(array)
 }
 
+public fun ByteString(vararg bytes: UByte): ByteString {
+    if (bytes.isEmpty()) return ByteString.EMPTY
+    val array = ByteArray(bytes.size)
+    var i = 0
+    for (byte in bytes) {
+        array[i] = byte.toByte()
+        i++
+    }
+    return ByteString.wrap(array)
+}
+
 public val ByteString.indices: IntRange get() = 0 until size
 public fun ByteString.isEmpty(): Boolean = size == 0
 public fun ByteString.isNotEmpty(): Boolean = size != 0
