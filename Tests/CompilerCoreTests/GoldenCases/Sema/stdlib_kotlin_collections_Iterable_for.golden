@@ -1,5 +1,5 @@
 symbol fq=golden.sema.CustomIterable.$class0.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=golden.sema.CustomIterable.values[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.List<golden.sema.CustomIterable.$class0.T>
+symbol fq=golden.sema.CustomIterable.values[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.List<golden.sema.CustomIterable.$class0.T>
 symbol fq=golden.sema.CustomIterable[kind=class;gen=1] kind=class vis=public flags=_
 symbol fq=golden.sema.customIterableForEach.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.customIterableForEach[kind=fun;params=golden.sema.CustomIterable<Int>] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.CustomIterable<Int>] ret=Unit
