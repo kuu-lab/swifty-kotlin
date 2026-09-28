@@ -48,6 +48,11 @@ public func kk_long_to_ulong(_ value: Int) -> Int {
     value
 }
 
+@_cdecl("kk_ulong_to_long")
+public func kk_ulong_to_long(_ value: Int) -> Int {
+    value
+}
+
 @_cdecl("kk_uint_to_ulong")
 public func kk_uint_to_ulong(_ value: Int) -> Int {
     value
