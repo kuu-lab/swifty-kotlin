@@ -1725,7 +1725,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicLong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
 
-- [ ] KSP-1117: kotlin.concurrent.atomics.AtomicLong.AtomicLong の未実装 stdlib API を実装する（10 件）
+- [x] KSP-1117: kotlin.concurrent.atomics.AtomicLong.AtomicLong の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLong` / receiver `AtomicLong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicLong/AtomicLong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1743,6 +1743,7 @@
     - `kotlin.concurrent.atomics.AtomicLong.store` — fun AtomicLong.store(Long): Unit  -- `final fun store(kotlin/Long)`
     - `kotlin.concurrent.atomics.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
+  - 完了根拠（2026-09-28）: `AtomicLong/AtomicLong.kt` に 10 個の receiver API を source-backed 実装し、既存の `__kk_atomic_long_*` runtime bridge へ委譲。bundled extension の一般解決（KSP-1113 で導入、`isAtomicMigrationReceiver` が `atomics.AtomicLong` を既に包含）で canonical alias の呼び出しを source-backed 実装へ接続。legacy member stub（`concurrent.AtomicLong`）と `value` synthetic property は互換性のため保持。constructor は KSP-1116 の所有範囲のため今回は追加しない。
 
 - [ ] KSP-1118: kotlin.concurrent.atomics.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLongArray` / top-level
