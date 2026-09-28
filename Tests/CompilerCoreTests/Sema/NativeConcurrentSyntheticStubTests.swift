@@ -635,7 +635,7 @@ struct NativeConcurrentSyntheticStubTests {
         let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-        #expect(signature.receiverType == nil)
+        #expect(signature.receiverType == annotationType)
         #expect(signature.valueParameterHasDefaultValues == [false])
         #expect(
             sema.symbols.externalLinkName(for: constructor)
