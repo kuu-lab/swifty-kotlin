@@ -1267,7 +1267,52 @@ extension CallTypeChecker {
                 {
                     companionReceiverType = sema.types.make(.classType(ClassType(classSymbol: parentSymbol, args: [], nullability: .nonNull)))
                 }
-                allCandidates = memberCandidates
+                // Same-named members only take precedence when one can accept
+                // the call. Inapplicable members must not hide extensions.
+                let memberCallArgs = zip(args, argTypes).map { argument, type in
+                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                }
+                let memberResolution = ctx.resolver.resolveCall(
+                    candidates: memberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: calleeName,
+                        args: memberCallArgs,
+                        explicitTypeArgs: explicitTypeArgs
+                    ),
+                    expectedType: expectedType,
+                    implicitReceiverType: memberLookupType,
+                    ctx: ctx.semaCtx
+                )
+                if memberResolution.diagnostic != nil,
+                   !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true })
+                {
+                    let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
+                    var extensionCandidates = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate),
+                              symbol.kind == .function,
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let declaredReceiver = signature.receiverType
+                        else { return false }
+                        return extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: receiverForExtensionLookup,
+                            declaredReceiver: declaredReceiver,
+                            sema: sema
+                        )
+                    }
+                    if extensionCandidates.isEmpty {
+                        extensionCandidates = collectBundledStdlibExtensionCandidates(
+                            named: calleeName,
+                            receiverType: memberLookupType,
+                            sourceFile: ctx.currentASTFile,
+                            sema: sema,
+                            interner: interner
+                        )
+                    }
+                    allCandidates = extensionCandidates.isEmpty ? memberCandidates : extensionCandidates
+                } else {
+                    allCandidates = memberCandidates
+                }
             } else {
                 // Try inner class constructor resolution: outer.Inner() → Inner's <init>
                 let innerCtorCandidates = driver.helpers.collectInnerClassConstructorCandidates(

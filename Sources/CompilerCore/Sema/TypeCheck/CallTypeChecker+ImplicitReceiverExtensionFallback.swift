@@ -277,8 +277,8 @@ extension CallTypeChecker {
     /// seen from an `AtomicBoolean` extension body).  Such candidates are not
     /// callable without an explicit receiver, so the call has to resolve against
     /// the implicit receiver's own members instead of failing overload
-    /// resolution.  Only recovers calls that would otherwise be reported as
-    /// errors, and only when every scope candidate was inapplicable.
+    /// resolution. Only recovers calls whose scope candidates have already
+    /// failed overload resolution; a viable member takes precedence.
     func tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
         _ id: ExprID,
         calleeName: InternedString,
@@ -296,18 +296,6 @@ extension CallTypeChecker {
               args.count == argTypes.count
         else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
-        let everyCandidateInapplicable = scopeCandidates.allSatisfy { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let declaredReceiver = signature.receiverType
-            else { return false }
-            return !extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullReceiver,
-                declaredReceiver: declaredReceiver,
-                sema: sema
-            )
-        }
-        guard everyCandidateInapplicable else { return nil }
-
         // Kotlin's implicit-receiver tower: the innermost receiver first, then
         // enclosing receivers whose `this` value is reachable through capture.
         // Only entries carrying a receiver symbol participate — the symbol is
