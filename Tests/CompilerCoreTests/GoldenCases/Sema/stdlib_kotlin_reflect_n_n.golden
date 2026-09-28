@@ -136,5 +136,5 @@ expr e@68:13 call callee=e@68:13#1 args=[_:e@68:28#1] type=kotlin.reflect.KVaria
 expr e@68:5 call callee=e@68:5#1 args=[_:e@68:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@69:13 name(type) type=kotlin.reflect.KType ref=__local_3.type[kind=local]
 expr e@69:13#1 memberCall recv=e@69:13 callee=arguments args=[] type=kotlin.collections.List<out kotlin.reflect.KTypeProjection> ref=kotlin.reflect.KType.arguments[kind=prop]
-expr e@69:13#2 memberCall recv=e@69:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@69:13#2 memberCall recv=e@69:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@69:5 call callee=e@69:5#1 args=[_:e@69:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
