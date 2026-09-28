@@ -20,15 +20,15 @@ expr e@5:36 float(0.75) type=Float
 expr e@5:17 call callee=e@5:17#1 args=[_:e@5:33,_:e@5:36] type=kotlin.collections.HashSet<String>
 expr e@5:5 localDecl tuned mutable=0 type=_ init=e@5:17 type=Unit ref=__local_3.tuned[kind=local]
 expr e@6:12 name(empty) type=kotlin.collections.HashSet<String> ref=__local_0.empty[kind=local]
-expr e@6:12#1 memberCall recv=e@6:12 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:12#1 memberCall recv=e@6:12 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@6:25 name(sized) type=kotlin.collections.HashSet<String> ref=__local_1.sized[kind=local]
-expr e@6:25#1 memberCall recv=e@6:25 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:25#1 memberCall recv=e@6:25 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@6:12#2 binary(add) lhs=e@6:12#1 rhs=e@6:25#1 type=Int
 expr e@6:38 name(copied) type=kotlin.collections.HashSet<String> ref=__local_2.copied[kind=local]
-expr e@6:38#1 memberCall recv=e@6:38 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:38#1 memberCall recv=e@6:38 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@6:12#3 binary(add) lhs=e@6:12#2 rhs=e@6:38#1 type=Int
 expr e@6:52 name(tuned) type=kotlin.collections.HashSet<String> ref=__local_3.tuned[kind=local]
-expr e@6:52#1 memberCall recv=e@6:52 callee=size args=[] type=Int ref=kotlin.collections.AbstractMutableSet.size[kind=prop]
+expr e@6:52#1 memberCall recv=e@6:52 callee=size args=[] type=Int ref=kotlin.collections.HashSet.size[kind=prop]
 expr e@6:12#4 binary(add) lhs=e@6:12#3 rhs=e@6:52#1 type=Int
 expr e@6:5 return value=e@6:12#4 type=Nothing
 section stdlib-targets
