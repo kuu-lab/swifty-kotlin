@@ -16,7 +16,7 @@ public interface Continuation<in T> {
     public val context: CoroutineContext
 
     @KsSymbolName("__kk_coroutine_continuation_resume_with")
-    public abstract fun resumeWith(result: Result<T>)
+    public fun resumeWith(result: Result<T>)
 }
 
 public inline fun <T> Continuation<T>.resume(value: T) {
