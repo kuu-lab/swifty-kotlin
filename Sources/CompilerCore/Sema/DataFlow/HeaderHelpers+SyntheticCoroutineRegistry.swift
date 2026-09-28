@@ -963,12 +963,6 @@ extension DataFlowSemaPhase {
             symbol: createCoroutineTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let createCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: createCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
         let createCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
             receiver: createCoroutineReceiverTypeParameterType,
             params: [],
@@ -1006,12 +1000,6 @@ extension DataFlowSemaPhase {
         let startCoroutineContinuationType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.invariant(startCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let startCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: startCoroutineTypeParameterType,
-            isSuspend: true,
             nullability: .nonNull
         )))
         let startCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
@@ -1163,17 +1151,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "startCoroutineUninterceptedOrReturn",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: startCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: startCoroutineContinuationType)],
-            returnType: types.nullableAnyType,
-            flags: [.synthetic, .inlineFunction],
-            typeParameterSymbols: [startCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
+        // The no-receiver overload is source-backed in SuspendFunction0.kt.
         registerSyntheticCoroutineExtensionFunction(
             named: "startCoroutineUninterceptedOrReturn",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -1188,16 +1166,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "createCoroutineUnintercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: createCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: continuationType)],
-            returnType: continuationOfUnitType,
-            typeParameterSymbols: [createCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
+        // The no-receiver overload is source-backed in SuspendFunction0.kt.
         registerSyntheticCoroutineExtensionFunction(
             named: "createCoroutineUnintercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,

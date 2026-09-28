@@ -235,7 +235,10 @@ struct CoroutineIntrinsicsSyntheticStubTests {
 
     @Test
     func testStartCoroutineUninterceptedOrReturnOverloadsAreRegistered() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let fqName = ["kotlin", "coroutines", "intrinsics", "startCoroutineUninterceptedOrReturn"].map {
             interner.intern($0)
