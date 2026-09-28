@@ -1866,7 +1866,12 @@ extension CallLowerer {
                     }
                 }
             }
-            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            let isSourceBackedRegexCall = chosenBase64Callee.map {
+                sema.symbols.isSourceBackedSymbol($0)
+            } ?? false
+            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSourceBackedRegexCall
+            {
                 let calleeStr = calleeNameStr
                 let usesStringFlatABI: Bool = {
                     guard let argumentType = sema.bindings.exprTypes[args[0].expr] else {

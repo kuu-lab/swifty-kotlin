@@ -310,27 +310,24 @@ final class MemberLowerer {
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
                 // into KIR and codegen would produce undefined symbol references.
-                if let compilationCtx {
-                    let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    let shared = KIRLoweringSharedContext(
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers
+                let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
+                let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                let shared = KIRLoweringSharedContext(
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                for ctorSymbol in ctorSymbols {
+                    let ctorDecls = driver.lowerConstructor(
+                        ctorSymbol: ctorSymbol,
+                        ctorFQName: ctorFQName,
+                        classDecl: nested,
+                        ownerSymbol: symbol,
+                        shared: shared
                     )
-                    for ctorSymbol in ctorSymbols {
-                        let ctorDecls = driver.lowerConstructor(
-                            ctorSymbol: ctorSymbol,
-                            ctorFQName: ctorFQName,
-                            classDecl: nested,
-                            ownerSymbol: symbol,
-                            shared: shared,
-                            compilationCtx: compilationCtx
-                        )
-                        allDecls.append(contentsOf: ctorDecls)
-                    }
+                    allDecls.append(contentsOf: ctorDecls)
                 }
             case let .interfaceDecl(nestedInterface):
                 // Interface properties have no backing storage of their own, but
