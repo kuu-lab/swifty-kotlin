@@ -1614,13 +1614,17 @@ extension CallTypeChecker {
         // its matching actual is linked. Apply the same rule before resolving
         // member-style calls, or the identical expect/actual signatures become
         // two viable overloads and produce a false ambiguity.
+        let candidateSet = Set(allCandidates)
         let resolvedCandidates = allCandidates.filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.flags.contains(.expectDeclaration)
             else {
                 return true
             }
-            return sema.symbols.actualSymbol(for: candidate) == nil
+            guard let actual = sema.symbols.actualSymbol(for: candidate) else {
+                return true
+            }
+            return !candidateSet.contains(actual)
         }
         let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
         let memberName = interner.resolve(calleeName)
