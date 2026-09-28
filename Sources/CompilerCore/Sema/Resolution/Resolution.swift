@@ -767,12 +767,57 @@ extension OverloadResolver {
         if let chosen = pickMostSpecific(viable, typeSystem: typeSystem) {
             return chosen.toResolvedCall()
         }
+        if let chosen = preferredIntegerLiteralVararg(viable, call: call, types: typeSystem) {
+            return chosen.toResolvedCall()
+        }
         return errorResult(
             code: "KSWIFTK-SEMA-0003",
             message: "Ambiguous overload resolution.",
             range: call.range,
             secondaryRanges: candidateDeclSites(viable, typeSystem: typeSystem)
         )
+    }
+
+    /// Kotlin's integer-literal priority selects Int over other signed integer
+    /// overloads, and Short over Byte, when ordinary type subtyping cannot
+    /// distinguish otherwise-applicable vararg candidates.
+    private func preferredIntegerLiteralVararg(
+        _ candidates: [ViableCandidate],
+        call: CallExpr,
+        types: TypeSystem
+    ) -> ViableCandidate? {
+        guard !call.args.isEmpty,
+              call.args.allSatisfy({ $0.signedIntegerLiteral != nil && !$0.isSpread })
+        else { return nil }
+        var candidatesByPrimitive: [PrimitiveType: ViableCandidate] = [:]
+        for candidate in candidates {
+            let varargFlags = normalizeFlags(
+                candidate.signature.valueParameterIsVararg,
+                count: candidate.signature.parameterTypes.count
+            )
+            var primitiveForCandidate: PrimitiveType?
+            for (index, paramType) in candidate.instantiatedParameterTypes.enumerated() {
+                guard let paramIndex = candidate.parameterMapping[index],
+                      varargFlags.indices.contains(paramIndex), varargFlags[paramIndex],
+                      case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(paramType)),
+                      primitive == .int || primitive == .short || primitive == .byte || primitive == .long,
+                      primitiveForCandidate == nil || primitiveForCandidate == primitive
+                else { return nil }
+                primitiveForCandidate = primitive
+            }
+            guard let primitiveForCandidate,
+                  candidatesByPrimitive[primitiveForCandidate] == nil
+            else { return nil }
+            candidatesByPrimitive[primitiveForCandidate] = candidate
+        }
+        if let intCandidate = candidatesByPrimitive[.int] { return intCandidate }
+        if candidatesByPrimitive.count == 2,
+           let shortCandidate = candidatesByPrimitive[.short],
+           candidatesByPrimitive[.byte] != nil
+        {
+            return shortCandidate
+        }
+        return nil
     }
 
     /// ARCH-031: declaration sites of the ambiguous overload candidates,
