@@ -635,7 +635,7 @@ struct NativeConcurrentSyntheticStubTests {
         let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-        #expect(signature.receiverType == annotationType)
+        #expect(signature.receiverType == nil)
         #expect(signature.valueParameterHasDefaultValues == [false])
         #expect(
             sema.symbols.externalLinkName(for: constructor)
@@ -1301,7 +1301,9 @@ struct NativeConcurrentSyntheticStubTests {
         #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
 
         let annotations = sema.symbols.annotations(for: symbol)
-        let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
+        // Bundled-source annotation records keep the written short name and
+        // raw argument text (same convention as ExperimentalAtomicApi tests).
+        let targetAnnotation = annotations.first { $0.annotationFQName == "Target" }
         #expect(targetAnnotation != nil, "Expected @Target annotation on native @ThreadLocal")
         let targetArguments = targetAnnotation?.arguments ?? []
         #expect(
@@ -1347,7 +1349,9 @@ struct NativeConcurrentSyntheticStubTests {
         )
         let signature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
         #expect(sema.symbols.symbol(constructorSymbol)?.kind == .constructor)
-        #expect(signature.receiverType == nil)
+        // Source-backed constructors carry the annotated class as receiverType
+        // (same convention as the bundled ExperimentalAtomicApi marker).
+        #expect(signature.receiverType == annotationType)
         #expect(signature.parameterTypes.isEmpty)
         #expect(signature.returnType == annotationType)
         #expect(sema.symbols.externalLinkName(for: constructorSymbol) == nil)
