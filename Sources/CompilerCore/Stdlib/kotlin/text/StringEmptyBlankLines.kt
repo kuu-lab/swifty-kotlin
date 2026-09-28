@@ -22,8 +22,15 @@ public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSeque
 }
 
 public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
-    val sequence: CharSequence = this
-    return if (sequence.isBlank()) defaultValue() else this
+    // Keep the scan in the inline body. Passing a flat String through a
+    // separate CharSequence extension would erase its runtime representation
+    // before interface dispatch.
+    var index = 0
+    while (index < this.length) {
+        if (!this[index].isWhitespace()) return this
+        index++
+    }
+    return defaultValue()
 }
 
 public fun CharSequence?.isNullOrEmpty(): Boolean {
