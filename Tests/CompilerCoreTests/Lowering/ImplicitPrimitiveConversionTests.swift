@@ -91,16 +91,17 @@ struct ImplicitPrimitiveConversionTests {
 
     @Test
     func testImplicitConversionRejectsInvalidReceiverAndArguments() throws {
-        let source = """
-        fun Boolean.invalid(): Int = toInt()
-        fun Byte.invalidArity(): UInt = toUInt(1)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(ctx.diagnostics.hasError)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.count >= 2, "both calls must remain invalid: \(errors)")
+        for source in [
+            "fun Boolean.invalid(): Int = toInt()",
+            "fun Byte.invalidArity(): UInt = toUInt(1)",
+        ] {
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+                #expect(ctx.diagnostics.hasError, "\(source) must remain invalid")
+                let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                #expect(!errors.isEmpty, "\(source) must be rejected")
+            }
         }
     }
 }
