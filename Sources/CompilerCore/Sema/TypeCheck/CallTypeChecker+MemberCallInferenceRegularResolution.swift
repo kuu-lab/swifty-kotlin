@@ -1609,7 +1609,20 @@ extension CallTypeChecker {
             }
         }
 
-        let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        // Direct member lookup and short-name extension recovery can bypass
+        // cachedScopeLookup, which normally removes an expect declaration once
+        // its matching actual is linked. Apply the same rule before resolving
+        // member-style calls, or the identical expect/actual signatures become
+        // two viable overloads and produce a false ambiguity.
+        let resolvedCandidates = allCandidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.flags.contains(.expectDeclaration)
+            else {
+                return true
+            }
+            return sema.symbols.actualSymbol(for: candidate) == nil
+        }
+        let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
         let memberName = interner.resolve(calleeName)
         if !isClassNameReceiver,
            !safeCall,

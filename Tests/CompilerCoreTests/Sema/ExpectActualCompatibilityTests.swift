@@ -29,6 +29,30 @@ struct ExpectActualCompatibilityTests {
         #expect(resolvedCalls.count == 2, "Both member-style calls must bind the expect declaration")
     }
 
+    @Test func testMemberCallPrefersLinkedActualOverExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect fun Short.reverseByteOrder(): Short
+            """,
+            """
+            package sample.kmp
+            actual fun Short.reverseByteOrder(): Short = this
+            fun fromShort(value: Short): Short = value.reverseByteOrder()
+            fun UShort.rb(): UShort = toShort().reverseByteOrder().toUShort()
+            """,
+        ])
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Linked actual must resolve both calls without ambiguous overloads: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let actualSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true })
+        #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
+    }
+
     private struct TestCase {
         let name: String
         let sources: [String]
