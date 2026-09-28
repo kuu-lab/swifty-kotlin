@@ -595,6 +595,9 @@ struct NativeConcurrentSyntheticStubTests {
     @Test
     func testInvalidMutabilityExceptionClassIsRegistered() throws {
         let (sema, interner) = try sharedSema()
+        let fqName = ["kotlin", "native", "concurrent", "InvalidMutabilityException"].map {
+            interner.intern($0)
+        }
         let invalidMutabilityException = try symbol(
             ["kotlin", "native", "concurrent", "InvalidMutabilityException"],
             sema: sema,
@@ -603,6 +606,10 @@ struct NativeConcurrentSyntheticStubTests {
         let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
 
         #expect(sema.symbols.symbol(invalidMutabilityException)?.kind == .class)
+        #expect(sema.bundledIndex.containsNominal(fqName: fqName))
+        #expect(sema.symbols.lookupAll(fqName: fqName).count == 1)
+        #expect(sema.symbols.symbol(invalidMutabilityException)?.declSite != nil)
+        #expect(sema.symbols.symbol(invalidMutabilityException)?.flags.contains(.synthetic) == false)
         #expect(sema.symbols.directSupertypes(for: invalidMutabilityException).contains(runtimeException))
         #expect(
             sema.symbols.annotations(for: invalidMutabilityException).contains {
@@ -635,12 +642,34 @@ struct NativeConcurrentSyntheticStubTests {
         let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+        #expect(sema.symbols.symbol(constructor)?.flags.contains(.synthetic) == false)
         #expect(signature.receiverType == nil)
         #expect(signature.valueParameterHasDefaultValues == [false])
         #expect(
             sema.symbols.externalLinkName(for: constructor)
                 == "__kk_invalid_mutability_exception_new_message"
         )
+    }
+
+    @Test
+    func testInvalidMutabilityExceptionFallbackWithoutStdlib() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlin", "native", "concurrent", "InvalidMutabilityException"].map {
+                ctx.interner.intern($0)
+            }
+            let exception = try #require(sema.symbols.lookup(fqName: fqName))
+            #expect(sema.symbols.symbol(exception)?.flags.contains(.synthetic) == true)
+            let constructor = try #require(sema.symbols.lookup(fqName: fqName + [ctx.interner.intern("<init>")]))
+            #expect(sema.symbols.symbol(constructor)?.flags.contains(.synthetic) == true)
+            #expect(sema.symbols.externalLinkName(for: constructor) == "__kk_invalid_mutability_exception_new_message")
+        }
     }
 
     @Test

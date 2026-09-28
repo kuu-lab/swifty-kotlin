@@ -679,15 +679,19 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        registerNativeConcurrentConstructor(
-            ownerSymbol: exceptionSymbol,
-            ownerType: exceptionType,
-            externalLinkName: "__kk_invalid_mutability_exception_new_message",
-            parameters: [(name: "message", type: types.stringType)],
-            defaultValues: [false],
-            symbols: symbols,
-            interner: interner
-        )
+        // The bundled class owns its bridged constructor. Retain this residual
+        // constructor only when compiling without the bundled stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: exceptionFQName) {
+            registerNativeConcurrentConstructor(
+                ownerSymbol: exceptionSymbol,
+                ownerType: exceptionType,
+                externalLinkName: "__kk_invalid_mutability_exception_new_message",
+                parameters: [(name: "message", type: types.stringType)],
+                defaultValues: [false],
+                symbols: symbols,
+                interner: interner
+            )
+        }
     }
 }
 
