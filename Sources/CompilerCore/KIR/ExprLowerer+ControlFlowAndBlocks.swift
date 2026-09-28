@@ -1570,9 +1570,22 @@ extension ExprLowerer {
                         let requiresFreshSlotForMutableAlias = isMutable
                             && declaredTypeIsReferenceLike
                             && initializerIsBareSymbolRef
-                        if !isDelegated, declaredTypeIsReferenceLike,
-                           (initializerType != nil && initializerType != declaredType)
-                           || requiresFreshSlotForMutableAlias
+                        // A non-null Long widened to Long? must cross a typed
+                        // copy so ABI lowering can box Long.MIN_VALUE before
+                        // it collides with the nullable null sentinel.
+                        let requiresNullableLongBoxing: Bool = if let initializerType,
+                           case .primitive(.long, .nonNull) = sema.types.kind(of: initializerType),
+                           case .primitive(.long, .nullable) = sema.types.kind(of: declaredType)
+                        {
+                            true
+                        } else {
+                            false
+                        }
+                        if !isDelegated,
+                           (declaredTypeIsReferenceLike
+                               && ((initializerType != nil && initializerType != declaredType)
+                                   || requiresFreshSlotForMutableAlias))
+                               || requiresNullableLongBoxing
                         {
                             let localSlot = arena.appendTemporary(type: declaredType)
                             instructions.append(.copy(from: initializerID, to: localSlot))
