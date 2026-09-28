@@ -123,6 +123,9 @@ private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
 private let runtimeListInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.List"
 )
+private let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableList"
+)
 private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
@@ -141,6 +144,8 @@ private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
 private let runtimeCollectionSizeGetterSlot = 4
 private let runtimeCollectionIsEmptyMethodSlot = 0
 private let runtimeListGetMethodSlot = 0
+private let runtimeListIteratorAtMethodSlot = 1
+private let runtimeMutableListSubListMethodSlot = 0
 // Map properties are ordered alphabetically after Map's two methods:
 // entries, keys, size, values.
 private let runtimeMapEntriesGetterSlot = 2
@@ -215,6 +220,49 @@ func runtimeSourceListGet(
         to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
     )
     return fn(rawValue, index, outThrown)
+}
+
+/// List.listIterator(index) is slot 1 of List's own methods. Both read-only
+/// and mutable ListIterator implementations use the same raw return ABI.
+@inline(__always)
+func runtimeSourceListIteratorAt(
+    _ rawValue: Int,
+    index: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeListInterfaceTypeID),
+        runtimeListIteratorAtMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, index, outThrown)
+}
+
+/// MutableList.subList(fromIndex, toIndex) is slot 0 of MutableList's own
+/// methods. Delegate to the source implementation to preserve its live view.
+@inline(__always)
+func runtimeSourceMutableListSubList(
+    _ rawValue: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMutableListInterfaceTypeID),
+        runtimeMutableListSubListMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, fromIndex, toIndex, outThrown)
 }
 
 @inline(__always)

@@ -35,13 +35,43 @@ struct CodegenBackendCustomListBridgeTests {
             println(collection.isEmpty())
             println(concrete[1])
             println(list[1])
+            println(concrete.listIterator(1).next())
+            println(list.listIterator(2).next())
         }
         """
 
         try assertKotlinOutput(
             source,
             moduleName: "CustomListBridge",
-            expected: "42\n42\n42\nfalse\nfalse\nfalse\n2\n2\n"
+            expected: "42\n42\n42\nfalse\nfalse\nfalse\n2\n2\n2\n3\n"
+        )
+    }
+
+    @Test func mutableListSubListPreservesSourceView() throws {
+        let source = """
+        class CustomMutableList : AbstractMutableList<Int>() {
+            private val backing = mutableListOf(1, 2, 3)
+            override val size: Int get() = backing.size
+            override fun get(index: Int): Int = backing[index]
+            override fun set(index: Int, element: Int): Int = backing.set(index, element)
+            override fun add(index: Int, element: Int) { backing.add(index, element) }
+            override fun removeAt(index: Int): Int = backing.removeAt(index)
+        }
+
+        fun main() {
+            val list: MutableList<Int> = CustomMutableList()
+            val sub: MutableList<Int> = list.subList(1, 3)
+            println(sub[0])
+            sub[0] = 42
+            println(list[1])
+            println(list.listIterator(1).next())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CustomMutableListBridge",
+            expected: "2\n42\n42\n"
         )
     }
 }

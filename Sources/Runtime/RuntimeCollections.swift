@@ -433,6 +433,9 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
 public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let result = runtimeSourceListIteratorAt(listRaw, index: index, outThrown: outThrown) {
+            return result
+        }
         let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
         registerListIteratorItable(raw: raw)
         return raw
@@ -477,6 +480,14 @@ public func kk_list_subList(
 ) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let result = runtimeSourceMutableListSubList(
+            listRaw,
+            fromIndex: fromIndex,
+            toIndex: toIndex,
+            outThrown: outThrown
+        ) {
+            return result
+        }
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
