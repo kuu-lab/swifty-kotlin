@@ -403,7 +403,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             // constructor fields are the tagged slots that follow it; plain
             // inherited fields remain untagged and are not part of the
             // compiler-synthesized data-class hash contract.
-            let fields = objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            let fieldMask = runtimeDataClassFieldMask(classID: objBox.classID)
+            let fields: [RuntimeValue] = if let fieldMask {
+                objBox.values.enumerated().filter { index, _ in
+                    index < 63 && fieldMask & (1 << Int64(index)) != 0
+                }.map(\.element)
+            } else {
+                objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            }
             guard let firstField = fields.first else {
                 return 0
             }

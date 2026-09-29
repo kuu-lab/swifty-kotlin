@@ -63,6 +63,9 @@ struct MetadataState {
     /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
     var rangeTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
+    /// Bitmask of object slot indices holding primary-constructor properties, per data class.
+    /// Absent entries mean "every stored slot participates" (legacy registration).
+    var dataClassFieldMasks: [Int64: Int64] = [:]
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
     var objectAnyToStringMethods: [UInt: Int] = [:]
@@ -533,6 +536,7 @@ func kk_runtime_reset_metadata() {
         state.primitiveTypeEdgesRegistered = false
         state.rangeTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
+        state.dataClassFieldMasks.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
         state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
