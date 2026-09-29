@@ -175,4 +175,64 @@ extension BundledStdlibExecutionTests {
             moduleName: "KUU854FieldSlots"
         )
     }
+
+    /// KUU-854 follow-up: with `P?` slots boxed, `==`/`!=` against a
+    /// floating-point peer must stay IEEE-754 (`-0.0 == 0.0`, `NaN != NaN`)
+    /// once nullness is resolved — for non-null raw peers and nullable
+    /// `Double?`/`Float?` peers alike — instead of collapsing to the boxed
+    /// `equals` bit-pattern compare.
+    @Test
+    func testNullablePrimitiveEqualityStaysIEEE() throws {
+        try compileAndRunKotlin(
+            """
+            fun pairEq(a: Double?, b: Double?) = a == b
+            fun pairNe(a: Double?, b: Double?) = a != b
+            fun mixedEq(a: Double?, b: Double) = a == b
+            fun floatPairEq(a: Float?, b: Float?) = a == b
+
+            fun main() {
+                println(pairEq(-0.0, 0.0))
+                println(pairEq(Double.NaN, Double.NaN))
+                println(pairEq(-0.0, -0.0))
+                println(pairEq(null, -0.0))
+                println(pairEq(-0.0, null))
+                println(pairEq(null, null))
+                println(pairNe(-0.0, 0.0))
+                println(mixedEq(-0.0, 0.0))
+                println(mixedEq(Double.NaN, Double.NaN))
+                println(floatPairEq(-0.0f, 0.0f))
+                println(floatPairEq(Float.NaN, Float.NaN))
+
+                val m: Long? = Long.MIN_VALUE
+                val m2: Long? = Long.MIN_VALUE
+                println(m == Long.MIN_VALUE)
+                println(Long.MIN_VALUE == m)
+                println(m == m2)
+                println(m != m2)
+                val u: ULong? = 9223372036854775808UL
+                println(u == 9223372036854775808UL)
+            }
+            """,
+            expectedOutput: """
+            true
+            false
+            true
+            false
+            false
+            true
+            false
+            true
+            false
+            true
+            false
+            true
+            true
+            true
+            false
+            true
+
+            """,
+            moduleName: "KUU854IEEEEquality"
+        )
+    }
 }

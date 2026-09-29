@@ -1448,6 +1448,30 @@ private func runtimeNullablePrimitiveEqualityCheck(
     peerRaw: Int,
     peerIsNullable: Int
 ) -> Bool {
+    if peerIsNullable >= 2 {
+        // Kotlin `P? == P` on floating point is IEEE-754 once nullness is
+        // ruled out (`-0.0 == 0.0`, `NaN != NaN`) — not the boxed `equals`
+        // bit-pattern compare runtimeNonNullValuesEqual uses. Flags 2/3 mark
+        // a provably non-null raw Double/Float peer; 4/5 mark a Double?/
+        // Float? slot whose sentinel still means null. The operands may be
+        // raw words or registered (possibly tagged) boxes;
+        // runtimeFloatingBoxBitPattern exposes a box's payload and a raw
+        // non-null word passes through as its own bit pattern.
+        let nullableIsNull = nullableRaw == runtimeNullSentinelInt
+        let peerIsNull = (peerIsNullable == 4 || peerIsNullable == 5)
+            && peerRaw == runtimeNullSentinelInt
+        if nullableIsNull || peerIsNull {
+            return nullableIsNull && peerIsNull
+        }
+        let lhsBits = runtimeFloatingBoxBitPattern(nullableRaw) ?? nullableRaw
+        let rhsBits = runtimeFloatingBoxBitPattern(peerRaw) ?? peerRaw
+        if peerIsNullable == 2 || peerIsNullable == 4 {
+            return Double(bitPattern: UInt64(bitPattern: Int64(lhsBits)))
+                == Double(bitPattern: UInt64(bitPattern: Int64(rhsBits)))
+        }
+        return Float(bitPattern: UInt32(truncatingIfNeeded: lhsBits))
+            == Float(bitPattern: UInt32(truncatingIfNeeded: rhsBits))
+    }
     let nullableIsNull = nullableRaw == runtimeNullSentinelInt
     let peerIsNull = peerIsNullable != 0 && peerRaw == runtimeNullSentinelInt
     if nullableIsNull || peerIsNull {

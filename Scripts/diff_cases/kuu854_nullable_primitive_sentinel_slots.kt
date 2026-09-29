@@ -19,6 +19,7 @@ fun capture(): () -> Unit {
 
 fun returnsMin(): Long? = Long.MIN_VALUE
 fun takesNullable(x: Long?): Boolean = x != null
+fun bdEqParam(d: Double?): Boolean = d == 0.0
 
 fun main() {
     val m: Long? = Long.MIN_VALUE
@@ -103,4 +104,36 @@ fun main() {
     val j: Long? = if (true) Long.MIN_VALUE else 0L
     println(j)
     println(j != null)
+
+    // `P? == P` with a non-null floating-point peer is IEEE-754 once null is
+    // ruled out (-0.0 == 0.0, NaN != NaN); `P? == P?` is boxed `equals`
+    // (bit pattern: -0.0 != 0.0, NaN == NaN). The nullable side may now be a
+    // tagged box, so the runtime compare must not collapse to pointer bits.
+    val bdNeg: Double? = -0.0
+    println(bdNeg == 0.0)
+    println(bdNeg == -0.0)
+    println(bdNeg != 0.0)
+    println(0.0 == bdNeg)
+    val bdPos: Double? = 0.0
+    println(bdNeg == bdPos)
+    println(bdNeg != bdPos)
+    val bn: Double? = Double.NaN
+    println(bn == Double.NaN)
+    println(bn != Double.NaN)
+    println(bn == bn)
+    println(bdEqParam(-0.0))
+    println(bdEqParam(0.0))
+    println(bdEqParam(null))
+    val bfNeg: Float? = -0.0f
+    println(bfNeg == 0.0f)
+    println(bfNeg == -0.0f)
+    println(bfNeg != 0.0f)
+    val bfPos: Float? = 0.0f
+    println(bfNeg == bfPos)
+    println(m == Long.MIN_VALUE)
+    println(Long.MIN_VALUE == m)
+    println(m != Long.MIN_VALUE)
+    val m2: Long? = Long.MIN_VALUE
+    println(m == m2)
+    println(u == 9223372036854775808UL)
 }
