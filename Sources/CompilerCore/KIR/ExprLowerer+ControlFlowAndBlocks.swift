@@ -249,7 +249,7 @@ extension ExprLowerer {
             // STDLIB-004: Implicit receiver member access (e.g. `length` inside
             // `run { length }` resolves as `this.length`).
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
-               let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+               let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
                 // KSP-CAP-001: an enclosing immutable property captured by an
                 // object-literal member function is restored as a local value.
@@ -262,6 +262,17 @@ extension ExprLowerer {
                    let localValue = driver.ctx.localValue(for: symbol)
                 {
                     return localValue
+                }
+                let receiverExprID: KIRExprID
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   let capturedReceiver = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   )
+                {
+                    receiverExprID = capturedReceiver
+                } else {
+                    receiverExprID = activeReceiverExprID
                 }
                 let receiverType = arena.exprType(receiverExprID) ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -885,6 +896,38 @@ extension ExprLowerer {
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
                         arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                // A bare reference to an extension property inside a body whose
+                // implicit receiver matches the extension receiver (e.g. `id`
+                // inside another `Worker` extension body) must call the
+                // property's getter on that receiver. Without this branch the
+                // symbol falls through to `loadGlobal` below, which reads a
+                // global slot that is never initialized (Int reads as 0,
+                // String reads as null).
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let activeReceiverType = arena.exprType(receiverExprID),
+                   sema.types.isSubtype(
+                       sema.types.makeNonNullable(activeReceiverType),
+                       sema.types.makeNonNullable(extensionReceiverType)
+                   )
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -1643,7 +1686,10 @@ extension ExprLowerer {
                     interner: interner,
                     instructions: &instructions
                 ) {
-                } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                    forProperty: symbol,
+                    sema: sema
+                ),
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                           let ownerInfo = sema.symbols.symbol(ownerSymbol),
                           ownerInfo.kind == .class || ownerInfo.kind == .interface,
@@ -1672,7 +1718,10 @@ extension ExprLowerer {
                         canThrow: false,
                         thrownResult: nil
                     ))
-                } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                    forProperty: symbol,
+                    sema: sema
+                ),
                           let symInfo = sema.symbols.symbol(symbol),
                           symInfo.kind == .property,
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
@@ -2365,7 +2414,10 @@ extension ExprLowerer {
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                           let ownerInfo = sema.symbols.symbol(ownerSymbol),
                           ownerInfo.kind == .class || ownerInfo.kind == .interface,
-                          let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                          let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                              forProperty: symbol,
+                              sema: sema
+                          ),
                           driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
                           driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
                 {
@@ -2450,7 +2502,10 @@ extension ExprLowerer {
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                           let ownerInfo = sema.symbols.symbol(ownerSymbol),
                           ownerInfo.kind == .class || ownerInfo.kind == .interface,
-                          let receiverID = driver.ctx.activeImplicitReceiverExprID(),
+                          let receiverID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                              forProperty: symbol,
+                              sema: sema
+                          ),
                           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
                           ]

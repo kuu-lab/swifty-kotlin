@@ -36,6 +36,50 @@ struct RuntimeFileIOTests {
         }
     }
 
+    @Test func testByteArrayInputStreamRangeValid() {
+        let array = makeByteArray([10, 20, 30, 40, 50])
+        var thrown = 0
+        let streamRaw = __kk_bytearray_inputStream_range(array, 1, 3, &thrown)
+        #expect(thrown == 0)
+        #expect(readInputStreamBytes(streamRaw) == [20, 30, 40])
+    }
+
+    @Test func testByteArrayInputStreamRangeOverflowDoesNotTrap() {
+        let array = makeByteArray([1, 2, 3])
+        var thrown = 0
+
+        // Int.max offset
+        _ = __kk_bytearray_inputStream_range(array, Int.max, 1, &thrown)
+        #expect(thrown != 0)
+
+        // Int.max length
+        thrown = 0
+        _ = __kk_bytearray_inputStream_range(array, 0, Int.max, &thrown)
+        #expect(thrown != 0)
+
+        // offset + length would overflow
+        thrown = 0
+        _ = __kk_bytearray_inputStream_range(array, Int.max - 1, 2, &thrown)
+        #expect(thrown != 0)
+
+        // Int.min offset or length
+        thrown = 0
+        _ = __kk_bytearray_inputStream_range(array, Int.min, 1, &thrown)
+        #expect(thrown != 0)
+
+        thrown = 0
+        _ = __kk_bytearray_inputStream_range(array, 0, Int.min, &thrown)
+        #expect(thrown != 0)
+    }
+
+    private func makeByteArray(_ bytes: [Int]) -> Int {
+        let array = kk_array_new(bytes.count)
+        for (index, byte) in bytes.enumerated() {
+            _ = kk_array_set(array, index, byte, nil)
+        }
+        return array
+    }
+
     private func makeTempFile(contents: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try contents.write(to: url, atomically: true, encoding: .utf8)

@@ -31,7 +31,7 @@ file fstar_projection package=golden.sema
 expr e@6:44 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c[kind=vparam]
 expr e@6:44#1 memberCall recv=e@6:44 callee=item args=[] type=Any? ref=golden.sema.Container.item[kind=prop]
 expr e@9:37 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list[kind=vparam]
-expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@13:13 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c[kind=vparam]
 expr e@13:13#1 memberCall recv=e@13:13 callee=item args=[] type=Any? ref=golden.sema.Container.item[kind=prop]
 expr e@13:5 localDecl v mutable=0 type=_ init=e@13:13#1 type=Unit ref=__local_0.v[kind=local]
