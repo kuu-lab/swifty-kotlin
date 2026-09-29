@@ -885,6 +885,26 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_string_toLong_radix",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "radix", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_toLongOrNull_radix",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "radix", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_string_toFloat",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
