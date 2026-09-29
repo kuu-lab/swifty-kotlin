@@ -47,7 +47,9 @@ public class Path internal constructor(private val path: String, @Suppress("UNUS
 }
 
 /** The native POSIX path separator. */
-public val SystemPathSeparator: Char = '/'
+// `const` so a direct read from another file does not depend on this file's
+// top-level initializer having run.
+public const val SystemPathSeparator: Char = '/'
 
 /** A stable POSIX temporary-directory path for this native runtime. */
 public val SystemTemporaryDirectory: Path get() = Path("/tmp")
@@ -69,5 +71,14 @@ public fun Path(base: String, vararg parts: String): Path {
     return Path(result)
 }
 
+// Forwarding `vararg` through a spread (`*parts`) crashes at runtime in this
+// compiler, so this overload repeats the join loop instead of delegating.
 /** Join a path with additional components. */
-public fun Path(base: Path, vararg parts: String): Path = Path(base.toString(), *parts)
+public fun Path(base: Path, vararg parts: String): Path {
+    var result = base.toString()
+    for (part in parts) {
+        if (result.isNotEmpty() && !result.endsWith('/')) result += SystemPathSeparator
+        result += part
+    }
+    return Path(result)
+}
