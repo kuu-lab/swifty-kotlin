@@ -96,6 +96,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     private var buffer = RuntimeFIFOQueue<Int>()
     let capacity: Int
     private(set) var closed = false
+    /// The `Throwable` handle passed to `close(cause:)` / `cancel(cause:)`,
+    /// or `0` when the channel is still open or was closed without a cause.
+    /// Retained so result-returning operations (`trySend` and friends) can
+    /// report the exact close cause via `ChannelResult.exceptionOrNull()`.
+    private(set) var closeCause: Int = 0
     private let bufferOverflow: ChannelBufferOverflow
 
     // Waiting-sender queue: each suspended sender is a `SuspendedSender`
@@ -356,16 +361,22 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
     /// Close the channel.  Remaining buffered values are still receivable.
     ///
+    /// `cause` is the optional `Throwable` handle carried by Kotlin's
+    /// `close(cause: Throwable?)` / `ReceiveChannel.cancel(cause:)`; the first
+    /// successful close retains it for `ChannelResult`-based queries. A `0`
+    /// cause marks a normal close.
+    ///
     /// Returns `true` if this call actually closed the channel, `false` if it
     /// was already closed.  Matches Kotlin's `SendChannel.close()` contract.
     @discardableResult
-    func close() -> Bool {
+    func close(cause: Int = 0) -> Bool {
         lock.lock()
         if closed {
             lock.unlock()
             return false
         }
         closed = true
+        closeCause = cause
         let pendingSenders = senderQueue.drain()
         let pendingReceivers = receiverQueue.drain()
         lock.unlock()
@@ -383,6 +394,22 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             resumeReceiver(receiver)
         }
         return true
+    }
+
+    /// Thread-safe snapshot of the retained close cause (0 when none).
+    func closeCauseSnapshot() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return closeCause
+    }
+
+    /// `true` when no element is currently receivable: the buffer is drained
+    /// and no suspended sender is waiting to hand off a value.
+    /// Matches Kotlin's `ReceiveChannel.isEmpty` contract.
+    func isEmptySnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffer.isEmpty && senderQueue.isEmpty
     }
 
     /// Cancel all suspended senders and receivers.  This is called when a
@@ -563,6 +590,108 @@ public func kk_channel_try_send(_ handle: Int, _ value: Int) -> Int {
     return channel.trySend(resolvedValue).rawValue
 }
 
+// MARK: - ChannelResult token encoding (KSP-1571)
+//
+// `ChannelResult` is a `@JvmInline value class` over a single Int token so an
+// `external` member on `SendChannel` can return it directly.  The token packs
+// a 2-bit tag with a payload pointer:
+//
+//   token = (payload << 2) | tag
+//   tag 0 = success (payload = element pointer, or the shared Unit box)
+//   tag 1 = closed  (payload = retained close-cause `Throwable` pointer, or 0)
+//   tag 2 = failed  (payload = 0)
+//
+// Payloads are registered object pointers, so `payload << 2` stays positive
+// and `token >>> 2` restores the pointer exactly.
+
+private let kChannelResultTagShift = 2
+private let kChannelResultTagSuccess = 0
+private let kChannelResultTagClosed = 1
+private let kChannelResultTagFailed = 2
+
+/// trySend variant returning the tagged `ChannelResult` token consumed by the
+/// bundled `SendChannel.trySend` member.  Argument order is swizzled the same
+/// way as `kk_channel_try_send` (member bindings do not guarantee receiver
+/// position).
+@_cdecl("__kk_channel_try_send")
+public func kk_channel_try_send_tagged(_ arg0: Int, _ arg1: Int) -> Int {
+    func isRegisteredChannelHandle(_ raw: Int) -> Bool {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+            return false
+        }
+        let isRegistered = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        guard isRegistered else {
+            return false
+        }
+        return tryCast(ptr, to: RuntimeChannelHandle.self) != nil
+    }
+
+    let resolvedHandle: Int
+    let resolvedValue: Int
+    if !isRegisteredChannelHandle(arg0), isRegisteredChannelHandle(arg1) {
+        resolvedHandle = arg1
+        resolvedValue = arg0
+    } else {
+        resolvedHandle = arg0
+        resolvedValue = arg1
+    }
+
+    guard let resolvedPtr = UnsafeMutableRawPointer(bitPattern: resolvedHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_try_send received invalid channel handle")
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
+    let status = channel.trySend(resolvedValue)
+    switch status {
+    case .success:
+        let unitPayload = kk_box_unit(0)
+        return (unitPayload << kChannelResultTagShift) | kChannelResultTagSuccess
+    case .closed, .cancelled:
+        let cause = channel.closeCauseSnapshot()
+        return (cause << kChannelResultTagShift) | kChannelResultTagClosed
+    case .failed:
+        return kChannelResultTagFailed
+    }
+}
+
+/// Decode helper: returns the element/value pointer stored in a success token
+/// (`token >>> 2` when tag == 0), or 0 for non-success tokens.
+@_cdecl("__kk_channel_result_value")
+public func kk_channel_result_value(_ token: Int) -> Int {
+    guard (token & 3) == kChannelResultTagSuccess, token != 0 else {
+        return 0
+    }
+    return token >> kChannelResultTagShift
+}
+
+/// Decode helper: returns the close-cause `Throwable` pointer stored in a
+/// closed token (`token >>> 2` when tag == 1), or 0 for non-closed tokens.
+@_cdecl("__kk_channel_result_cause")
+public func kk_channel_result_cause(_ token: Int) -> Int {
+    guard (token & 3) == kChannelResultTagClosed else {
+        return 0
+    }
+    return token >> kChannelResultTagShift
+}
+
+/// Encode helper for `ChannelResult.Companion.success(value)`: packs the
+/// element pointer into a success token.
+@_cdecl("__kk_channel_result_success")
+public func kk_channel_result_success(_ value: Int) -> Int {
+    if value == 0 {
+        return 0
+    }
+    return (value << kChannelResultTagShift) | kChannelResultTagSuccess
+}
+
+/// Encode helper for `ChannelResult.Companion.closed(cause)`: packs the cause
+/// `Throwable` pointer (or 0) into a closed token.
+@_cdecl("__kk_channel_result_closed")
+public func kk_channel_result_closed(_ cause: Int) -> Int {
+    return (cause << kChannelResultTagShift) | kChannelResultTagClosed
+}
+
 @_cdecl("kk_channel_receive")
 public func kk_channel_receive(
     _ handle: Int,
@@ -621,6 +750,45 @@ public func kk_channel_is_closed_for_send(_ handle: Int) -> Int {
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     return channel.isClosedSnapshot() ? 1 : 0
+}
+
+/// Returns 1 when the channel currently has no receivable element: the buffer
+/// is empty and no suspended sender is waiting to hand off a value.
+///
+/// Maps to Kotlin's `ReceiveChannel.isEmpty` property.
+@_cdecl("kk_channel_is_empty")
+public func kk_channel_is_empty(_ handle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_is_empty received invalid channel handle")
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return channel.isEmptySnapshot() ? 1 : 0
+}
+
+/// Returns the `Throwable` handle retained by the first successful
+/// `close(cause:)` / `cancel(cause:)`, or 0 when the channel was closed
+/// without a cause (or is still open).  Consumed by Kotlin-side
+/// `ChannelResult` / `consume` helpers to surface `exceptionOrNull()`.
+@_cdecl("kk_channel_close_cause")
+public func kk_channel_close_cause(_ handle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_close_cause received invalid channel handle")
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return channel.closeCauseSnapshot()
+}
+
+/// Close-with-cause bridge for Kotlin's `SendChannel.close(cause:)` and
+/// `ReceiveChannel.cancel(cause:)`. `cause` is a `Throwable` object handle or
+/// 0.  Returns 1 the first time the channel actually closes, 0 when it was
+/// already closed.
+@_cdecl("__kk_channel_close_cause")
+public func kk_channel_close_cause(_ handle: Int, _ cause: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_close_cause received invalid channel handle")
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return channel.close(cause: cause) ? 1 : 0
 }
 
 // MARK: - Channel Iterator (CORO-075)
