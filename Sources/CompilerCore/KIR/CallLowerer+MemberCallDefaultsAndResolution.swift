@@ -719,12 +719,34 @@ extension CallLowerer {
             return nil
         }
         // Keep an explicitly selected cross-type extension on its Kotlin body.
+        // A nominal member can also have a receiverType in its normalized
+        // signature; exclude class/interface-owned functions before comparing
+        // the unsubstituted parameter type (for example OpenEndRange<T>.contains(T)).
         // Same-type extensions are shadowed by the range member in Kotlin, so
         // retain the normal runtime member path for those.
+        let chosenContainsIsExtension: Bool = if let chosenCallee,
+                                                  let signature = sema.symbols.functionSignature(for: chosenCallee),
+                                                  signature.receiverType != nil
+        {
+            if let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
+               let owner = sema.symbols.symbol(ownerID)
+            {
+                switch owner.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    false
+                default:
+                    true
+                }
+            } else {
+                true
+            }
+        } else {
+            false
+        }
         if memberName == "contains",
+           chosenContainsIsExtension,
            let chosenCallee,
            let signature = sema.symbols.functionSignature(for: chosenCallee),
-           signature.receiverType != nil,
            let argumentType = signature.parameterTypes.first,
            sema.types.makeNonNullable(argumentType) != sema.types.makeNonNullable(elementType),
            sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true
