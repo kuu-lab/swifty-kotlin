@@ -257,6 +257,64 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         interner: interner,
         instructions: &instructions
     )
+    appendObjectAnyHashCodeOverrideRegistration(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+}
+
+/// Mirror of `appendObjectAnyEqualsOverrideRegistration` for `Any.hashCode`:
+/// hashed collections only see an erased handle, so the most-specific user
+/// `hashCode` override is kept alongside each object.
+private func appendObjectAnyHashCodeOverrideRegistration<C: RangeReplaceableCollection>(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    cache: KIRNominalDispatchCache,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout C
+) where C.Element == KIRInstruction {
+    let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+    guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
+          let anyHashCode = sema.symbols.lookupAll(
+              fqName: anyFQName + [interner.intern("hashCode")]
+          ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol })
+    else {
+        return
+    }
+    let implementation = cache.itableImplementation(
+        for: anyHashCode,
+        in: nominalSymbol,
+        sema: sema,
+        interner: interner
+    )
+    guard implementation != anyHashCode,
+          sema.symbols.symbol(implementation)?.flags.contains(.overrideMember) == true,
+          let signature = sema.symbols.functionSignature(for: implementation),
+          signature.parameterTypes.isEmpty,
+          signature.returnType == sema.types.intType
+    else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
+    instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        symbol: nil,
+        callee: interner.intern("kk_object_register_hashcode_override"),
+        arguments: [objectValue, methodFnExpr],
+        result: registerResult,
+        canThrow: false,
+        thrownResult: nil
+    ))
 }
 
 /// KSP-967: Generic equality in source-backed functions is lowered through

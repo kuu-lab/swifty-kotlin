@@ -11,6 +11,14 @@ private let runtimeAnyEqualityOverride: @convention(c) (
     return kk_array_get(lhs, 0, nil) == kk_array_get(rhs, 0, nil) ? 1 : 0
 }
 
+private let runtimeAnyHashCodeOverride: @convention(c) (
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { receiver, outThrown in
+    outThrown?.pointee = 0
+    return kk_array_get(receiver, 0, nil)
+}
+
 @Suite
 struct RuntimeAnyEqualityTests {
     private func boolValue(_ raw: Int) -> Bool {
@@ -102,6 +110,68 @@ struct RuntimeAnyEqualityTests {
 
         #expect(boolValue(kk_any_equals(first, 0, first, 0)))
         #expect(!boolValue(kk_any_equals(first, 0, second, 0)))
+    }
+
+    // Hashed collections and list searches go through runtimeValuesEqual /
+    // runtimeElementKeyHash, which must follow Any.equals/hashCode: plain
+    // classes by identity, data classes structurally.
+    @Test
+    func testCollectionKeysUseIdentityForPlainClassesAndStructureForDataClasses() {
+        let plainID = 0x51_14
+        let first = kk_object_new(1, plainID)
+        let second = kk_object_new(1, plainID)
+        _ = kk_array_set(first, 0, 7, nil)
+        _ = kk_array_set(second, 0, 7, nil)
+        #expect(!runtimeValuesEqual(first, second))
+        #expect(runtimeValuesEqual(first, first))
+        #expect(RuntimeElementKey(value: first) != RuntimeElementKey(value: second))
+
+        let dataID = 0x51_15
+        _ = kk_runtime_register_data_class(dataID)
+        let dataFirst = kk_object_new(1, dataID)
+        let dataSecond = kk_object_new(1, dataID)
+        _ = kk_array_set(dataFirst, 0, 7, nil)
+        _ = kk_array_set(dataSecond, 0, 7, nil)
+        #expect(runtimeValuesEqual(dataFirst, dataSecond))
+        #expect(RuntimeElementKey(value: dataFirst) == RuntimeElementKey(value: dataSecond))
+    }
+
+    @Test
+    func testCollectionKeysHonorRegisteredEqualsAndHashCodeOverrides() {
+        let classID = 0x51_16
+        let first = kk_object_new(2, classID)
+        let second = kk_object_new(2, classID)
+        _ = kk_array_set(first, 0, 7, nil)
+        _ = kk_array_set(first, 1, 1, nil)
+        _ = kk_array_set(second, 0, 7, nil)
+        _ = kk_array_set(second, 1, 2, nil)
+        for object in [first, second] {
+            _ = kk_object_register_equals_override(
+                object,
+                unsafeBitCast(runtimeAnyEqualityOverride, to: Int.self)
+            )
+            _ = kk_object_register_hashcode_override(
+                object,
+                unsafeBitCast(runtimeAnyHashCodeOverride, to: Int.self)
+            )
+        }
+
+        #expect(runtimeValuesEqual(first, second))
+        let firstKey = RuntimeElementKey(value: first)
+        let secondKey = RuntimeElementKey(value: second)
+        #expect(firstKey == secondKey)
+        #expect(firstKey.hashValue == secondKey.hashValue)
+        #expect(Set([firstKey, secondKey]).count == 1)
+    }
+
+    @Test
+    func testCharScalarKeyDoesNotMatchIntOrLongOfSameCode() {
+        let charKey = RuntimeElementKey(runtimeValue: RuntimeValue(charScalar: 97))
+        #expect(charKey == RuntimeElementKey(value: kk_box_char(97)))
+        #expect(charKey == RuntimeElementKey(runtimeValue: RuntimeValue(charScalar: 97)))
+        #expect(charKey != RuntimeElementKey(value: kk_box_int(97)))
+        #expect(charKey != RuntimeElementKey(value: kk_box_long(97)))
+        #expect(Set([charKey, RuntimeElementKey(value: kk_box_int(97))]).count == 2)
     }
 }
 #endif

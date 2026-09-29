@@ -60,6 +60,12 @@ extension ABILoweringPass {
         "__kk_mutable_map_put",
         "__kk_mutable_map_putAll",
         "__kk_mutable_map_plusAssign_pair",
+        // Lookups must carry the same concrete type tag as inserted keys, or a
+        // bare `Char`/`Int`/`Long` code would match a key of another type.
+        "__kk_set_contains",
+        "__kk_map_get",
+        "__kk_mutable_set_remove",
+        "__kk_mutable_map_remove",
         "__kk_sequence_builder_yield",
         "__kk_iterator_builder_yield",
     ]

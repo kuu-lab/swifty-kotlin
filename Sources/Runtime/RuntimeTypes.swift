@@ -868,7 +868,7 @@ final class RuntimeSetBox {
     @discardableResult
     func insert(value: RuntimeValue) -> Bool {
         guard backingMapRaw == nil, !isReadOnly else { return false }
-        let key = RuntimeElementKey(value: value.legacyRawValue)
+        let key = RuntimeElementKey(runtimeValue: value)
         guard index[key] == nil else {
             return false
         }
@@ -945,7 +945,7 @@ final class RuntimeSetBox {
         index.removeAll(keepingCapacity: true)
         index.reserveCapacity(storage.count)
         for (offset, value) in storage.enumerated() {
-            let key = RuntimeElementKey(value: value.legacyRawValue)
+            let key = RuntimeElementKey(runtimeValue: value)
             // Keep the first position for malformed duplicate input, matching
             // the legacy linear lookup behavior.
             if index[key] == nil {
@@ -1110,7 +1110,7 @@ final class RuntimeMapBox {
         let newIndex = keyStorage.count
         keyStorage.append(key)
         valueStorage.append(value)
-        let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+        let runtimeKey = RuntimeElementKey(runtimeValue: key)
         if keyIndex[runtimeKey] == nil {
             keyIndex[runtimeKey] = newIndex
         }
@@ -1127,7 +1127,7 @@ final class RuntimeMapBox {
             return backingMap.put(key: key, value: value)
         }
         guard !isReadOnly else { return nil }
-        let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+        let runtimeKey = RuntimeElementKey(runtimeValue: key)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
             updateValue(at: index, value: value)
@@ -1166,7 +1166,7 @@ final class RuntimeMapBox {
         keyIndex.removeAll(keepingCapacity: true)
         keyIndex.reserveCapacity(keyStorage.count)
         for (offset, key) in keyStorage.enumerated() {
-            let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+            let runtimeKey = RuntimeElementKey(runtimeValue: key)
             // Keep the first position for malformed duplicate input, matching
             // the legacy linear lookup behavior.
             if keyIndex[runtimeKey] == nil {
