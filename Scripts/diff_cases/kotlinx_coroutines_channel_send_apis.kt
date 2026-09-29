@@ -39,7 +39,11 @@ fun main() = runBlocking {
     r3.onFailure { println("onFailure: ${it?.message}") }
     r3.getOrElse { println("getOrElse fallback") }
 
-    // 4. SendChannel surface through callbackFlow's ProducerScope receiver
+    // 4. SendChannel surface through callbackFlow's ProducerScope receiver.
+    //    (The collector's resumption order relative to producer prints is
+    //    scheduler-dependent, so the collected value is captured and printed
+    //    after collect returns.)
+    var collected = -1
     callbackFlow<Int> {
         println("scope open: ${!this.isClosedForSend}")
         val pr = this.trySend(11)
@@ -47,7 +51,8 @@ fun main() = runBlocking {
         println("scope closed: ${this.isClosedForSend}")
         this.close()
         println("scope closed: ${this.isClosedForSend}")
-    }.collect { println("collected: $it") }
+    }.collect { collected = it }
+    println("collected: $collected")
 
     // 5. isEmpty tracks buffer occupancy
     val ch5 = Channel<Int>(1)
