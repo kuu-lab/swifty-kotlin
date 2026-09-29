@@ -302,6 +302,35 @@ extension DataFlowSemaPhase {
                 // `TimeSource.WithComparableMarks` inside `kotlin.time`.
                 append(currentPackage + path)
             }
+
+            // A qualified supertype like `CoroutineContext.Key` resolves its
+            // first segment through imports the same way simple names do:
+            // `import kotlin.coroutines.CoroutineContext` contributes the
+            // candidate `kotlin.coroutines.CoroutineContext.Key`. Without
+            // this, user files outside the imported package silently drop
+            // the supertype and fall back to kotlin.Any.
+            let rootSegment = path[0]
+            let remainder = Array(path.dropFirst())
+            for importDecl in imports {
+                if let alias = importDecl.alias {
+                    if alias == rootSegment {
+                        append(importDecl.path + remainder)
+                    }
+                } else if importDecl.path.last == rootSegment {
+                    append(importDecl.path + remainder)
+                }
+            }
+
+            // Wildcard/package imports contribute the whole qualified path,
+            // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
+            for importDecl in imports where importDecl.alias == nil {
+                let isPackageImport = symbols.lookupAll(fqName: importDecl.path).contains { symbolID in
+                    symbols.symbol(symbolID)?.kind == .package
+                }
+                if isPackageImport {
+                    append(importDecl.path + path)
+                }
+            }
         }
 
         return candidates
