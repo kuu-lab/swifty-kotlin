@@ -164,10 +164,15 @@ public func kk_triple_third(_ tripleRaw: Int) -> Int {
 
 @_cdecl("__kk_array_toList")
 public func kk_array_toList(_ arrayRaw: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_toList")
+    if let array = runtimeArrayBox(from: arrayRaw) {
+        return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
     }
-    return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
+    // A vararg parameter is a List inside its callee, so forwarding it with
+    // `*xs` hands an already-listified value to the caller-side packing code.
+    if let list = runtimeListBox(from: arrayRaw) {
+        return registerRuntimeObject(RuntimeListBox(values: Array(list.values)))
+    }
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_toList")
 }
 
 @_cdecl("kk_array_toMutableList")
