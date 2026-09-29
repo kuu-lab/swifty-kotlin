@@ -6,15 +6,6 @@ public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
 public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
 
-public fun String.isBlank(): Boolean {
-    var i = 0
-    while (i < this.length) {
-        if (!this[i].isWhitespace()) return false
-        i++
-    }
-    return true
-}
-
 public fun CharSequence.isBlank(): Boolean {
     var i = 0
     while (i < this.length) {
@@ -24,21 +15,11 @@ public fun CharSequence.isBlank(): Boolean {
     return true
 }
 
-public fun String.isNotBlank(): Boolean = !this.isBlank()
-
 public fun CharSequence.isNotBlank(): Boolean = !this.isBlank()
-
-public inline fun String.ifEmpty(defaultValue: () -> String): String {
-    return if (this.isEmpty()) defaultValue() else this
-}
 
 public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSequence, C : R {
     val value: CharSequence = this
     return if (value.isEmpty()) defaultValue() else this
-}
-
-public inline fun String.ifBlank(defaultValue: () -> String): String {
-    return if (this.isBlank()) defaultValue() else this
 }
 
 public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
@@ -50,12 +31,6 @@ public fun CharSequence?.isNullOrEmpty(): Boolean {
     val value = this
     if (value == null) return true
     return value!!.isEmpty()
-}
-
-public fun String?.isNullOrBlank(): Boolean {
-    val value = this
-    if (value == null) return true
-    return value!!.isBlank()
 }
 
 public fun CharSequence?.isNullOrBlank(): Boolean {
