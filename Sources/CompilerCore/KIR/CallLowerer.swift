@@ -675,8 +675,10 @@ final class CallLowerer {
             // literal, a lambda, a nested call, ...) is left untouched —
             // see needsEvaluationOrderFreeze's doc comment for why an
             // unconditional freeze here is unsafe for trailing-lambda
-            // arguments to inline functions.
+            // arguments to inline functions. Only worth it when a later
+            // argument could actually mutate something (expressionMayMutateState).
             return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
                 ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
                 : rawArgID
         }

@@ -151,7 +151,10 @@ extension CallLowerer {
             // see needsEvaluationOrderFreeze's doc comment for why an
             // unconditional freeze here is unsafe for trailing-lambda
             // arguments to inline functions (e.g. range `fold`/`reduce`).
+            // Only worth it when a later argument could actually mutate
+            // something (expressionMayMutateState).
             return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
                 ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
                 : rawArgID
         }

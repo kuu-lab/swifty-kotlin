@@ -72,8 +72,13 @@ extension CallLowerer {
         // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
         // in `x + x++`) must observe its value at the point it was
         // evaluated, not any mutation rhs performs on the same variable.
-        // See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze.
+        // Only worth doing when rhs could actually perform a mutation
+        // (e.g. `result + 22` cannot touch `result`, so freezing here
+        // would only add a dead copy some optimization levels don't fold
+        // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
+        // / expressionMayMutateState.
         let lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+            && expressionMayMutateState(rhs, ast: ast)
             ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
             : rawLhsID
         let rhsID = driver.lowerExpr(
@@ -1325,6 +1330,57 @@ extension CallLowerer {
             return false
         }
         return symbolInfo.kind == .local && symbolInfo.flags.contains(.mutable)
+    }
+
+    /// Conservatively true when `exprID` could possibly perform a write
+    /// (an assignment, an increment/decrement, or a call that might do
+    /// either indirectly) while it is evaluated. False only for an
+    /// expression built purely from literals, bare reads, and arithmetic/
+    /// comparison/logical operators over such expressions — a shape that
+    /// can never mutate anything, however deep it nests.
+    ///
+    /// This exists to avoid freezing a sibling operand needlessly: e.g. in
+    /// `result = result + 22`, the rhs `22` cannot mutate `result`, so
+    /// there is no aliasing hazard and freezing the lhs would only add a
+    /// dead `.copy` that some optimization levels don't fold away (this
+    /// was caught by `LLVMOptimizationPipelineTests`'s stack-slot-
+    /// elimination probe). `needsEvaluationOrderFreeze` should only cause
+    /// a freeze when *this* also returns true for the later-evaluated
+    /// sibling(s).
+    ///
+    /// Bounded by the same depth the expression parser itself enforces
+    /// (`ExpressionParser.maxRecursionDepth`), so hitting the bound
+    /// conservatively returns true rather than recursing unboundedly.
+    func expressionMayMutateState(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        depth: Int = 0
+    ) -> Bool {
+        guard depth < 64, let expr = ast.arena.expr(exprID) else {
+            return true
+        }
+        switch expr {
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
+             .stringLiteral, .nameRef:
+            return false
+        case let .binary(_, lhs, rhs, _):
+            return expressionMayMutateState(lhs, ast: ast, depth: depth + 1)
+                || expressionMayMutateState(rhs, ast: ast, depth: depth + 1)
+        case let .unaryExpr(_, operand, _):
+            return expressionMayMutateState(operand, ast: ast, depth: depth + 1)
+        default:
+            return true
+        }
+    }
+
+    /// True when any of `exprIDs` might mutate state per
+    /// `expressionMayMutateState`.
+    func anyExpressionMayMutateState<S: Sequence>(
+        _ exprIDs: S,
+        ast: ASTModule
+    ) -> Bool where S.Element == ExprID {
+        exprIDs.contains { expressionMayMutateState($0, ast: ast) }
     }
 
     func lowerIndexedAssignExpr(
