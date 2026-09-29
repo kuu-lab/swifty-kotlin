@@ -3482,6 +3482,108 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
     }
     return Int(bitPattern: jobPtr)
 }
+/// KSP-1573: backing for the bundled `CoroutineScope.produce`/`actor`
+/// builders — `__kk_produce_launch(channel, blockFnPtr, blockEnvRaw)`.
+///
+/// Two block shapes reach this boundary:
+///  - A suspend *literal* is rewritten by CoroutineLoweringPass into a
+///    launcher-thunk + continuation pair and reaches
+///    `__kk_produce_launch_with_cont` instead — the same convention the
+///    synthetic `kk_kxmini_produce_with_cont` launcher used.
+///  - A suspend function *value* (a block stored in a variable or received
+///    from another call) crosses as the (fnPtr, env) pair suspend function
+///    values use at the ABI boundary. A suspend value's invoke thunk is
+///    `(receiver, outThrown)`, so the channel handle passes as arg0 and the
+///    thunk binds it to launcherArgs[0] itself (nested runBlocking on the
+///    worker); env is reserved for capture-carrying thunk forms.
+///
+/// Both shapes register the child job on the ambient scope
+/// (`RuntimeCoroutineScope.current` — the same scope the synthetic
+/// kk_produce launcher used) and close the channel when the block finishes.
+/// Returns the channel handle.
+@_cdecl("__kk_produce_launch")
+public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ envRaw: Int) -> Int {
+    guard entryPointRaw != 0 else {
+        return channelHandle
+    }
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    job.markStarted()
+    let callerScope = RuntimeCoroutineScope.current
+    callerScope?.registerChild(Int(bitPattern: jobPtr))
+
+    KxMiniRuntime.launch {
+        if job.cancellationSnapshot() {
+            _ = kk_channel_close(channelHandle)
+            _ = job.complete(with: 0)
+            return
+        }
+        RuntimeCoroutineScope.current = callerScope
+        RuntimeJobHandle.current = nil
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint1.self)
+        var thrown = 0
+        let result = invoke(channelHandle, &thrown)
+        _ = kk_channel_close(channelHandle)
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
+    }
+    return channelHandle
+}
+
+/// KSP-1573: launcher-rewrite counterpart of `__kk_produce_launch` —
+/// `(channel, launcherThunk, continuation)`, the same convention
+/// `kk_kxmini_produce_with_cont` uses except the channel arrives
+/// pre-created: the bundled `Channel(capacity, onBufferOverflow)` factory
+/// applies the capacity/overflow semantics in Kotlin before the launch.
+@_cdecl("__kk_produce_launch_with_cont")
+public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    guard let contState = runtimeContinuationState(from: continuation) else {
+        return channelHandle
+    }
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    job.markStarted()
+    job.continuationState = contState
+    contState.jobHandle = job
+    // launcherArgs[0] is the suspend-entry receiver slot: the block's `this`
+    // (ProducerScope / ActorScope) is the channel handle; captures occupy the
+    // remaining slots, seeded by the call-site rewrite.
+    contState.launcherArgs[0] = Int64(channelHandle)
+    let callerScope = RuntimeCoroutineScope.current
+    callerScope?.registerChild(Int(bitPattern: jobPtr))
+    contState.scope = callerScope
+
+    KxMiniRuntime.launch {
+        if job.cancellationSnapshot() {
+            _ = kk_channel_close(channelHandle)
+            _ = job.complete(with: 0)
+            return
+        }
+        runtimeStartLaunchedBody(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            scope: callerScope,
+            job: nil
+        ) { result, thrown in
+            _ = kk_channel_close(channelHandle)
+            if thrown != 0 {
+                _ = job.completeExceptionally(with: thrown)
+            } else {
+                _ = job.complete(with: result)
+            }
+        }
+    }
+    return channelHandle
+}
 /// Backing for the bare `kotlinx.coroutines.Job(): Job` factory (no parent argument --
 /// the only shape currently registered in Sema).
 @_cdecl("kk_job_new")
