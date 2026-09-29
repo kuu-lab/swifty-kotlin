@@ -51,6 +51,23 @@ enum RuntimeRangeKind: Int32 {
     }
 }
 
+/// Builds the box for `first until exclusiveEnd`. Mirrors Kotlin's
+/// `until`: the result is always a step-1 range `first..(end - 1)`, except when
+/// the end is at or below the type's minimum, where `(end - 1)` would wrap and
+/// Kotlin returns the canonical `EMPTY` range: `1..0` for signed kinds and
+/// `MAX_VALUE..0` for the unsigned ones.
+func runtimeUntilRange(first: Int, exclusiveEnd: Int, kind: RuntimeRangeKind, endAtOrBelowMinimum: Bool) -> Int {
+    if endAtOrBelowMinimum {
+        let emptyFirst: Int = switch kind {
+        case .uintRange, .uintProgression: Int(UInt32.max)
+        case .ulongRange, .ulongProgression: -1
+        default: 1
+        }
+        return registerRuntimeObject(RuntimeRangeBox(first: emptyFirst, last: 0, step: 1, kind: kind))
+    }
+    return registerRuntimeObject(RuntimeRangeBox(first: first, last: exclusiveEnd &- 1, step: 1, kind: kind))
+}
+
 func runtimeRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
     if range.kind.usesUnsignedValues {
         let first = UInt(bitPattern: range.first)
@@ -108,7 +125,9 @@ func runtimeRangeHashCode(_ range: RuntimeRangeBox) -> Int {
 }
 
 func runtimeRangesEqual(_ lhs: RuntimeRangeBox, _ rhs: RuntimeRangeBox) -> Bool {
-    guard lhs.kind == rhs.kind else {
+    // Kotlin: `XRange.equals` only accepts an `XRange`, while
+    // `XProgression.equals` accepts any `XProgression` (a range included).
+    guard lhs.kind == rhs.kind || (lhs.kind.isProgression && lhs.kind == rhs.kind.progressionKind) else {
         return false
     }
     if runtimeRangeIsEmpty(lhs), runtimeRangeIsEmpty(rhs) {

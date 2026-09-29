@@ -279,8 +279,32 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     @Test func intProgressionFromClosedRange_stepIntMinThrows() {
         var thrown = 0
-        _ = __kk_int_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
-        #expect(thrown != 0, "step=Int.min must throw")
+        _ = __kk_int_progression_fromClosedRange(0, 1, 10, Int(Int32.min), &thrown)
+        #expect(thrown != 0, "step=Int.MIN_VALUE (Int32) must throw")
+    }
+
+    // MARK: - until: empty ranges keep step 1; minimum bound yields EMPTY
+
+    @Test func intUntil_emptyKeepsStepOne() {
+        let r = runtimeRangeBox(from: __kk_op_rangeUntil(5, 3))!
+        #expect(r.first == 5 && r.last == 2 && r.step == 1)
+        #expect(runtimeRangeIsEmpty(r))
+    }
+
+    @Test func untilAtMinimumBoundIsCanonicalEmpty() {
+        let i = runtimeRangeBox(from: __kk_op_rangeUntil(7, Int(Int32.min)))!
+        #expect(i.first == 1 && i.last == 0 && runtimeRangeIsEmpty(i))
+        let l = runtimeRangeBox(from: __kk_long_rangeUntil(7, Int.min))!
+        #expect(l.first == 1 && l.last == 0)
+        let u = runtimeRangeBox(from: __kk_uint_rangeUntil(7, 0))!
+        #expect(u.first == Int(UInt32.max) && u.last == 0 && runtimeRangeIsEmpty(u))
+    }
+
+    @Test func progressionEqualsAcceptsRangeButNotViceVersa() {
+        let range = runtimeRangeBox(from: kk_op_rangeTo(1, 3))!
+        let prog = runtimeRangeBox(from: __kk_op_step(kk_op_rangeTo(1, 3), 1, nil))!
+        #expect(runtimeRangesEqual(prog, range))
+        #expect(!runtimeRangesEqual(range, prog))
     }
 
     // MARK: - LongRange edge cases
