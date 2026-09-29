@@ -152,14 +152,23 @@ extension CallTypeChecker {
                     // inferred. Keep the receiver-derived T in the expected lambda
                     // while replacing only its matching return type parameter.
                     let contextualLambdaType: TypeID? = {
+                        // Only a definitely non-null expected result can fix R: for `R?` returns
+                        // and safe calls (`x?.let {}` expected `Int?`) the expectation says
+                        // nothing certain about the lambda's own result type.
                         guard let contextualCallResultType,
+                              sema.types.makeNonNullable(contextualCallResultType) == contextualCallResultType,
                               candidates.count == 1,
                               let signature = sema.symbols.functionSignature(for: candidates[0]),
+                              sema.types.makeNonNullable(signature.returnType) == signature.returnType,
                               case let .typeParam(resultParam) = sema.types.kind(of: signature.returnType),
                               let expectedLambdaType = expectation.type,
                               case let .functionType(fn) = sema.types.kind(of: expectedLambdaType),
                               case let .typeParam(lambdaResultParam) = sema.types.kind(of: fn.returnType),
-                              lambdaResultParam.symbol == resultParam.symbol
+                              lambdaResultParam.symbol == resultParam.symbol,
+                              // `reduce<S, T : S>` also feeds S back into the lambda
+                              // parameters; fixing it early conflicts with T's bound.
+                              !fn.params.contains(where: { sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol) }),
+                              !(fn.receiver.map { sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol) } ?? false)
                         else { return expectation.type }
                         return sema.types.make(.functionType(FunctionType(
                             contextReceivers: fn.contextReceivers,
