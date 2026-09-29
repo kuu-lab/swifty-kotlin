@@ -1,12 +1,19 @@
 package kotlin.text
 
+import kotlin.internal.KsSymbolName
+
 // Empty, blank, and line helpers are implemented in bundled Kotlin source.
 
-public fun CharSequence.isEmpty(): Boolean = this.length == 0
+@KsSymbolName("kk_string_isBlank_flat")
+private external fun String.__kkStringIsBlankFlat(): Boolean
 
-public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
+private fun CharSequence.__kkIsBlank(): Boolean {
+    // String uses a flat aggregate ABI and has no object receiver that can be
+    // registered in the CharSequence itable. Keep custom CharSequence
+    // implementations on their indexed interface path, while routing an
+    // erased String receiver through the existing flat runtime bridge.
+    if (this is String) return this.__kkStringIsBlankFlat()
 
-public fun CharSequence.isBlank(): Boolean {
     var i = 0
     while (i < this.length) {
         if (!this[i].isWhitespace()) return false
@@ -15,7 +22,13 @@ public fun CharSequence.isBlank(): Boolean {
     return true
 }
 
-public fun CharSequence.isNotBlank(): Boolean = !isBlank()
+public fun CharSequence.isEmpty(): Boolean = this.length == 0
+
+public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
+
+public fun CharSequence.isBlank(): Boolean = this.__kkIsBlank()
+
+public fun CharSequence.isNotBlank(): Boolean = !this.__kkIsBlank()
 
 public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSequence, C : R {
     val value: CharSequence = this
@@ -24,7 +37,7 @@ public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSeque
 
 public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
     val value: CharSequence = this
-    return if (value.isBlank()) defaultValue() else this
+    return if (value.__kkIsBlank()) defaultValue() else this
 }
 
 public fun CharSequence?.isNullOrEmpty(): Boolean {
@@ -36,7 +49,7 @@ public fun CharSequence?.isNullOrEmpty(): Boolean {
 public fun CharSequence?.isNullOrBlank(): Boolean {
     val value = this
     if (value == null) return true
-    return value!!.isBlank()
+    return value!!.__kkIsBlank()
 }
 
 public fun String?.orEmpty(): String {
