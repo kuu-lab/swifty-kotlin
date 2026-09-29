@@ -1771,6 +1771,28 @@ extension ExprLowerer {
             )
 
         case let .returnExpr(value, label, _):
+            // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
+            // ends only that iteration: run the inner `finally` blocks, then jump.
+            if let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
+                if let value {
+                    _ = lowerExpr(
+                        value,
+                        ast: ast, sema: sema, arena: arena, interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
+                }
+                inlineFinallyBlocksForBreakOrContinue(
+                    label: label,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                instructions.append(.jump(iterationEnd))
+                let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
             if let value {
                 let lowered = lowerExpr(
                     value,
