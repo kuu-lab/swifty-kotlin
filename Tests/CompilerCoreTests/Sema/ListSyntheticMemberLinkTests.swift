@@ -2450,7 +2450,7 @@ struct ListSyntheticMemberLinkTests {
                 (["kotlin"], "Comparable", [.in], "__bundled_kotlin/Comparable.kt"),
                 (["kotlin", "collections"], "Iterable", [.out], "__bundled_kotlin/collections/Iterable.kt"),
                 (["kotlin", "collections"], "Collection", [.out], "__bundled_kotlin/collections/Collection.kt"),
-                (["kotlin", "collections"], "List", [.out], "__bundled_kotlin/collections/List.kt"),
+                (["kotlin", "collections"], "List", [.out], "__bundled_kotlin/collections/List/List.kt"),
                 (["kotlin", "collections"], "MutableCollection", [.invariant], "__bundled_kotlin/collections/MutableCollection.kt"),
                 (["kotlin", "collections"], "AbstractList", [.out], "__bundled_kotlin/collections/AbstractList.kt"),
             ]

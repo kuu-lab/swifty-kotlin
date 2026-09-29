@@ -506,7 +506,20 @@ extension CallLowerer {
                     || name == "CharProgression"
                     || name == "UIntRange"
                     || name == "UIntProgression"
+                    || name == "ULongRange"
                     || name == "ULongProgression"
+            }()
+            let isULongRangeSourceEndProperty = {
+                guard calleeNameStr == "endInclusive" || calleeNameStr == "endExclusive",
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
+                      interner.resolve(receiverSymbol.name) == "ULongRange",
+                      let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+                      sema.symbols.isSourceBackedSymbol(propertySymbol),
+                      sema.symbols.parentSymbol(for: propertySymbol) == receiverSymbol.id
+                else {
+                    return false
+                }
+                return true
             }()
             let isExplicitProgressionSourceCall = ast.arena.isExplicitCall(exprID)
                 && {
@@ -530,7 +543,7 @@ extension CallLowerer {
                     }
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
+            if isRangeLikeReceiver && !isExplicitProgressionSourceCall && !isULongRangeSourceEndProperty {
                 // KSP-1524: range first/last values are raw bits at this ABI
                 // boundary, so ULong can use the shared getter as well.
                 let runtimeGetter: InternedString? = switch calleeNameStr {

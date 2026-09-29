@@ -7,6 +7,15 @@
 
 package kotlin.collections
 
-// KSP-697: the mutable collection shell is source-backed. Mutating members and
-// their runtime bridges remain residual registrations for the later bridge work.
-public interface MutableCollection<E> : Collection<E>, MutableIterable<E>
+import kotlin.internal.KsSymbolName
+
+// KSP-697/705: the mutable collection shell and its Collection addAll member
+// are source-backed. The member keeps the demoted runtime bridge as its ABI.
+public interface MutableCollection<E> : Collection<E>, MutableIterable<E> {
+    /**
+     * Adds all elements of [elements] to this mutable collection.
+     */
+    @KsSymbolName("__kk_mutable_collection_addAll")
+    @IgnorableReturnValue
+    public external fun addAll(elements: Collection<out E>): Boolean
+}
