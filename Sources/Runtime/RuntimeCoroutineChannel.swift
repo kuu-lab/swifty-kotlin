@@ -608,6 +608,11 @@ private let kChannelResultTagShift = 2
 private let kChannelResultTagSuccess = 0
 private let kChannelResultTagClosed = 1
 private let kChannelResultTagFailed = 2
+/// Closed with no retained cause — upstream `trySend` reports
+/// `closed(sendException)` where `sendException` substitutes a
+/// `ClosedSendChannelException`, so the bundled ChannelResult materialises
+/// that exception for this tag.
+private let kChannelResultTagClosedNoCause = 3
 
 /// trySend variant returning the tagged `ChannelResult` token consumed by the
 /// bundled `SendChannel.trySend` member.  Argument order is swizzled the same
@@ -649,6 +654,9 @@ public func kk_channel_try_send_tagged(_ arg0: Int, _ arg1: Int) -> Int {
         return (unitPayload << kChannelResultTagShift) | kChannelResultTagSuccess
     case .closed, .cancelled:
         let cause = channel.closeCauseSnapshot()
+        if cause == 0 {
+            return kChannelResultTagClosedNoCause
+        }
         return (cause << kChannelResultTagShift) | kChannelResultTagClosed
     case .failed:
         return kChannelResultTagFailed
@@ -675,14 +683,53 @@ public func kk_channel_result_cause(_ token: Int) -> Int {
     return token >> kChannelResultTagShift
 }
 
+/// Collapse a tagged primitive-box handle back to its raw scalar payload so
+/// the success token carries the element representation (raw Int bits or an
+/// object pointer). A generic-`T` argument may arrive boxed; shifting the
+/// tagged handle left by the tag width would destroy the tag bits.
+private func kk_channel_result_unwrapPrimitiveBox(_ raw: Int) -> Int {
+    guard let base = runtimePrimitiveBoxBasePointer(from: raw) else {
+        return raw
+    }
+    let isRegistered = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: raw))
+    }
+    guard isRegistered else {
+        return raw
+    }
+    if let intBox = tryCast(base, to: RuntimeIntBox.self) {
+        return intBox.value
+    }
+    if let longBox = tryCast(base, to: RuntimeLongBox.self) {
+        return longBox.value
+    }
+    if let ulongBox = tryCast(base, to: RuntimeULongBox.self) {
+        return ulongBox.value
+    }
+    if let boolBox = tryCast(base, to: RuntimeBoolBox.self) {
+        return boolBox.value ? 1 : 0
+    }
+    if let charBox = tryCast(base, to: RuntimeCharBox.self) {
+        return charBox.value
+    }
+    if let doubleBox = tryCast(base, to: RuntimeDoubleBox.self) {
+        return Int(truncatingIfNeeded: doubleBox.value.bitPattern)
+    }
+    if let floatBox = tryCast(base, to: RuntimeFloatBox.self) {
+        return Int(truncatingIfNeeded: floatBox.value.bitPattern)
+    }
+    return raw
+}
+
 /// Encode helper for `ChannelResult.Companion.success(value)`: packs the
-/// element pointer into a success token.
+/// element payload into a success token.
 @_cdecl("__kk_channel_result_success")
 public func kk_channel_result_success(_ value: Int) -> Int {
     if value == 0 {
         return 0
     }
-    return (value << kChannelResultTagShift) | kChannelResultTagSuccess
+    let payload = kk_channel_result_unwrapPrimitiveBox(value)
+    return (payload << kChannelResultTagShift) | kChannelResultTagSuccess
 }
 
 /// Encode helper for `ChannelResult.Companion.closed(cause)`: packs the cause

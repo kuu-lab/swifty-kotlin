@@ -1035,6 +1035,17 @@ struct RuntimeChannelTests {
         #expect(kk_channel_result_value(closedToken) == 0)
     }
 
+    /// A channel closed without a cause reports the dedicated tag-3 token so
+    /// `ChannelResult` can materialise `ClosedSendChannelException` like
+    /// upstream's `sendException` substitution.
+    @Test func taggedTrySendOnNormallyClosedChannelReportsNoCauseTag() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        let token = kk_channel_try_send_tagged(channel, 5)
+        #expect(token == 3, "closed-without-cause tag is 3")
+        #expect(kk_channel_result_cause(token) == 0)
+    }
+
     /// The `__kk_channel_result_success`/`closed` encoders round-trip their
     /// payloads through the decoders.
     @Test func channelResultEncodersRoundTrip() {

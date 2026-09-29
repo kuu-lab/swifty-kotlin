@@ -30,14 +30,21 @@ private external fun __kkChannelResultValue(token: Int): Any?
 @KsSymbolName("__kk_channel_result_cause")
 private external fun __kkChannelResultCause(token: Int): Throwable?
 
+// The generic `value: T` keeps the element representation (raw Int for value
+// types, object pointer for reference types) — an `Any?` parameter would box
+// value types into a heap object and `as T` would leak the box pointer.
 @KsSymbolName("__kk_channel_result_success")
-private external fun __kkChannelResultSuccess(value: Any?): Int
+private external fun <T> __kkChannelResultSuccess(value: T): Int
 
 @KsSymbolName("__kk_channel_result_closed")
 private external fun __kkChannelResultClosedToken(cause: Throwable?): Int
 
 private const val KK_CHANNEL_RESULT_TAG_CLOSED: Int = 1
 private const val KK_CHANNEL_RESULT_TAG_FAILED: Int = 2
+// Closed with no retained cause: upstream `trySend` reports
+// `closed(sendException)` where `sendException` substitutes
+// `ClosedSendChannelException`, materialised here on read.
+private const val KK_CHANNEL_RESULT_TAG_CLOSED_NO_CAUSE: Int = 3
 
 /**
  * Result of a channel operation that either succeeded with a value or failed
@@ -62,17 +69,26 @@ public value class ChannelResult<out T> internal constructor(internal val token:
      * Whether the operation failed because the channel was closed.
      */
     public val isClosed: Boolean
-        get() = (token and 3) == KK_CHANNEL_RESULT_TAG_CLOSED
+        get() {
+            val tag = token and 3
+            return tag == KK_CHANNEL_RESULT_TAG_CLOSED || tag == KK_CHANNEL_RESULT_TAG_CLOSED_NO_CAUSE
+        }
 
     /**
      * Returns the encapsulated [T] if the operation succeeded, or throws the
      * encapsulated exception if it failed.
      */
     public fun getOrThrow(): T {
-        if (isClosed) {
-            val cause = __kkChannelResultCause(token)
-            if (cause != null) {
-                throw cause!!
+        val tag = token and 3
+        if (tag == KK_CHANNEL_RESULT_TAG_CLOSED_NO_CAUSE) {
+            throw ClosedSendChannelException("Channel was closed")
+        }
+        if (tag == KK_CHANNEL_RESULT_TAG_CLOSED) {
+            // The decoded cause is a raw object pointer; a zero payload decodes
+            // to a non-null zero pointer, so detect "no cause" from the token
+            // payload rather than a null check on the decoded reference.
+            if ((token ushr 2) != 0) {
+                throw __kkChannelResultCause(token)!!
             }
             throw ClosedReceiveChannelException("Channel was closed")
         }
@@ -105,14 +121,23 @@ public value class ChannelResult<out T> internal constructor(internal val token:
      * Returns the exception with which the channel was closed, or `null` if
      * the channel was not closed or was closed without a cause.
      */
-    public fun exceptionOrNull(): Throwable? = __kkChannelResultCause(token)
+    public fun exceptionOrNull(): Throwable? {
+        val tag = token and 3
+        if (tag == KK_CHANNEL_RESULT_TAG_CLOSED_NO_CAUSE) {
+            return ClosedSendChannelException("Channel was closed")
+        }
+        if (tag == KK_CHANNEL_RESULT_TAG_CLOSED && (token ushr 2) != 0) {
+            return __kkChannelResultCause(token)
+        }
+        return null
+    }
 
     public companion object {
         /**
          * Wraps [value] in a successful result.
          */
         public fun <T> success(value: T): ChannelResult<T> =
-            ChannelResult<T>(__kkChannelResultSuccess(value))
+            ChannelResult<T>(__kkChannelResultSuccess<T>(value))
 
         /**
          * A failure without a close cause.
@@ -128,8 +153,7 @@ public value class ChannelResult<out T> internal constructor(internal val token:
 
     public override fun toString(): String {
         if (isClosed) {
-            val cause = __kkChannelResultCause(token)
-            return "Closed($cause)"
+            return "Closed(${exceptionOrNull()})"
         }
         if (isFailure) {
             return "Failed"

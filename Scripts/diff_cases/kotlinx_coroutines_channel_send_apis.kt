@@ -82,5 +82,23 @@ fun main() = runBlocking {
     println("ch7 cancelled: ${ch7.isClosedForSend}")
     println("ch7 still has element: ${!ch7.isEmpty}")
 
+    // 8. closed-without-cause result: trySend wraps a ClosedSendChannelException
+    //    as the close cause (upstream sendException semantics)
+    val ch8 = Channel<Int>()
+    ch8.close()
+    val r8 = ch8.trySend(3)
+    println("r8 isClosed: ${r8.isClosed}")
+    println("r8 cause null: ${r8.exceptionOrNull() == null}")
+    try {
+        r8.getOrThrow()
+        println("r8 getOrThrow: no throw")
+    } catch (e: ClosedSendChannelException) {
+        println("r8 getOrThrow threw: ${e.message}")
+    }
+
+    // NOTE: ChannelResult.success/failure/closed are @InternalCoroutinesApi
+    // upstream — the kotlinc reference refuses user calls, so they are
+    // excluded from this diff case (the bundled surface still provides them).
+
     println("done")
 }
