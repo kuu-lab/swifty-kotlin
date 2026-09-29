@@ -66,16 +66,27 @@ internal fun <T> startCoroutineUninterceptedOrReturnFallback(
     return (function as Function1<Continuation<T>, Any?>).invoke(completion)
 }
 
-/** Receiver-bearing fallback for [startCoroutineUninterceptedOrReturnFallback]. */
-@Suppress("UNCHECKED_CAST")
+/**
+ * Markers for the receiver-bearing coroutine intrinsics. They are bodiless so
+ * inlining leaves the call in place; the coroutine lowering pass rewrites it
+ * into the runtime entry-point ABI (a suspend function value cannot be invoked
+ * through a `Function2` cast), so they are never linked.
+ */
+@KsSymbolName("startCoroutineUninterceptedOrReturnWithReceiver")
 @PublishedApi
-internal fun <R, T> startCoroutineUninterceptedOrReturnFallback(
+internal external fun <R, T> startCoroutineUninterceptedOrReturnWithReceiver(
     function: suspend R.() -> T,
     receiver: R,
     completion: Continuation<T>
-): Any? {
-    return (function as Function2<Any?, Any?, Any?>).invoke(receiver, completion)
-}
+): Any?
+
+@KsSymbolName("createCoroutineUninterceptedWithReceiver")
+@PublishedApi
+internal external fun <R, T> createCoroutineUninterceptedWithReceiver(
+    function: suspend R.() -> T,
+    receiver: R,
+    completion: Continuation<T>
+): Continuation<Unit>
 
 /**
  * The runtime continuation is already suitable for KSwiftK's coroutine ABI.

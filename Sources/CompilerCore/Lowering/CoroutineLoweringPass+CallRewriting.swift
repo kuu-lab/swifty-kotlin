@@ -20,6 +20,11 @@ extension CoroutineLoweringPass {
         let createCoroutineCallee: InternedString
         let createCoroutineUninterceptedCallee: InternedString
         let startCoroutineUninterceptedOrReturnCallee: InternedString
+        /// Marker callees left behind when the source-backed receiver-bearing
+        /// intrinsics (SuspendFunction1.kt) are inlined; rewritten like the
+        /// receiver-less synthetic forms.
+        let createCoroutineUninterceptedWithReceiverCallee: InternedString
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee: InternedString
         let runtimeCreateCoroutineUninterceptedCallee: InternedString
         let runtimeStartCoroutineUninterceptedOrReturnCallee: InternedString
         let runtimeContinuationResumeCallee: InternedString
@@ -1488,7 +1493,8 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee,
+        guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
+                || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil
@@ -1549,7 +1555,8 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee,
+        guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil

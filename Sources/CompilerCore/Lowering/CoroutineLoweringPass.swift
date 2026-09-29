@@ -93,6 +93,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let createCoroutineCallee = ctx.interner.intern("createCoroutine")
         let createCoroutineUninterceptedCallee = ctx.interner.intern("createCoroutineUnintercepted")
         let startCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("startCoroutineUninterceptedOrReturn")
+        let createCoroutineUninterceptedWithReceiverCallee = ctx.interner.intern("createCoroutineUninterceptedWithReceiver")
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee = ctx.interner.intern("startCoroutineUninterceptedOrReturnWithReceiver")
         let runtimeRunBlockingCallee = ctx.interner.intern("kk_kxmini_run_blocking")
         let runtimeLaunchCallee = ctx.interner.intern("kk_kxmini_launch")
         let runtimeAsyncCallee = ctx.interner.intern("kk_kxmini_async")
@@ -334,6 +336,8 @@ final class CoroutineLoweringPass: LoweringPass {
             createCoroutineCallee: createCoroutineCallee,
             createCoroutineUninterceptedCallee: createCoroutineUninterceptedCallee,
             startCoroutineUninterceptedOrReturnCallee: startCoroutineUninterceptedOrReturnCallee,
+            createCoroutineUninterceptedWithReceiverCallee: createCoroutineUninterceptedWithReceiverCallee,
+            startCoroutineUninterceptedOrReturnWithReceiverCallee: startCoroutineUninterceptedOrReturnWithReceiverCallee,
             runtimeCreateCoroutineUninterceptedCallee: runtimeCreateCoroutineUninterceptedCallee,
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,

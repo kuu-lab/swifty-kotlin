@@ -116,8 +116,19 @@ struct CoroutineIntrinsicsSyntheticStubTests {
             #expect(sema.symbols.symbol(singletonSymbol)?.kind == .enumClass)
 
             let fallbackSymbols = symbols(named: "startCoroutineUninterceptedOrReturnFallback")
-            #expect(fallbackSymbols.count == 2)
+            #expect(fallbackSymbols.count == 1)
             #expect(fallbackSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+
+            // The receiver-bearing forms are bodiless source markers that the
+            // coroutine lowering pass rewrites into the runtime entry-point ABI.
+            for markerName in [
+                "startCoroutineUninterceptedOrReturnWithReceiver",
+                "createCoroutineUninterceptedWithReceiver",
+            ] {
+                let markerSymbols = symbols(named: markerName)
+                #expect(markerSymbols.count == 1, "\(markerName)")
+                #expect(markerSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+            }
 
             let suspendName = interner.intern("suspendCoroutineUninterceptedOrReturn")
             #expect(sema.bundledIndex.contains(ownerFQName: package, name: suspendName, arity: 1))

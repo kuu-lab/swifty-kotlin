@@ -8,31 +8,15 @@
 package kotlin.coroutines.intrinsics
 
 import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.internal.InlineOnly
 
 /** Creates an unintercepted coroutine, which begins when the returned continuation is resumed. */
 @SinceKotlin("1.3")
-public fun <R, T> (suspend R.() -> T).createCoroutineUnintercepted(
+@InlineOnly
+public inline fun <R, T> (suspend R.() -> T).createCoroutineUnintercepted(
     receiver: R,
     completion: Continuation<T>
-): Continuation<Unit> {
-    val function = this
-    return Continuation<Unit>(completion.context) { result ->
-        try {
-            result.getOrThrow()
-            val value = startCoroutineUninterceptedOrReturnFallback(function, receiver, completion)
-            if (value !== COROUTINE_SUSPENDED) {
-                @Suppress("UNCHECKED_CAST")
-                val typed = value as T
-                completion.resume(typed)
-            }
-        } catch (failure: Throwable) {
-            completion.resumeWithException(failure)
-        }
-    }
-}
+): Continuation<Unit> = createCoroutineUninterceptedWithReceiver(this, receiver, completion)
 
 /** Runs the receiver-bearing suspend function until its first suspension. */
 @SinceKotlin("1.3")
@@ -40,4 +24,4 @@ public fun <R, T> (suspend R.() -> T).createCoroutineUnintercepted(
 public inline fun <R, T> (suspend R.() -> T).startCoroutineUninterceptedOrReturn(
     receiver: R,
     completion: Continuation<T>
-): Any? = startCoroutineUninterceptedOrReturnFallback(this, receiver, completion)
+): Any? = startCoroutineUninterceptedOrReturnWithReceiver(this, receiver, completion)
