@@ -888,8 +888,9 @@ extension DataFlowSemaPhase {
     }
 
     /// Check whether the function body contains a self-recursive call in tail position.
-    /// For block bodies, checks ALL return expressions (not just the last statement)
-    /// to handle patterns like `if (cond) return f(x); return base`.
+    /// Tail positions are tracked through `if`/`when`/block/elvis branches so
+    /// expression bodies (`= if (c) acc else f(x)`) and early returns nested in
+    /// branches (`if (c) { return f(x) }`) are recognised.
     func checkTailRecursiveBody(
         _ body: FunctionBody, functionName: InternedString, ast: ASTModule
     ) -> Bool {
@@ -897,24 +898,46 @@ extension DataFlowSemaPhase {
         case .unit:
             return false
         case let .expr(exprID, _):
-            return isSelfRecursiveCall(exprID, functionName: functionName, ast: ast)
+            return containsTailCall(exprID, isValuePosition: true, functionName: functionName, ast: ast)
         case let .block(exprIDs, _):
-            // Check any explicit return expression in the block whose value
-            // is a self-recursive call — the tail call may appear in an
-            // early-return branch, not necessarily the last statement.
-            for exprID in exprIDs {
-                if let expr = ast.arena.expr(exprID),
-                   case let .returnExpr(value, _, _) = expr,
-                   let value
-                {
-                    if isSelfRecursiveCall(value, functionName: functionName, ast: ast) {
-                        return true
-                    }
+            for (index, exprID) in exprIDs.enumerated() {
+                // The last statement doubles as the implicit result; earlier
+                // statements only count through an explicit `return`.
+                let isLast = index == exprIDs.count - 1
+                if containsTailCall(exprID, isValuePosition: isLast, functionName: functionName, ast: ast) {
+                    return true
                 }
             }
-            // Also check the last expression for implicit return (expression-body style).
-            guard let lastExprID = exprIDs.last else { return false }
-            return isSelfRecursiveCall(lastExprID, functionName: functionName, ast: ast)
+            return false
+        }
+    }
+
+    /// `isValuePosition` is true when the expression's value is the function's
+    /// result; otherwise only an explicit `return f(..)` inside it counts.
+    private func containsTailCall(
+        _ exprID: ExprID, isValuePosition: Bool, functionName: InternedString, ast: ASTModule
+    ) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else { return false }
+        func recurse(_ id: ExprID, _ valuePosition: Bool) -> Bool {
+            containsTailCall(id, isValuePosition: valuePosition, functionName: functionName, ast: ast)
+        }
+        switch expr {
+        case let .returnExpr(value, _, _):
+            return value.map { recurse($0, true) } ?? false
+        case .call, .memberCall, .safeMemberCall:
+            return isValuePosition && isSelfRecursiveCall(exprID, functionName: functionName, ast: ast)
+        case let .ifExpr(_, thenExpr, elseExpr, _):
+            return recurse(thenExpr, isValuePosition) || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
+        case let .whenExpr(_, branches, elseExpr, _):
+            return branches.contains { recurse($0.body, isValuePosition) }
+                || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
+        case let .blockExpr(statements, trailingExpr, _):
+            return statements.contains { recurse($0, false) }
+                || (trailingExpr.map { recurse($0, isValuePosition) } ?? false)
+        case let .binary(op, _, rhs, _):
+            return op == .elvis && recurse(rhs, isValuePosition)
+        default:
+            return false
         }
     }
 

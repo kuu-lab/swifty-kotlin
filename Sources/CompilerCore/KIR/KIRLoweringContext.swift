@@ -72,6 +72,10 @@ final class KIRLoweringContext {
     var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
 
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
+    /// Functions declared `tailrec` whose body is currently being (or has been) lowered.
+    /// Self-calls to these expand omitted defaults at the call site so the
+    /// TailrecLoweringPass sees a plain self-call instead of a `$default` detour.
+    private(set) var tailrecFunctionSymbols: Set<SymbolID> = []
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
@@ -461,6 +465,10 @@ final class KIRLoweringContext {
 
     func setFunctionDefaultArguments(_ mapping: [SymbolID: [ExprID?]]) {
         functionDefaultArgumentsBySymbol = mapping
+    }
+
+    func markTailrecFunction(_ symbol: SymbolID) {
+        tailrecFunctionSymbols.insert(symbol)
     }
 
     func defaultArguments(for symbol: SymbolID) -> [ExprID?]? {
