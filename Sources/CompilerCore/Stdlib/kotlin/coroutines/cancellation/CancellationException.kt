@@ -6,18 +6,22 @@
 package kotlin.coroutines.cancellation
 
 import kotlin.internal.InlineOnly
+import kotlin.internal.KsSymbolName
 
 // Keep constructor calls behind differently named helpers. Calling
 // CancellationException(...) from a hidden factory body also discovers that
 // same hidden factory before constructor candidates are added, which makes the
 // factory diagnose its own body as a hidden-deprecation use.
 @PublishedApi
-internal fun createCancellationException(message: String?, cause: Throwable?): CancellationException =
-    CancellationException(message, cause)
+@KsSymbolName("__kk_cancellation_exception_new_message_cause")
+internal external fun createCancellationException(
+    message: String?,
+    cause: Throwable?
+): CancellationException
 
 @PublishedApi
-internal fun createCancellationException(cause: Throwable?): CancellationException =
-    CancellationException(cause)
+@KsSymbolName("__kk_cancellation_exception_new_cause")
+internal external fun createCancellationException(cause: Throwable?): CancellationException
 
 // The Native constructors are declared in CancellationExceptionH.kt. These
 // hidden factories preserve the common expect/actual API's source ownership.
