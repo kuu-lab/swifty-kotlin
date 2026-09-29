@@ -548,15 +548,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticObjectProperty(
-            ownerSymbol: continuationSymbol,
-            ownerType: continuationType,
-            name: "context",
-            propertyType: kotlinCoroutineContextType,
-            externalLinkName: "kk_coroutine_continuation_context",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("context"),
+            arity: 0
+        ) {
+            registerSyntheticObjectProperty(
+                ownerSymbol: continuationSymbol,
+                ownerType: continuationType,
+                name: "context",
+                propertyType: kotlinCoroutineContextType,
+                externalLinkName: "kk_coroutine_continuation_context",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineTopLevelProperty(
             named: "coroutineContext",
             packageFQName: kotlinCoroutinesPkg,
@@ -578,55 +584,73 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "resume",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: continuationType,
-            externalLinkName: "kk_coroutine_continuation_resume",
-            returnType: types.unitType,
-            parameters: [(
-                name: "value",
-                type: continuationTType
-            )],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "resumeWithException",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: continuationType,
-            externalLinkName: "kk_coroutine_continuation_resume_with_exception",
-            returnType: types.unitType,
-            parameters: [(
-                name: "exception",
-                type: exceptionType
-            )],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resume"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "resume",
+                packageFQName: kotlinCoroutinesPkg,
+                receiverType: continuationType,
+                externalLinkName: "kk_coroutine_continuation_resume",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "value",
+                    type: continuationTType
+                )],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resumeWithException"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "resumeWithException",
+                packageFQName: kotlinCoroutinesPkg,
+                receiverType: continuationType,
+                externalLinkName: "kk_coroutine_continuation_resume_with_exception",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "exception",
+                    type: exceptionType
+                )],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         let resultOfContinuationTType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,
             args: [.invariant(continuationTType)],
             nullability: .nonNull
         )))
-        registerSyntheticCoroutineMember(
-            ownerSymbol: continuationSymbol,
-            ownerType: continuationType,
-            name: "resumeWith",
-            externalLinkName: "kk_coroutine_continuation_resume_with",
-            returnType: types.unitType,
-            parameters: [(
-                name: "result",
-                type: resultOfContinuationTType
-            )],
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resumeWith"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: continuationSymbol,
+                ownerType: continuationType,
+                name: "resumeWith",
+                externalLinkName: "kk_coroutine_continuation_resume_with",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "result",
+                    type: resultOfContinuationTType
+                )],
+                typeParameterSymbols: [continuationTypeParameterSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let continuationOfUnitType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.in(types.unitType)],
@@ -928,6 +952,11 @@ extension DataFlowSemaPhase {
             symbol: createCoroutineTypeParameterSymbol,
             nullability: .nonNull
         )))
+        let createCoroutineCompletionType = types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: [.invariant(createCoroutineTypeParameterType)],
+            nullability: .nonNull
+        )))
         let createCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
             params: [],
             returnType: createCoroutineTypeParameterType,
@@ -1157,7 +1186,7 @@ extension DataFlowSemaPhase {
             named: "createCoroutineUnintercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
             receiverType: createCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: continuationType)],
+            parameters: [(name: "completion", type: createCoroutineCompletionType)],
             returnType: continuationOfUnitType,
             typeParameterSymbols: [createCoroutineTypeParameterSymbol],
             symbols: symbols,
@@ -1169,7 +1198,7 @@ extension DataFlowSemaPhase {
             receiverType: createCoroutineWithReceiverFunctionType,
             parameters: [
                 (name: "receiver", type: createCoroutineReceiverTypeParameterType),
-                (name: "completion", type: continuationType),
+                (name: "completion", type: createCoroutineCompletionType),
             ],
             returnType: continuationOfUnitType,
             typeParameterSymbols: [createCoroutineReceiverTypeParameterSymbol, createCoroutineTypeParameterSymbol],
