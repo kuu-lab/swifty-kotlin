@@ -8,33 +8,37 @@
 package kotlin.coroutines.intrinsics
 
 import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.internal.InlineOnly
+import kotlin.internal.KsSymbolName
+
+// A suspend function value cannot be invoked through a `Function1` cast at
+// runtime, so these bodiless markers keep the intrinsic's call name in KIR.
+// The coroutine lowering pass rewrites calls with these names into the runtime
+// entry-point ABI. They must stay bodiless so inlining does not expand them.
+@KsSymbolName("createCoroutineUnintercepted")
+@PublishedApi
+internal external fun <T> createCoroutineUninterceptedNoReceiver(
+    function: suspend () -> T,
+    completion: Continuation<T>
+): Continuation<Unit>
+
+@KsSymbolName("startCoroutineUninterceptedOrReturn")
+@PublishedApi
+internal external fun <T> startCoroutineUninterceptedOrReturnNoReceiver(
+    function: suspend () -> T,
+    completion: Continuation<T>
+): Any?
 
 /** Creates a fresh continuation without applying the completion's interceptor. */
 @SinceKotlin("1.3")
-public fun <T> (suspend () -> T).createCoroutineUnintercepted(
+@InlineOnly
+public inline fun <T> (suspend () -> T).createCoroutineUnintercepted(
     completion: Continuation<T>
-): Continuation<Unit> {
-    val function = this
-    return Continuation<Unit>(completion.context) { result ->
-        try {
-            result.getOrThrow()
-            val value = startCoroutineUninterceptedOrReturnFallback(function, completion)
-            if (value !== COROUTINE_SUSPENDED) {
-                @Suppress("UNCHECKED_CAST")
-                completion.resume(value as T)
-            }
-        } catch (failure: Throwable) {
-            completion.resumeWithException(failure)
-        }
-    }
-}
+): Continuation<Unit> = createCoroutineUninterceptedNoReceiver(this, completion)
 
 /** Runs until the first suspension, returning the result or suspended marker. */
 @SinceKotlin("1.3")
 @InlineOnly
 public inline fun <T> (suspend () -> T).startCoroutineUninterceptedOrReturn(
     completion: Continuation<T>
-): Any? = startCoroutineUninterceptedOrReturnFallback(this, completion)
+): Any? = startCoroutineUninterceptedOrReturnNoReceiver(this, completion)

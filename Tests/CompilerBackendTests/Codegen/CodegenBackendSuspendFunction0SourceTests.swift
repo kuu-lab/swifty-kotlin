@@ -15,9 +15,12 @@ struct CodegenBackendSuspendFunction0SourceTests {
         import kotlin.coroutines.intrinsics.createCoroutineUnintercepted
         import kotlin.coroutines.intrinsics.startCoroutineUninterceptedOrReturn
 
+        // Top-level counters: a suspend lambda that captures a local `var` currently
+        // crashes when started through the unintercepted-coroutine entry-point ABI.
+        var starts = 0
+        var completed = 0
+
         fun main() {
-            var starts = 0
-            var completed = 0
             val completion = Continuation<Int>(EmptyCoroutineContext) { result ->
                 completed = result.getOrThrow()
             }

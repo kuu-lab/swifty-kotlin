@@ -14,7 +14,7 @@ struct SuspendFunction0IntrinsicSourceTests {
         fun <T> prepare(function: suspend () -> T, completion: Continuation<T>) =
             function.createCoroutineUnintercepted(completion)
 
-        fun <T> start(function: suspend () -> T, completion: Continuation<T>) =
+        fun <T> start(function: suspend () -> T, completion: Continuation<T>): Any? =
             function.startCoroutineUninterceptedOrReturn(completion)
         """)
         try runSema(ctx)
