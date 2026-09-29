@@ -364,6 +364,10 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                 values: list.values,
                 removeAction: { index in
                     guard list.indices.contains(index) else { return }
+                    if list.isMapValuesView {
+                        _ = list.removeMapBackedValue(at: index)
+                        return
+                    }
                     list.withMutableValues { $0.remove(at: index) }
                 },
                 setAction: { index, value in
@@ -662,6 +666,9 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
     if let list = runtimeListBox(from: collectionRaw) {
         guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
             return kk_box_bool(0)
+        }
+        if list.isMapValuesView {
+            return kk_box_bool(list.removeMapBackedValue(at: index) ? 1 : 0)
         }
         list.withMutableValues { $0.remove(at: index) }
         return kk_box_bool(1)

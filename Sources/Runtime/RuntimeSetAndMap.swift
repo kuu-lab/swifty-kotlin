@@ -662,22 +662,26 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_keys")
 public func kk_map_keys(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return runtimeSourceMapKeys(mapRaw)
             ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    return registerRuntimeObject(
-        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(map.keyValues))
-    )
+    // MutableMap.keys is a mutable, write-through view (mirrors .entries
+    // above): removing through it removes the key from the map, and later
+    // map mutations are visible through this same set handle.
+    return registerRuntimeObject(RuntimeSetBox(mapKeysOf: mapRaw))
 }
 
 @_cdecl("__kk_map_values")
 public func kk_map_values(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return runtimeSourceMapValues(mapRaw)
             ?? registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeListBox(values: map.entryValues))
+    // MutableMap.values is a mutable, write-through view (mirrors .entries
+    // / .keys above): removing through it removes the corresponding
+    // key/value pair from the map.
+    return registerRuntimeObject(RuntimeListBox(mapValuesOf: mapRaw))
 }
 
 @_cdecl("__kk_map_iterator")
