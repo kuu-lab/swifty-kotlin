@@ -72,8 +72,10 @@ extension CallLowerer {
         // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
         // in `x + x++`) must observe its value at the point it was
         // evaluated, not any mutation rhs performs on the same variable.
-        // See freezeEvaluationOrderOperand.
-        let lhsID = freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+        // See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze.
+        let lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+            ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+            : rawLhsID
         let rhsID = driver.lowerExpr(
             rhs,
             ast: ast,
@@ -1296,6 +1298,33 @@ extension CallLowerer {
         let temp = arena.appendTemporary(type: arena.exprType(id))
         instructions.append(.copy(from: id, to: temp))
         return temp
+    }
+
+    /// True when `exprID` is a bare reference to a mutable (`var`) local —
+    /// the only shape whose lowered `KIRExprID` aliases a register that a
+    /// later-evaluated sibling operand could still mutate in place (see
+    /// `freezeEvaluationOrderOperand`). Anything else — a `val`, a literal,
+    /// a lambda, a nested call, a property, a value parameter, ... — either
+    /// cannot be mutated by a sibling, or is already lowered into its own
+    /// fresh value, so freezing it would only add a needless extra copy.
+    /// That matters beyond cost: a call argument that is a trailing lambda
+    /// passed to an `inline` stdlib function (e.g. `fold`/`reduce` on a
+    /// range) is later consumed by the separate inline-lowering pass, which
+    /// expects to find the closure construction directly feeding the call;
+    /// splicing an unconditional copy in between broke that pattern match
+    /// and crashed under `-O2`.
+    func needsEvaluationOrderFreeze(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        guard case .nameRef = ast.arena.expr(exprID),
+              let symbol = sema.bindings.identifierSymbols[exprID],
+              let symbolInfo = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return symbolInfo.kind == .local && symbolInfo.flags.contains(.mutable)
     }
 
     func lowerIndexedAssignExpr(

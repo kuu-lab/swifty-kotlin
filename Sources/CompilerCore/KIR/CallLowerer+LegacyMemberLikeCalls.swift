@@ -143,12 +143,17 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            // Freeze each argument immediately after lowering it: a bare
-            // mutable-local argument (e.g. `x` in `c.combine(x, x++)`) must
-            // observe its value at the point it was evaluated, not any
-            // mutation a later argument performs on the same variable. See
-            // freezeEvaluationOrderOperand.
-            return freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
+            // Freeze each bare mutable-local argument immediately after
+            // lowering it (e.g. `x` in `c.combine(x, x++)`) so it observes
+            // its value at the point it was evaluated, not any mutation a
+            // later argument performs on the same variable. Anything else
+            // (a literal, a lambda, a nested call, ...) is left untouched —
+            // see needsEvaluationOrderFreeze's doc comment for why an
+            // unconditional freeze here is unsafe for trailing-lambda
+            // arguments to inline functions (e.g. range `fold`/`reduce`).
+            return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
+                ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
+                : rawArgID
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
         let isSourceBackedMemberCall: Bool = {
