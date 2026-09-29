@@ -751,12 +751,11 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringIfBlankEmptyFlatABIRemoved() {
+    func kkStringIfBlankEmptyFlatCompatibilitySignatures() throws {
         for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
-            #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == name }),
-                "\(name) should be removed now that ifBlank/ifEmpty are source-backed"
-            )
+            let spec = try requireSpec(name)
+            #expect(spec.returnType == .nullableUInt8Pointer)
+            #expect(spec.parameters.count == 10)
         }
     }
 
