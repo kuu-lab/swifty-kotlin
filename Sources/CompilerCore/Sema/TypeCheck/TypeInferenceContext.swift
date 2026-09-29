@@ -184,9 +184,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
-    func withOuterReceiver(label: InternedString, type: TypeID) -> TypeInferenceContext {
+    func withOuterReceiver(label: InternedString, type: TypeID, symbol: SymbolID? = nil) -> TypeInferenceContext {
         var copy = self
-        copy.outerReceiverTypes = outerReceiverTypes + [(label: label, type: type, symbol: nil)]
+        copy.outerReceiverTypes = outerReceiverTypes + [(label: label, type: type, symbol: symbol)]
         return copy
     }
 

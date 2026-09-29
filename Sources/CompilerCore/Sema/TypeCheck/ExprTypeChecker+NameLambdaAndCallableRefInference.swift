@@ -1250,6 +1250,20 @@ extension ExprTypeChecker {
         // set the implicit receiver so that unqualified member calls resolve correctly.
         if let receiverType = expectedFunctionType?.receiver {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
+            // The lambda's own receiver is its `this`: shadow the enclosing
+            // function's receiver in `locals` (which `inferThisRefExpr` reads
+            // first) and address it through a per-lambda symbol so that
+            // `this@callee` from a nested lambda can capture it.
+            let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)
+            lambdaLocals[ctx.interner.intern("this")] = (
+                type: receiverType,
+                symbol: receiverSymbol,
+                isMutable: false,
+                isInitialized: true
+            )
+            if let label {
+                bodyCtx = bodyCtx.withOuterReceiver(label: label, type: receiverType, symbol: receiverSymbol)
+            }
         }
         if let expectedFunctionType, !expectedFunctionType.contextReceivers.isEmpty {
             bodyCtx = bodyCtx.with(

@@ -173,19 +173,10 @@ final class LambdaLowerer {
         // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
         let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
-        let activeReceiverSatisfiesExpectedType: Bool = {
-            guard let expectedReceiverType = functionType?.receiver,
-                  let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID(),
-                  let activeReceiverType = arena.exprType(activeReceiverExprID)
-            else {
-                return false
-            }
-            return sema.types.isSubtype(
-                sema.types.makeNonNullable(activeReceiverType),
-                sema.types.makeNonNullable(expectedReceiverType)
-            )
-        }()
-        let needsExplicitReceiver = hasReceiverParam && !activeReceiverSatisfiesExpectedType
+        // A receiver lambda always takes its own receiver parameter, even when the
+        // enclosing implicit receiver has a compatible type: `"a".run { "b".apply { this } }`
+        // must see "b", and `this@run` must still reach "a".
+        let needsExplicitReceiver = hasReceiverParam
         let effectiveParamCount: Int = {
             let baseCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
                 functionType.params.count
@@ -400,6 +391,10 @@ final class LambdaLowerer {
                 }
             }
         }
+        // Publish this lambda's receiver under its per-lambda symbol so that
+        // `this@callee` (in this body or a nested lambda that captures it)
+        // reads this receiver rather than the innermost implicit one.
+        registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: hasReceiverParam)
         // Map param names → symbols for nameRef fallback when identifierSymbols is unbound.
         let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
             [interner.intern("it")]
@@ -2016,6 +2011,8 @@ final class LambdaLowerer {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
         }
+
+        registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: functionType?.receiver != nil)
 
         // Set up parameter name mapping for `it` parameter
         let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
