@@ -687,7 +687,7 @@ public func kk_map_iterator(_ mapRaw: Int) -> Int {
     } else {
         ([], [])
     }
-    return registerRuntimeObject(RuntimeMapIteratorBox(keys: keys, values: values))
+    return registerRuntimeObject(RuntimeMapIteratorBox(mapRaw: mapRaw, keys: keys, values: values))
 }
 
 @_cdecl("__kk_map_iterator_hasNext")
@@ -709,6 +709,10 @@ public func kk_map_iterator_next(
           iter.index < iter.keys.count
     else {
         return runtimeThrowIteratorExhausted(outThrown)
+    }
+    guard iter.isInSyncWithBackingMap() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -739,6 +743,10 @@ public func kk_mutable_map_iterator_next(
           iter.index < iter.keys.count
     else {
         return runtimeThrowIteratorExhausted(outThrown)
+    }
+    guard iter.isInSyncWithBackingMap() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -777,6 +785,10 @@ public func kk_mutable_map_iterator_remove(
         return runtimeExceptionCaughtSentinel
     }
     iter.lastKey = nil
+    // The removal above just bumped the backing map's modCount through this
+    // same iterator — resync so the next `next()` call does not see this
+    // iterator's own change as a concurrent modification.
+    iter.expectedModCount = runtimeMapBox(from: iter.mapRaw)?.modCount ?? iter.expectedModCount
     return 0
 }
 

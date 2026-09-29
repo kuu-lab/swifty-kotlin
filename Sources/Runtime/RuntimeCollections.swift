@@ -373,7 +373,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                 addAction: { index, value in
                     guard (0...list.count).contains(index) else { return }
                     list.withMutableValues { $0.insert(value, at: index) }
-                }
+                },
+                currentModCount: { list.modCount }
             )
         )
         registerListIteratorItable(raw: raw)
@@ -390,7 +391,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                 removeAction: { index in
                     guard set.indices.contains(index) else { return }
                     _ = set.remove(rawValue: set[index])
-                }
+                },
+                currentModCount: { set.modCount }
             )
         )
         registerListIteratorItable(raw: raw)
@@ -450,7 +452,8 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         addAction: { addIndex, value in
             guard (0...list.count).contains(addIndex) else { return }
             list.withMutableValues { $0.insert(value, at: addIndex) }
-        }
+        },
+        currentModCount: { list.modCount }
     )
     iter.index = index
     let raw = registerRuntimeObject(iter)
@@ -515,6 +518,10 @@ public func kk_list_iterator_next(
         // BUG-231: see kk_list_iterator_hasNext above.
         return kk_iterator_next(iterRaw, outThrown)
     }
+    guard iter.isInSyncWithBackingCollection() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
+    }
     guard iter.index < iter.values.count else {
         return runtimeThrowIteratorExhausted(
             outThrown,
@@ -527,19 +534,25 @@ public func kk_list_iterator_next(
     return runtimeCollectionABIValue(value)
 }
 
-func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
+func runtimeListIteratorRemove(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
         return 0
     }
-    _ = iter.removeLastReturned()
+    guard iter.removeLastReturned() else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
+        return runtimeExceptionCaughtSentinel
+    }
     return 0
 }
 
-func runtimeListIteratorSet(_ iterRaw: Int, _ elem: Int) -> Int {
+func runtimeListIteratorSet(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
         return 0
     }
-    _ = iter.setLastReturned(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem))
+    guard iter.setLastReturned(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem)) else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
+        return runtimeExceptionCaughtSentinel
+    }
     return 0
 }
 
