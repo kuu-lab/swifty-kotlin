@@ -29,22 +29,22 @@ struct ByteShortOverloadResolutionTests {
             #expect(!ctx.diagnostics.hasError, "Integer literals should resolve as vararg elements: \(ctx.diagnostics.diagnostics.map { $0.message })")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let literal = try #require(firstExprID(in: ast) { _, expr in
+            let literal = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
                 if case let .intLiteral(value, _) = expr { return value == 65 }
                 return false
             })
             #expect(sema.bindings.exprType(for: literal) == sema.types.byteType)
-            let unsignedLiteral = try #require(firstExprID(in: ast) { _, expr in
+            let unsignedLiteral = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
                 if case let .uintLiteral(value, _) = expr { return value == 255 }
                 return false
             })
             #expect(sema.bindings.exprType(for: unsignedLiteral) == sema.types.ubyteType)
-            let intLiteral = try #require(firstExprID(in: ast) { _, expr in
+            let intLiteral = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
                 if case let .intLiteral(value, _) = expr { return value == 42 }
                 return false
             })
             #expect(sema.bindings.exprType(for: intLiteral) == sema.types.intType)
-            let shortLiteral = try #require(firstExprID(in: ast) { _, expr in
+            let shortLiteral = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
                 if case let .intLiteral(value, _) = expr { return value == 43 }
                 return false
             })
