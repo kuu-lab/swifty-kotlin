@@ -1266,6 +1266,30 @@ extension CallLowerer {
         return result
     }
 
+    /// Snapshots an already-lowered index operand into a fresh temporary.
+    ///
+    /// A bare reference to a mutable local (`nameRef`) returns that local's
+    /// persistent storage register by identity rather than a value snapshot
+    /// (see the `.nameRef` case in `ExprLowerer+ControlFlowAndBlocks.swift`,
+    /// via `localValue(for:)`). KIR instructions execute strictly in the
+    /// order they are appended, so if a later sibling expression (e.g. the
+    /// assignment's RHS, when it contains `i++`/`++i` on the same variable
+    /// used as the index) mutates that register in place before the
+    /// `kk_array_get`/`kk_array_set` call that consumes this operand
+    /// actually runs, the call observes the mutated value instead of the
+    /// value at the point the index was evaluated. Copying into a fresh
+    /// temporary immediately freezes the evaluate-once value that Kotlin's
+    /// specified left-to-right evaluation order requires.
+    private func freezeIndexOperand(
+        _ id: KIRExprID,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let temp = arena.appendTemporary(type: arena.exprType(id))
+        instructions.append(.copy(from: id, to: temp))
+        return temp
+    }
+
     func lowerIndexedAssignExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -1289,7 +1313,7 @@ extension CallLowerer {
         )
         // Built-in array set only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed assign")
-        let indexID = driver.lowerExpr(
+        let rawIndexID = driver.lowerExpr(
             indices[0],
             ast: ast,
             sema: sema,
@@ -1298,6 +1322,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let indexID = freezeIndexOperand(rawIndexID, arena: arena, instructions: &instructions)
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1471,7 +1496,7 @@ extension CallLowerer {
 
         // Built-in array compound assign only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed compound assign")
-        let indexID = driver.lowerExpr(
+        let rawIndexID = driver.lowerExpr(
             indices[0],
             ast: ast,
             sema: sema,
@@ -1480,6 +1505,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let indexID = freezeIndexOperand(rawIndexID, arena: arena, instructions: &instructions)
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1638,7 +1664,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let loweredIndices = indices.map { indexExpr in
-            driver.lowerExpr(
+            let rawIndex = driver.lowerExpr(
                 indexExpr,
                 ast: ast,
                 sema: sema,
@@ -1647,6 +1673,7 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            return freezeIndexOperand(rawIndex, arena: arena, instructions: &instructions)
         }
         let valueID = driver.lowerExpr(
             valueExpr,
