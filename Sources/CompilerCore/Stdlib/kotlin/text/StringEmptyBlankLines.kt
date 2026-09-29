@@ -1,12 +1,6 @@
 package kotlin.text
 
-import kotlin.internal.KsSymbolName
-
 // Empty, blank, and line helpers are implemented in bundled Kotlin source.
-
-@PublishedApi
-@KsSymbolName("kk_string_isBlank_flat")
-internal external fun String.__kkIsBlankFlat(): Boolean
 
 public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
@@ -28,18 +22,7 @@ public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSeque
 }
 
 public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
-    // Generic C receivers lose String's flat representation if length/get are
-    // dispatched through CharSequence. Keep flat strings on their dedicated
-    // runtime bridge; user-defined CharSequence implementations use the itable.
-    if (this is String) {
-        return if (this.__kkIsBlankFlat()) defaultValue() else this
-    }
-    var index = 0
-    while (index < this.length) {
-        if (!this[index].isWhitespace()) return this
-        index++
-    }
-    return defaultValue()
+    return if (isBlank()) defaultValue() else this
 }
 
 public fun CharSequence?.isNullOrEmpty(): Boolean {
