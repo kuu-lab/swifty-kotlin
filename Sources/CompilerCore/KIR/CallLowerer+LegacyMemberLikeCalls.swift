@@ -134,7 +134,7 @@ extension CallLowerer {
                 chosen: argumentCallBinding?.chosenCallee
             )
             defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance }
-            return driver.lowerExpr(
+            let rawArgID = driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -143,6 +143,12 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            // Freeze each argument immediately after lowering it: a bare
+            // mutable-local argument (e.g. `x` in `c.combine(x, x++)`) must
+            // observe its value at the point it was evaluated, not any
+            // mutation a later argument performs on the same variable. See
+            // freezeEvaluationOrderOperand.
+            return freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
         let isSourceBackedMemberCall: Bool = {

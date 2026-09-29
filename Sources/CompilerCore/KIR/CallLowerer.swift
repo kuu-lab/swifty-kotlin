@@ -659,7 +659,7 @@ final class CallLowerer {
             defer {
                 driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance
             }
-            return driver.lowerExpr(
+            let rawArgID = driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -668,6 +668,12 @@ final class CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            // Freeze each argument immediately after lowering it: a bare
+            // mutable-local argument (e.g. `x` in `f(x, x++)`) must observe
+            // its value at the point it was evaluated, not any mutation a
+            // later argument performs on the same variable. See
+            // freezeEvaluationOrderOperand.
+            return freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
         }
         let knownNames = KnownCompilerNames(interner: interner)
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)

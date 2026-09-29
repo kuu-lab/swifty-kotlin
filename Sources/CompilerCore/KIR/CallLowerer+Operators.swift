@@ -60,7 +60,7 @@ extension CallLowerer {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        let lhsID = driver.lowerExpr(
+        let rawLhsID = driver.lowerExpr(
             lhs,
             ast: ast,
             sema: sema,
@@ -69,6 +69,11 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
+        // in `x + x++`) must observe its value at the point it was
+        // evaluated, not any mutation rhs performs on the same variable.
+        // See freezeEvaluationOrderOperand.
+        let lhsID = freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
         let rhsID = driver.lowerExpr(
             rhs,
             ast: ast,
@@ -1266,21 +1271,24 @@ extension CallLowerer {
         return result
     }
 
-    /// Snapshots an already-lowered index operand into a fresh temporary.
+    /// Snapshots an already-lowered operand into a fresh temporary.
     ///
     /// A bare reference to a mutable local (`nameRef`) returns that local's
     /// persistent storage register by identity rather than a value snapshot
     /// (see the `.nameRef` case in `ExprLowerer+ControlFlowAndBlocks.swift`,
     /// via `localValue(for:)`). KIR instructions execute strictly in the
-    /// order they are appended, so if a later sibling expression (e.g. the
-    /// assignment's RHS, when it contains `i++`/`++i` on the same variable
-    /// used as the index) mutates that register in place before the
-    /// `kk_array_get`/`kk_array_set` call that consumes this operand
-    /// actually runs, the call observes the mutated value instead of the
-    /// value at the point the index was evaluated. Copying into a fresh
-    /// temporary immediately freezes the evaluate-once value that Kotlin's
-    /// specified left-to-right evaluation order requires.
-    private func freezeIndexOperand(
+    /// order they are appended, so if a later-evaluated sibling operand
+    /// (e.g. an indexed assignment's value expression, or the right operand
+    /// of a binary expression, when it contains `i++`/`++i` on the same
+    /// variable this operand already read) mutates that register in place
+    /// before the instruction that consumes this operand actually runs, that
+    /// instruction observes the mutated value instead of the value at the
+    /// point this operand was evaluated. Copying into a fresh temporary
+    /// immediately after evaluation freezes the evaluate-once value that
+    /// Kotlin's specified left-to-right evaluation order requires. Call this
+    /// on every operand of a multi-operand construct as soon as it is
+    /// lowered, before lowering the next sibling operand.
+    func freezeEvaluationOrderOperand(
         _ id: KIRExprID,
         arena: KIRArena,
         instructions: inout [KIRInstruction]
@@ -1322,7 +1330,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let indexID = freezeIndexOperand(rawIndexID, arena: arena, instructions: &instructions)
+        let indexID = freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1505,7 +1513,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let indexID = freezeIndexOperand(rawIndexID, arena: arena, instructions: &instructions)
+        let indexID = freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1673,7 +1681,7 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            return freezeIndexOperand(rawIndex, arena: arena, instructions: &instructions)
+            return freezeEvaluationOrderOperand(rawIndex, arena: arena, instructions: &instructions)
         }
         let valueID = driver.lowerExpr(
             valueExpr,
