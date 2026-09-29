@@ -100,7 +100,7 @@ extension BuildASTPhase {
             // property and its body as a sibling block. It is not a property
             // accessor container in that case.
             let directTokens = collectDirectTokens(from: nodeID, in: arena)
-            if let accessorStart = inlineAccessorStartIndex(in: directTokens) {
+            if let accessorStart = inlineAccessorStartIndex(in: directTokens, bodyIsSiblingBlock: true) {
                 let headerTokens = Array(directTokens[accessorStart...])
                 if case .softKeyword(.get) = headerTokens[0].kind {
                     getter = PropertyAccessorDecl(
@@ -207,7 +207,9 @@ extension BuildASTPhase {
 
     /// Find the index where an inline `get`/`set` accessor keyword starts in
     /// a flat token list.  Returns `nil` when no accessor keyword is present.
-    func inlineAccessorStartIndex(in tokens: [Token]) -> Int? {
+    /// - Parameter bodyIsSiblingBlock: the accessor's `{ ... }` body is a separate
+    ///   block node, so the direct tokens legitimately end after the header.
+    func inlineAccessorStartIndex(in tokens: [Token], bodyIsSiblingBlock: Bool = false) -> Int? {
         for (index, token) in tokens.enumerated() {
             let isAccessorKeyword = switch token.kind {
             case .softKeyword(.get), .softKeyword(.set):
@@ -265,6 +267,7 @@ extension BuildASTPhase {
                 }
             }
             guard bodyStart < tokens.count else {
+                if bodyIsSiblingBlock { return index }
                 continue
             }
             switch tokens[bodyStart].kind {
