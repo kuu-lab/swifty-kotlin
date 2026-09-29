@@ -2988,6 +2988,91 @@ final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
     var underlyingFileHandle: FileHandle { fileHandle }
 }
 
+/// A Kotlin throwable rethrown through the Swift `Error` channel by a
+/// callback-backed stream sink. `thrownRaw` is the original Kotlin throwable
+/// handle; the `__kk_*_stream_*` bridges write it to `outThrown` unchanged so
+/// the Kotlin caller observes the original exception rather than a synthesized
+/// `IOException`.
+struct RuntimeKotlinThrownError: Error {
+    let thrownRaw: Int
+}
+
+/// `RuntimeOutputStreamSink` that forwards write/flush/close into Kotlin
+/// lambdas captured by `kotlinx.io.Sink.asOutputStream()` (KSP-1553).
+///
+/// Each callback is a KSwiftK closure stored as a (fnPtr, closureRaw) pair:
+/// `write: (ByteArray) -> Unit` is invoked through the collection-HOF
+/// entry-point convention and `flush`/`close: () -> Unit` through the closure
+/// thunk convention — the same conventions the `__kk_synchronized` /
+/// `kk_worker_execute` bridges use. The `write` argument is passed as a
+/// `RuntimeArrayBox`, which is the runtime representation of `ByteArray`.
+final class RuntimeKotlinOutputStreamSink: RuntimeOutputStreamSink {
+    private let writeFnPtr: Int
+    private let writeClosureRaw: Int
+    private let flushFnPtr: Int
+    private let flushClosureRaw: Int
+    private let closeFnPtr: Int
+    private let closeClosureRaw: Int
+
+    init(
+        writeFnPtr: Int,
+        writeClosureRaw: Int,
+        flushFnPtr: Int,
+        flushClosureRaw: Int,
+        closeFnPtr: Int,
+        closeClosureRaw: Int
+    ) {
+        self.writeFnPtr = writeFnPtr
+        self.writeClosureRaw = writeClosureRaw
+        self.flushFnPtr = flushFnPtr
+        self.flushClosureRaw = flushClosureRaw
+        self.closeFnPtr = closeFnPtr
+        self.closeClosureRaw = closeClosureRaw
+    }
+
+    func write(_ data: Data) throws {
+        let arrayBox = RuntimeArrayBox(length: data.count)
+        for (index, byte) in data.enumerated() {
+            arrayBox[index] = Int(byte)
+        }
+        let arrayRaw = registerRuntimeObject(arrayBox)
+        var thrown = 0
+        _ = runtimeInvokeCollectionLambda1(
+            fnPtr: writeFnPtr,
+            closureRaw: writeClosureRaw,
+            value: arrayRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            throw RuntimeKotlinThrownError(thrownRaw: thrown)
+        }
+    }
+
+    func flush() throws {
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: flushFnPtr,
+            closureRaw: flushClosureRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            throw RuntimeKotlinThrownError(thrownRaw: thrown)
+        }
+    }
+
+    func close() {
+        // `close()` has no thrown channel (`__kk_output_stream_close` takes no
+        // outThrown), so a throwable raised by the close callback is dropped,
+        // matching the file-backed sink's `try? fileHandle.close()` swallow.
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: closeFnPtr,
+            closureRaw: closeClosureRaw,
+            outThrown: &thrown
+        )
+    }
+}
+
 final class RuntimeOutputStreamBox {
     private let sink: RuntimeOutputStreamSink
 
