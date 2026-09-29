@@ -1,19 +1,12 @@
 package kotlin.text
 
-import kotlin.internal.KsSymbolName
-
 // Empty, blank, and line helpers are implemented in bundled Kotlin source.
 
-@KsSymbolName("kk_string_isBlank_flat")
-private external fun String.__kkStringIsBlankFlat(): Boolean
+public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
-private fun CharSequence.__kkIsBlank(): Boolean {
-    // String uses a flat aggregate ABI and has no object receiver that can be
-    // registered in the CharSequence itable. Keep custom CharSequence
-    // implementations on their indexed interface path, while routing an
-    // erased String receiver through the existing flat runtime bridge.
-    if (this is String) return this.__kkStringIsBlankFlat()
+public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
 
+public fun String.isBlank(): Boolean {
     var i = 0
     while (i < this.length) {
         if (!this[i].isWhitespace()) return false
@@ -22,22 +15,35 @@ private fun CharSequence.__kkIsBlank(): Boolean {
     return true
 }
 
-public fun CharSequence.isEmpty(): Boolean = this.length == 0
+public fun CharSequence.isBlank(): Boolean {
+    var i = 0
+    while (i < this.length) {
+        if (!this[i].isWhitespace()) return false
+        i++
+    }
+    return true
+}
 
-public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
+public fun String.isNotBlank(): Boolean = !this.isBlank()
 
-public fun CharSequence.isBlank(): Boolean = this.__kkIsBlank()
+public fun CharSequence.isNotBlank(): Boolean = !this.isBlank()
 
-public fun CharSequence.isNotBlank(): Boolean = !this.__kkIsBlank()
+public inline fun String.ifEmpty(defaultValue: () -> String): String {
+    return if (this.isEmpty()) defaultValue() else this
+}
 
 public inline fun <C, R> C.ifEmpty(defaultValue: () -> R): R where C : CharSequence, C : R {
     val value: CharSequence = this
     return if (value.isEmpty()) defaultValue() else this
 }
 
+public inline fun String.ifBlank(defaultValue: () -> String): String {
+    return if (this.isBlank()) defaultValue() else this
+}
+
 public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
     val value: CharSequence = this
-    return if (value.__kkIsBlank()) defaultValue() else this
+    return if (value.isBlank()) defaultValue() else this
 }
 
 public fun CharSequence?.isNullOrEmpty(): Boolean {
@@ -46,10 +52,16 @@ public fun CharSequence?.isNullOrEmpty(): Boolean {
     return value!!.isEmpty()
 }
 
+public fun String?.isNullOrBlank(): Boolean {
+    val value = this
+    if (value == null) return true
+    return value!!.isBlank()
+}
+
 public fun CharSequence?.isNullOrBlank(): Boolean {
     val value = this
     if (value == null) return true
-    return value!!.__kkIsBlank()
+    return value!!.isBlank()
 }
 
 public fun String?.orEmpty(): String {
