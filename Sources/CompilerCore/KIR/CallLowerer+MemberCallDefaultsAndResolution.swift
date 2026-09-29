@@ -624,6 +624,18 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
+        // A resolved extension call must execute the selected Kotlin body.
+        // Remapping solely from the member-call spelling would bypass exact
+        // cross-type user extensions such as IntRange.contains(Long), even
+        // though overload resolution correctly selected that extension.
+        if memberName == "contains",
+           let chosenCallee,
+           sema.symbols.functionSignature(for: chosenCallee)?.receiverType != nil,
+           sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true
+        {
+            return nil
+        }
+
         // A source-backed rangeUntil result can retain its nominal
         // OpenEndRange<Float/Double> type even if the element-type side channel
         // is absent on the member receiver expression. Only use the nominal
