@@ -40,8 +40,19 @@ private external fun <E> __kkActorLaunch(
     block: suspend ActorScope<E>.() -> Unit
 ): Channel<E>
 
+// Two overloads, not a `capacity = 0` default: a defaulted `actor {}` call
+// resolves to `actor$default`, a real forwarder function whose `block`
+// parameter is a suspend function *value* — the literal's captures can't
+// cross that boundary (the env slot is empty), so the boxed
+// `__kk_produce_launch` path has nothing to pass to the launcher thunk.
+// `actor { }` must instead bind `actor(block)` and inline-expand at the
+// call site, the same shape produce uses.
 public fun <E> CoroutineScope.actor(
-    capacity: Int = 0,
+    block: suspend ActorScope<E>.() -> Unit
+): SendChannel<E> = actor(0, block)
+
+public fun <E> CoroutineScope.actor(
+    capacity: Int,
     block: suspend ActorScope<E>.() -> Unit
 ): SendChannel<E> {
     val channel = Channel<E>(capacity)

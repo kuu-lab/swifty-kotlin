@@ -3493,9 +3493,9 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
 ///  - A suspend function *value* (a block stored in a variable or received
 ///    from another call) crosses as the (fnPtr, env) pair suspend function
 ///    values use at the ABI boundary. A suspend value's invoke thunk is
-///    `(receiver, outThrown)`, so the channel handle passes as arg0 and the
-///    thunk binds it to launcherArgs[0] itself (nested runBlocking on the
-///    worker); env is reserved for capture-carrying thunk forms.
+///    `(receiver, cap0..capN, outThrown)`, so the channel handle passes as
+///    arg0 and env supplies the captures. The thunk binds arg0 to
+///    launcherArgs[0] itself (nested runBlocking on the worker).
 ///
 /// Both shapes register the child job on the ambient scope
 /// (`RuntimeCoroutineScope.current` — the same scope the synthetic
@@ -3515,6 +3515,21 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
 
+    // Expand the env slot into the thunk's positional captures: 0 → none, a
+    // packed env object (kk_object_new(2+N, classID: 0), captures at slots
+    // 2..) → N captures, anything else → a single raw capture.
+    let captures: [Int]
+    if envRaw == 0 {
+        captures = []
+    } else if let envBox = resolveRuntimeHandle(envRaw, as: RuntimeObjectBox.self),
+              envBox.classID == 0,
+              envBox.elements.count > 2
+    {
+        captures = Array(envBox.elements.dropFirst(2))
+    } else {
+        captures = [envRaw]
+    }
+
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
             _ = kk_channel_close(channelHandle)
@@ -3523,9 +3538,13 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
         }
         RuntimeCoroutineScope.current = callerScope
         RuntimeJobHandle.current = nil
-        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint1.self)
         var thrown = 0
-        let result = invoke(channelHandle, &thrown)
+        let result = runtimeInvokeSuspendLauncherThunk(
+            entryPointRaw: entryPointRaw,
+            receiver: channelHandle,
+            captures: captures,
+            outThrown: &thrown
+        )
         _ = kk_channel_close(channelHandle)
         if thrown != 0 {
             _ = job.completeExceptionally(with: thrown)
@@ -3534,6 +3553,36 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
         }
     }
     return channelHandle
+}
+
+/// Invokes a suspend launcher thunk `(receiver, cap0..capN, outThrown)`
+/// whose captures arrive at the ABI boundary packed in env.
+private func runtimeInvokeSuspendLauncherThunk(
+    entryPointRaw: Int,
+    receiver: Int,
+    captures: [Int],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    switch captures.count {
+    case 0:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint1.self)
+        return invoke(receiver, outThrown)
+    case 1:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
+        return invoke(receiver, captures[0], outThrown)
+    case 2:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint3.self)
+        return invoke(receiver, captures[0], captures[1], outThrown)
+    case 3:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint4.self)
+        return invoke(receiver, captures[0], captures[1], captures[2], outThrown)
+    case 4:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint5.self)
+        return invoke(receiver, captures[0], captures[1], captures[2], captures[3], outThrown)
+    default:
+        runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
+        return 0
+    }
 }
 
 /// KSP-1573: launcher-rewrite counterpart of `__kk_produce_launch` —

@@ -1520,9 +1520,24 @@ extension CallTypeChecker {
             sendArgumentExprs: &sendArgumentExprs
         )
 
+        // Speculative scan: on the pre-check pass the lambda body hasn't been
+        // checked yet, so its internal bindings (loop variables, local vals)
+        // are absent from previewLocals. Snapshot/truncate discards the
+        // spurious diagnostics emitted for those names — the real lambda
+        // check re-emits genuine errors. On the post-check re-refine the
+        // send args already carry real types in the binding table, so consult
+        // it first (same pattern as the sequence-builder yield scan above).
         var previewLocals = locals
+        let diagnosticEngine = ctx.semaCtx.diagnostics
         let argumentTypes = sendArgumentExprs.compactMap { exprID -> TypeID? in
+            if let cached = sema.bindings.exprType(for: exprID),
+               cached != sema.types.errorType
+            {
+                return cached
+            }
+            let snapshot = diagnosticEngine.count
             let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
+            diagnosticEngine.truncate(to: snapshot)
             return inferredType == sema.types.errorType ? nil : inferredType
         }
         return .unary(argumentTypes)

@@ -30,10 +30,27 @@ fun main() = runBlocking {
     }
     println("captured: ${seen.size}")
 
+    // send arguments may reference bindings declared inside the producer
+    // lambda (the element-type send-scan must not reject them)
+    val looped = produce {
+        for (i in 1..3) {
+            send(i)
+        }
+        val extra = 9
+        send(extra)
+    }
+    var seenLast = 0
+    for (v in looped) {
+        seenLast = v
+    }
+    println("looped last: $seenLast")
+
     // actor: SendChannel processing messages on the launched coroutine
+    // (block captures enclosing locals)
+    val offset = 100
     val greeter = actor<Int> {
         for (msg in channel) {
-            println("actor got: $msg")
+            println("actor got: ${msg + offset}")
         }
     }
     greeter.send(7)
