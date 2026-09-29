@@ -2021,6 +2021,7 @@ extension CallTypeChecker {
                 }
                 return [:]
             }(),
+            contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
