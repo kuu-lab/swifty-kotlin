@@ -130,6 +130,26 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // Extension `var` properties (`var Foo.tag: String { get() ... set(v) ... }`)
+        // have no owner class/interface and no backing storage: assignment is
+        // purely a call to the extension's setter accessor with the receiver as
+        // the first argument.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+        {
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            instructions.append(.call(
+                symbol: setterSymbol,
+                callee: interner.intern("set"),
+                arguments: [receiverID, valueID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
         // `object` member properties are stored as flat global slots keyed by
         // the property's own symbol — the same storage `tryLowerObjectMemberPropertyRead`
         // reads via `loadGlobal` and bare-name assignment inside the object body
@@ -335,9 +355,16 @@ extension CallLowerer {
         // Properties whose reads and writes go through accessors (custom
         // get/set bodies, delegated properties) have no usable backing storage
         // for a load/compute/store round trip.
-        let usesAccessors: Bool = {
+        // The two halves are independent: a custom setter with a default
+        // getter (or vice versa) has no accessor symbol for the default half,
+        // so that half must keep using the backing field directly.
+        let usesGetterAccessor: Bool = {
             guard let propertySymbol else { return false }
             return memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
+        }()
+        let usesSetterAccessor: Bool = {
+            guard let propertySymbol else { return false }
+            return sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
                 || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
         }()
 
@@ -347,7 +374,6 @@ extension CallLowerer {
         let fieldOffset: Int? = {
             guard syntheticLinks == nil,
                   !isObjectOwned,
-                  !usesAccessors,
                   let propertySymbol,
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -404,6 +430,20 @@ extension CallLowerer {
                 result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
             )
+        } else if let propertySymbol,
+                  let itableValue = tryLowerInterfaceItablePropertyGetterRead(
+                      propertySymbol: propertySymbol,
+                      loweredReceiverID: receiverID,
+                      resultType: propType,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            // Interface-typed receiver: the interface has no per-instance
+            // storage, so read through the itable getter slot.
+            currentValue = itableValue
         } else if let virtualGetterDispatch {
             let result = arena.appendTemporary(type: propType)
             instructions.append(.virtualCall(
@@ -417,7 +457,7 @@ extension CallLowerer {
                 dispatch: virtualGetterDispatch.dispatch
             ))
             currentValue = result
-        } else if usesAccessors, let propertySymbol {
+        } else if usesGetterAccessor, let propertySymbol {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: propType)
@@ -618,6 +658,19 @@ extension CallLowerer {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
                 instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
                 instructions.append(.copy(from: newValue, to: globalRef))
+            } else if let propertySymbol,
+                      tryLowerInterfaceItablePropertySetterWrite(
+                          propertySymbol: propertySymbol,
+                          loweredReceiverID: receiverID,
+                          loweredValueID: newValue,
+                          sema: sema,
+                          arena: arena,
+                          interner: interner,
+                          instructions: &instructions
+                      ) != nil
+            {
+                // Interface-typed receiver: write through the itable setter
+                // slot (the helper already emitted the call).
             } else if let virtualSetterDispatch {
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.virtualCall(
@@ -630,7 +683,7 @@ extension CallLowerer {
                     thrownResult: nil,
                     dispatch: virtualSetterDispatch.dispatch
                 ))
-            } else if usesAccessors, let propertySymbol {
+            } else if usesSetterAccessor, let propertySymbol {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)

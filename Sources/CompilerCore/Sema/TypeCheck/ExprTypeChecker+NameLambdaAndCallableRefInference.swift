@@ -560,6 +560,33 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
+    /// Resolves `receiver.name` on the left of an assignment to a user-declared
+    /// extension `var` (`var Foo.tag: String { get() ... set(v) ... }`).
+    /// `lookupMemberProperty` only sees members, so without this fallback the
+    /// assignment carries no property binding and KIR lowering emits a call to
+    /// the bare property name. Only properties with a setter accessor qualify.
+    func lookupExtensionPropertyForAssignment(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        let sema = ctx.sema
+        let actual = sema.types.makeNonNullable(receiverType)
+        for candidate in ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible {
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .property,
+                  sema.symbols.extensionPropertySetterAccessor(for: candidate) != nil,
+                  let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
+                  sema.types.isSubtype(actual, sema.types.makeNonNullable(declaredReceiver)),
+                  let propertyType = sema.symbols.propertyType(for: candidate)
+            else {
+                continue
+            }
+            return (candidate, propertyType)
+        }
+        return nil
+    }
+
     /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
     /// or `this.box.n += value`. Mirrors `inferCompoundAssignExpr`'s operator-overload
     /// resolution (`plusAssign` then binary-operator fallback) but resolves the
@@ -585,6 +612,10 @@ extension ExprTypeChecker {
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
+        ) ?? lookupExtensionPropertyForAssignment(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            ctx: ctx
         ) else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0022",

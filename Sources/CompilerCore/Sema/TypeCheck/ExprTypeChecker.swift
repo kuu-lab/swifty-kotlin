@@ -162,6 +162,10 @@ final class ExprTypeChecker {
                 named: calleeName,
                 receiverType: nonNullReceiver,
                 sema: sema
+            ) ?? lookupExtensionPropertyForAssignment(
+                named: calleeName,
+                receiverType: nonNullReceiver,
+                ctx: ctx
             ) {
                 sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
             }
