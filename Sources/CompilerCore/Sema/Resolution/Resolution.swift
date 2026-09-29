@@ -613,8 +613,12 @@ extension OverloadResolver {
         }
         let knownNames = KnownCompilerNames(interner: interner)
         switch symbol.name {
-        case knownNames.intArray, knownNames.shortArray, knownNames.byteArray:
+        case knownNames.intArray:
             return sema.types.intType
+        case knownNames.shortArray:
+            return sema.types.shortType
+        case knownNames.byteArray:
+            return sema.types.byteType
         case knownNames.longArray:
             return sema.types.longType
         case knownNames.ubyteArray:
