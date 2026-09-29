@@ -284,6 +284,42 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // A nominal member has no extension receiver in its function
+        // signature, but its leading type parameters still belong to the
+        // declaring class/interface. Constrain those parameters from the
+        // actual receiver before argument inference. Otherwise an inherited
+        // member such as OpenEndRange<T>.contains(T) can incorrectly infer T
+        // from a Byte/Long argument instead of Int from IntRange, making an
+        // inapplicable member steal the call from an exact user extension.
+        if !isConstructor,
+           signature.receiverType == nil,
+           signature.classTypeParameterCount > 0,
+           let implicitReceiverType,
+           isNominalMemberFunction(candidate, typeSystem: ctx.types),
+           let owner = ctx.symbols.parentSymbol(for: candidate)
+        {
+            let ownerArguments: [TypeArg] = signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .map { typeParameter in
+                    .invariant(ctx.types.make(.typeParam(TypeParamType(
+                        symbol: typeParameter,
+                        nullability: .nonNull
+                    ))))
+                }
+            let ownerType = ctx.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: ownerArguments,
+                nullability: .nonNull
+            )))
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: implicitReceiverType,
+                supertype: ownerType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.types,
+                blameRange: call.range
+            ))
+        }
+
         guard let parameterMapping = buildParameterMapping(
             signature: signature,
             callArgs: call.args,
