@@ -716,7 +716,7 @@ extension TypeSystem {
     /// Finds a supertype of every element of `types` that is more specific
     /// than `Any`, without a full generic-hierarchy walk (the special-cased
     /// `isSubtype` rules for primitives don't expose a generic "supertypes
-    /// of" query). Covers two shapes seen in practice:
+    /// of" query). Covers three shapes seen in practice:
     ///
     /// - One input is already a common supertype of the rest, e.g.
     ///   `lub(Int, Number) == Number`, even when `Number` only appears as
@@ -727,8 +727,12 @@ extension TypeSystem {
     ///   `Double`, `Byte`, `Short`), whose only common ancestor besides
     ///   `Any` is `kotlin.Number` — e.g. `lub(Int, Long) == Number`, matching
     ///   kotlinc (`pick(1, 2L)` assigned to a `Number`-typed val).
+    /// - All inputs are user/library class types whose nominal supertype
+    ///   graphs share a class or interface other than `Any`, e.g.
+    ///   `lub(X, Y) == I` for `class X : I` / `class Y : I`
+    ///   (see `nearestCommonNominalSupertype`).
     ///
-    /// Returns `nil` when neither shape applies, leaving the caller to fall
+    /// Returns `nil` when none of the shapes apply, leaving the caller to fall
     /// back to `Any`.
     private func nearestCommonSupertype(_ types: [TypeID]) -> TypeID? {
         if let dominating = types.first(where: { candidate in types.allSatisfy { isSubtype($0, candidate) } }) {
@@ -737,7 +741,76 @@ extension TypeSystem {
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
-        return nil
+        return nearestCommonNominalSupertype(types)
+    }
+
+    /// Finds the most specific nominal supertype (other than `Any`) shared by
+    /// every non-null class type in `types`.
+    ///
+    /// Candidates are the ancestors of the first input, visited breadth-first
+    /// over `directNominalSupertypes` (an explicit worklist with a visited set,
+    /// so a cyclic or attacker-shaped `.kklib` supertype graph cannot recurse
+    /// or loop -- see KUU-809). Each candidate is instantiated with the type
+    /// arguments the first input lifts to (`liftedNominalSupertypeArgs`) and is
+    /// kept only if *every* input is a subtype of that instantiation, which
+    /// rejects generic mismatches such as `Comparable<X>` vs `Comparable<Y>`.
+    /// Among the survivors, candidates that are strict supertypes of another
+    /// survivor are dropped, and a superclass is preferred over an interface.
+    ///
+    /// Kotlin infers an intersection type when several incomparable candidates
+    /// remain (e.g. two classes implementing both `I` and `J`). This compiler
+    /// has no denotable intersection for inferred variables, so it
+    /// approximates with the first surviving candidate in breadth-first order
+    /// (nominal supertypes are stored sorted by symbol ID, so the
+    /// choice is deterministic). Members of the other candidates are not
+    /// visible on the result.
+    private func nearestCommonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+        guard types.count > 1 else { return nil }
+        var classTypes: [ClassType] = []
+        for type in types {
+            guard case let .classType(classType) = kind(of: type), classType.nullability == .nonNull else {
+                return nil
+            }
+            classTypes.append(classType)
+        }
+        let first = classTypes[0]
+
+        var ancestors: [SymbolID] = []
+        var visited: Set<SymbolID> = [first.classSymbol]
+        var worklist = directNominalSupertypes(for: first.classSymbol)
+        var head = 0
+        while head < worklist.count {
+            let ancestor = worklist[head]
+            head += 1
+            guard visited.insert(ancestor).inserted else { continue }
+            ancestors.append(ancestor)
+            worklist.append(contentsOf: directNominalSupertypes(for: ancestor))
+        }
+
+        var survivors: [TypeID] = []
+        for ancestor in ancestors {
+            let args = liftedNominalSupertypeArgs(
+                from: first.classSymbol,
+                childArgs: first.args,
+                to: ancestor
+            ) ?? []
+            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            if normalizedBuiltinDisguisedClassTypeAndKind(candidate).0 == anyType {
+                continue
+            }
+            if types.allSatisfy({ isSubtype($0, candidate) }) {
+                survivors.append(candidate)
+            }
+        }
+
+        let mostSpecific = survivors.filter { candidate in
+            !survivors.contains { other in other != candidate && isSubtype(other, candidate) }
+        }
+        let isInterface: (TypeID) -> Bool = { [self] candidate in
+            guard case let .classType(classType) = kind(of: candidate) else { return false }
+            return symbolTable?.symbol(classType.classSymbol)?.kind == .interface
+        }
+        return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {
