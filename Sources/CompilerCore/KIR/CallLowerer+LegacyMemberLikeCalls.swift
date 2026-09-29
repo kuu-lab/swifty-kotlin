@@ -1400,6 +1400,10 @@ extension CallLowerer {
                     } else {
                         nil
                     }
+                case "ifBlank":
+                    ("kk_string_ifBlank_flat", [loweredReceiverID, loweredArgIDs[0]])
+                case "ifEmpty":
+                    ("kk_string_ifEmpty_flat", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }
