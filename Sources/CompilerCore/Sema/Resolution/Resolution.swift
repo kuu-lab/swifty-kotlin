@@ -311,8 +311,25 @@ extension OverloadResolver {
                 args: ownerArguments,
                 nullability: .nonNull
             )))
+            let receiverOwnerType: TypeID = {
+                let nonNullReceiverType = ctx.types.makeNonNullable(implicitReceiverType)
+                guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
+                      let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
+                          from: receiverClassType.classSymbol,
+                          childArgs: receiverClassType.args,
+                          to: owner
+                      )
+                else {
+                    return implicitReceiverType
+                }
+                return ctx.types.make(.classType(ClassType(
+                    classSymbol: owner,
+                    args: liftedArguments,
+                    nullability: .nonNull
+                )))
+            }()
             constraints.append(contentsOf: decomposeSubtypeConstraint(
-                subtype: implicitReceiverType,
+                subtype: receiverOwnerType,
                 supertype: ownerType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: ctx.types,
