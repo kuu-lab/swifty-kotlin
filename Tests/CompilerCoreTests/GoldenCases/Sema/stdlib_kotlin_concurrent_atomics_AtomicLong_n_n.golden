@@ -10,8 +10,8 @@ expr e@9:32 long(42) type=Long
 expr e@9:21 call callee=e@9:21#1 args=[_:e@9:32] type=kotlin.concurrent.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long]
 expr e@9:5 localDecl longValue mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.longValue[kind=local]
 expr e@10:12 name(zeroValue) type=kotlin.concurrent.AtomicLong ref=__local_0.zeroValue[kind=local]
-expr e@10:12#1 memberCall recv=e@10:12 callee=load args=[] type=Long call=kotlin.concurrent.AtomicLong.load[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@10:12#1 memberCall recv=e@10:12 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
 expr e@10:31 name(longValue) type=kotlin.concurrent.AtomicLong ref=__local_1.longValue[kind=local]
-expr e@10:31#1 memberCall recv=e@10:31 callee=load args=[] type=Long call=kotlin.concurrent.AtomicLong.load[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@10:31#1 memberCall recv=e@10:31 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
 expr e@10:12#2 binary(add) lhs=e@10:12#1 rhs=e@10:31#1 type=Long
 expr e@10:5 return value=e@10:12#2 type=Nothing
