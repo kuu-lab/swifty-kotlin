@@ -36,7 +36,7 @@ struct AtomicNativePtrAtomicsConstructorSourceTests {
         #expect(!constructorInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(constructor))
         #expect(sema.symbols.externalLinkName(for: constructor) == nil)
-        let fileID = try #require(sema.symbols.sourceFileID(for: constructor))
+        let fileID = try #require(constructorInfo.declSite?.start.file)
         #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/concurrent/atomics/AtomicNativePtr/Stdlib.kt")
 
         let field = try #require(sema.symbols.lookup(fqName: fqName + [interner.intern("value")]))
