@@ -16,6 +16,13 @@ extension DeclTypeChecker {
         else {
             return parameterType
         }
+        if let arrayType = primitiveVarargArrayType(
+            elementType: parameterType,
+            sema: sema,
+            interner: interner
+        ) {
+            return arrayType
+        }
         let listFQName: [InternedString] = [
             interner.intern("kotlin"),
             interner.intern("collections"),
@@ -261,7 +268,12 @@ extension DeclTypeChecker {
                 sema.bindings.markRangeSymbol(paramSymbol)
             }
             if index < signature.valueParameterIsVararg.count,
-               signature.valueParameterIsVararg[index]
+               signature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: signature.parameterTypes[index],
+                   sema: sema,
+                   interner: ctx.interner
+               ) == nil
             {
                 sema.bindings.markCollectionSymbol(paramSymbol)
             }
@@ -318,7 +330,12 @@ extension DeclTypeChecker {
                             sema.bindings.markRangeSymbol(paramSymbol)
                         }
                         if index < signature.valueParameterIsVararg.count,
-                           signature.valueParameterIsVararg[index]
+                           signature.valueParameterIsVararg[index],
+                           primitiveVarargArrayType(
+                               elementType: signature.parameterTypes[index],
+                               sema: sema,
+                               interner: ctx.interner
+                           ) == nil
                         {
                             sema.bindings.markCollectionSymbol(paramSymbol)
                         }
@@ -536,7 +553,12 @@ extension DeclTypeChecker {
                 sema.bindings.markRangeSymbol(paramSymbol)
             }
             if index < signature.valueParameterIsVararg.count,
-               signature.valueParameterIsVararg[index]
+               signature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: signature.parameterTypes[index],
+                   sema: sema,
+                   interner: ctx.interner
+               ) == nil
             {
                 sema.bindings.markCollectionSymbol(paramSymbol)
             }
