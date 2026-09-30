@@ -24,7 +24,7 @@ file fstdlib_kotlin_sequences_n_n package=_
 expr e@2:25 int(0) type=Int
 expr e@3:39 name(index) type=Int ref=UserIterator.index[kind=prop]
 expr e@3:47 name(values) type=kotlin.collections.List<Int> ref=UserIterator.values[kind=prop]
-expr e@3:47#1 memberCall recv=e@3:47 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@3:47#1 memberCall recv=e@3:47 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@3:39#1 binary(lessThan) lhs=e@3:39 rhs=e@3:47#1 type=Boolean
 expr e@5:21 name(values) type=kotlin.collections.List<Int> ref=UserIterator.values[kind=prop]
 expr e@5:28 name(index) type=Int ref=UserIterator.index[kind=prop]

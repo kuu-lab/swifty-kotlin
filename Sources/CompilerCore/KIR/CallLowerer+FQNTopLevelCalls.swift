@@ -120,6 +120,20 @@ extension CallLowerer {
             return nil
         }
 
+        // Qualified `kotlin.reflect.typeOf<T>()` expands through the same
+        // intrinsic lowering as the unqualified call (KSP-1323).
+        if let typeOfResult = lowerTypeOfCallExpr(
+            exprID,
+            calleeExpr: exprID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return typeOfResult
+        }
+
         let chosen = callBinding.chosenCallee
         let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
             let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance

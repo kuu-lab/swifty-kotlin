@@ -190,3 +190,19 @@ public fun AtomicLongArray.getAndDecrement(index: Int): Long = fetchAndAddAt(ind
 public fun AtomicLongArray.decrementAndFetchAt(index: Int): Long = addAndFetchAt(index, -1L)
 
 public fun AtomicLongArray.decrementAndGet(index: Int): Long = addAndFetchAt(index, -1L)
+
+public inline fun AtomicLongArray.updateAt(index: Int, transform: (Long) -> Long): Unit {
+    while (true) {
+        val old = loadAt(index)
+        val newValue = transform(old)
+        if (compareAndSetAt(index, old, newValue)) return
+    }
+}
+
+public inline fun AtomicLongArray.updateAndFetchAt(index: Int, transform: (Long) -> Long): Long {
+    while (true) {
+        val old = loadAt(index)
+        val newValue = transform(old)
+        if (compareAndSetAt(index, old, newValue)) return newValue
+    }
+}

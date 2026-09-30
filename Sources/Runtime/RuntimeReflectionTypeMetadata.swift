@@ -21,6 +21,9 @@ let kFunction1RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect
 let kFunction2RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction2")
 let kFunction3RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction3")
 let kClassifierRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KClassifier")
+let kAnnotatedElementRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KAnnotatedElement")
+let kDeclarationContainerRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KDeclarationContainer")
+let kotlinFunctionRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Function")
 let kClassRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KClass")
 let kTypeRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KType")
 let kTypeParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KTypeParameter")
@@ -123,7 +126,12 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
 }
 
 private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
+    // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable and KClass
+    // extend KAnnotatedElement, KClass extends KDeclarationContainer, and
+    // KFunction extends kotlin.Function.
+    (kCallableRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
     (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
+    (kFunctionRuntimeTypeID, kotlinFunctionRuntimeTypeID),
     (kConstructorRuntimeTypeID, kFunctionRuntimeTypeID),
     (kPropertyRuntimeTypeID, kCallableRuntimeTypeID),
     (kMutablePropertyRuntimeTypeID, kPropertyRuntimeTypeID),
@@ -141,6 +149,8 @@ private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
     (kFunction2RuntimeTypeID, kFunctionRuntimeTypeID),
     (kFunction3RuntimeTypeID, kFunctionRuntimeTypeID),
     (kClassRuntimeTypeID, kClassifierRuntimeTypeID),
+    (kClassRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
+    (kClassRuntimeTypeID, kDeclarationContainerRuntimeTypeID),
     (kTypeRuntimeTypeID, kClassifierRuntimeTypeID),
     (kTypeParameterRuntimeTypeID, kClassifierRuntimeTypeID),
 ]

@@ -27,7 +27,10 @@ public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
 @_cdecl("kk_enum_box_ordinal")
 public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) -> Int {
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: namePtr))
-    return registerRuntimeObject(
+    // Tagged-handle registration keeps the box's raw address out of
+    // `objectPointers`, so a raw scalar that equals that address cannot be
+    // mistaken for this box by the `kk_box_*` pass-through (KUU-857).
+    return registerTaggedRuntimeObject(
         RuntimeIntBox(ordinal, enumEntryName: name, enumClassID: Int64(classID)),
         typeID: Int64(classID)
     )
