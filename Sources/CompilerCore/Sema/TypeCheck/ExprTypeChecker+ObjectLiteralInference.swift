@@ -255,6 +255,7 @@ extension ExprTypeChecker {
             // entry whose type is the enclosing `this` type.
             for index in objectOuterReceiverTypes.indices
                 where objectOuterReceiverTypes[index].type == thisBinding.type
+                && objectOuterReceiverTypes[index].symbol == nil
             {
                 objectOuterReceiverTypes[index].symbol = thisBinding.symbol
             }
