@@ -22,7 +22,8 @@ public struct TargetTriple: Equatable {
             let arch = "arm64"
         #endif
         #if os(Linux)
-            return TargetTriple(arch: arch, vendor: "unknown", os: "linux-gnu", osVersion: nil)
+            let linuxArch = arch == "arm64" ? "aarch64" : arch
+            return TargetTriple(arch: linuxArch, vendor: "unknown", os: "linux-gnu", osVersion: nil)
         #else
             return TargetTriple(arch: arch, vendor: "apple", os: "macosx", osVersion: nil)
         #endif

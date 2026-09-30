@@ -692,7 +692,8 @@ extension DataFlowSemaPhase {
 }
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: Worker nominal shell
-/// with Companion.start and the retained isTerminated compatibility property.
+/// with the Companion object anchor and the retained isTerminated compatibility
+/// property.
 ///
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
@@ -747,7 +748,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Worker companion: start(name: String? = null): Worker
+        // Worker companion object: anchors the source-backed Worker.Companion
+        // extensions (KSP-1251, Stdlib/kotlin/native/concurrent/Worker.kt).
         let companionName = interner.intern("Companion")
         let companionFQName = workerFQName + [companionName]
         let companionSymbol: SymbolID
@@ -771,19 +773,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(companionType, for: companionSymbol)
-
-        // Worker.Companion.start(name: String? = null): Worker
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: companionSymbol,
-            ownerType: companionType,
-            name: "start",
-            externalLinkName: "kk_worker_new",
-            returnType: workerType,
-            parameters: [(name: "name", type: types.makeNullable(types.stringType))],
-            defaultValues: [true],
-            symbols: symbols,
-            interner: interner
-        )
 
         // Worker.isTerminated: Boolean (property)
         registerNativeConcurrentReadOnlyProperty(

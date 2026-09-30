@@ -24,6 +24,11 @@
 /// caller body, where they can alias a label the caller cursor already handed
 /// out (or one a later `relocate(_:)` is about to reuse).
 struct InlineLabelAllocator {
+    /// The maximum label ID permitted from untrusted inputs (e.g. imported KIR artifacts).
+    /// Leaves ample room (over 1 billion IDs) below `Int32.max` for expansion and relocation cursors.
+    static let maxSupportedLabel: Int32 = 1_000_000_000
+    static let maxAllowedLabelID: Int32 = maxSupportedLabel
+
     /// Floor for scratch IDs. It preserves the numbering this pass used before
     /// the allocator was extracted, and keeps a scratch ID from colliding with
     /// a label the callee body references but never defines -- malformed KIR
@@ -33,6 +38,7 @@ struct InlineLabelAllocator {
     /// below already covers them.
     private static let scratchFloor: Int32 = 9000
 
+    private(set) var hasOverflowed: Bool = false
     private var nextScratchLabel: Int32
     private var nextCallerLabel: Int32
 
@@ -48,13 +54,23 @@ struct InlineLabelAllocator {
                 highestReferenced = max(highestReferenced, id)
             }
         }
-        nextScratchLabel = highestDefined + 1
-        nextCallerLabel = highestReferenced + 1
+        if highestDefined == Int32.max || highestReferenced == Int32.max {
+            hasOverflowed = true
+            nextScratchLabel = Int32.max
+            nextCallerLabel = Int32.max
+        } else {
+            nextScratchLabel = highestDefined + 1
+            nextCallerLabel = highestReferenced + 1
+        }
     }
 
     /// A label ID for a merge or exit point inside an expansion that is still
     /// being assembled. `relocate(_:)` renumbers it on the way out.
     mutating func allocateScratchLabel() -> Int32 {
+        if nextScratchLabel == Int32.max {
+            hasOverflowed = true
+            return Int32.max
+        }
         defer { nextScratchLabel += 1 }
         return nextScratchLabel
     }
@@ -62,6 +78,10 @@ struct InlineLabelAllocator {
     /// A label ID emitted straight into the caller body (the throw-dispatch
     /// label, the non-local-return exit label).
     mutating func allocateCallerLabel() -> Int32 {
+        if nextCallerLabel == Int32.max {
+            hasOverflowed = true
+            return Int32.max
+        }
         defer { nextCallerLabel += 1 }
         return nextCallerLabel
     }
