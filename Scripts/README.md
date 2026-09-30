@@ -14,6 +14,7 @@
 | `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
+| `check_workflow_npm_install.sh` | ✓ | Forbid ad-hoc `npm install`/`npx`/etc. in GitHub workflows/actions — npm-based CI tools go through `.github/ci-tools/` lockfile + `npm ci --ignore-scripts` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
@@ -231,6 +232,11 @@ this to keep the baseline and optimized lanes separate:
 DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+In CI, the `-O2` diff lane is gated: on pull requests it runs only when
+backend-relevant paths change (see `detect-diff-trigger` in
+`.github/workflows/ci.yml`); the full corpus sweep at `-O2` runs every night
+via `.github/workflows/nightly-o2-diff.yml`.
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:
@@ -284,6 +290,14 @@ The dedicated `Scripts/diagnostic_cases/` directory keeps negative cases out of
 the behavioral `diff_kotlinc.sh` run. Use `// EXPECT-REJECT` for a case that
 must be rejected by both compilers; acceptance is the default and can be stated
 explicitly with `// EXPECT-ACCEPT`.
+
+A case may pass extra flags to `kotlinc` with `// KOTLINC_FLAGS: <flags>`.
+Fixtures are treated as untrusted input: the flag list is validated against an
+allowlist of language-feature and diagnostic toggles (e.g. `-Xfeature`,
+`-Xfeature=mode`, `-XXLanguage:+Feature`, `-jvm-target 21`, `-opt-in=<fqname>`)
+before `kotlinc` runs. Options that load JVM code or reshape the compiler
+environment — `-Xplugin`, plugin `-P`, `-J`, `@argfile`, `-classpath` and
+friends — fail the case without invoking the compiler.
 
 ```bash
 bash Scripts/diff_diagnostics.sh Scripts/diagnostic_cases

@@ -117,6 +117,41 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        // `f.invoke(...)` where `f`'s own type is a function type
+        // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
+        // all -- `allNominalSymbolsImpl` (Helpers+TypeArgsAndMemberLookup.swift)
+        // has no `.functionType` case, so ordinary member-candidate lookup
+        // would always end in "Unresolved member function 'invoke'"
+        // (KSWIFTK-SEMA-0024). Intercept here, before any nominal lookup
+        // runs, and delegate to the same invocation logic used for a bare
+        // call (`f(3)`) or extension-receiver call sugar (`1.ef(2)`). Unlike
+        // those two forms, an explicit `.invoke(...)` call has no
+        // implicit-receiver shape: a receiver-typed callee must always
+        // supply it positionally as argument 0 (`ef.invoke(5, 6)`, never
+        // `ef.invoke(6)`).
+        // A non-safe `x.invoke` on a nullable function value is left for
+        // the existing fallback (KUU-644): `h?.f.invoke(3)` must stay
+        // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
+        if calleeName == knownNames.invoke,
+           explicitTypeArgs.isEmpty,
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: lookupReceiverType),
+           invokeFunctionType.nullability != .nullable,
+           let result = inferCallableValueInvocation(
+               id,
+               calleeType: lookupReceiverType,
+               callableTarget: driver.helpers.callableTargetForCalleeExpr(receiverID, sema: sema),
+               args: args,
+               argTypes: argTypes,
+               range: range,
+               ctx: ctx,
+               expectedType: expectedType,
+               arityPolicy: .receiverRequiredExplicit
+           )
+        {
+            let finalType = safeCall ? sema.types.makeNullable(result) : result
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
         let isSyntacticRangeCollectionMember = calleeName == knownNames.plus || calleeName == knownNames.minus
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
@@ -1156,8 +1191,18 @@ extension CallTypeChecker {
             // call would stop at the zero-argument member and never reach the
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
-                guard calleeName == knownNames.toString, !args.isEmpty else {
+                let memberName = interner.resolve(calleeName)
+                guard memberName == "toString" || memberName == "replace" else {
                     return []
+                }
+                if memberName == "toString" {
+                    guard !args.isEmpty else { return [] }
+                } else {
+                    guard args.count == 2,
+                          ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
+                    else {
+                        return []
+                    }
                 }
                 let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
                 return sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -1170,11 +1215,44 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    return extensionSyntheticFallbackReceiverMatches(
+                    guard extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
                         sema: sema
-                    )
+                    ) else {
+                        return false
+                    }
+                    if memberName == "toString" {
+                        return true
+                    }
+
+                    // String has a legacy member-shaped `replace(Regex, String)`
+                    // candidate. Keep the bundled CharSequence transform overload
+                    // beside it so its function parameter supplies the lambda's
+                    // implicit `it` type before overload resolution rejects the
+                    // String replacement candidate.
+                    func isNominalType(_ type: TypeID, fqName: [String]) -> Bool {
+                        guard let nominal = driver.helpers.nominalSymbol(of: type, types: sema.types),
+                              let symbol = sema.symbols.symbol(nominal)
+                        else {
+                            return false
+                        }
+                        return symbol.fqName.map(interner.resolve) == fqName
+                    }
+                    guard args.count == 2,
+                          signature.parameterTypes.count == 2,
+                          isNominalType(declaredReceiver, fqName: ["kotlin", "CharSequence"]),
+                          isNominalType(signature.parameterTypes[0], fqName: ["kotlin", "text", "Regex"]),
+                          case let .functionType(transformType) = sema.types.kind(
+                              of: sema.types.makeNonNullable(signature.parameterTypes[1])
+                          ),
+                          transformType.params.count == 1,
+                          isNominalType(transformType.params[0], fqName: ["kotlin", "text", "MatchResult"]),
+                          isNominalType(transformType.returnType, fqName: ["kotlin", "CharSequence"])
+                    else {
+                        return false
+                    }
+                    return true
                 }
             }()
             let memberCandidates = sourceBackedOverloads + standardMemberCandidates
@@ -1930,15 +2008,12 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // Regex keeps a String-specific runtime bridge for the historical
-        // `(MatchResult) -> String` overload alongside the source-backed
-        // CharSequence overload whose transform returns CharSequence. Lambda
+        // Older imported stdlib artifacts may still expose a String callback
+        // bridge alongside the bundled CharSequence declaration. Lambda
         // preparation intentionally erases return types while finding a shared
-        // input shape, which would otherwise leave these two overloads
-        // ambiguous even after the lambda body has produced a String. Once the
-        // body type is known, prefer the bridge only when its String callback is
-        // actually applicable; custom CharSequence callbacks continue through
-        // the source declaration.
+        // input shape, so prefer that compatibility bridge only when it is
+        // actually present and applicable; bundled source continues through
+        // the CharSequence declaration.
         if memberNameText == "replace",
            args.count == 2,
            sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,
@@ -1955,7 +2030,7 @@ extension CallTypeChecker {
                 candidates = regexStringBridgeCandidates
             }
         }
-        let resolved = resolveCallRespectingLambdaReturnType(
+        var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
             argTypes: preparedArgs.argTypes,
@@ -2112,19 +2187,39 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            if let projectionDiagnostic = makeProjectionViolationDiagnostic(
+            if let retried = retryResolutionReinferringNestedCallArguments(
                 candidates: candidates,
-                receiverType: lookupReceiverType,
-                calleeName: calleeName,
+                args: args,
+                argTypes: preparedArgs.argTypes,
                 range: range,
-                sema: sema,
-                interner: interner
+                calleeName: calleeName,
+                explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
+                implicitReceiverType: effectiveReceiverType,
+                lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx,
+                locals: &locals
             ) {
-                ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
-            } else {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                resolved = retried
             }
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            if resolved.diagnostic != nil {
+                if let projectionDiagnostic = makeProjectionViolationDiagnostic(
+                    candidates: candidates,
+                    receiverType: lookupReceiverType,
+                    calleeName: calleeName,
+                    range: range,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
+                } else {
+                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                }
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
         }
         guard let chosen = resolved.chosenCallee else {
             if isClassNameReceiver,
@@ -2368,6 +2463,16 @@ extension CallTypeChecker {
         }
 
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
+        // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
+        // through this path, so their `callsInPlace` contracts must be applied
+        // here too (not just for the unqualified-call path in CallTypeChecker.swift).
+        applyContractEffects(
+            chosen: chosen,
+            args: args,
+            ctx: ctx,
+            locals: &locals
+        )
         // `Deferred.await()` resolves here as a normal candidate (the synthetic
         // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
         // signature hardcodes `Any` since `Deferred` has no class-level type

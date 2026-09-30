@@ -174,11 +174,23 @@ extension DataFlowSemaPhase {
         // member lookup can select for an enum-typed receiver. Keep a direct
         // member's signature as the preferred base when it overrides the same
         // inherited declaration.
+        //
+        // BUG-A: a base function inherited through a *generic* supertype (the
+        // implicit `kotlin.Enum<T>` every enum class extends) declares its
+        // receiver in terms of Enum's own unsubstituted type parameter `T`,
+        // not the concrete enum class. `Enum<T>` and the concrete `enumType`
+        // (e.g. `Op`) are unrelated types by naive comparison, so `toString()`
+        // silently never became a dispatch target and an entry-body
+        // `override fun toString()` was ignored. Substitute each candidate's
+        // receiver type using the recorded supertype type args (`Enum<Op>`
+        // for `Op`) before the match below compares it against `enumType`.
+        var effectiveReceiverTypes: [SymbolID: TypeID] = [:]
         var pendingSupertypes = symbols.directSupertypes(for: ownerSymbol)
         var visitedSupertypes: Set<SymbolID> = []
         while let supertype = pendingSupertypes.popLast() {
             guard visitedSupertypes.insert(supertype).inserted else { continue }
             if let supertypeInfo = symbols.symbol(supertype) {
+                let supertypeArgs = symbols.supertypeTypeArgs(for: ownerSymbol, supertype: supertype)
                 for candidate in symbols.children(ofFQName: supertypeInfo.fqName) {
                     guard let candidateInfo = symbols.symbol(candidate),
                           candidateInfo.kind == .function,
@@ -198,6 +210,11 @@ extension DataFlowSemaPhase {
                     }
                     if !duplicatesDirectMember {
                         baseFunctions.append(candidate)
+                        if let receiverType = candidateSignature.receiverType, !supertypeArgs.isEmpty {
+                            effectiveReceiverTypes[candidate] = types.substituteNominalTypeParameters(
+                                in: receiverType, owner: supertype, ownerArgs: supertypeArgs
+                            )
+                        }
                     }
                 }
             }
@@ -223,17 +240,33 @@ extension DataFlowSemaPhase {
                 else {
                     continue
                 }
-
                 let candidates = baseFunctions.filter { candidate in
                     guard let candidateSignature = symbols.functionSignature(for: candidate),
-                          let candidateReceiverType = candidateSignature.receiverType,
-                          (candidateReceiverType == enumType
-                              || types.isSubtype(enumType, candidateReceiverType)),
+                          let rawReceiverType = candidateSignature.receiverType
+                    else {
+                        return false
+                    }
+                    let candidateReceiverType = effectiveReceiverTypes[candidate] ?? rawReceiverType
+                    guard receiverMatchesEnum(
+                              candidateReceiverType,
+                              enumType: enumType,
+                              enumSymbol: ownerSymbol,
+                              types: types
+                          ),
                           bodySignature.receiverType == enumType,
-                          candidateSignature.typeParameterSymbols.isEmpty,
+                          // BUG-A: `typeParameterSymbols` also carries the
+                          // *enclosing class's* own type parameters for a
+                          // generic base like `kotlin.Enum<T>` (see
+                          // `classTypeParameterCount`'s doc comment) -- only
+                          // reject a candidate with type parameters of its
+                          // own, not inherited class-level ones already
+                          // accounted for by the receiver-type substitution
+                          // above.
+                          candidateSignature.typeParameterSymbols.count == candidateSignature.classTypeParameterCount,
                           candidateSignature.reifiedTypeParameterIndices.isEmpty,
                           !candidateSignature.isSuspend,
-                          bodySignature.typeParameterSymbols.isEmpty,
+                          bodySignature.typeParameterSymbols.count
+                              == bodySignature.classTypeParameterCount,
                           bodySignature.reifiedTypeParameterIndices.isEmpty,
                           !bodySignature.isSuspend,
                           candidateSignature.parameterTypes == bodySignature.parameterTypes
@@ -296,8 +329,30 @@ extension DataFlowSemaPhase {
                 ),
                 for: helperSymbol
             )
-            symbols.setEnumEntryDispatchSymbol(helperSymbol, for: baseSymbol)
             symbols.setEnumEntryDispatchTargets(targets, for: helperSymbol)
+            symbols.setEnumEntryDispatchBaseSymbol(baseSymbol, for: helperSymbol)
         }
+    }
+
+    /// Whether calls on an enum-typed receiver can resolve to a member whose
+    /// declared receiver is `candidateReceiverType`. An inherited member
+    /// (e.g. `kotlin.Enum<T>.toString`) keeps the declaring class's generic
+    /// receiver, which `isSubtype` rejects against the concrete enum, so the
+    /// erased nominal ancestry is the right granularity for dispatch.
+    private func receiverMatchesEnum(
+        _ candidateReceiverType: TypeID,
+        enumType: TypeID,
+        enumSymbol: SymbolID,
+        types: TypeSystem
+    ) -> Bool {
+        if candidateReceiverType == enumType
+            || types.isSubtype(enumType, candidateReceiverType)
+        {
+            return true
+        }
+        guard case let .classType(classType) = types.kind(of: candidateReceiverType) else {
+            return false
+        }
+        return types.isNominalSubtypeSymbol(enumSymbol, of: classType.classSymbol)
     }
 }

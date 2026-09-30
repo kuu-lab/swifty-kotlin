@@ -23,6 +23,12 @@ struct BuiltinTypeNames {
     let null: InternedString
 
     init(interner: StringInterner) {
+        self = interner.cachedBuiltinTypeNames {
+            Self(uncachedInterner: interner)
+        }
+    }
+
+    private init(uncachedInterner interner: StringInterner) {
         self.int = interner.intern("Int")
         self.long = interner.intern("Long")
         self.float = interner.intern("Float")

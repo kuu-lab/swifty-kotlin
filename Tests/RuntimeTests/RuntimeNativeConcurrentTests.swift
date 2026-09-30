@@ -342,14 +342,74 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
     }
 
     @Test func compareAndExchangeUsesReferenceIdentity() {
-        let current = registerRuntimeObject(RuntimeStringBox("same"))
-        let equalButDistinct = registerRuntimeObject(RuntimeStringBox("same"))
-        let replacement = registerRuntimeObject(RuntimeStringBox("next"))
+        let current = kk_atomic_int_create(10)
+        let equalButDistinct = kk_atomic_int_create(10)
+        let replacement = kk_atomic_int_create(20)
         let atomicRef = kk_atomic_ref_create(current)
         let old = __kk_atomic_ref_compareAndExchange(atomicRef, equalButDistinct, replacement)
         #expect(old == current)
         #expect(__kk_atomic_ref_load(atomicRef) == current,
                 "Equal but distinct references must not satisfy the CAS expectation")
+    }
+
+    // KUU-858: one logical value reaches the cell through different marshal
+    // paths — a bare Int payload at construction vs a fresh (possibly tagged)
+    // Int box at the erased-T CAS boundary. CAS must compare decoded payloads.
+    @Test func compareAndExchangeMatchesStoredRawIntAgainstFreshBox() {
+        let atomicRef = kk_atomic_ref_create(41)
+        let expect = kk_box_int_static(41)
+        let update = kk_box_int_static(42)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect,
+                "On success the caller's expect word is returned so the Kotlin-level `===` sees a match")
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
+    @Test func compareAndExchangeMatchesBoxedIntAgainstFreshBox() {
+        let current = kk_box_int(41)
+        let expect = kk_box_int_static(41)
+        let update = kk_box_int_static(42)
+        let atomicRef = kk_atomic_ref_create(current)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect)
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
+    @Test func compareAndExchangeRejectsMismatchedValueBox() {
+        let atomicRef = kk_atomic_ref_create(41)
+        let expect = kk_box_int_static(99)
+        let update = kk_box_int_static(42)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == 41, "On failure compareAndExchange must return the stored word")
+        #expect(__kk_atomic_ref_load(atomicRef) == 41,
+                "A failed compareAndExchange must retain the stored value")
+    }
+
+    // A stored zero payload reads as the null representation at the raw-word
+    // level; CAS must still match it against a box carrying payload zero.
+    @Test func compareAndExchangeMatchesStoredRawZeroAgainstFreshBox() {
+        let atomicRef = kk_atomic_ref_create(0)
+        let expect = kk_box_int_static(0)
+        let update = kk_box_int_static(1)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect)
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
+    // The same marshal asymmetry for String: two RuntimeStringBox handles
+    // carrying the same text (the stored cell vs a freshly boxed expect)
+    // must still CAS-match. The flat-string bridge now dedups, so this
+    // constructs two distinct boxes directly instead of relying on a
+    // distinct flat round-trip handle.
+    @Test func compareAndExchangeMatchesReboxedStringHandle() {
+        let current = registerRuntimeObject(RuntimeStringBox("aaa"))
+        let expect = registerRuntimeObject(RuntimeStringBox("aaa"))
+        #expect(expect != current, "Independently boxed equal strings must be distinct handles")
+        let update = registerRuntimeObject(RuntimeStringBox("bbb"))
+        let atomicRef = kk_atomic_ref_create(current)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
+        #expect(old == expect)
+        #expect(__kk_atomic_ref_load(atomicRef) == update)
     }
 
     @Test func nullReferenceRoundTrip() {
@@ -364,6 +424,62 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
         let old = __kk_atomic_ref_exchange(atomicRef, refB)
         #expect(old == refA)
         #expect(__kk_atomic_ref_load(atomicRef) == refB)
+    }
+
+    @Test func concurrentCompareAndExchangeOnlyOneSucceeds() {
+        let iterations = 32
+        for _ in 0..<50 {
+            let initial = registerRuntimeObject(RuntimeStringBox("initial"))
+            let atomicRef = kk_atomic_ref_create(initial)
+            let candidates = (0..<iterations).map { i in
+                registerRuntimeObject(RuntimeStringBox("candidate-\(i)"))
+            }
+            let lock = NSLock()
+            nonisolated(unsafe) var successCount = 0
+            nonisolated(unsafe) var failureCount = 0
+
+            DispatchQueue.concurrentPerform(iterations: iterations) { i in
+                let candidate = candidates[i]
+                let old = __kk_atomic_ref_compareAndExchange(atomicRef, initial, candidate)
+                lock.lock()
+                if old == initial {
+                    successCount += 1
+                } else {
+                    failureCount += 1
+                }
+                lock.unlock()
+            }
+
+            #expect(successCount == 1, "Exactly one thread must succeed in CAS with the initial value")
+            #expect(failureCount == iterations - 1, "All other threads must fail the CAS")
+            let finalVal = __kk_atomic_ref_load(atomicRef)
+            #expect(finalVal != initial)
+            #expect(candidates.contains(finalVal))
+        }
+    }
+
+    @Test func concurrentExchangeReturnsUniqueOldValues() {
+        let iterations = 32
+        let initial = registerRuntimeObject(RuntimeStringBox("start"))
+        let atomicRef = kk_atomic_ref_create(initial)
+        let candidates = (0..<iterations).map { i in
+            registerRuntimeObject(RuntimeStringBox("exchange-\(i)"))
+        }
+        let lock = NSLock()
+        nonisolated(unsafe) var returnedOldValues = [Int]()
+
+        DispatchQueue.concurrentPerform(iterations: iterations) { i in
+            let candidate = candidates[i]
+            let old = __kk_atomic_ref_exchange(atomicRef, candidate)
+            lock.lock()
+            returnedOldValues.append(old)
+            lock.unlock()
+        }
+
+        #expect(returnedOldValues.count == iterations)
+        let uniqueReturned = Set(returnedOldValues)
+        #expect(uniqueReturned.count == iterations, "Every exchange must return a unique previous reference without duplicates")
+        #expect(uniqueReturned.contains(initial), "The initial reference must be observed by exactly one exchange")
     }
 }
 

@@ -139,6 +139,177 @@ struct CodegenBackendFunctionTypedPropertyInvocationTests {
             expected: "hi world 7\n"
         )
     }
+
+    @Test
+    func functionTypedPropertyInvokesThroughSafeCallSyntax() throws {
+        let source = """
+        class Holder(val f: (Int) -> Int)
+        fun main() {
+            val h: Holder? = Holder({ x -> x + 1 })
+            val n: Holder? = null
+            println(h?.f(3))
+            println(n?.f(3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FunctionTypedPropertySafeCall",
+            expected:
+                """
+                4
+                null
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func functionTypedObjectMemberInvokesThroughNameSyntax() throws {
+        let source = """
+        object Holder {
+            val f: (Int) -> Int = { x -> x + 1 }
+        }
+        fun main() {
+            println(Holder.f(3))
+            println(Holder.f.invoke(3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FunctionTypedObjectMember",
+            expected:
+                """
+                4
+                4
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func functionTypedObjectLiteralPropertyInvokesThroughMemberCallSyntax() throws {
+        let source = """
+        fun main() {
+            val o = object {
+                val f: (Int) -> Int = { x -> x + 1 }
+                val g: () -> Int = { 7 }
+            }
+            println(o.f(3))
+            println(o.g())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FunctionTypedObjectLiteralProperty",
+            expected:
+                """
+                4
+                7
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func functionTypedPropertyWithZeroParametersInvokesThroughCallSyntax() throws {
+        let source = """
+        class Holder(val f: () -> Int)
+        fun main() {
+            val h = Holder({ 42 })
+            val n: Holder? = Holder({ 7 })
+            println(h.f())
+            println(n?.f())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FunctionTypedPropertyZeroParams",
+            expected:
+                """
+                42
+                7
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func functionTypedPropertyInvokesThroughExplicitInvokeSyntax() throws {
+        let source = """
+        class Holder(val f: (Int) -> Int)
+        fun main() {
+            val h = Holder({ x -> x + 1 })
+            println(h.f.invoke(3))
+            val g: (Int) -> Int = { x -> x + 1 }
+            println(g.invoke(3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FunctionTypedPropertyExplicitInvoke",
+            expected:
+                """
+                4
+                4
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func nullableFunctionTypedPropertyInvokesThroughSafeInvokeSyntax() throws {
+        let source = """
+        class Holder(val f: ((Int) -> Int)?)
+        fun main() {
+            val h = Holder({ x -> x + 1 })
+            println(h.f?.invoke(3))
+            val n: Holder? = Holder({ x -> x + 1 })
+            println(n?.f?.invoke(3))
+            val e = Holder(null)
+            println(e.f?.invoke(3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableFunctionTypedPropertyInvoke",
+            expected:
+                """
+                4
+                4
+                null
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func nullableFunctionTypedLocalInvokesThroughSafeInvokeSyntax() throws {
+        let source = """
+        fun main() {
+            val g: ((Int) -> Int)? = { x -> x + 1 }
+            println(g?.invoke(3))
+            val z: ((Int) -> Int)? = null
+            println(z?.invoke(3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableFunctionTypedLocalInvoke",
+            expected:
+                """
+                4
+                null
+                """
+                + "\n"
+        )
+    }
 }
 
 #endif

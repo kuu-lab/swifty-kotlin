@@ -108,6 +108,13 @@ func resolveEnumOrdinalToNameCallee(
     else {
         return nil
     }
+    // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
+    // the default bare-name rendering, so string interpolation on an
+    // enum-typed value (`"${Op.MUL}"`) matches an explicit `.toString()`
+    // call instead of always printing the entry name.
+    if let override = enumToStringOverrideHelper(for: symbol, symbols: sema.symbols, interner: interner) {
+        return (override.name, override.symbol)
+    }
     let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
     let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
         sema.symbols.symbol(id).map { $0.kind == .function } ?? false
@@ -456,7 +463,27 @@ extension CallLowerer {
             instructions.append(.label(endLabel))
             return converted
         }
-        let tag = anyFallbackTag(for: valueType, sema: sema)
+        // Long.MIN_VALUE has the same bits as the null sentinel. Preserve a
+        // statically non-null Long by boxing it before the generic renderer
+        // checks for null; nullable Long values keep their existing sentinel
+        // representation and tag.
+        let isNonNullLong: Bool = if case .primitive(.long, .nonNull) = sema.types.kind(of: valueType) {
+            true
+        } else {
+            false
+        }
+        let renderedValue = isNonNullLong ? boxValueForAnySlot(
+            valueID,
+            sourceType: valueType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: sema.types.anyType,
+            requireNonNull: true,
+            into: &instructions
+        ) : valueID
+        let tag = isNonNullLong ? Int64(1) : anyFallbackTag(for: valueType, sema: sema)
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
         let converted = arena.appendTemporary(type: stringType)
@@ -464,7 +491,7 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_any_to_string"),
-                arguments: [valueID, tagID],
+                arguments: [renderedValue, tagID],
                 result: converted,
                 canThrow: false,
                 thrownResult: nil

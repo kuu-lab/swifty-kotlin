@@ -164,18 +164,37 @@ final class MemberLowerer {
             // same situation — a write through a base-typed reference must
             // dispatch to the actual runtime type's setter the same way a
             // read dispatches to the getter above.
-            if !hasCustomSetterBody, !hasDelegate, !isInterfaceContext, needsVirtualAccessor,
+            if !hasCustomSetterBody, !hasDelegate,
                propFlags?.contains(.mutable) == true,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
-                synthesizeStoredPropertySetterAccessor(
-                    propertySymbol: symbol,
-                    ownerSymbol: ownerSymbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    allDecls: &allDecls
-                )
+                let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
+                if isInterfaceContext, !isExternalLinked {
+                    // An abstract interface `var`'s setter had no registered
+                    // symbol at all (unlike its getter, which
+                    // `synthesizeInterfacePropertyGetterStub` above already
+                    // covers) — anything that referenced it by symbol, such
+                    // as a `by`-delegation forwarder falling back to the
+                    // interface's own declaration for a class that has no
+                    // concrete override, linked against an undefined name.
+                    synthesizeInterfacePropertySetterStub(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                } else if !isInterfaceContext, needsVirtualAccessor {
+                    synthesizeStoredPropertySetterAccessor(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
             }
 
             // Lower delegated property: emit delegate storage global and
@@ -291,27 +310,24 @@ final class MemberLowerer {
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
                 // into KIR and codegen would produce undefined symbol references.
-                if let compilationCtx {
-                    let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    let shared = KIRLoweringSharedContext(
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers
+                let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
+                let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                let shared = KIRLoweringSharedContext(
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                for ctorSymbol in ctorSymbols {
+                    let ctorDecls = driver.lowerConstructor(
+                        ctorSymbol: ctorSymbol,
+                        ctorFQName: ctorFQName,
+                        classDecl: nested,
+                        ownerSymbol: symbol,
+                        shared: shared
                     )
-                    for ctorSymbol in ctorSymbols {
-                        let ctorDecls = driver.lowerConstructor(
-                            ctorSymbol: ctorSymbol,
-                            ctorFQName: ctorFQName,
-                            classDecl: nested,
-                            ownerSymbol: symbol,
-                            shared: shared,
-                            compilationCtx: compilationCtx
-                        )
-                        allDecls.append(contentsOf: ctorDecls)
-                    }
+                    allDecls.append(contentsOf: ctorDecls)
                 }
             case let .interfaceDecl(nestedInterface):
                 // Interface properties have no backing storage of their own, but

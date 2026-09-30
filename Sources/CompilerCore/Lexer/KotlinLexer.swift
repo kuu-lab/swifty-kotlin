@@ -7,6 +7,7 @@ final class KotlinLexer {
     let diagnostics: DiagnosticEngine
 
     var offset: Int = 0
+    var templateExpressionNestingDepth: Int = 0
     // Keep classification and interned IDs local to this lexer and its interner.
     var identifierKinds: [String: TokenKind] = [:]
 

@@ -357,6 +357,33 @@ extension CallLowerer {
             return scopeResult
         }
 
+        // Explicit `.invoke(...)` on a receiver whose own type is a function
+        // type (e.g. `f.invoke(3)`, `ef.invoke(5, 6)`) -- unlike the
+        // receiver-lambda sugar just below, `receiverExpr` here IS the
+        // callable value itself, not a separate dispatch receiver.
+        if interner.resolve(calleeName) == "invoke",
+           sema.bindings.callableValueCalls[exprID] != nil,
+           case .functionType = sema.types.kind(
+               of: sema.types.makeNonNullable(sema.bindings.exprType(for: receiverExpr) ?? sema.types.anyType)
+           )
+        {
+            let loweredReceiverID = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
+                exprID,
+                calleeName: calleeName,
+                args: args,
+                loweredReceiverID: loweredReceiverID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions
+            ) {
+                return invokeResult
+            }
+        }
+
         // Receiver-lambda invocation: `receiver.localVar()` where localVar has
         // a function-with-receiver type (e.g. `sb.action()` with action: StringBuilder.() -> Unit).
         // Some frontends may also encode the receiver as the first parameter of a regular
@@ -393,6 +420,7 @@ extension CallLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions.instructions
                 ) {
                     let loweredArgIDs = args.map { argument in
@@ -501,6 +529,41 @@ extension CallLowerer {
                 }
                 return result
             }
+        }
+
+        // Explicit `invoke` sugar on a function-typed value:
+        // `f.invoke(args)` / `prop.invoke(args)` (KUU-644). Sema binds a
+        // CallableValueCallBinding with `target == nil`, so the lowered
+        // receiver expression itself is the function object to invoke.
+        if let callableBinding = sema.bindings.callableValueCalls[exprID],
+           callableBinding.target == nil,
+           case .functionType = sema.types.kind(of: callableBinding.functionType),
+           let invokeCallee = runtimeCallableInvokeCallee(
+               callableValueCallBinding: callableBinding,
+               sema: sema,
+               interner: interner
+           )
+        {
+            let functionValue = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            let loweredArgIDs = args.map { argument in
+                driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+            }
+            let invokeArgs = normalizedCallableValueArguments(
+                providedArguments: loweredArgIDs,
+                callableValueCallBinding: callableBinding,
+                sema: sema
+            )
+            let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendTemporary(type: boundType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: invokeCallee,
+                arguments: [functionValue] + invokeArgs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
         }
 
         let effectiveCalleeName = if sema.bindings.isInvokeOperatorCall(exprID) {

@@ -36,6 +36,56 @@ struct CodegenBackendRegexEdgeCasesTests {
         )
     }
 
+    // KUU-635: Regex.split(input, limit) adds the pre-match segment (possibly
+    // empty) for zero-width matches and rejects negative limits.
+    @Test
+    func testCodegenRegexSplitWithLimitZeroWidthAndNegativeLimit() throws {
+        let source = """
+        fun main() {
+            println("abc".split(Regex("x*"), 3))
+            println("a1b".split(Regex("\\\\d*"), 5))
+            println("abc".split(Regex(""), 3))
+            println("axbxc".split(Regex("x*"), 4))
+            println("".split(Regex("x*"), 3))
+            println("abc".split(Regex("x*"), 2))
+            println("a,b,c".split(Regex(","), 2))
+            println("abc".split(Regex("b"), 1))
+
+            try {
+                "ab".split(Regex("b"), -1)
+                println("no-throw")
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                println(Regex("b").splitToSequence("ab", -1).toList())
+                println("no-throw2")
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RegexSplitLimitZeroWidth",
+            expected:
+                """
+                [, a, bc]
+                [, a, , b, ]
+                [, a, bc]
+                [, a, , bxc]
+                [, ]
+                [, abc]
+                [a, b,c]
+                [abc]
+                Limit must be non-negative, but was -1
+                Limit must be non-negative, but was -1
+                """
+                + "\n"
+        )
+    }
+
     @Test
     func testCodegenRegexReplaceLambdaPassesMatchResult() throws {
         let source = """
@@ -51,6 +101,28 @@ struct CodegenBackendRegexEdgeCasesTests {
             source,
             moduleName: "RegexReplaceLambda",
             expected: "1+2 3+4\nX X\nHELLO WORLD\n"
+        )
+    }
+
+    @Test
+    func testCodegenRegexKuu770UsesKotlinCompatibleSignatures() throws {
+        let source = """
+        fun main() {
+            val regex = Regex("b")
+            val matches: Sequence<MatchResult> = regex.findAll("abcb")
+            println(matches.map { it.range.first }.toList())
+            println(regex.findAll("abcb", 2).map { it.range.first }.toList())
+            println(regex.find("abcb", 2)?.range)
+            println(regex.matchAt("abcb", 1)?.value)
+            println(regex.matchesAt("abcb", 1))
+            println(regex.replace("abcb") { it.value as CharSequence })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RegexKuu770Signatures",
+            expected: "[1, 3]\n[3]\n3..3\nb\ntrue\nabcb\n"
         )
     }
 

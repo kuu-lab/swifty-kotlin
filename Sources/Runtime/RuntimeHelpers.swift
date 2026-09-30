@@ -31,8 +31,12 @@ func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPoint
     return UnsafeMutableRawPointer(bitPattern: baseBits)
 }
 
+/// Registers `box` under its tagged primitive-box handle. The caller must
+/// already hold the GC lock and passes its `GCState` as `state` — this helper
+/// never acquires `withGCLock` itself, so it can run inside a larger critical
+/// section (e.g. `runtimeStaticBox`'s probe-and-register fast path).
 @inline(__always)
-func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
+func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCState) -> Int {
     let pointer = Unmanaged.passRetained(box).toOpaque()
     let bits = UInt(bitPattern: pointer)
     precondition(
@@ -40,9 +44,7 @@ func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
         "Swift object pointer is not representable by primitive box tagging"
     )
     let taggedBits = bits | runtimePrimitiveBoxTag
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(taggedBits)
-    }
+    state.objectPointers.insert(taggedBits)
     guard let taggedPointer = UnsafeMutableRawPointer(bitPattern: taggedBits) else {
         preconditionFailure("Tagged primitive box pointer must be non-null")
     }

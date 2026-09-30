@@ -14,6 +14,18 @@ extension BuildASTPhase {
             angle == 0 && paren == 0
         }
 
+        /// True when not nested inside an unclosed `(`/`[`/`{` group.
+        /// Deliberately excludes `angle`, matching `hasUnclosedStatementDelimiter`
+        /// (`BuildASTPhase+BodyParsing.swift`): an unmatched `<`/`>` from a
+        /// comparison operator (`x < 0`) is indistinguishable at this token-depth
+        /// level from a generic type-argument list, so it must not block a
+        /// statement-boundary decision — otherwise every later top-level `;` or
+        /// newline in the same body is wrongly treated as still "inside brackets"
+        /// and gets merged into the wrong statement.
+        var isBracketBraceParenTopLevel: Bool {
+            paren == 0 && bracket == 0 && brace == 0
+        }
+
         mutating func track(_ kind: TokenKind) {
             switch kind {
             case .symbol(.lessThan): angle += 1

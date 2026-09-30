@@ -109,7 +109,10 @@ private fun containsULong(value: ULong, first: ULong, last: ULong, step: Int): B
         return false
     }
     val diff = if (value >= first) value - first else first - value
-    return diff % step.toULong() == 0uL
+    // Negative steps sign-extend when widened to ULong, so take the
+    // magnitude before the modulo or descending members never match.
+    val magnitude = if (step < 0) (-step).toULong() else step.toULong()
+    return diff % magnitude == 0uL
 }
 
 @KsSymbolName("__kk_range_contains")
@@ -133,7 +136,6 @@ public operator fun CharProgression.contains(value: Char): Boolean = containsCha
 
 public fun UIntRange.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
 public fun UIntProgression.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
-public fun ULongRange.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 public fun ULongProgression.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 
 @KsSymbolName("__kk_range_contains")

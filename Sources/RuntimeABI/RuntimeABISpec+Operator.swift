@@ -32,7 +32,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ifaceSlot", type: .intptr),
             ],
             returnType: .intptr,
-            section: "TypeCheck"
+            section: "TypeCheck",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_object_register_itable_method",

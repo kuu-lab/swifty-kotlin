@@ -268,6 +268,12 @@ public extension RuntimeABISpec {
                 ]
             ),
         ]
+        + [
+            "kk_nullable_primitive_eq",
+            "kk_nullable_primitive_ne",
+        ].map {
+            bridgeSpec($0, section: "Operator", params: ["nullableRaw", "peerRaw", "peerIsNullable"], isThrowing: false)
+        }
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =
         collectionBridgeBase
@@ -382,6 +388,9 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_native_byteArray_setFloatAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
+            isThrowing: false),
+            // KSP-1192: ImmutableBlob.asCPointer/asUCPointer private impl bridge.
+            bridgeSpec("__kk_immutable_blob_as_cpointer", section: "Native", params: ["blobRaw", "offset"],
             isThrowing: false),
             bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
             isThrowing: false),

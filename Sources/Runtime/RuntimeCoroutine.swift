@@ -1105,6 +1105,19 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// Lets a suspend-aware `Job.join()` caller resume via its continuation instead
     /// of blocking a GCD thread on `completionSemaphore`.
     private var joinResumers: [@Sendable (Int) -> Void] = []
+    /// KUU-CORO-101: backing for `Job.invokeOnCompletion`. Each entry fires at
+    /// most once and is then removed: an `onCancelling` entry fires as soon as
+    /// the job enters `.cancelling` (or immediately, for a job cancelled before
+    /// it started executing); every remaining entry fires once the job reaches
+    /// a terminal state. `dispose()` (via `removeCompletionHandler`) removes an
+    /// entry that has not fired yet.
+    private struct CompletionHandlerEntry {
+        let id: Int
+        let onCancelling: Bool
+        let handler: @Sendable (Int) -> Void
+    }
+    private var completionHandlers: [CompletionHandlerEntry] = []
+    private var nextCompletionHandlerID = 1
     /// STDLIB-CORO-001: Closure that dispatches the body for CoroutineStart.LAZY.
     /// Set when `kk_kxmini_launch_lazy` returns; `startIfNeeded()` runs it once.
     private var lazyStartBody: (@Sendable () -> Void)?
@@ -1224,6 +1237,33 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// KUU-CORO-101: register a completion handler, returning a disposal id
+    /// (0 if the handler already fired inline because the job was already
+    /// terminal). Must be called with `lock` unlocked.
+    func addCompletionHandler(onCancelling: Bool, handler: @escaping @Sendable (Int) -> Void) -> Int {
+        lock.lock()
+        if state.isCompleted {
+            let cause = completionCauseLocked()
+            lock.unlock()
+            handler(cause)
+            return 0
+        }
+        let id = nextCompletionHandlerID
+        nextCompletionHandlerID += 1
+        completionHandlers.append(CompletionHandlerEntry(id: id, onCancelling: onCancelling, handler: handler))
+        lock.unlock()
+        return id
+    }
+
+    /// KUU-CORO-101: dispose a completion handler registered via
+    /// `addCompletionHandler`. A no-op if it already fired or was disposed.
+    func removeCompletionHandler(id: Int) {
+        guard id != 0 else { return }
+        lock.lock()
+        completionHandlers.removeAll { $0.id == id }
+        lock.unlock()
+    }
+
     private func terminalValueLocked() -> Int {
         switch state {
         case .completed:
@@ -1234,6 +1274,24 @@ final class RuntimeJobHandle: @unchecked Sendable {
             return cancelCause
         case .new, .active, .completing, .cancelling:
             return 0
+        }
+    }
+
+    /// KUU-CORO-101: the value `invokeOnCompletion` handlers receive as
+    /// `cause` -- unlike `terminalValueLocked()`, a *successful* completion
+    /// reports Kotlin `null` (not the result), matching `Job.invokeOnCompletion`'s
+    /// `(cause: Throwable?) -> Unit` contract. `runtimeNullSentinelInt`
+    /// (`Int64.min`), not `0`, is the correct "null" representation for a
+    /// value that crosses into a real Kotlin `(Throwable?) -> Unit` closure
+    /// invocation -- see [[function-type-param-abi-split-convention]].
+    private func completionCauseLocked() -> Int {
+        switch state {
+        case .completed, .new, .active, .completing:
+            return runtimeNullSentinelInt
+        case .failed:
+            return failure
+        case .cancelled, .cancelling:
+            return cancelCause
         }
     }
 
@@ -1270,15 +1328,21 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         let shouldSignal = completeLocked(successState: .completed, value: value)
         let resumers = shouldSignal ? joinResumers : []
+        let handlers = shouldSignal ? completionHandlers : []
         if shouldSignal {
             joinResumers = []
+            completionHandlers = []
         }
         let terminal = shouldSignal ? terminalValueLocked() : 0
+        let cause = shouldSignal ? completionCauseLocked() : 0
         lock.unlock()
         if shouldSignal {
             completionSemaphore.signal()
             for resumer in resumers {
                 resumer(terminal)
+            }
+            for entry in handlers {
+                entry.handler(cause)
             }
         }
         return shouldSignal
@@ -1288,15 +1352,21 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         let shouldSignal = completeLocked(successState: .failed, value: 0, failureValue: exception)
         let resumers = shouldSignal ? joinResumers : []
+        let handlers = shouldSignal ? completionHandlers : []
         if shouldSignal {
             joinResumers = []
+            completionHandlers = []
         }
         let terminal = shouldSignal ? terminalValueLocked() : 0
+        let cause = shouldSignal ? completionCauseLocked() : 0
         lock.unlock()
         if shouldSignal {
             completionSemaphore.signal()
             for resumer in resumers {
                 resumer(terminal)
+            }
+            for entry in handlers {
+                entry.handler(cause)
             }
         }
         return shouldSignal
@@ -1318,6 +1388,8 @@ final class RuntimeJobHandle: @unchecked Sendable {
         var shouldSignalCompletion = false
         var joinResumersToRun: [@Sendable (Int) -> Void] = []
         var terminalForJoin = 0
+        var onCancellingHandlersToRun: [CompletionHandlerEntry] = []
+        var allHandlersToRun: [CompletionHandlerEntry] = []
         lock.lock()
         switch state {
         case .completed, .cancelled, .failed:
@@ -1348,9 +1420,17 @@ final class RuntimeJobHandle: @unchecked Sendable {
                 joinResumersToRun = joinResumers
                 joinResumers = []
                 terminalForJoin = terminalValueLocked()
+                allHandlersToRun = completionHandlers
+                completionHandlers = []
             } else {
                 state = .cancelling
                 stateToResume = continuationState
+                // KUU-CORO-101: an `onCancelling` handler fires as soon as
+                // cancellation begins, not when the job finally reaches a
+                // terminal state (which may wait on `finally` blocks). The
+                // remaining handlers stay registered for that later firing.
+                onCancellingHandlersToRun = completionHandlers.filter { $0.onCancelling }
+                completionHandlers.removeAll { $0.onCancelling }
             }
             childrenToCancel = childJobHandles
         }
@@ -1360,10 +1440,16 @@ final class RuntimeJobHandle: @unchecked Sendable {
         for child in childrenToCancel {
             runtimeCancelChild(child)
         }
+        for entry in onCancellingHandlersToRun {
+            entry.handler(resolvedCause)
+        }
         if shouldSignalCompletion {
             completionSemaphore.signal()
             for resumer in joinResumersToRun {
                 resumer(terminalForJoin)
+            }
+            for entry in allHandlersToRun {
+                entry.handler(terminalForJoin)
             }
         }
         return true
@@ -1445,6 +1531,26 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return state == .failed
+    }
+}
+
+/// Concrete object behind an opaque job/task handle pointer: a launched
+/// `RuntimeJobHandle` or an async `RuntimeAsyncTask`. Resolving once per call
+/// keeps join/cancel/status ABI entry points from re-running the `as?` chain
+/// for every operation they perform on the same handle.
+private enum RuntimeJobOrTask {
+    case job(RuntimeJobHandle)
+    case task(RuntimeAsyncTask)
+    case other
+
+    init(_ object: AnyObject) {
+        if let job = object as? RuntimeJobHandle {
+            self = .job(job)
+        } else if let task = object as? RuntimeAsyncTask {
+            self = .task(task)
+        } else {
+            self = .other
+        }
     }
 }
 
@@ -1600,11 +1706,12 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
                 // so it works correctly even with nested scopes or cross-thread joins.
                 let consumed: Bool
                 let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-                if let job = obj as? RuntimeJobHandle {
+                switch RuntimeJobOrTask(obj) {
+                case .job(let job):
                     consumed = job.consumedByUserCodeSnapshot()
-                } else if let task = obj as? RuntimeAsyncTask {
+                case .task(let task):
                     consumed = task.consumedByUserCodeSnapshot()
-                } else {
+                case .other:
                     consumed = false
                 }
                 // Release the extra retain taken in registerChild
@@ -2970,10 +3077,12 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
 // MARK: - CoroutineExceptionHandler (STDLIB-CORO-072)
 
 /// A heap-allocated box holding a Swift closure that acts as a CoroutineExceptionHandler.
-/// The closure receives the raw throwable pointer and handles it.
+/// The closure receives the raw CoroutineContext and throwable pointers and
+/// handles them, mirroring `CoroutineExceptionHandler.handleException(context,
+/// exception)`.
 final class RuntimeExceptionHandlerBox: @unchecked Sendable {
-    let handler: @Sendable (Int) -> Void
-    init(handler: @escaping @Sendable (Int) -> Void) {
+    let handler: @Sendable (Int, Int) -> Void
+    init(handler: @escaping @Sendable (Int, Int) -> Void) {
         self.handler = handler
     }
 }
@@ -2982,7 +3091,7 @@ final class RuntimeExceptionHandlerBox: @unchecked Sendable {
 /// Returns an opaque handle to a RuntimeExceptionHandlerBox.
 @_cdecl("kk_exception_handler_new")
 public func kk_exception_handler_new() -> Int {
-    let box = RuntimeExceptionHandlerBox { throwableRaw in
+    let box = RuntimeExceptionHandlerBox { _, throwableRaw in
         // Default handler: print the exception to stderr
         var message = "Unknown exception"
         if throwableRaw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) {
@@ -3066,7 +3175,13 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
                 // the failure on the job instead of silently reporting normal
                 // completion.
                 if let handler = exceptionHandler {
-                    handler.handler(thrownException)
+                    // KUU-CORO-101: this fire-and-forget launch path has no
+                    // CoroutineContext object handy to pass as the handler's
+                    // first argument (unlike kk_exception_handler_invoke, which
+                    // receives one from its caller) -- passing 0 here is an
+                    // existing, unchanged limitation, not something this fix
+                    // introduces.
+                    handler.handler(0, thrownException)
                     _ = job.complete(with: 0)
                 } else {
                     _ = job.completeExceptionally(with: thrownException)
@@ -3396,10 +3511,14 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
     // Mark on the handle object itself that user code is consuming the passRetained.
     // This is checked by scope's waitForChildren to avoid double-release.
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    let handle = RuntimeJobOrTask(obj)
+    switch handle {
+    case .job(let job):
         job.markConsumedByUserCode()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.markConsumedByUserCode()
+    case .other:
+        break
     }
 
     // CORO-004: suspend-aware join. Register a resumer and suspend when the job/task is
@@ -3416,7 +3535,8 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
     // instead of freeing memory a still-live Kotlin variable can reach.
     let releaseHandle: @Sendable () -> Void = {}
     if continuation != 0, let callerState = runtimeContinuationState(from: continuation) {
-        if let job = obj as? RuntimeJobHandle {
+        switch handle {
+        case .job(let job):
             job.startIfNeeded()
             if !job.completedSnapshot() {
                 job.addJoinResumer { value in
@@ -3425,7 +3545,7 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
                 }
                 return Int(bitPattern: kk_coroutine_suspended())
             }
-        } else if let task = obj as? RuntimeAsyncTask {
+        case .task(let task):
             switch task.awaitResult(callerState: callerState, afterResume: releaseHandle) {
             case .suspended:
                 return Int(bitPattern: kk_coroutine_suspended())
@@ -3434,14 +3554,17 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
                 releaseHandle()
                 return result
             }
+        case .other:
+            break
         }
     }
 
-    let result: Int = if let job = obj as? RuntimeJobHandle {
+    let result: Int = switch handle {
+    case .job(let job):
         job.join()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.awaitResult()
-    } else {
+    case .other:
         0
     }
     // See the NOTE above: do not release the original passRetained from launch here --
@@ -3621,10 +3744,13 @@ func runtimeCancelChild(_ handle: Int) {
         return
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         _ = job.cancel()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.cancel()
+    case .other:
+        break
     }
 }
 
@@ -3634,12 +3760,14 @@ func runtimeJoinChild(_ handle: Int) -> Int {
         return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.join()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.awaitResult()
+    case .other:
+        return 0
     }
-    return 0
 }
 
 // MARK: - Cancellation ABI (CORO-002 / spec.md J17)
@@ -3651,10 +3779,13 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_cancel received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         _ = job.cancel()
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.cancel()
+    case .other:
+        break
     }
     return 0
 }
@@ -3666,10 +3797,13 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_cancel_with_cause received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         _ = job.cancel(cause: cause)
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.cancel()
+    case .other:
+        break
     }
     return 0
 }
@@ -3701,14 +3835,15 @@ public func kk_job_complete(_ jobHandle: Int, _ value: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_complete received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.complete(with: value) ? 1 : 0
-    }
-    if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.complete(with: value)
         return 1
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Mark a job as failed with an exception cause. Returns 1 if the transition succeeded.
@@ -3718,14 +3853,15 @@ public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) ->
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_complete_exceptionally received invalid job handle")
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.completeExceptionally(with: exception) ? 1 : 0
-    }
-    if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         task.completeExceptionally(with: exception)
         return 1
+    case .other:
+        return 0
     }
-    return 0
 }
 
 // MARK: - Job State Queries (STDLIB-CORO-070)
@@ -3739,12 +3875,14 @@ public func kk_job_is_active(_ jobHandle: Int) -> Int {
         return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.isActiveSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isActiveSnapshot() ? 1 : 0
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Zero-arg ABI backing for the bare `isActive` reference inside a coroutine
@@ -3798,12 +3936,14 @@ public func kk_job_is_completed(_ jobHandle: Int) -> Int {
         return 1 // invalid handle → treat as completed
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.completedSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isCompletedSnapshot() ? 1 : 0
+    case .other:
+        return 1
     }
-    return 1
 }
 
 /// Returns 1 if the job has been cancelled.
@@ -3814,12 +3954,14 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
         return 1 // invalid handle → treat as cancelled
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.cancellationSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isCancelledSnapshot() ? 1 : 0
+    case .other:
+        return 0
     }
-    return 0
 }
 
 /// Returns 1 if the job has failed with an exception.
@@ -3830,12 +3972,81 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
         return 0 // invalid handle → treat as not failed
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let job = obj as? RuntimeJobHandle {
+    switch RuntimeJobOrTask(obj) {
+    case .job(let job):
         return job.isFailedSnapshot() ? 1 : 0
-    } else if let task = obj as? RuntimeAsyncTask {
+    case .task(let task):
         return task.isFailedSnapshot() ? 1 : 0
+    case .other:
+        return 0
     }
-    return 0
+}
+
+/// KUU-CORO-101: ABI backing for `Job.getCancellationException()`
+/// (`__kk_job_get_cancellation_exception` in `Job.kt`, wrapped there into the
+/// public `getCancellationException()` extension). Returns the
+/// `CancellationException` this job was (or would be) cancelled with. Only
+/// `RuntimeJobHandle` is supported; a `Deferred` (`RuntimeAsyncTask`) handle
+/// falls back to a fresh generic exception, matching the "job is still
+/// active" fallback below.
+@_cdecl("kk_job_get_cancellation_exception")
+public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
+          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    else {
+        return runtimeAllocateCancellationException(message: "Job is still active")
+    }
+    let cause = job.cancellationCauseSnapshot()
+    if cause != 0 {
+        return cause
+    }
+    return runtimeAllocateCancellationException(message: "Job is still active")
+}
+
+/// KUU-CORO-101: ABI backing for `Job.invokeOnCompletion` (via
+/// `__kk_job_invoke_on_completion` in `Job.kt`). `handler`'s Kotlin type
+/// `(Throwable?) -> Unit` crosses this bundled `external fun` boundary as a
+/// (fnPtr, closureRaw) pair (it may capture locals) -- see
+/// [[function-type-param-abi-split-convention]]. Registers it and returns a
+/// disposal id for `kk_job_dispose_completion_handler` (0 if the handler
+/// already ran inline because the job was already terminal).
+/// `RuntimeAsyncTask` (`Deferred`) is not supported yet -- returns 0 without
+/// registering anything.
+@_cdecl("kk_job_invoke_on_completion")
+public func kk_job_invoke_on_completion(
+    _ jobHandle: Int,
+    _ onCancelling: Int,
+    _ handlerFnPtr: Int,
+    _ handlerClosureRaw: Int
+) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
+          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    else {
+        return 0
+    }
+    let capturedFnPtr = handlerFnPtr
+    let capturedClosureRaw = handlerClosureRaw
+    return job.addCompletionHandler(onCancelling: onCancelling != 0) { cause in
+        guard capturedFnPtr != 0 else { return }
+        _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+            fnPtr: capturedFnPtr,
+            closureRaw: capturedClosureRaw,
+            value: cause,
+            outThrown: nil
+        )
+    }
+}
+
+/// KUU-CORO-101: ABI backing for the `DisposableHandle` returned by
+/// `Job.invokeOnCompletion` (via `__kk_job_dispose_completion_handler`).
+@_cdecl("kk_job_dispose_completion_handler")
+public func kk_job_dispose_completion_handler(_ jobHandle: Int, _ handlerID: Int) {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
+          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    else {
+        return
+    }
+    job.removeCompletionHandler(id: handlerID)
 }
 
 /// Check if the coroutine associated with `continuation` has been cancelled.

@@ -97,6 +97,46 @@ struct CodegenBackendCollectionJoinToTests {
         )
     }
 
+    @Test func testCodegenSequenceJoinToDispatchesToUserAppendable() throws {
+        let source = """
+        import kotlin.text.Appendable
+
+        class MyBuffer : Appendable {
+            private val inner = StringBuilder()
+            override fun append(value: Char): Appendable {
+                inner.append(value)
+                return this
+            }
+            override fun append(value: CharSequence?): Appendable {
+                inner.append(value?.toString() ?: "null")
+                return this
+            }
+            override fun append(value: CharSequence?, startIndex: Int, endIndex: Int): Appendable {
+                inner.append(value?.toString()?.substring(startIndex, endIndex) ?: "null")
+                return this
+            }
+            override fun toString(): String = inner.toString()
+        }
+
+        fun main() {
+            val buffer = MyBuffer()
+            val returned = sequenceOf(1, 2, 3).joinTo(buffer, "|", "<", ">")
+            println(returned.toString())
+            println(returned === buffer)
+            val target: Appendable = buffer
+            target.append('!')
+            target.append("xyz", 1, 2)
+            println(buffer.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceJoinToUserAppendable",
+            expected: "<1|2|3>\ntrue\n<1|2|3>!y\n"
+        )
+    }
+
     // KSP-435: Iterable.joinTo is bundled Kotlin source, so the call lowers to
     // the source function instead of the kk_iterable_joinTo runtime bridge.
     @Test func testCodegenIterableJoinToUsesBundledSource() throws {
