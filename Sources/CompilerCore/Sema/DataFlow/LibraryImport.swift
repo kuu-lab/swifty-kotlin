@@ -6,6 +6,7 @@ extension DataFlowSemaPhase {
         let inlineKIRDir: String?
         let moduleName: String?
         let isValid: Bool
+        var topLevelInitializerLinkName: String? = nil
     }
 
     struct LibraryImportDeferredWork {
@@ -78,6 +79,24 @@ extension DataFlowSemaPhase {
             }
             guard manifestInfo.isValid else {
                 continue
+            }
+            if let linkName = manifestInfo.topLevelInitializerLinkName,
+               !linkName.isEmpty,
+               let moduleName = manifestInfo.moduleName {
+                let name = interner.intern("__kk_library_top_level_init_\(moduleName)")
+                let symbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: [interner.intern(moduleName), name],
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(parameterTypes: [], returnType: types.unitType),
+                    for: symbol
+                )
+                symbols.setExternalLinkName(linkName, for: symbol)
             }
             let metadataPath = manifestInfo.metadataPath
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }

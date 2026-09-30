@@ -19,12 +19,13 @@ package struct LibraryManifest: Decodable {
     let compilerVersion: String?
     let metadata: String?
     let inlineKIRDir: String?
+    let topLevelInitializerLinkName: String?
     package let objects: [String]?
 
     private enum CodingKeys: String, CodingKey {
         case formatVersion, moduleName, libraryKind, stdlibManifestHash
         case kotlinLanguageVersion, target
-        case compilerVersion, metadata, inlineKIRDir, objects
+        case compilerVersion, metadata, inlineKIRDir, topLevelInitializerLinkName, objects
     }
 
     package init(from decoder: Decoder) throws {
@@ -38,6 +39,7 @@ package struct LibraryManifest: Decodable {
         compilerVersion = try? container.decodeIfPresent(String.self, forKey: .compilerVersion)
         metadata = try? container.decodeIfPresent(String.self, forKey: .metadata)
         inlineKIRDir = try? container.decodeIfPresent(String.self, forKey: .inlineKIRDir)
+        topLevelInitializerLinkName = try? container.decodeIfPresent(String.self, forKey: .topLevelInitializerLinkName)
         objects = try? container.decodeIfPresent([String].self, forKey: .objects)
     }
 }
@@ -208,7 +210,8 @@ extension DataFlowSemaPhase {
             metadataPath: canonicalMetadataPath,
             inlineKIRDir: canonicalInlineKIRDir,
             moduleName: manifest.moduleName,
-            isValid: isValid
+            isValid: isValid,
+            topLevelInitializerLinkName: manifest.topLevelInitializerLinkName
         )
     }
 
