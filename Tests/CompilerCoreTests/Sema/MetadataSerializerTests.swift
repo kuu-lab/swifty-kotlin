@@ -86,6 +86,7 @@ struct MetadataSerializerTests {
             sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"],
             propertyReceiverTypeSignature: "Lkotlin/reflect/KClass<*>;",
             propertyGetterExternalLinkName: "kk_fn_get_abc",
+            propertySetterExternalLinkName: "kk_fn_set_abc",
             isMutable: true
         )
         #expect(record.kind == .class)
@@ -109,6 +110,7 @@ struct MetadataSerializerTests {
         #expect(record.annotations.count == 1)
         #expect(record.propertyReceiverTypeSignature == "Lkotlin/reflect/KClass<*>;")
         #expect(record.propertyGetterExternalLinkName == "kk_fn_get_abc")
+        #expect(record.propertySetterExternalLinkName == "kk_fn_set_abc")
         #expect(record.isMutable)
     }
 
@@ -548,6 +550,27 @@ struct MetadataSerializerTests {
         #expect(records[0].fieldOffsets == "x@0")
         #expect(records[0].vtableSlots == "bar@0")
         #expect(records[0].itableSlots == "baz@0")
+    }
+
+    @Test func testPropertyAccessorLinkRoundTrips() {
+        // A `var` property emits both accessor link names; dropping the setter
+        // link makes `a.prop = x` fail to link on the consumer side.
+        let encoder = MetadataEncoder()
+        let decoder = MetadataDecoder()
+        let record = MetadataRecord(
+            kind: .property,
+            mangledName: "_KK_test__x__P__I",
+            fqName: "test.x",
+            typeSignature: "I",
+            propertyGetterExternalLinkName: "kk_fn_x_get",
+            propertySetterExternalLinkName: "kk_fn_x_set",
+            isMutable: true
+        )
+        let records = decoder.decode(encoder.serialize([record]))
+        #expect(records.count == 1)
+        #expect(records[0].propertyGetterExternalLinkName == "kk_fn_x_get")
+        #expect(records[0].propertySetterExternalLinkName == "kk_fn_x_set")
+        #expect(records[0].isMutable)
     }
 
     @Test func testBuildRecordsPreservesNominalSupertypeSignaturesForNonGenericClass() {
