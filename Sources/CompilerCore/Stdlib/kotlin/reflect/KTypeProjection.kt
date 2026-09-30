@@ -55,8 +55,11 @@ public class KTypeProjection {
 
     public companion object {
         // provided for compiler access
+        @KsSymbolName("__kk_ktypeprojection_star")
+        private external fun starProjection(): KTypeProjection
+
         @PublishedApi
-        internal val star: KTypeProjection = KTypeProjection(null, null)
+        internal val star: KTypeProjection = starProjection()
 
         public val STAR: KTypeProjection
             get() = star
