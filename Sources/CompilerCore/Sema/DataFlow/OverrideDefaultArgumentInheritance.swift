@@ -74,28 +74,19 @@ extension DataFlowSemaPhase {
         var resolvedBase: [SymbolID: SymbolID] = [:]
         var inProgress: Set<SymbolID> = []
 
-        // Finds the nearest ancestor declaration (by BFS over
-        // `directSupertypes`, same traversal shape as
-        // `OpenFinalOverride.findAllInheritedMembers`) that supplies this
-        // override's defaults, resolving transitively through any
-        // intermediate override that itself has none of its own. Diamond
-        // inheritance (`class C : A(), I` where both declare `f`) resolves
-        // to whichever matching candidate the BFS reaches first; Kotlin
-        // requires such a diamond to already agree on defaults (or the
-        // override to redeclare its own), so any two matches here are
-        // expected to carry the same effective flags.
-        func resolve(_ id: SymbolID) -> SymbolID? {
-            if let cached = resolvedBase[id] { return cached }
-            if hasOwnDefault(id) { return nil }
-            guard !inProgress.contains(id) else { return nil }
-            inProgress.insert(id)
-            defer { inProgress.remove(id) }
-
+        // Ordered declarations matching `id`'s member (name, arity, suspend,
+        // parameter types) at the nearest supertype level that declares any —
+        // the BFS portion of the original `resolve` walk, unchanged. Mirrors
+        // `findAllInheritedMembers`: once a level declares the member, deeper
+        // ancestors are earlier overrides of the same logical member, not
+        // independent candidates, so the BFS stops at the first level with
+        // matches.
+        func matchingOverrideCandidates(of id: SymbolID) -> [SymbolID] {
             guard let sym = symbols.symbol(id),
                   sym.flags.contains(.overrideMember),
                   let ownerID = symbols.parentSymbol(for: id),
                   let signature = symbols.functionSignature(for: id)
-            else { return nil }
+            else { return [] }
 
             let paramCount = signature.parameterTypes.count
             var visited: Set<SymbolID> = [ownerID]
@@ -105,7 +96,7 @@ extension DataFlowSemaPhase {
                 guard visited.insert(currentOwner).inserted else { continue }
                 guard let ownerSym = symbols.symbol(currentOwner) else { continue }
 
-                var foundAtThisLevel = false
+                var candidates: [SymbolID] = []
                 for candidateID in symbols.children(ofFQName: ownerSym.fqName) {
                     guard let candidate = symbols.symbol(candidateID),
                           candidate.kind == .function,
@@ -119,23 +110,85 @@ extension DataFlowSemaPhase {
                               types: types
                           )
                     else { continue }
-                    foundAtThisLevel = true
-                    if hasOwnDefault(candidateID) {
-                        return candidateID
+                    candidates.append(candidateID)
+                }
+                if !candidates.isEmpty {
+                    return candidates
+                }
+                queue.append(contentsOf: symbols.directSupertypes(for: currentOwner))
+            }
+            return []
+        }
+
+        // Finds the nearest ancestor declaration (by BFS over
+        // `directSupertypes`, same traversal shape as
+        // `OpenFinalOverride.findAllInheritedMembers`) that supplies this
+        // override's defaults, resolving transitively through any
+        // intermediate override that itself has none of its own. Diamond
+        // inheritance (`class C : A(), I` where both declare `f`) resolves
+        // to whichever matching candidate the BFS reaches first; Kotlin
+        // requires such a diamond to already agree on defaults (or the
+        // override to redeclare its own), so any two matches here are
+        // expected to carry the same effective flags.
+        //
+        // KUU-809: the transitive walk used to recurse once per intermediate
+        // override, so a crafted .kklib could spend a native stack frame per
+        // inheritance level. `frames` below is the explicit-stack equivalent:
+        // each frame is one in-flight evaluation (the function symbol plus a
+        // cursor into its candidate list), `pending` carries the next node to
+        // enter, and `result` the answer a completed frame hands to its
+        // parent — a nil answer resumes the parent's candidate scan, matching
+        // `let deeper = resolve(...) else continue` semantics.
+        func resolve(_ rootID: SymbolID) -> SymbolID? {
+            var frames: [(id: SymbolID, candidates: [SymbolID], nextIndex: Int)] = []
+            var result: SymbolID?
+            var pending: SymbolID? = rootID
+            while pending != nil || !frames.isEmpty {
+                if let id = pending {
+                    pending = nil
+                    if let cached = resolvedBase[id] {
+                        result = cached
+                        continue
                     }
-                    if candidate.flags.contains(.overrideMember), let deeper = resolve(candidateID) {
-                        return deeper
+                    if hasOwnDefault(id) {
+                        result = nil
+                        continue
+                    }
+                    guard inProgress.insert(id).inserted else {
+                        result = nil
+                        continue
+                    }
+                    frames.append((id, matchingOverrideCandidates(of: id), 0))
+                    continue
+                }
+
+                var frame = frames.removeLast()
+                if result != nil {
+                    inProgress.remove(frame.id)
+                    continue
+                }
+                var descended = false
+                while frame.nextIndex < frame.candidates.count {
+                    let candidateID = frame.candidates[frame.nextIndex]
+                    frame.nextIndex += 1
+                    if hasOwnDefault(candidateID) {
+                        result = candidateID
+                        break
+                    }
+                    if let candidate = symbols.symbol(candidateID),
+                       candidate.flags.contains(.overrideMember)
+                    {
+                        frames.append(frame)
+                        pending = candidateID
+                        descended = true
+                        break
                     }
                 }
-                // Mirrors `findAllInheritedMembers`: once a level declares
-                // this member (even without defaults of its own), stop --
-                // an ancestor beyond it is an earlier override of the same
-                // logical member, not an independent candidate.
-                if !foundAtThisLevel {
-                    queue.append(contentsOf: symbols.directSupertypes(for: currentOwner))
+                if !descended {
+                    inProgress.remove(frame.id)
                 }
             }
-            return nil
+            return result
         }
 
         for sym in functionSymbols where sym.flags.contains(.overrideMember) {

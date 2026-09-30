@@ -902,6 +902,12 @@ final class CallLowerer {
                    of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                ),
                functionType.receiver != nil,
+               // `finalArgIDs` here is `[closure] + normalizedArgs`.
+               // When the receiver was already supplied positionally
+               // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
+               // elements and finalArgIDs.count is params.count + 2 -- there
+               // is no missing receiver slot to fill from the ambient scope.
+               finalArgIDs.count == functionType.params.count + 1,
                let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
             {
                 // A receiver-function value invoked as `block()` inside a
@@ -1512,6 +1518,8 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_sequence_elementAt",
             "kk_iterable_iterator",
+            "kk_mutex_unlock",
+            "kk_semaphore_release",
             "__kk_file_readText",
             "__kk_buffered_reader_useLines",
             "__kk_buffered_reader_forEachLine",
@@ -1601,6 +1609,8 @@ final class CallLowerer {
             "__kk_mutable_map_clear",
             "__kk_mutable_map_putAll",
             "__kk_list_get",
+            "kk_mutex_unlock",
+            "kk_semaphore_release",
             "kk_sequence_elementAt",
             "kk_iterator_next",
             "kk_list_iterator_next",

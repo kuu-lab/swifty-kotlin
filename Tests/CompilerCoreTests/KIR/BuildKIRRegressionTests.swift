@@ -285,7 +285,8 @@ struct BuildKIRRegressionTests {
         }
 
         // `!=` stays a binary op here (like `==`): OperatorLoweringPass resolves
-        // it to kk_structural_ne for reference types or kk_op_ne for primitives.
+        // it to kk_structural_ne for reference/nullable-primitive operands or
+        // kk_op_ne for primitives.
         #expect(binaryOps.contains(.notEqual))
         #expect(callees.contains("kk_op_lt"))
         #expect(callees.contains("kk_op_le"))
