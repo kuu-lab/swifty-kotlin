@@ -7,8 +7,8 @@ import Testing
 
 /// RF-GOLDEN-002 — origin classification independent of `declSite` and the
 /// `synthetic` flag. The golden format does not change yet; these tests pin
-/// the classifier against the cases named in the roadmap: nil-`declSite`
-/// `Pair`, fixture-synthesized declarations, member aliases, a user
+/// the classifier against the cases named in the roadmap: bundled `Pair`,
+/// fixture-synthesized declarations, member aliases, a user
 /// `package kotlin`, user extensions on stdlib receivers, imported libraries
 /// and genuinely unresolvable symbols.
 @Suite("GoldenHarness.SymbolOrigin")
@@ -33,17 +33,14 @@ struct GoldenHarnessSymbolOriginTests {
         return try #require(matches.first, "no symbol for \(fqName)")
     }
 
-    /// `kotlin.Pair` keeps `declSite == nil` for compatibility, but its
-    /// registration-time source file is bundled stdlib — the classifier must
-    /// still identify it without trusting `declSite`.
+    /// `kotlin.Pair` is a real bundled declaration — the classifier must
+    /// identify it from registration-time provenance, with no reliance on
+    /// `declSite` presence (RF-GOLDEN-009 removed the forced-nil site).
     @Test
-    func nilDeclSitePairClassifiesAsBundledSource() throws {
+    func pairClassifiesAsBundledSource() throws {
         let ctx = makeContextFromSource("fun main() { Pair(1, \"a\") }\n")
         try runSema(ctx)
-        let sema = try #require(ctx.sema)
         let pair = try lookup("kotlin.Pair", ctx: ctx)
-        let pairSymbol = try #require(sema.symbols.symbol(pair))
-        #expect(pairSymbol.declSite == nil, Comment(rawValue: "Pair gained a declSite — update the contract"))
         #expect(try classifier(for: ctx).origin(of: pair) == .bundledSource)
     }
 

@@ -678,6 +678,10 @@ extension DataFlowSemaPhase {
         if let reusableSyntheticSymbol {
             nestedSymbol = reusableSyntheticSymbol
             symbols.removeFlags(.synthetic, for: nestedSymbol)
+            symbols.insertFlags(flags, for: nestedSymbol)
+            if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
+                symbols.setDeclSite(declSite, for: nestedSymbol)
+            }
         } else {
             nestedSymbol = symbols.define(
                 kind: kind,
@@ -1136,19 +1140,32 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
-            let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: [], nullability: .nonNull)))
+            let nestedTypeParams = registerNominalTypeParameters(
+                nestedInterface.typeParams,
+                ownerSymbol: nestedSymbol,
+                fqName: nestedFQName,
+                namespacePrefix: "$iface",
+                declSite: nestedInterface.range,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics
+            )
+            let nestedTypeArgs: [TypeArg] = nestedTypeParams.symbols.map {
+                .invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            let nestedType = types.make(.classType(ClassType(
+                classSymbol: nestedSymbol, args: nestedTypeArgs, nullability: .nonNull
+            )))
             let nestedScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
                 ownerSymbol: nestedSymbol,
                 thisType: nestedType
             )
-            if !nestedInterface.typeParams.isEmpty {
-                types.setNominalTypeParameterVariances(
-                    nestedInterface.typeParams.map(\.variance),
-                    for: nestedSymbol
-                )
-            }
             collectNestedTypeAliases(
                 nestedInterface.nestedTypeAliases,
                 ownerFQName: nestedFQName,
@@ -1175,7 +1192,9 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 scope: nestedScope,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParams.symbols,
+                classLocalTypeParameters: nestedTypeParams.localMap
             )
             if let companionDeclID = nestedInterface.companionObject {
                 collectCompanionObjectHeader(

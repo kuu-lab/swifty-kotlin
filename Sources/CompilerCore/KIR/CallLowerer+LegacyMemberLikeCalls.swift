@@ -506,7 +506,20 @@ extension CallLowerer {
                     || name == "CharProgression"
                     || name == "UIntRange"
                     || name == "UIntProgression"
+                    || name == "ULongRange"
                     || name == "ULongProgression"
+            }()
+            let isULongRangeSourceEndProperty = {
+                guard calleeNameStr == "endInclusive" || calleeNameStr == "endExclusive",
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
+                      interner.resolve(receiverSymbol.name) == "ULongRange",
+                      let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+                      sema.symbols.isSourceBackedSymbol(propertySymbol),
+                      sema.symbols.parentSymbol(for: propertySymbol) == receiverSymbol.id
+                else {
+                    return false
+                }
+                return true
             }()
             let isExplicitProgressionSourceCall = ast.arena.isExplicitCall(exprID)
                 && {
@@ -530,7 +543,7 @@ extension CallLowerer {
                     }
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
+            if isRangeLikeReceiver && !isExplicitProgressionSourceCall && !isULongRangeSourceEndProperty {
                 // KSP-1524: range first/last values are raw bits at this ABI
                 // boundary, so ULong can use the shared getter as well.
                 let runtimeGetter: InternedString? = switch calleeNameStr {
@@ -560,7 +573,7 @@ extension CallLowerer {
                         callee: runtimeGetter,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
+                        canThrow: calleeNameStr == "endExclusive",
                         thrownResult: nil
                     ))
                     return result
@@ -1091,6 +1104,10 @@ extension CallLowerer {
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
+            case ("toUByte", ubyteType, ubyteType): nil // identity
+            case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
+            case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
+            case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")

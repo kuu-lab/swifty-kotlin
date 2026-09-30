@@ -53,35 +53,39 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let restrictsSuspensionSymbol = ensureAnnotationClassSymbol(
-            named: "RestrictsSuspension",
-            in: kotlinCoroutinesPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinCoroutinesPkgSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
-            symbols.setParentSymbol(kotlinCoroutinesPkgSymbol, for: restrictsSuspensionSymbol)
-        }
-        attachRestrictsSuspensionAnnotationMetadata(
-            to: restrictsSuspensionSymbol,
-            symbols: symbols
-        )
         let restrictsSuspensionFQName = kotlinCoroutinesPkg + [interner.intern("RestrictsSuspension")]
-        registerSyntheticConstructorStubs(
-            [SyntheticConstructorStubSpec()],
-            ownerType: .classType(
-                fqName: ["kotlin", "coroutines", "RestrictsSuspension"],
-                args: [],
-                nullability: .nonNull
-            ),
-            context: SyntheticStubRegistrationContext(
-                ownerFQName: restrictsSuspensionFQName,
-                parentSymbol: restrictsSuspensionSymbol
-            ),
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // The bundled declaration owns this annotation and its implicit constructor.
+        // Retain the residual registration only for --no-stdlib compilations.
+        if !bundledIndex.containsNominal(fqName: restrictsSuspensionFQName) {
+            let restrictsSuspensionSymbol = ensureAnnotationClassSymbol(
+                named: "RestrictsSuspension",
+                in: kotlinCoroutinesPkg,
+                symbols: symbols,
+                interner: interner
+            )
+            if let kotlinCoroutinesPkgSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
+                symbols.setParentSymbol(kotlinCoroutinesPkgSymbol, for: restrictsSuspensionSymbol)
+            }
+            attachRestrictsSuspensionAnnotationMetadata(
+                to: restrictsSuspensionSymbol,
+                symbols: symbols
+            )
+            registerSyntheticConstructorStubs(
+                [SyntheticConstructorStubSpec()],
+                ownerType: .classType(
+                    fqName: ["kotlin", "coroutines", "RestrictsSuspension"],
+                    args: [],
+                    nullability: .nonNull
+                ),
+                context: SyntheticStubRegistrationContext(
+                    ownerFQName: restrictsSuspensionFQName,
+                    parentSymbol: restrictsSuspensionSymbol
+                ),
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
         let channelsPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("channels")],
             symbols: symbols,

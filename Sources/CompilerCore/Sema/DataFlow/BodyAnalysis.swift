@@ -109,7 +109,8 @@ extension DataFlowSemaPhase {
                         for: path,
                         currentPackageFQName: currentPackageFQName,
                         imports: imports,
-                        symbols: symbols
+                        symbols: symbols,
+                        interner: interner
                     )
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
@@ -122,7 +123,8 @@ extension DataFlowSemaPhase {
                     for: path,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    symbols: symbols
+                    symbols: symbols,
+                    interner: interner
                 )
                 if !fqCandidates.isEmpty {
                     candidates = fqCandidates
@@ -412,7 +414,8 @@ extension DataFlowSemaPhase {
         for path: [InternedString],
         currentPackageFQName: [InternedString]?,
         imports: [ImportDecl],
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) -> [SemanticSymbol] {
         guard !path.isEmpty else {
             return []
@@ -470,6 +473,13 @@ extension DataFlowSemaPhase {
                 {
                     candidatePaths.append(importDecl.path + tail)
                 }
+            }
+            // A nested type can be rooted in a default-imported declaration,
+            // such as Map.Entry. Header resolution must use the same import
+            // packages as expression/type checking instead of requiring an
+            // explicit import of the outer declaration.
+            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                candidatePaths.append(defaultPackage + path)
             }
         }
 
