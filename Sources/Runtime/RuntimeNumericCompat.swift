@@ -1673,7 +1673,5 @@ public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
 public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    let last = endChar &- 1
-    let step = endChar <= startChar ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: last, step: step, kind: .charRange))
+    return runtimeUntilRange(first: startChar, exclusiveEnd: endChar, kind: .charRange, endAtOrBelowMinimum: endChar <= 0)
 }
