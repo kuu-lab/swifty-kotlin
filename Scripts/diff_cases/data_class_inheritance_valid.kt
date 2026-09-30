@@ -1,8 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // Test cases for valid data class inheritance (STDLIB-DATA-014)
 
 // Case 1: Data class inheriting from regular open class - should be allowed
-open class BaseEntity(val id: String) {
+open class BaseEntity(open val id: String) {
     override fun toString(): String = "BaseEntity($id)"
     
     override fun equals(other: Any?): Boolean {
@@ -14,7 +13,7 @@ open class BaseEntity(val id: String) {
     override fun hashCode(): Int = id.hashCode()
 }
 
-data class Entity(val name: String, id: String) : BaseEntity(id) {
+data class Entity(val name: String, override val id: String) : BaseEntity(id) {
     // This should be allowed
 }
 
@@ -37,11 +36,11 @@ data class Success(val data: String, override val code: Int = 200) : Result()
 data class Error(val message: String, override val code: Int = 400) : Result()
 
 // Case 4: Data class inheriting from abstract class - should be allowed
-abstract class AbstractBase(val version: Int) {
+abstract class AbstractBase(open val version: Int) {
     abstract fun getInfo(): String
 }
 
-data class ConcreteData(val value: String, version: Int) : AbstractBase(version) {
+data class ConcreteData(val value: String, override val version: Int) : AbstractBase(version) {
     override fun getInfo(): String = "ConcreteData($value, v$version)"
 }
 

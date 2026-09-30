@@ -28,6 +28,29 @@ extension DataFlowSemaPhase {
             classSymbol = created
         }
 
+        // KSP-1316: Keep the Companion nominal available for the bundled
+        // source-backed UIntRange.Companion.EMPTY extension.
+        if symbols.companionObjectSymbol(for: classSymbol) == nil {
+            let companionName = interner.intern("Companion")
+            let companionFQName = classFQName + [companionName]
+            let companionSymbol: SymbolID
+            if let imported = symbols.lookupAll(fqName: companionFQName).first {
+                companionSymbol = imported
+                symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            } else {
+                companionSymbol = symbols.define(
+                    kind: .object,
+                    name: companionName,
+                    fqName: companionFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            }
+            symbols.setCompanionObjectSymbol(companionSymbol, for: classSymbol)
+        }
+
         let rangeType = types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],
@@ -61,12 +84,13 @@ extension DataFlowSemaPhase {
         // registered property here so expressions like `r.first` type-check as
         // UInt. Keep the link names aligned to the bridge that's actually used
         // so they don't dangle on a symbol slated for removal.
+        // KSP-1315: `start`, `endInclusive`, and `endExclusive` moved to the
+        // bundled `UIntRange/UIntRange.kt` extension declarations; `end`
+        // remains a legacy alias with no Kotlin API surface.
         for property in [
-            ("start", "__kk_range_first"),
             ("end", "__kk_range_last"),
             ("first", "__kk_range_first"),
             ("last", "__kk_range_last"),
-            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -207,10 +231,8 @@ extension DataFlowSemaPhase {
         )
         for property in [
             ("start", "__kk_range_first"),
-            ("endInclusive", "__kk_range_last"),
             ("first", "__kk_range_first"),
             ("last", "__kk_range_last"),
-            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,

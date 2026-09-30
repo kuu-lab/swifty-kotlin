@@ -24,7 +24,9 @@ struct CodegenBackendSequenceJoinToStringTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(containsKotlinCallee("joinToString", in: callees))
+            // Calls that omit defaulted parameters dispatch through the
+            // bundled `joinToString$default` stub, which itself calls `joinToString`.
+            #expect(containsKotlinCallee("joinToString", in: callees) || containsKotlinCallee("joinToString$default", in: callees))
             #expect(!callees.contains("kk_sequence_joinToString"), "Sequence.joinToString should no longer route through the retired native bridge, got: \(callees)")
             // KSP-621: the CallLowerer fallback that used to rescue unresolved
             // joinToString calls onto this runtime bridge has been removed; Sequence.joinToString

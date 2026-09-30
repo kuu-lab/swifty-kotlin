@@ -1,5 +1,6 @@
 package kotlin.text
 
+import kotlin.collections.CharIterator
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -56,6 +57,25 @@ private external fun kk_max_double(a: Double, b: Double): Double
  */
 public val CharSequence.indices: IntRange
     get() = 0..length - 1
+
+private class CharSequenceCharIterator(
+    private val source: CharSequence
+) : CharIterator() {
+    private var index = 0
+
+    override fun hasNext(): Boolean = index < source.length
+
+    override fun nextChar(): Char {
+        val result = source[index]
+        index++
+        return result
+    }
+}
+
+/**
+ * Returns an iterator over the characters of this char sequence.
+ */
+public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
 
 // KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
 // CharSequence values through indexed UTF-16 units so custom implementations do
@@ -1620,6 +1640,17 @@ public inline fun <K, V, M : MutableMap<in K, MutableList<V>>> CharSequence.grou
     return destination
 }
 
+// KSP-1380: CharSequence.groupingBy is source-backed. Mirrors the upstream
+// object-expression Grouping adapter over CharSequence.iterator().
+@SinceKotlin("1.1")
+public inline fun <K> CharSequence.groupingBy(crossinline keySelector: (Char) -> K): Grouping<Char, K> {
+    val source = this
+    return object : Grouping<Char, K> {
+        override fun sourceIterator(): Iterator<Char> = source.iterator()
+        override fun keyOf(element: Char): K = keySelector(element)
+    }
+}
+
 public fun CharSequence.drop(n: Int): CharSequence {
     require(n >= 0) { "Requested character count $n is less than zero." }
     return this.subSequence(n.coerceAtMost(length), length)
@@ -1713,3 +1744,4 @@ public fun CharSequence.padEnd(length: Int, padChar: Char = ' '): CharSequence {
         sb.append(padChar)
     return sb
 }
+

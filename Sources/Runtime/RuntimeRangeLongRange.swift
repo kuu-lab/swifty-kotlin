@@ -34,7 +34,7 @@ public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
@@ -168,7 +168,7 @@ public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
@@ -201,12 +201,12 @@ public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
         let uStep = UInt(bitPattern: iterator.step)
         let (next, overflow) = uCurrent.addingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     } else if iterator.step < 0 {
         let uStep = UInt(iterator.step.magnitude)
         let (next, overflow) = uCurrent.subtractingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     }
     return current
 }

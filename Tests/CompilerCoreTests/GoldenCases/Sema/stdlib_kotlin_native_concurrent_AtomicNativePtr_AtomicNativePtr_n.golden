@@ -1,0 +1,36 @@
+symbol fq=golden.sema.atomicNativePtrCompareAndSet.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrCompareAndSet.$0.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrCompareAndSet.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrCompareAndSet[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] ret=Boolean
+symbol fq=golden.sema.atomicNativePtrCompareAndSwap.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrCompareAndSwap.$1.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrCompareAndSwap.$1.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] ret=kotlinx.cinterop.NativePtr
+symbol fq=golden.sema.atomicNativePtrGetAndSet.$2.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrGetAndSet.$2.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrGetAndSet[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr] ret=kotlinx.cinterop.NativePtr
+symbol fq=golden.sema.atomicNativePtrToString.$3.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrToString[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicNativePtr] ret=String
+symbol fq=golden.sema.atomicNativePtrValue.$4.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrValue[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicNativePtr] ret=kotlinx.cinterop.NativePtr
+file fstdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.atomicNativePtrValue[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr] fun atomicNativePtrValue sym=golden.sema.atomicNativePtrValue[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr]
+  decl golden.sema.atomicNativePtrGetAndSet[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr] fun atomicNativePtrGetAndSet sym=golden.sema.atomicNativePtrGetAndSet[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr]
+  decl golden.sema.atomicNativePtrCompareAndSet[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] fun atomicNativePtrCompareAndSet sym=golden.sema.atomicNativePtrCompareAndSet[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
+  decl golden.sema.atomicNativePtrCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] fun atomicNativePtrCompareAndSwap sym=golden.sema.atomicNativePtrCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
+  decl golden.sema.atomicNativePtrToString[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr] fun atomicNativePtrToString sym=golden.sema.atomicNativePtrToString[kind=fun;params=kotlin.native.concurrent.AtomicNativePtr]
+expr e@8:64 name(atomic) type=kotlin.native.concurrent.AtomicNativePtr ref=golden.sema.atomicNativePtrValue.$4.atomic[kind=vparam]
+expr e@8:64#1 memberCall recv=e@8:64 callee=value args=[] type=kotlinx.cinterop.NativePtr ref=kotlin.native.concurrent.AtomicNativePtr.value[kind=prop]
+expr e@11:5 name(atomic) type=kotlin.native.concurrent.AtomicNativePtr ref=golden.sema.atomicNativePtrGetAndSet.$2.atomic[kind=vparam]
+expr e@11:22 name(newValue) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrGetAndSet.$2.newValue[kind=vparam]
+expr e@11:5#1 memberCall recv=e@11:5 callee=getAndSet args=[_:e@11:22] type=kotlinx.cinterop.NativePtr call=kotlin.native.concurrent.AtomicNativePtr.getAndSet[kind=fun;recv=kotlin.native.concurrent.AtomicNativePtr;params=kotlinx.cinterop.NativePtr]
+expr e@17:14 name(atomic) type=kotlin.native.concurrent.AtomicNativePtr ref=golden.sema.atomicNativePtrCompareAndSet.$0.atomic[kind=vparam]
+expr e@17:35 name(expected) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrCompareAndSet.$0.expected[kind=vparam]
+expr e@17:45 name(newValue) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrCompareAndSet.$0.newValue[kind=vparam]
+expr e@17:14#1 memberCall recv=e@17:14 callee=compareAndSet args=[_:e@17:35,_:e@17:45] type=Boolean call=kotlin.native.concurrent.AtomicNativePtr.compareAndSet[kind=fun;recv=kotlin.native.concurrent.AtomicNativePtr;params=kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
+expr e@23:16 name(atomic) type=kotlin.native.concurrent.AtomicNativePtr ref=golden.sema.atomicNativePtrCompareAndSwap.$1.atomic[kind=vparam]
+expr e@23:38 name(expected) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrCompareAndSwap.$1.expected[kind=vparam]
+expr e@23:48 name(newValue) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrCompareAndSwap.$1.newValue[kind=vparam]
+expr e@23:16#1 memberCall recv=e@23:16 callee=compareAndSwap args=[_:e@23:38,_:e@23:48] type=kotlinx.cinterop.NativePtr call=kotlin.native.concurrent.AtomicNativePtr.compareAndSwap[kind=fun;recv=kotlin.native.concurrent.AtomicNativePtr;params=kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
+expr e@25:64 name(atomic) type=kotlin.native.concurrent.AtomicNativePtr ref=golden.sema.atomicNativePtrToString.$3.atomic[kind=vparam]
+expr e@25:64#1 memberCall recv=e@25:64 callee=toString args=[] type=String call=kotlin.native.concurrent.AtomicNativePtr.toString[kind=fun;recv=kotlin.native.concurrent.AtomicNativePtr;params=]

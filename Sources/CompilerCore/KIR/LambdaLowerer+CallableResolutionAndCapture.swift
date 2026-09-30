@@ -626,6 +626,18 @@ extension LambdaLowerer {
         {
             return receiverExprID
         }
+        // An object literal captures its enclosing class receiver by the
+        // class symbol, while a member body may track `this` under a synthetic
+        // receiver symbol. Match by nominal type in that case so the captured
+        // field is initialized instead of left zeroed.
+        if sema.symbols.symbol(symbol)?.kind == .class,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = arena.exprType(receiverExprID),
+           case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+           sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
+        {
+            return receiverExprID
+        }
         // KSP-CAP-001: object-literal member functions may capture an
         // immutable stored property of their enclosing class. The enclosing
         // receiver is still active while the object is constructed, so copy
