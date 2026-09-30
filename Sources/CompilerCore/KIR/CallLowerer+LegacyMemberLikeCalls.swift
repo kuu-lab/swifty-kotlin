@@ -1387,6 +1387,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                let flatStringHOFArguments: [KIRExprID]? = {
+                    guard isCharSequenceTextHelper else { return nil }
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        loweredArgIDs[0],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    return [loweredReceiverID, fnPtrExpr, envPtrExpr]
+                }()
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
@@ -1401,9 +1412,9 @@ extension CallLowerer {
                         nil
                     }
                 case "ifBlank":
-                    ("kk_string_ifBlank_flat", [loweredReceiverID, loweredArgIDs[0]])
+                    flatStringHOFArguments.map { ("kk_string_ifBlank_flat", $0) }
                 case "ifEmpty":
-                    ("kk_string_ifEmpty_flat", [loweredReceiverID, loweredArgIDs[0]])
+                    flatStringHOFArguments.map { ("kk_string_ifEmpty_flat", $0) }
                 default:
                     nil
                 }
