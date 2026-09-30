@@ -120,7 +120,10 @@ public func kk_copaque_pointer_new(_ address: Int) -> Int {
 
 @_cdecl("kk_copaque_pointer_address")
 public func kk_copaque_pointer_address(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+    // A null `COpaquePointer?` arrives as the runtime null sentinel, not 0.
+    guard handle != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: handle)
+    else {
         return 0
     }
     guard let box = tryCast(ptr, to: RuntimeCOpaquePointerBox.self) else {
