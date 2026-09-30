@@ -109,7 +109,8 @@ extension DataFlowSemaPhase {
                         for: path,
                         currentPackageFQName: currentPackageFQName,
                         imports: imports,
-                        symbols: symbols
+                        symbols: symbols,
+                        interner: interner
                     )
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
@@ -122,7 +123,8 @@ extension DataFlowSemaPhase {
                     for: path,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    symbols: symbols
+                    symbols: symbols,
+                    interner: interner
                 )
                 if !fqCandidates.isEmpty {
                     candidates = fqCandidates
@@ -133,6 +135,29 @@ extension DataFlowSemaPhase {
                 }
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
+                if resolved.flags.contains(.importedLibrary), let usageRange {
+                    let fileID = usageRange.start.file
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
+                        let label = resolved.visibility == .internal ? "internal" : "private"
+                        diagnostics?.error(
+                            resolved.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot access '\(interner.resolve(shortName))': it is \(label).",
+                            range: usageRange
+                        )
+                        return types.errorType
+                    }
+                }
                 let resolvedArgs = resolveTypeArgRefs(
                     argRefs,
                     ast: ast,
@@ -412,7 +437,8 @@ extension DataFlowSemaPhase {
         for path: [InternedString],
         currentPackageFQName: [InternedString]?,
         imports: [ImportDecl],
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) -> [SemanticSymbol] {
         guard !path.isEmpty else {
             return []
@@ -470,6 +496,13 @@ extension DataFlowSemaPhase {
                 {
                     candidatePaths.append(importDecl.path + tail)
                 }
+            }
+            // A nested type can be rooted in a default-imported declaration,
+            // such as Map.Entry. Header resolution must use the same import
+            // packages as expression/type checking instead of requiring an
+            // explicit import of the outer declaration.
+            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                candidatePaths.append(defaultPackage + path)
             }
         }
 

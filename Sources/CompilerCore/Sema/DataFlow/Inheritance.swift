@@ -5,6 +5,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine = DiagnosticEngine(),
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
@@ -19,6 +20,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     types: types,
+                    diagnostics: diagnostics,
                     interner: interner
                 )
             }
@@ -35,6 +37,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
         guard let symbol = bindings.declSymbols[declID],
@@ -84,6 +87,31 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner
             ) {
+                if let imported = symbols.symbol(resolved.symbol),
+                   imported.flags.contains(.importedLibrary),
+                   let fileID = symbols.sourceFileID(for: symbol)
+                       ?? symbols.symbol(symbol)?.declSite?.start.file {
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(imported, fromFile: fileID, enclosingClass: nil) {
+                        let name = imported.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                        diagnostics.error(
+                            imported.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot inherit from '\(name)': it is not visible in this module.",
+                            range: symbols.symbol(symbol)?.declSite
+                        )
+                        continue
+                    }
+                }
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -168,6 +196,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 types: types,
+                diagnostics: diagnostics,
                 interner: interner
             )
         }
@@ -258,6 +287,15 @@ extension DataFlowSemaPhase {
             // but never let it shadow an explicit import above.
             append(path)
         } else {
+            // An imported classifier (including an alias) may qualify a nested
+            // supertype, e.g. CoroutineContext.Key<E>. Resolve that prefix before
+            // looking for a root-qualified path so the inheritance edge is kept.
+            for importDecl in imports where !importDecl.isWildcard {
+                let importedName = importDecl.alias ?? importDecl.path.last
+                if importedName == path.first {
+                    append(importDecl.path + path.dropFirst())
+                }
+            }
             append(path)
             if !currentPackage.isEmpty {
                 // Allow nested/package-relative supertypes such as
@@ -373,7 +411,7 @@ extension DataFlowSemaPhase {
         // Kotlin default imports are considered after primitive/builtin names
         // in resolveTypeRefForInheritance. Supertype roots have no primitive
         // representation, so they can use the default-import packages here.
-        if path.count == 1 {
+        do {
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 let candidatePath = defaultPackage + path
                 if let symbol = symbols.lookupAll(fqName: candidatePath)
@@ -514,7 +552,7 @@ extension DataFlowSemaPhase {
             }
             // Kotlin default imports also apply to type arguments (e.g.
             // class X : Comparable<Int>), so search the standard default-import packages.
-            if path.count == 1 {
+            do {
                 for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                     let candidatePath = defaultPackage + path
                     if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
@@ -738,7 +776,10 @@ extension DataFlowSemaPhase {
         // bridges. AbstractSet and its subclasses remain intentionally abstract
         // skeletal collection types even when those bridges cover every
         // inherited member in the compiler's abstract-member set.
+        // An expect class may declare its abstract contract only in the actual
+        // implementation; an empty expect body is therefore not suspicious.
         if !hasAbstractMember,
+           !symbolInfo.flags.contains(.expectDeclaration),
            !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
         {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
