@@ -1789,6 +1789,38 @@ extension CallTypeChecker {
             }
             candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
         }
+        if calleeName == knownNames.coerceAtLeast
+            || calleeName == knownNames.coerceAtMost
+            || calleeName == knownNames.coerceIn
+        {
+            // A concrete `Int.coerceIn`/`UByte.coerceAtLeast`-style overload is
+            // strictly more specific than the generic `T.coerceX` extensions
+            // (upstream's overload ranking). Keeping both in the candidate set
+            // turns calls whose arguments need literal coercion (or whose
+            // argument type makes the generic's bound fail) into a constraint
+            // error instead of binding the concrete overload. Keep the generic
+            // only when no concrete overload has the same arity — i.e.
+            // user-defined `Comparable` receivers, or shapes no concrete
+            // overload covers (e.g. `Double.coerceIn(ClosedFloatingPointRange)`).
+            let concreteArities = Set(candidates.compactMap { candidate -> Int? in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.isEmpty
+                else {
+                    return nil
+                }
+                return signature.parameterTypes.count
+            })
+            candidates.removeAll { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      let receiver = signature.receiverType,
+                      resolveClassTypeSymbol(receiver, sema: sema) == nil
+                else {
+                    return false
+                }
+                return concreteArities.contains(signature.parameterTypes.count)
+            }
+        }
         if calleeName == knownNames.toList {
             candidates = preferCollectionToListCandidates(
                 candidates,
