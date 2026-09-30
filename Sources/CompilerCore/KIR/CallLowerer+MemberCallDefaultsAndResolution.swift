@@ -726,14 +726,19 @@ extension CallLowerer {
         // retain the normal runtime member path for those.
         let chosenContainsIsExtension: Bool = if let chosenCallee,
                                                   let signature = sema.symbols.functionSignature(for: chosenCallee),
-                                                  signature.receiverType != nil
+                                                  signature.receiverType != nil,
+                                                  let chosenSymbol = sema.symbols.symbol(chosenCallee)
         {
             if let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
                let owner = sema.symbols.symbol(ownerID)
             {
                 switch owner.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass:
-                    false
+                    // Header collection attaches visible top-level extensions to
+                    // their receiver nominal for member lookup. Their declaration
+                    // FQ name still belongs to the source package, unlike a real
+                    // nominal member whose FQ name is owner + member name.
+                    chosenSymbol.fqName != owner.fqName + [chosenSymbol.name]
                 default:
                     true
                 }
