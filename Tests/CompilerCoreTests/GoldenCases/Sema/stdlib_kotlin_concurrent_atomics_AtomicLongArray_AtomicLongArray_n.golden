@@ -1,0 +1,38 @@
+symbol fq=golden.sema.atomicLongArrayCompareAndExchange.$0.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndExchange.$0.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndExchange.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndExchange.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndExchange[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long] ret=Long
+symbol fq=golden.sema.atomicLongArrayCompareAndSet.$1.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndSet.$1.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndSet.$1.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndSet.$1.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayCompareAndSet[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long] ret=Boolean
+symbol fq=golden.sema.atomicLongArrayLength.$2.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayLength[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray] ret=Int
+symbol fq=golden.sema.atomicLongArraySize.$3.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray] ret=Int
+symbol fq=golden.sema.atomicLongArrayToString.$4.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray] ret=String
+file fstdlib_kotlin_concurrent_atomics_AtomicLongArray_AtomicLongArray_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicLongArrayCompareAndExchange[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long] fun atomicLongArrayCompareAndExchange sym=golden.sema.atomicLongArrayCompareAndExchange[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long]
+  decl golden.sema.atomicLongArrayCompareAndSet[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long] fun atomicLongArrayCompareAndSet sym=golden.sema.atomicLongArrayCompareAndSet[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,Long,Long]
+  decl golden.sema.atomicLongArrayLength[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray] fun atomicLongArrayLength sym=golden.sema.atomicLongArrayLength[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray]
+  decl golden.sema.atomicLongArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray] fun atomicLongArraySize sym=golden.sema.atomicLongArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray]
+  decl golden.sema.atomicLongArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray] fun atomicLongArrayToString sym=golden.sema.atomicLongArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray]
+expr e@12:11 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArrayCompareAndExchange.$0.values[kind=vparam]
+expr e@12:37 name(index) type=Int ref=golden.sema.atomicLongArrayCompareAndExchange.$0.index[kind=vparam]
+expr e@12:44 name(expectedValue) type=Long ref=golden.sema.atomicLongArrayCompareAndExchange.$0.expectedValue[kind=vparam]
+expr e@12:59 name(newValue) type=Long ref=golden.sema.atomicLongArrayCompareAndExchange.$0.newValue[kind=vparam]
+expr e@12:11#1 memberCall recv=e@12:11 callee=compareAndExchange args=[_:e@12:37,_:e@12:44,_:e@12:59] type=Long call=kotlin.concurrent.atomics.AtomicLongArray.compareAndExchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int,Long,Long]
+expr e@19:14 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArrayCompareAndSet.$1.values[kind=vparam]
+expr e@19:35 name(index) type=Int ref=golden.sema.atomicLongArrayCompareAndSet.$1.index[kind=vparam]
+expr e@19:42 name(expectedValue) type=Long ref=golden.sema.atomicLongArrayCompareAndSet.$1.expectedValue[kind=vparam]
+expr e@19:57 name(newValue) type=Long ref=golden.sema.atomicLongArrayCompareAndSet.$1.newValue[kind=vparam]
+expr e@19:14#1 memberCall recv=e@19:14 callee=compareAndSet args=[_:e@19:35,_:e@19:42,_:e@19:57] type=Boolean call=kotlin.concurrent.atomics.AtomicLongArray.compareAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int,Long,Long]
+expr e@21:59 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArrayLength.$2.values[kind=vparam]
+expr e@21:59#1 memberCall recv=e@21:59 callee=length args=[] type=Int ref=kotlin.concurrent.atomics.AtomicLongArray.length[kind=prop]
+expr e@23:57 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArraySize.$3.values[kind=vparam]
+expr e@23:57#1 memberCall recv=e@23:57 callee=size args=[] type=Int ref=kotlin.concurrent.atomics.AtomicLongArray.size[kind=prop]
+expr e@25:64 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArrayToString.$4.values[kind=vparam]
+expr e@25:64#1 memberCall recv=e@25:64 callee=toString args=[] type=String call=kotlin.concurrent.atomics.AtomicLongArray.toString[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=]

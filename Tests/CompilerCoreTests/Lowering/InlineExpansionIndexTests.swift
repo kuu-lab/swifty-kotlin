@@ -138,7 +138,7 @@ struct InlineExpansionIndexTests {
         #expect(index.inlineTarget(
             callSymbol: inlineDecl.symbol,
             callee: interner.intern("withLock"),
-            inlineFunctionsByName: byName
+            inlineFunctionsByName: byName,
         )?.symbol == inlineDecl.symbol)
     }
 
@@ -165,7 +165,7 @@ struct InlineExpansionIndexTests {
         #expect(index.inlineTarget(
             callSymbol: unrelatedSymbol,
             callee: interner.intern("withLock"),
-            inlineFunctionsByName: byName
+            inlineFunctionsByName: byName,
         ) == nil)
     }
 
@@ -192,19 +192,19 @@ struct InlineExpansionIndexTests {
         #expect(index.inlineTarget(
             callSymbol: nil,
             callee: interner.intern("unique"),
-            inlineFunctionsByName: byName
+            inlineFunctionsByName: byName,
         )?.symbol == only.symbol)
         // Two candidates under one name is ambiguous: no fallback.
         #expect(index.inlineTarget(
             callSymbol: nil,
             callee: interner.intern("overloaded"),
-            inlineFunctionsByName: byName
+            inlineFunctionsByName: byName,
         ) == nil)
         // No candidates at all: no fallback.
         #expect(index.inlineTarget(
             callSymbol: nil,
             callee: interner.intern("missing"),
-            inlineFunctionsByName: byName
+            inlineFunctionsByName: byName,
         ) == nil)
     }
 
@@ -363,6 +363,243 @@ struct InlineExpansionIndexTests {
         )
         #expect(InlineExpansionIndex.snapshotExpansionOrder(low, ranged, interner: interner))
         #expect(!InlineExpansionIndex.snapshotExpansionOrder(ranged, low, interner: interner))
+    }
+
+    // MARK: - Mandatory-expansion contract
+
+    @Test
+    func testMandatoryExpansionCallRequiresABodylessBinding() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let bodyless = makeFunction(
+            "autoInline", symbol: 10, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let regularInline = makeFunction(
+            "explicitInline", symbol: 11, interner: interner, types: types, isInline: true
+        )
+        let plainDecl = makeFunction("helper", symbol: 12, interner: interner, types: types)
+        let index = InlineExpansionIndex(
+            module: makeModule([bodyless, regularInline, plainDecl]),
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+        let byName = index.inlineFunctionsByName
+
+        // A symbol-known call is mandatory iff its symbol is bodyless.
+        #expect(index.isMandatoryExpansionCall(
+            callSymbol: bodyless.symbol, callee: interner.intern("autoInline"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: regularInline.symbol, callee: interner.intern("explicitInline"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        // A regular `inline` body is emitted, so leaving its call behind is
+        // legal -- the same goes for calls that never were expansion targets.
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: plainDecl.symbol, callee: interner.intern("helper"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        // A known non-target symbol is never redirected to the by-name
+        // table, even when a same-named bodyless candidate exists
+        // (KSP-1011): the call below names a non-bodyless `autoInline`.
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: SymbolID(rawValue: 99), callee: interner.intern("autoInline"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+    }
+
+    @Test
+    func testCallRetargetedAwayFromBodylessSymbolIsNotMandatory() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        // Models the CallLowerer bridge rewrite: `Worker.execute` is an
+        // imported (bodyless) inline function, but the emitted call's callee
+        // text is the external bridge `kk_worker_execute` while `callSymbol`
+        // still points at `execute`. Codegen binds by callee text, so this
+        // call links against the runtime bridge -- leaving it is correct.
+        let execute = makeFunction(
+            "execute", symbol: 10, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let index = InlineExpansionIndex(
+            module: makeModule([execute]),
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+        let byName = index.inlineFunctionsByName
+
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: execute.symbol, callee: interner.intern("kk_worker_execute"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        // The same retargeted call still reports residue when its new callee
+        // text names a unique bodyless target (name-based binding).
+        #expect(index.isMandatoryExpansionCall(
+            callSymbol: execute.symbol, callee: interner.intern("execute"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        // An external link name is also an emitted identity: a call using it
+        // still names the bodyless symbol and stays mandatory.
+        #expect(index.isMandatoryExpansionCall(
+            callSymbol: execute.symbol, callee: interner.intern("kk_execute_link"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { $0 == execute.symbol ? "kk_execute_link" : nil }
+        ))
+    }
+
+    @Test
+    func testSymbolUnknownMandatoryCallUsesOnlyAUniqueBodylessCandidate() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let bodyless = makeFunction(
+            "unique", symbol: 10, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let regularInline = makeFunction(
+            "regular", symbol: 11, interner: interner, types: types, isInline: true
+        )
+        let overloadA = makeFunction(
+            "overloaded", symbol: 12, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let overloadB = makeFunction(
+            "overloaded", symbol: 13, interner: interner, types: types,
+            isInline: true, isInlineOnly: true,
+            params: [KIRParameter(symbol: SymbolID(rawValue: 130), type: types.intType)]
+        )
+        let index = InlineExpansionIndex(
+            module: makeModule([bodyless, regularInline, overloadA, overloadB]),
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+        let byName = index.inlineFunctionsByName
+
+        #expect(index.isMandatoryExpansionCall(
+            callSymbol: nil, callee: interner.intern("unique"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        // The unique candidate is a regular inline function: not bodyless.
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: nil, callee: interner.intern("regular"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        // Both `overloaded` candidates are bodyless, but the call cannot
+        // name either uniquely, so no residue verdict is possible.
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: nil, callee: interner.intern("overloaded"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+        #expect(!index.isMandatoryExpansionCall(
+            callSymbol: nil, callee: interner.intern("missing"),
+            inlineFunctionsByName: byName,
+            interner: interner,
+            externalLinkName: { _ in nil }
+        ))
+    }
+
+    @Test
+    func testRecursiveBodylessCalleesFindsSelfLoopMutualAndCycleEntry() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let selfCall = SymbolID(rawValue: 10)
+        let even = SymbolID(rawValue: 11)
+        let odd = SymbolID(rawValue: 12)
+        let entry = SymbolID(rawValue: 13)
+        let acyclic = SymbolID(rawValue: 14)
+        let leaf = SymbolID(rawValue: 15)
+        func bodylessDecl(
+            _ name: String, _ symbol: SymbolID, calls: [(SymbolID, String)]
+        ) -> KIRFunction {
+            makeFunction(
+                name, symbol: symbol.rawValue, interner: interner, types: types,
+                body: calls.map { call(to: $0.0, callee: $0.1, interner: interner) },
+                isInline: true, isInlineOnly: true
+            )
+        }
+        let decls = [
+            // Self-loop: a one-node cycle.
+            bodylessDecl("selfCall", selfCall, calls: [(selfCall, "selfCall")]),
+            // Mutual recursion: a two-node cycle.
+            bodylessDecl("even", even, calls: [(odd, "odd")]),
+            bodylessDecl("odd", odd, calls: [(even, "even")]),
+            // Not on a cycle itself, but every expansion lands in one.
+            bodylessDecl("entry", entry, calls: [(even, "even")]),
+            // Acyclic: reaches a plain leaf, never a cycle.
+            bodylessDecl("acyclic", acyclic, calls: [(leaf, "leaf")]),
+            makeFunction("leaf", symbol: leaf.rawValue, interner: interner, types: types),
+        ]
+        let index = InlineExpansionIndex(
+            module: makeModule(decls),
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+
+        let recursive = index.recursiveBodylessCallees()
+        #expect(recursive == [selfCall, even, odd, entry])
+    }
+
+    @Test
+    func testRecursiveBodylessCalleesIsEmptyWhenAcyclic() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let inner = SymbolID(rawValue: 10)
+        let outer = SymbolID(rawValue: 11)
+        let innerDecl = makeFunction(
+            "inner", symbol: inner.rawValue, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let outerDecl = makeFunction(
+            "outer", symbol: outer.rawValue, interner: interner, types: types,
+            body: [call(to: inner, callee: "inner", interner: interner)],
+            isInline: true, isInlineOnly: true
+        )
+        let index = InlineExpansionIndex(
+            module: makeModule([innerDecl, outerDecl]),
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+
+        #expect(index.recursiveBodylessCallees().isEmpty)
+    }
+
+    @Test
+    func testRecursiveBodylessCalleesTracksTheCurrentSnapshot() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let selfCall = SymbolID(rawValue: 10)
+        let recursive = makeFunction(
+            "selfCall", symbol: selfCall.rawValue, interner: interner, types: types,
+            body: [call(to: selfCall, callee: "selfCall", interner: interner)],
+            isInline: true, isInlineOnly: true
+        )
+        let index = InlineExpansionIndex(
+            module: makeModule([recursive]),
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+        #expect(index.recursiveBodylessCallees() == [selfCall])
+
+        // Once a recorded expansion removes the self-call edge, the callee
+        // is no longer recursive.
+        var expanded = recursive
+        expanded.replaceBody([.returnUnit], locations: [nil])
+        index.recordExpansion(of: recursive.symbol, to: expanded)
+        #expect(index.recursiveBodylessCallees().isEmpty)
     }
 }
 #endif

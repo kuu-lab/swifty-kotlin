@@ -1,0 +1,17 @@
+symbol fq=__local_0.intRef[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicReference<Int>
+symbol fq=__local_1.stringRef[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicReference<String>
+symbol fq=golden.sema.atomicReferenceConstructorSemantics[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+file fstdlib_kotlin_concurrent_atomics_AtomicReference_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicReferenceConstructorSemantics[kind=fun;params=] fun atomicReferenceConstructorSemantics sym=golden.sema.atomicReferenceConstructorSemantics[kind=fun;params=]
+expr e@8:34 int(41) type=Int
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:34] type=kotlin.concurrent.AtomicReference<Int> call=kotlin.concurrent.atomics.AtomicReference[kind=fun;params=T0;gen=1] targs=[Int]
+expr e@8:5 localDecl intRef mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.intRef[kind=local]
+expr e@9:37 string(initial) type=String
+expr e@9:21 call callee=e@9:21#1 args=[_:e@9:37] type=kotlin.concurrent.AtomicReference<String> call=kotlin.concurrent.atomics.AtomicReference[kind=fun;params=T0;gen=1] targs=[String]
+expr e@9:5 localDecl stringRef mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.stringRef[kind=local]
+expr e@10:15 name(intRef) type=kotlin.concurrent.AtomicReference<Int> ref=__local_0.intRef[kind=local]
+expr e@10:15#1 memberCall recv=e@10:15 callee=load args=[] type=Int call=kotlin.concurrent.AtomicReference.load[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=;gen=1] targs=[Int]
+expr e@10:32 name(stringRef) type=kotlin.concurrent.AtomicReference<String> ref=__local_1.stringRef[kind=local]
+expr e@10:32#1 memberCall recv=e@10:32 callee=load args=[] type=String call=kotlin.concurrent.AtomicReference.load[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=;gen=1] targs=[String]
+expr e@10:12 stringTemplate[expr(e@10:15#1),lit(:),expr(e@10:32#1)] type=String
+expr e@10:5 return value=e@10:12 type=Nothing

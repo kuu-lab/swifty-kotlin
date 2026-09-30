@@ -970,17 +970,36 @@ final class CallTypeChecker {
         }
 
         // --- STDLIB-REFLECT-066: typeOf<T>() — inline reified reflection ---
-        if let calleeName,
-           args.isEmpty,
-           calleeName == knownNames.typeOf,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
-        {
-            // Resolve the KType return type from the stub.
-            let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-            if let stubSymbol = candidates.first(where: { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-                return signature.reifiedTypeParameterIndices.contains(0)
-            }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
+        let typeOfIntrinsicFQName = [
+            interner.intern("kotlin"), interner.intern("reflect"), interner.intern("typeOf"),
+        ]
+        let isQualifiedReflectTypeOf = calleePath == typeOfIntrinsicFQName
+        let isUnqualifiedTypeOf = calleeName.map {
+            $0 == knownNames.typeOf && !isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+        } ?? false
+        if args.isEmpty, isQualifiedReflectTypeOf || isUnqualifiedTypeOf {
+            // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
+            // intrinsic owner. A same-named non-synthetic user declaration
+            // still shadows the unqualified special-call path, but the bundled
+            // intrinsic itself no longer counts as shadowing. The qualified
+            // `kotlin.reflect.typeOf` spelling cannot be shadowed.
+            let typeOfName = interner.intern("typeOf")
+            let hasNonSyntheticUserCandidate = isUnqualifiedTypeOf
+                && !isQualifiedReflectTypeOf
+                && ctx.cachedScopeLookup(typeOfName).contains { candidate in
+                    guard let sym = ctx.cachedSymbol(candidate),
+                          !sym.flags.contains(.synthetic)
+                    else { return false }
+                    return sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == nil
+                }
+            let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(typeOfName)).visible
+            if !hasNonSyntheticUserCandidate,
+               let stubSymbol = candidates.first(where: { candidate in
+                   sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == .typeOf
+               }) ?? candidates.first(where: { candidate in
+                   guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                   return signature.reifiedTypeParameterIndices.contains(0)
+               }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
                 let typeArg = explicitTypeArgs.first ?? sema.types.anyType
                 sema.bindings.bindCall(
                     id,
@@ -1698,6 +1717,7 @@ final class CallTypeChecker {
         }
 
         var candidates: [SymbolID]
+        var callImplicitReceiverType = ctx.implicitReceiverType
         var callInvisible: [SemanticSymbol] = []
         if let calleeName {
             let allCallCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -1712,6 +1732,45 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if candidates.isEmpty,
+               locals[calleeName] == nil,
+               let activeReceiverType = ctx.implicitReceiverType,
+               driver.helpers.collectMemberFunctionCandidates(
+                   named: calleeName,
+                   receiverType: sema.types.makeNonNullable(activeReceiverType),
+                   sema: sema,
+                   interner: interner
+               ).isEmpty
+            {
+                // The scope chain can contain an enclosing class's private
+                // method, but an anonymous object's symbol is not itself a
+                // member of that class for visibility checks. Resolve the
+                // method against the lexical receiver that owns it.
+                for lexicalReceiverType in ctx.outerReceiverTypes.reversed().map(\.type) {
+                    let outerType = sema.types.makeNonNullable(lexicalReceiverType)
+                    guard let outerClassSymbol = driver.helpers.nominalSymbol(
+                        of: outerType,
+                        types: sema.types
+                    ) else {
+                        continue
+                    }
+                    let outerCandidates = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: outerType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let outerContext = ctx.copying(enclosingClassSymbol: outerClassSymbol)
+                    let visibleOuterCandidates = outerContext.filterByVisibility(outerCandidates).visible
+                    guard !visibleOuterCandidates.isEmpty else {
+                        continue
+                    }
+                    candidates = visibleOuterCandidates
+                    callImplicitReceiverType = outerType
+                    callInvisible = []
+                    break
+                }
+            }
             if calleeName == knownNames.toList,
                let implicitReceiverType = ctx.implicitReceiverType
             {
@@ -2596,6 +2655,23 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
             }
+            // Nested class member scopes are chained lexically, so a bare
+            // member call can arrive here with a candidate owned by an outer
+            // class. Resolve it against that enclosing receiver's type rather
+            // than the inner class's implicit receiver.
+            // Object-literal outer receivers carry a capture symbol; leave
+            // those to the later implicit-receiver tower so KIR can load
+            // `this@Outer` from the captured field (kuu_544).
+            let callImplicitReceiverType = ctx.outerReceiverTypes.reversed().first { outerReceiver in
+                guard outerReceiver.symbol == nil,
+                      let outerClass = resolveClassType(outerReceiver.type, sema: sema)?.classSymbol
+                else {
+                    return false
+                }
+                return candidates.contains { candidate in
+                    sema.symbols.parentSymbol(for: candidate) == outerClass
+                }
+            }?.type ?? ctx.implicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2604,7 +2680,7 @@ final class CallTypeChecker {
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                implicitReceiverType: ctx.implicitReceiverType,
+                implicitReceiverType: callImplicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -2844,7 +2920,8 @@ final class CallTypeChecker {
         if let callableCalleeType,
            let result = inferCallableValueInvocation(
                id, calleeType: callableCalleeType, callableTarget: callableTarget,
-               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType
+               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType,
+               arityPolicy: .receiverOptionallyExplicit
            )
         {
             return result

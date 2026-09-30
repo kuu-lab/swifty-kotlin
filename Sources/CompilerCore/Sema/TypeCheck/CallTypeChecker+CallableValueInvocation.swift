@@ -119,6 +119,30 @@ extension CallTypeChecker {
         return returnType
     }
 
+    /// How an extension-function-typed callee's own receiver (if any) may be
+    /// supplied when the arity of `argTypes` doesn't by itself say whether
+    /// argument 0 is that receiver or the first ordinary parameter.
+    enum CallableValueArityPolicy {
+        /// The callee type's receiver (if any) is never read from `argTypes`.
+        /// Matches the original, receiver-unaware behavior. Used by the
+        /// member-property callable-invocation sugar (`receiver.prop(args)`),
+        /// which is unrelated to explicit-receiver call forms and must not
+        /// change behavior.
+        case receiverNeverExplicit
+        /// A bare call (`ef(...)`) accepts either the historical shape, where
+        /// the receiver comes from an active implicit-receiver scope
+        /// (`argTypes.count == params.count`, e.g. calling a `T.() -> Unit`
+        /// value bare inside `T.run { ... }`), or the receiver supplied
+        /// positionally as argument 0 (`argTypes.count == params.count + 1`,
+        /// e.g. `ef(3, 4)`).
+        case receiverOptionallyExplicit
+        /// An explicit `.invoke(...)` member call has no implicit-receiver
+        /// concept: when the callee type has a receiver, it must always be
+        /// supplied positionally as argument 0 (`ef.invoke(3, 4)`); there is
+        /// no arity at which it may be omitted (`ef.invoke(4)` is invalid).
+        case receiverRequiredExplicit
+    }
+
     func inferCallableValueInvocation(
         _ id: ExprID,
         calleeType: TypeID,
@@ -127,7 +151,8 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         range: SourceRange,
         ctx: TypeInferenceContext,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -135,8 +160,16 @@ extension CallTypeChecker {
         guard case let .functionType(functionType) = sema.types.kind(of: nonNullCalleeType) else {
             return nil
         }
+        let receiverArgOffset: Int = switch arityPolicy {
+        case .receiverNeverExplicit:
+            0
+        case .receiverOptionallyExplicit:
+            (functionType.receiver != nil && argTypes.count == functionType.params.count + 1) ? 1 : 0
+        case .receiverRequiredExplicit:
+            functionType.receiver != nil ? 1 : 0
+        }
         guard !args.contains(where: { $0.label != nil || $0.isSpread }),
-              functionType.params.count == argTypes.count
+              functionType.params.count + receiverArgOffset == argTypes.count
         else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
@@ -147,12 +180,25 @@ extension CallTypeChecker {
             return sema.types.errorType
         }
         var parameterMapping: [Int: Int] = [:]
-        for index in argTypes.indices {
-            parameterMapping[index] = index
+        if receiverArgOffset == 1, let receiverType = functionType.receiver {
             driver.emitSubtypeConstraint(
-                left: argTypes[index],
-                right: functionType.params[index],
-                range: ast.arena.exprRange(args[index].expr) ?? range,
+                left: argTypes[0],
+                right: receiverType,
+                range: ast.arena.exprRange(args[0].expr) ?? range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+        }
+        for paramIndex in functionType.params.indices {
+            let argIndex = paramIndex + receiverArgOffset
+            if receiverArgOffset == 0 {
+                parameterMapping[argIndex] = paramIndex
+            }
+            driver.emitSubtypeConstraint(
+                left: argTypes[argIndex],
+                right: functionType.params[paramIndex],
+                range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
