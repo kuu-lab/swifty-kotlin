@@ -416,6 +416,29 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+
+        RuntimeABIFunctionSpec(
+            name: "kk_charsequence_ifBlank",
+            parameters: [
+                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_charsequence_ifEmpty",
+            parameters: [
+                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         flatStringHOFReturnSpec(name: "kk_string_trim_predicate_flat"),
         RuntimeABIFunctionSpec(
             name: "kk_string_lowercase",
@@ -1718,4 +1741,3 @@ public extension RuntimeABISpec {
         ]
     }
 }
-
