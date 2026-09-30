@@ -1369,19 +1369,48 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeStr = calleeNameStr
-            let isCharSequenceReceiver: Bool = {
-                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
-                else {
-                    return false
-                }
-                return classType.classSymbol == charSequenceSymbol
-            }()
             let isCharSequenceTextHelper = calleeStr == "ifBlank"
                 || calleeStr == "ifEmpty"
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
-            if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
+            let isCharSequenceReceiver: Bool = {
+                guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("CharSequence"),
+                ]) else {
+                    return false
+                }
+                let charSequenceType = sema.types.make(.classType(ClassType(
+                    classSymbol: charSequenceSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                return sema.types.isSubtype(nonNullReceiverType, charSequenceType)
+            }()
+            if isCharSequenceReceiver,
+               !usesStringFlatABI,
+               isCharSequenceTextHelper
             {
+                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    loweredArgIDs[0],
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                let runtimeCallee = calleeStr == "ifBlank"
+                    ? "kk_charsequence_ifBlank"
+                    : "kk_charsequence_ifEmpty"
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(runtimeCallee),
+                    arguments: [loweredReceiverID, fnPtrExpr, envPtrExpr],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if usesStringFlatABI {
                 if calleeStr == "toRegex" {
                     let argType = sema.bindings.exprTypes[args[0].expr]
                     let isSetArg: Bool = {
@@ -1404,6 +1433,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                let flatStringHOFArguments: [KIRExprID]? = {
+                    guard isCharSequenceTextHelper else { return nil }
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        loweredArgIDs[0],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    return [loweredReceiverID, fnPtrExpr, envPtrExpr]
+                }()
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
@@ -1417,6 +1457,10 @@ extension CallLowerer {
                     } else {
                         nil
                     }
+                case "ifBlank":
+                    flatStringHOFArguments.map { ("kk_string_ifBlank_flat", $0) }
+                case "ifEmpty":
+                    flatStringHOFArguments.map { ("kk_string_ifEmpty_flat", $0) }
                 default:
                     nil
                 }

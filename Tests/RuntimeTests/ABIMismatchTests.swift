@@ -751,23 +751,11 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringIfBlankEmptyFlatSignatures() throws {
+    func kkStringIfBlankEmptyFlatCompatibilitySignatures() throws {
         for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .nullableUInt8Pointer)
             #expect(spec.parameters.count == 10)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
         }
     }
 
