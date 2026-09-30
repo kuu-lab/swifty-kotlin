@@ -127,6 +127,69 @@ public func kk_string_ifEmpty_flat(
     return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
+
+private func runtimeInvokeCharSequenceDefaultValue(
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?,
+    context: String
+) -> Int {
+    guard fnPtr != 0 else { return 0 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    let raw = lambda(closureRaw, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+        return 0
+    }
+    return raw
+}
+
+@_cdecl("kk_charsequence_ifBlank")
+public func kk_charsequence_ifBlank(
+    _ sequenceRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
+        return 0
+    }
+    let source = String(decoding: codeUnits, as: UTF16.self)
+    guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return sequenceRaw
+    }
+    return runtimeInvokeCharSequenceDefaultValue(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown,
+        context: "CharSequence.ifBlank defaultValue"
+    )
+}
+
+@_cdecl("kk_charsequence_ifEmpty")
+public func kk_charsequence_ifEmpty(
+    _ sequenceRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
+        return 0
+    }
+    guard codeUnits.isEmpty else {
+        return sequenceRaw
+    }
+    return runtimeInvokeCharSequenceDefaultValue(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown,
+        context: "CharSequence.ifEmpty defaultValue"
+    )
+}
+
 @_cdecl("kk_string_get")
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
