@@ -302,7 +302,7 @@ public func kk_emptyList() -> Int {
 @_cdecl("__kk_list_size")
 public func kk_list_size(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
-        return 0
+        return runtimeSourceCollectionSize(listRaw) ?? 0
     }
     return list.count
 }
@@ -315,6 +315,9 @@ public func kk_list_get(
 ) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let sourceValue = runtimeSourceListGet(listRaw, index, outThrown: outThrown) {
+            return sourceValue
+        }
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
@@ -654,6 +657,9 @@ public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int 
     if let set = runtimeSetBox(from: collectionRaw) {
         return kk_box_bool(set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0)
     }
+    if let sourceResult = runtimeSourceMutableCollectionAdd(collectionRaw, elem) {
+        return sourceResult
+    }
     return kk_box_bool(0)
 }
 
@@ -766,6 +772,9 @@ public func kk_mutable_list_add(
 ) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let sourceResult = runtimeSourceMutableCollectionAdd(listRaw, elem, outThrown: outThrown) {
+            return sourceResult
+        }
         return kk_box_bool(0)
     }
     guard !list.isReadOnly else {

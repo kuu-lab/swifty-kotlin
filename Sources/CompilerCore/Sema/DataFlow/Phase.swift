@@ -155,6 +155,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1323: make the source-backed kotlin.reflect nominal types
+        // available before reflection synthetic stubs attach their residual
+        // constructors, members, and marker-interface supertypes.
+        predeclareBundledReflectTopLevelHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1150: make the source-backed CancellationException nominal
         // available before coroutine residual stubs are registered. This lets
         // the residual pass retain its no-stdlib fallback without recreating
