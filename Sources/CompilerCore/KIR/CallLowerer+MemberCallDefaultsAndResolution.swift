@@ -749,7 +749,9 @@ extension CallLowerer {
            let signature = sema.symbols.functionSignature(for: chosenCallee),
            let argumentType = signature.parameterTypes.first,
            sema.types.makeNonNullable(argumentType) != sema.types.makeNonNullable(elementType),
-           sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true
+           Self.isSourceBackedLinkName(
+               sema.symbols.externalLinkName(for: chosenCallee)
+           )
         {
             return nil
         }
