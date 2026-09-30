@@ -2809,7 +2809,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.UIntRange.<init>` — constructor (UInt, UInt)  -- `constructor <init>(kotlin/UInt, kotlin/UInt)`
     - `kotlin.ranges.UIntRange.Companion` — object kotlin.ranges.UIntRange.Companion  -- `final object Companion {`
-  - 完了根拠: `UIntRange/Stdlib.kt` に `@KsSymbolName("__kk_uint_rangeTo")` ctor と `companion object` を bundled source で宣言し、synthetic ctor 登録を撤去。KSP-1316 が作った synthetic Companion nominal は UIntProgression 方式で source decl が adopt。UIntProgression shell に `openType` を付与し、RangeMembership.kt の source-backed `isEmpty` を diamond 実装として UIntRange にも昇格。Sema Golden / kotlinc diff は対象ケースのみ実行、全量は未実行。
+  - 完了根拠: `UIntRange/Stdlib.kt` に `@KsSymbolName("__kk_uint_rangeTo")` ctor、`companion object`、および `equals`/`hashCode`/`toString` の member override を bundled source で宣言し、synthetic ctor 登録を撤去。member override は Kotlin 本家と同形で、final class の静的 dispatch により runtime range handle が持たない UIntProgression 仮想スロットへの vtable 呼び出し（`kk_vtable_lookup` panic）を回避。KSP-1316 が作った synthetic Companion nominal は UIntProgression 方式で source decl が adopt。UIntProgression shell に `openType` を付与し、RangeMembership.kt の source-backed `isEmpty` を diamond 実装として UIntRange にも昇格。`stdlib_kotlin_ranges_UIntRange_UIntRange_n` golden は member-beats-extension の正規解決へ再生成。Sema Golden / kotlinc diff は対象ケースのみ実行、全量は未実行。
 
 - [x] KSP-1315: kotlin.ranges.UIntRange.UIntRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.UIntRange` / receiver `UIntRange`
