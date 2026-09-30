@@ -108,7 +108,6 @@ struct GoldenHarnessMetadataContractTests {
         // loading, so the storage call falls to the synthetic Int factory (KSP-1093).
         "stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt",
         "stdlib_kotlin_collections_Map_iterator.kt",
-        "stdlib_kotlin_collections_Map_min.kt",
         "stdlib_kotlin_collections_n_build.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
