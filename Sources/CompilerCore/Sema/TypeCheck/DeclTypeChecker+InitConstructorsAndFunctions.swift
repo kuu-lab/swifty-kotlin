@@ -637,11 +637,19 @@ extension DeclTypeChecker {
             return
         }
 
+        // With an inferred return type, `signature.returnType` is only the header
+        // placeholder (`Any`, non-null). Using it as the expected type or as a subtype
+        // bound would reject legitimately nullable bodies such as `fun g() = f()` where
+        // `f(): Any?`, so the body is inferred without an expectation instead.
+        let hasInferredReturnType: Bool = {
+            guard function.returnType == nil, case .expr = function.body else { return false }
+            return true
+        }()
         let bodyType = inferFunctionBodyType(
             function.body,
             ctx: functionCtx,
             locals: &locals,
-            expectedType: signature.returnType
+            expectedType: hasInferredReturnType ? nil : signature.returnType
         )
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
@@ -658,7 +666,7 @@ extension DeclTypeChecker {
                 interner: ctx.interner
             )
         }()
-        if !bodyIsRangeExpr {
+        if !bodyIsRangeExpr, !hasInferredReturnType {
             driver.emitSubtypeConstraint(
                 left: bodyType,
                 right: signature.returnType,
