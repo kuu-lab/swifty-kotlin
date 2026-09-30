@@ -349,17 +349,81 @@ final class CallSupportLowerer {
         return declID
     }
 
+    /// A `tailrec` function calling itself with omitted defaults would normally
+    /// detour through `f$default`, which calls `f` again and so defeats the
+    /// self-call -> loop rewrite of `TailrecLoweringPass` (real recursion, stack
+    /// overflow). Evaluate the omitted default expressions at the call site
+    /// instead, exactly like the stub does: in parameter order, with earlier
+    /// parameters bound to this call's resolved values. Returns `true` when every
+    /// omitted default was expanded (the call then needs no mask).
+    ///
+    /// Restricted to functions without receivers: a default expression of a
+    /// member/extension may read `this`, which for a call on a different
+    /// receiver would bind to the wrong object here.
+    private func expandSelfTailrecDefaults(
+        normalized: inout [KIRExprID],
+        mask: Int64,
+        chosenCallee: SymbolID,
+        signature: FunctionSignature,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        let ctx = driver.ctx
+        guard ctx.activeFunctionSymbol() == chosenCallee,
+              ctx.tailrecFunctionSymbols.contains(chosenCallee),
+              signature.receiverType == nil,
+              ctx.activeImplicitReceiver() == nil,
+              signature.reifiedTypeParameterIndices.isEmpty,
+              let defaults = ctx.defaultArguments(for: chosenCallee),
+              normalized.count == signature.valueParameterSymbols.count
+        else {
+            return false
+        }
+        for index in normalized.indices where mask & (Int64(1) << index) != 0 {
+            guard index < defaults.count, defaults[index] != nil else { return false }
+        }
+        let paramSymbols = signature.valueParameterSymbols
+        let savedLocals = paramSymbols.map { ctx.localValue(for: $0) }
+        var expanded = normalized
+        for index in normalized.indices {
+            if mask & (Int64(1) << index) != 0, let defaultExpr = defaults[index] {
+                let value = driver.lowerExpr(
+                    defaultExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                let resolved = arena.appendTemporary(type: signature.parameterTypes[index])
+                instructions.append(.copy(from: value, to: resolved))
+                expanded[index] = resolved
+            }
+            ctx.setLocalValue(expanded[index], for: paramSymbols[index])
+        }
+        for (symbol, saved) in zip(paramSymbols, savedLocals) {
+            if let saved { ctx.setLocalValue(saved, for: symbol) }
+        }
+        normalized = expanded
+        return true
+    }
+
     func normalizedCallArguments(
         providedArguments: [KIRExprID],
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
         sourceArgExprs: [ExprID] = [],
-        ast _: ASTModule,
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers _: [SymbolID: KIRExprKind],
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> NormalizedCallResult {
         guard let callBinding,
@@ -590,6 +654,23 @@ final class CallSupportLowerer {
             let sentinel = arena.appendExpr(.intLiteral(0), type: signature.parameterTypes[paramIndex])
             instructions.append(.constValue(result: sentinel, value: .intLiteral(0)))
             normalized.append(sentinel)
+        }
+
+        if mask != 0,
+           expandSelfTailrecDefaults(
+               normalized: &normalized,
+               mask: mask,
+               chosenCallee: chosenCallee,
+               signature: signature,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers,
+               instructions: &instructions
+           )
+        {
+            return NormalizedCallResult(arguments: normalized, defaultMask: 0)
         }
 
         // `$default` stubs are synthetic calls and therefore do not carry the
