@@ -495,7 +495,7 @@ struct RuntimeStringArrayTests {
     // null operand as the text "null", matching every other Kotlin
     // reference type, instead of silently treating it as "" (which hid an
     // uninitialized-field bug behind output that merely looked wrong
-    // instead of null -- see superclass_init_uninitialized_string.kt).
+    // instead of null -- see null_string_length_npe.kt).
 
     @Test
     func testStringConcatFlatWithNilDataLeftRendersNullPrefix() {
