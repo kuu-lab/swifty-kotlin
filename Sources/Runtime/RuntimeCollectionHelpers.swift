@@ -861,7 +861,7 @@ func registerMutableListIteratorItable(raw: Int) {
 
 private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorSet(raw, elem)
+    return runtimeListIteratorSet(raw, elem, outThrown)
 }
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
@@ -978,7 +978,7 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorRemove(iterRaw)
+    return runtimeListIteratorRemove(iterRaw, outThrown)
 }
 
 func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
