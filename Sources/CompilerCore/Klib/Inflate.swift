@@ -1,6 +1,7 @@
 import Foundation
 
-/// Errors raised while reading a zip archive or inflating entry data.
+/// Errors raised while reading a .klib container: zip archive structure,
+/// inflate, manifest layout, or entry access.
 package enum KlibFormatError: Error, Equatable {
     case notAZipArchive
     case unsupportedCompressionMethod(UInt16)
@@ -12,6 +13,33 @@ package enum KlibFormatError: Error, Equatable {
     case corruptDeflateStream(String)
     case crcMismatch(String)
     case sizeMismatch(String)
+    case missingManifest
+    case missingManifestKey(String)
+    case invalidKlibLayout(String)
+    case unsafeEntryPath(String)
+    case unreadableContainer(String)
+}
+
+extension KlibFormatError: CustomStringConvertible {
+    package var description: String {
+        switch self {
+        case .notAZipArchive: return "not a zip archive"
+        case .unsupportedCompressionMethod(let m): return "unsupported compression method \(m)"
+        case .unsupportedZip64: return "ZIP64 archives are not supported"
+        case .unsupportedMultiDisk: return "multi-disk archives are not supported"
+        case .truncatedArchive: return "truncated archive"
+        case .corruptLocalHeader(let n): return "corrupt local header for '\(n)'"
+        case .entryNotFound(let n): return "entry '\(n)' not found"
+        case .corruptDeflateStream(let m): return "corrupt deflate stream: \(m)"
+        case .crcMismatch(let n): return "CRC mismatch for '\(n)'"
+        case .sizeMismatch(let m): return "size mismatch: \(m)"
+        case .missingManifest: return "component has no manifest"
+        case .missingManifestKey(let k): return "manifest is missing required key '\(k)'"
+        case .invalidKlibLayout(let m): return "invalid klib layout: \(m)"
+        case .unsafeEntryPath(let p): return "unsafe entry path '\(p)'"
+        case .unreadableContainer(let p): return "unreadable container '\(p)'"
+        }
+    }
 }
 
 /// Pure-Swift DEFLATE decoder (RFC 1951 raw stream, as stored in zip method-8
