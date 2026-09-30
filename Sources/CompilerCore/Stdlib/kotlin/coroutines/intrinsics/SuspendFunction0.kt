@@ -13,16 +13,18 @@ import kotlin.internal.KsSymbolName
 
 // A suspend function value cannot be invoked through a `Function1` cast at
 // runtime, so these bodiless markers keep the intrinsic's call name in KIR.
-// The coroutine lowering pass rewrites calls with these names into the runtime
-// entry-point ABI. They must stay bodiless so inlining does not expand them.
-@KsSymbolName("createCoroutineUnintercepted")
+// The coroutine lowering pass rewrites calls to these markers into the runtime
+// entry-point ABI. They must stay bodiless so inlining does not expand them; the
+// runtime exports never-executed stubs only so the standalone copies of the
+// inline callers in the stdlib library still link.
+@KsSymbolName("kk_create_coroutine_unintercepted_no_receiver")
 @PublishedApi
 internal external fun <T> createCoroutineUninterceptedNoReceiver(
     function: suspend () -> T,
     completion: Continuation<T>
 ): Continuation<Unit>
 
-@KsSymbolName("startCoroutineUninterceptedOrReturn")
+@KsSymbolName("kk_start_coroutine_unintercepted_or_return_no_receiver")
 @PublishedApi
 internal external fun <T> startCoroutineUninterceptedOrReturnNoReceiver(
     function: suspend () -> T,
