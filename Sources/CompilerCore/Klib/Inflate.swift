@@ -18,6 +18,8 @@ package enum KlibFormatError: Error, Equatable {
     case invalidKlibLayout(String)
     case unsafeEntryPath(String)
     case unreadableContainer(String)
+    case corruptChunk(String)
+    case corruptProto(String)
 }
 
 extension KlibFormatError: CustomStringConvertible {
@@ -38,6 +40,8 @@ extension KlibFormatError: CustomStringConvertible {
         case .invalidKlibLayout(let m): return "invalid klib layout: \(m)"
         case .unsafeEntryPath(let p): return "unsafe entry path '\(p)'"
         case .unreadableContainer(let p): return "unreadable container '\(p)'"
+        case .corruptChunk(let m): return "corrupt IR chunk: \(m)"
+        case .corruptProto(let m): return "corrupt protobuf stream: \(m)"
         }
     }
 }
