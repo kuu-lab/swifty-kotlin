@@ -43,10 +43,11 @@ private open class ComparableRange<T : Comparable<T>>(
 
     override fun isEmpty(): Boolean = start > endInclusive
 
+    // `other` is only usable after an unchecked cast to the nominal T:
+    // member access on the star projection fails the T : Comparable<T>
+    // bound check in this sema.
+    @Suppress("UNCHECKED_CAST")
     override fun equals(other: Any?): Boolean {
-        // `other` is only usable after an unchecked cast to the nominal T:
-        // member access on the star projection fails the T : Comparable<T>
-        // bound check in this sema.
         if (other !is ComparableRange<*>) return false
         val o = other as ComparableRange<T>
         return isEmpty() && o.isEmpty() ||
@@ -79,6 +80,7 @@ private open class ComparableOpenEndRange<T : Comparable<T>>(
 
     override fun isEmpty(): Boolean = !(start < endExclusive)
 
+    @Suppress("UNCHECKED_CAST")
     override fun equals(other: Any?): Boolean {
         if (other !is ComparableOpenEndRange<*>) return false
         val o = other as ComparableOpenEndRange<T>
