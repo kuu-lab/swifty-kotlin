@@ -2473,8 +2473,8 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
         let marker = pairs[i * 2]
         let value = pairs[i * 2 + 1]
         if marker == -1 {
-            if let array = runtimeArrayBox(from: value) {
-                totalCount += array.count
+            if let values = runtimeSpreadSourceValues(from: value) {
+                totalCount += values.count
             }
         } else {
             totalCount += 1
@@ -2487,8 +2487,8 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
             let marker = pairs[i * 2]
             let sourceValue = pairs.values[i * 2 + 1]
             if marker == -1 {
-                if let array = runtimeArrayBox(from: sourceValue.legacyRawValue) {
-                    for element in array.values {
+                if let values = runtimeSpreadSourceValues(from: sourceValue.legacyRawValue) {
+                    for element in values {
                         box.setValue(
                             element.legacyRawValue,
                             at: writeIndex,
