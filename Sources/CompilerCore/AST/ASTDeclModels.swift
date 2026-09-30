@@ -307,6 +307,11 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
+    /// Names of `context(name: Type)` parameters, parallel to the parsed context
+    /// receiver list. Entries are nil for unnamed or `_:` parameters; the array is
+    /// empty when the declaration has no context clause or an explicit receiver
+    /// took precedence.
+    public let contextReceiverNames: [InternedString?]
     public let valueParams: [ValueParamDecl]
     public let returnType: TypeRefID?
     public let body: FunctionBody
@@ -321,6 +326,7 @@ public struct FunDecl: Codable {
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
         receiverType: TypeRefID? = nil,
+        contextReceiverNames: [InternedString?] = [],
         valueParams: [ValueParamDecl] = [],
         returnType: TypeRefID? = nil,
         body: FunctionBody = .unit,
@@ -334,12 +340,30 @@ public struct FunDecl: Codable {
         self.annotations = annotations
         self.typeParams = typeParams
         self.receiverType = receiverType
+        self.contextReceiverNames = contextReceiverNames
         self.valueParams = valueParams
         self.returnType = returnType
         self.body = body
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isTailrec = isTailrec
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        name = try container.decode(InternedString.self, forKey: .name)
+        modifiers = try container.decode(Modifiers.self, forKey: .modifiers)
+        annotations = try container.decode([AnnotationNode].self, forKey: .annotations)
+        typeParams = try container.decode([TypeParamDecl].self, forKey: .typeParams)
+        receiverType = try container.decodeIfPresent(TypeRefID.self, forKey: .receiverType)
+        contextReceiverNames = try container.decodeIfPresent([InternedString?].self, forKey: .contextReceiverNames) ?? []
+        valueParams = try container.decode([ValueParamDecl].self, forKey: .valueParams)
+        returnType = try container.decodeIfPresent(TypeRefID.self, forKey: .returnType)
+        body = try container.decode(FunctionBody.self, forKey: .body)
+        isSuspend = try container.decode(Bool.self, forKey: .isSuspend)
+        isInline = try container.decode(Bool.self, forKey: .isInline)
+        isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
     }
 }
 

@@ -1285,5 +1285,106 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCodegenNativeConcurrentAtomicReferenceBasicOperations() throws {
+        let source = """
+        import kotlin.native.concurrent.AtomicReference
+
+        class Item(val name: String)
+
+        fun main() {
+            val a = Item("A")
+            val b = Item("B")
+            val c = Item("C")
+            val ref = AtomicReference(a)
+
+            println(ref.value.name)
+            ref.value = b
+            println(ref.value.name)
+
+            val old = ref.getAndSet(c)
+            println(old.name)
+            println(ref.value.name)
+
+            val cas1 = ref.compareAndSwap(c, a)
+            println(cas1 === c)
+            println(ref.value === a)
+
+            val cas2 = ref.compareAndSwap(b, c)
+            println(cas2 === a)
+            println(ref.value === a)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NativeConcurrentAtomicReferenceOps",
+            expected:
+                """
+                A
+                B
+                B
+                C
+                true
+                true
+                true
+                true
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenNativeConcurrentFreezableAtomicReferenceBasicOperations() throws {
+        let source = """
+        import kotlin.native.concurrent.FreezableAtomicReference
+
+        class Item(val name: String)
+
+        fun main() {
+            val a = Item("A")
+            val b = Item("B")
+            val c = Item("C")
+            val ref = FreezableAtomicReference(a)
+
+            println(ref.value.name)
+            ref.value = b
+            println(ref.value.name)
+
+            val casSetSuccess = ref.compareAndSet(b, c)
+            println(casSetSuccess)
+            println(ref.value === c)
+
+            val casSetFail = ref.compareAndSet(b, a)
+            println(casSetFail)
+            println(ref.value === c)
+
+            val casSwapSuccess = ref.compareAndSwap(c, a)
+            println(casSwapSuccess === c)
+            println(ref.value === a)
+
+            val casSwapFail = ref.compareAndSwap(b, c)
+            println(casSwapFail === a)
+            println(ref.value === a)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NativeConcurrentFreezableAtomicReferenceOps",
+            expected:
+                """
+                A
+                B
+                true
+                true
+                false
+                true
+                true
+                true
+                true
+                true
+                """ + "\n"
+        )
+    }
+
 }
 #endif
+

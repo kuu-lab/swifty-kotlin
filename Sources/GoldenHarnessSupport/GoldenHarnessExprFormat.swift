@@ -129,6 +129,8 @@ enum GoldenHarnessExprFormat {
             }
             let retStr = returnType.map { ctx.renderTypeRef($0) } ?? "nil"
             return "localFunDecl \(interner.resolve(name))\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
+        case let .localNominalDecl(declID, _):
+            return "localNominalDecl decl=\(declID.rawValue)"
         case let .blockExpr(statements, trailingExpr, _):
             let stmts = statements.map { ctx.exprKey($0) }.joined(separator: ",")
             let trailing = trailingExpr.map { ctx.exprKey($0) } ?? "_"

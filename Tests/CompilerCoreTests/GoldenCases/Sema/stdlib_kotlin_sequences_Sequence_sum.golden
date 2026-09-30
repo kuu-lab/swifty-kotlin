@@ -1,0 +1,91 @@
+symbol fq=doubleSum.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=doubleSum[kind=fun;params=kotlin.sequences.Sequence<Double>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<Double>] ret=Double
+symbol fq=floatSum.$1.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=floatSum[kind=fun;params=kotlin.sequences.Sequence<Float>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<Float>] ret=Float
+symbol fq=intSum.$2.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=intSum[kind=fun;params=kotlin.sequences.Sequence<Int>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<Int>] ret=Int
+symbol fq=longSum.$3.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=longSum[kind=fun;params=kotlin.sequences.Sequence<Long>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<Long>] ret=Long
+symbol fq=sumOfDouble.$4.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=sumOfDouble[kind=fun;params=kotlin.sequences.Sequence<String>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<String>] ret=Double
+symbol fq=sumOfInt.$5.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=sumOfInt[kind=fun;params=kotlin.sequences.Sequence<String>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<String>] ret=Int
+symbol fq=sumOfLong.$6.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=sumOfLong[kind=fun;params=kotlin.sequences.Sequence<String>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<String>] ret=Long
+symbol fq=sumOfUInt.$7.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=sumOfUInt[kind=fun;params=kotlin.sequences.Sequence<String>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<String>] ret=UInt
+symbol fq=sumOfULong.$8.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=sumOfULong[kind=fun;params=kotlin.sequences.Sequence<String>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<String>] ret=ULong
+symbol fq=test[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=ubyteSum.$9.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=ubyteSum[kind=fun;params=kotlin.sequences.Sequence<UByte>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<UByte>] ret=UInt
+symbol fq=uintSum.$10.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=uintSum[kind=fun;params=kotlin.sequences.Sequence<UInt>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<UInt>] ret=UInt
+symbol fq=ulongSum.$11.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=ulongSum[kind=fun;params=kotlin.sequences.Sequence<ULong>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<ULong>] ret=ULong
+symbol fq=ushortSum.$12.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=ushortSum[kind=fun;params=kotlin.sequences.Sequence<UShort>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<UShort>] ret=UInt
+file fstdlib_kotlin_sequences_Sequence_sum package=_
+  decl doubleSum[kind=fun;params=kotlin.sequences.Sequence<Double>] fun doubleSum sym=doubleSum[kind=fun;params=kotlin.sequences.Sequence<Double>]
+  decl floatSum[kind=fun;params=kotlin.sequences.Sequence<Float>] fun floatSum sym=floatSum[kind=fun;params=kotlin.sequences.Sequence<Float>]
+  decl longSum[kind=fun;params=kotlin.sequences.Sequence<Long>] fun longSum sym=longSum[kind=fun;params=kotlin.sequences.Sequence<Long>]
+  decl ubyteSum[kind=fun;params=kotlin.sequences.Sequence<UByte>] fun ubyteSum sym=ubyteSum[kind=fun;params=kotlin.sequences.Sequence<UByte>]
+  decl ushortSum[kind=fun;params=kotlin.sequences.Sequence<UShort>] fun ushortSum sym=ushortSum[kind=fun;params=kotlin.sequences.Sequence<UShort>]
+  decl uintSum[kind=fun;params=kotlin.sequences.Sequence<UInt>] fun uintSum sym=uintSum[kind=fun;params=kotlin.sequences.Sequence<UInt>]
+  decl ulongSum[kind=fun;params=kotlin.sequences.Sequence<ULong>] fun ulongSum sym=ulongSum[kind=fun;params=kotlin.sequences.Sequence<ULong>]
+  decl intSum[kind=fun;params=kotlin.sequences.Sequence<Int>] fun intSum sym=intSum[kind=fun;params=kotlin.sequences.Sequence<Int>]
+  decl sumOfInt[kind=fun;params=kotlin.sequences.Sequence<String>] fun sumOfInt sym=sumOfInt[kind=fun;params=kotlin.sequences.Sequence<String>]
+  decl sumOfDouble[kind=fun;params=kotlin.sequences.Sequence<String>] fun sumOfDouble sym=sumOfDouble[kind=fun;params=kotlin.sequences.Sequence<String>]
+  decl sumOfLong[kind=fun;params=kotlin.sequences.Sequence<String>] fun sumOfLong sym=sumOfLong[kind=fun;params=kotlin.sequences.Sequence<String>]
+  decl sumOfUInt[kind=fun;params=kotlin.sequences.Sequence<String>] fun sumOfUInt sym=sumOfUInt[kind=fun;params=kotlin.sequences.Sequence<String>]
+  decl sumOfULong[kind=fun;params=kotlin.sequences.Sequence<String>] fun sumOfULong sym=sumOfULong[kind=fun;params=kotlin.sequences.Sequence<String>]
+  decl test[kind=fun;params=] fun test sym=test[kind=fun;params=]
+expr e@1:59 name(values) type=kotlin.sequences.Sequence<Double> ref=doubleSum.$0.values[kind=vparam]
+expr e@1:59#1 memberCall recv=e@1:59 callee=sum args=[] type=Double call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<Double>;params=]
+expr e@2:56 name(values) type=kotlin.sequences.Sequence<Float> ref=floatSum.$1.values[kind=vparam]
+expr e@2:56#1 memberCall recv=e@2:56 callee=sum args=[] type=Float call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<Float>;params=]
+expr e@3:53 name(values) type=kotlin.sequences.Sequence<Long> ref=longSum.$3.values[kind=vparam]
+expr e@3:53#1 memberCall recv=e@3:53 callee=sum args=[] type=Long call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<Long>;params=]
+expr e@4:55 name(values) type=kotlin.sequences.Sequence<UByte> ref=ubyteSum.$9.values[kind=vparam]
+expr e@4:55#1 memberCall recv=e@4:55 callee=sum args=[] type=UInt call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<UByte>;params=]
+expr e@5:57 name(values) type=kotlin.sequences.Sequence<UShort> ref=ushortSum.$12.values[kind=vparam]
+expr e@5:57#1 memberCall recv=e@5:57 callee=sum args=[] type=UInt call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<UShort>;params=]
+expr e@6:53 name(values) type=kotlin.sequences.Sequence<UInt> ref=uintSum.$10.values[kind=vparam]
+expr e@6:53#1 memberCall recv=e@6:53 callee=sum args=[] type=UInt call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<UInt>;params=]
+expr e@7:56 name(values) type=kotlin.sequences.Sequence<ULong> ref=ulongSum.$11.values[kind=vparam]
+expr e@7:56#1 memberCall recv=e@7:56 callee=sum args=[] type=ULong call=kotlin.sequences.sum[kind=fun;recv=kotlin.sequences.Sequence<ULong>;params=]
+expr e@9:50 name(values) type=kotlin.sequences.Sequence<Int> ref=intSum.$2.values[kind=vparam]
+expr e@9:50#1 memberCall recv=e@9:50 callee=sum args=[] type=Int call=kotlin.collections.sum[kind=fun;recv=kotlin.sequences.Sequence<Int>;params=]
+expr e@11:55 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfInt.$5.values[kind=vparam]
+expr e@11:70 name(it) type=String ref=s-0
+expr e@11:70#1 memberCall recv=e@11:70 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@11:68 lambda params=[] body=e@11:70#1 label=sumOf type=(String) -> Int
+expr e@11:55#1 memberCall recv=e@11:55 callee=sumOf args=[_:e@11:68] type=Int call=kotlin.collections.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Int};gen=1] targs=[String]
+expr e@12:61 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfDouble.$4.values[kind=vparam]
+expr e@12:76 name(it) type=String ref=s-1
+expr e@12:76#1 memberCall recv=e@12:76 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@12:76#2 memberCall recv=e@12:76#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=]
+expr e@12:74 lambda params=[] body=e@12:76#2 label=sumOf type=(String) -> Double
+expr e@12:61#1 memberCall recv=e@12:61 callee=sumOf args=[_:e@12:74] type=Double call=kotlin.collections.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Double};gen=1] targs=[String]
+expr e@13:57 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfLong.$6.values[kind=vparam]
+expr e@13:72 name(it) type=String ref=s-2
+expr e@13:72#1 memberCall recv=e@13:72 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@13:72#2 memberCall recv=e@13:72#1 callee=toLong args=[] type=Long
+expr e@13:70 lambda params=[] body=e@13:72#2 label=sumOf type=(String) -> Long
+expr e@13:57#1 memberCall recv=e@13:57 callee=sumOf args=[_:e@13:70] type=Long call=kotlin.sequences.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Long};gen=1] targs=[String]
+expr e@14:57 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfUInt.$7.values[kind=vparam]
+expr e@14:72 name(it) type=String ref=s-3
+expr e@14:72#1 memberCall recv=e@14:72 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@14:72#2 memberCall recv=e@14:72#1 callee=toUInt args=[] type=UInt
+expr e@14:70 lambda params=[] body=e@14:72#2 label=sumOf type=(String) -> UInt
+expr e@14:57#1 memberCall recv=e@14:57 callee=sumOf args=[_:e@14:70] type=UInt call=kotlin.sequences.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=UInt};gen=1] targs=[String]
+expr e@15:59 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfULong.$8.values[kind=vparam]
+expr e@15:74 name(it) type=String ref=s-4
+expr e@15:74#1 memberCall recv=e@15:74 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@15:74#2 memberCall recv=e@15:74#1 callee=toULong args=[] type=ULong
+expr e@15:72 lambda params=[] body=e@15:74#2 label=sumOf type=(String) -> ULong
+expr e@15:59#1 memberCall recv=e@15:59 callee=sumOf args=[_:e@15:72] type=ULong call=kotlin.sequences.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=ULong};gen=1] targs=[String]
+expr e@17:37 int(1) type=Int
+expr e@17:40 int(2) type=Int
+expr e@17:26 call callee=e@17:26#1 args=[_:e@17:37,_:e@17:40] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Int]
+expr e@17:19 call callee=e@17:19#1 args=[_:e@17:26] type=Int call=intSum[kind=fun;params=kotlin.sequences.Sequence<Int>]

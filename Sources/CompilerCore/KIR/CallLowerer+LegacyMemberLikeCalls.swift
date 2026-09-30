@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 30880)
+Total output lines: 2386
+
 // swiftlint:disable file_length
 
 /// Legacy stdlib/member special-case lowering path.
@@ -506,7 +509,20 @@ extension CallLowerer {
                     || name == "CharProgression"
                     || name == "UIntRange"
                     || name == "UIntProgression"
+                    || name == "ULongRange"
                     || name == "ULongProgression"
+            }()
+            let isULongRangeSourceEndProperty = {
+                guard calleeNameStr == "endInclusive" || calleeNameStr == "endExclusive",
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
+                      interner.resolve(receiverSymbol.name) == "ULongRange",
+                      let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+                      sema.symbols.isSourceBackedSymbol(propertySymbol),
+                      sema.symbols.parentSymbol(for: propertySymbol) == receiverSymbol.id
+                else {
+                    return false
+                }
+                return true
             }()
             let isExplicitProgressionSourceCall = ast.arena.isExplicitCall(exprID)
                 && {
@@ -530,7 +546,7 @@ extension CallLowerer {
                     }
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
+            if isRangeLikeReceiver && !isExplicitProgressionSourceCall && !isULongRangeSourceEndProperty {
                 // KSP-1524: range first/last values are raw bits at this ABI
                 // boundary, so ULong can use the shared getter as well.
                 let runtimeGetter: InternedString? = switch calleeNameStr {
@@ -1130,81 +1146,7 @@ extension CallLowerer {
             {
                 instructions.append(.copy(from: loweredReceiverID, to: result))
                 return result
-            }
-        }
-
-        if args.isEmpty, calleeNameStr == "length" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("__kk_string_struct_get_length"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            // KSP-724: `CharSequence.length` is resolved through the bundled
-            // `kotlin.CharSequence` interface property, so the `kk_char_sequence_length`
-            // name-string fallback is no longer needed here.
-        }
-
-        // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
-        // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
-        // digitToInt / digitToIntOrNull, so no lowering special case is needed.
-        if args.isEmpty, calleeNameStr == "code" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            if sema.types.makeNonNullable(receiverType) == sema.types.charType {
-                instructions.append(.copy(from: loweredReceiverID, to: result))
-                return result
-            }
-        }
-
-        if !isSourceBackedMemberCall,
-           let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
-            receiverExpr: receiverExpr,
-            calleeName: calleeName,
-            args: args,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            loweredReceiverID: loweredReceiverID,
-            loweredArgIDs: loweredArgIDs,
-            normalizedArgIDs: normalizedArgIDs,
-            result: result,
-            instructions: &instructions
-        ) {
-            return tableDrivenStringMember
-        }
-
-        // Migrated source-backed members must lower through their Kotlin body;
-        // flat ABI exceptions are excluded by isSourceBackedMemberCall above.
-        if !isSourceBackedMemberCall, !isSourceBackedIterableCollectionCall {
-        // Collection nullable-receiver isNullOrEmpty fallback.
-        // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
-        if args.isEmpty {
-            let calleeStr = calleeNameStr
-            // A source-backed Collection<T>?.isNullOrEmpty() declaration may
-            // be selected once the Collection surface is bundled from Kotlin
-            // source, but concrete collection receivers still need their
-            // type-specific non-throwing isEmpty bridge here.
-            let isSourceBackedCollectionIsNullOrEmpty: Bool = {
-                guard calleeStr == "isNullOrEmpty",
-                      let chosenCallee = chosenCalleeForArgumentAdaptation,
-                      let symbol = sema.symbols.symbol(chosenCallee),
-                      sema.symbols.isSourceBackedSymbol(chosenCallee),
-                      symbol.fqName == [
-                          interner.intern("kotlin"),
-                          interner.intern("collections"),
-                          calleeName,
-                      ]
-                else {
-                    return false
-                }
-                // `kotlin.collections.isNullOrEmpty` is overloaded per receiver
+        …880 tokens truncated…s.isNullOrEmpty` is overloaded per receiver
                 // (Collection, Map, ...); the bare package+name FQN above can't
                 // tell those apart since extension receivers aren't part of it.
                 // Map's own isNullOrEmpty is also source-backed and must keep
@@ -1872,7 +1814,12 @@ extension CallLowerer {
                     }
                 }
             }
-            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            let isSourceBackedRegexCall = chosenBase64Callee.map {
+                sema.symbols.isSourceBackedSymbol($0)
+            } ?? false
+            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSourceBackedRegexCall
+            {
                 let calleeStr = calleeNameStr
                 let usesStringFlatABI: Bool = {
                     guard let argumentType = sema.bindings.exprTypes[args[0].expr] else {
@@ -2365,3 +2312,4 @@ extension CallLowerer {
         return result
     }
 }
+
