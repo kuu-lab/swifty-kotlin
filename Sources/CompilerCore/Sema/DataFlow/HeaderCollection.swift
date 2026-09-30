@@ -304,18 +304,12 @@ extension DataFlowSemaPhase {
                 interner: interner, into: &predeclared
             )
         }
+        // When no bundled declaration was predeclared above (--no-stdlib, or an
+        // imported artifact already supplies the symbol), fall back to a bare
+        // synthetic class shell so `Pair`/`Triple` still resolve as class types.
         for name in [pairName, tripleName] {
             let fqName = kotlinPkg + [name]
-            if let existing = symbols.lookup(fqName: fqName) {
-                // Compatibility shells intentionally keep a nil declSite so bundled
-                // source declarations do not displace them: a nil declSite keeps the
-                // shell's symbol identity stable for `ref=`/`call=` resolution, and
-                // `GoldenHarnessDump.isExcludedLibrarySymbol` omits it from `symbol`
-                // lines in golden dumps (only case-file-local declSites are listed).
-                // The pre-KSP-706 anchor never restored declSite for Pair/Triple
-                // either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`.
-                symbols.setDeclSite(nil, for: existing)
-            } else {
+            if symbols.lookup(fqName: fqName) == nil {
                 _ = symbols.define(
                     kind: .class,
                     name: name,
@@ -634,13 +628,6 @@ extension DataFlowSemaPhase {
                 sourceManager: sourceManager, diagnostics: diagnostics,
                 interner: interner, into: &predeclared
             )
-        }
-        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
-            // Keep the source file association for metadata and declaration
-            // binding, while retaining the historical compatibility-shell
-            // visibility used by semantic inventory goldens. The normal header
-            // pass still fills the source-backed declaration details.
-            symbols.setDeclSite(nil, for: charsetSymbol)
         }
     }
 
@@ -2104,12 +2091,18 @@ extension DataFlowSemaPhase {
         fqName: [InternedString],
         interner: StringInterner
     ) -> Bool {
-        // Compatibility shells intentionally keep a nil declSite so bundled
-        // source declarations do not displace them in golden semantic dumps.
-        // KSP-683 needs the migrated Duration nominals to remain source-backed
-        // for their value-class and enum metadata. KSP-1083 applies the same
-        // staged source-shell treatment to the kotlin.concurrent atomic
-        // nominals while their constructors and members remain residual.
+        // A shell reused without restoring its declSite stays non-source-backed
+        // (`isSourceBackedSymbol` returns false): that is the remaining
+        // compiler/metadata compatibility contract for nominals whose call
+        // lowering, export, or member binding still assumes the pre-migration
+        // shell. Golden dumping no longer reads declSite -- symbol origin is
+        // classified from the tracked source file ID instead -- so unlisted
+        // FQNames keep nil declSite only until their compiler-side paths are
+        // migrated off the shell. Listed FQNames were migrated deliberately:
+        // KSP-683 needs the Duration nominals source-backed for their
+        // value-class and enum metadata, and KSP-1083 applies the same staged
+        // source-shell treatment to the kotlin.concurrent atomic nominals
+        // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
         if resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]

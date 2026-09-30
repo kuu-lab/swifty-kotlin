@@ -573,7 +573,7 @@ extension CallLowerer {
                         callee: runtimeGetter,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
+                        canThrow: calleeNameStr == "endExclusive",
                         thrownResult: nil
                     ))
                     return result
@@ -1104,6 +1104,10 @@ extension CallLowerer {
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
+            case ("toUByte", ubyteType, ubyteType): nil // identity
+            case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
+            case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
+            case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")

@@ -625,10 +625,22 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     @Test func openEndRangeContract_endExclusiveMatchesUpperBound() {
         let closed = kk_op_rangeTo(3, 7)
-        #expect(kk_range_endExclusive(closed) == 8, "ClosedRange endExclusive should be last + 1")
+        var thrown = -1
+        #expect(kk_range_endExclusive(closed, &thrown) == 8, "ClosedRange endExclusive should be last + 1")
+        #expect(thrown == 0)
 
         let open = __kk_op_rangeUntil(3, 7)
-        #expect(kk_range_endExclusive(open) == 7, "OpenEndRange endExclusive should match the exclusive upper bound")
+        thrown = -1
+        #expect(kk_range_endExclusive(open, &thrown) == 7, "OpenEndRange endExclusive should match the exclusive upper bound")
+        #expect(thrown == 0)
+    }
+
+    @Test func closedRangeContract_maximumEndExclusiveThrows() throws {
+        let range = kk_op_rangeTo(Int(Int32.max) - 1, Int(Int32.max))
+        var thrown = 0
+        #expect(kk_range_endExclusive(range, &thrown) == runtimeExceptionCaughtSentinel)
+        let box = try #require(runtimeThrowableBox(from: thrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self))
     }
 
     // MARK: - Iterator protocol correctness
