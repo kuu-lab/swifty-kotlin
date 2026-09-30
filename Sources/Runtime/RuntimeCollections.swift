@@ -7,14 +7,50 @@
 /// Used by Set deduplication, Map key lookup, and Sequence terminal operations.
 internal struct RuntimeElementKey: Hashable {
     let value: Int
+    /// True when `value` is the bare code of a char-tagged `RuntimeValue`.
+    /// The bare number is otherwise indistinguishable from an `Int`/`Long` of
+    /// the same code, so equality must keep the type tag (KUU: Char vs Int keys).
+    var isCharScalar: Bool = false
+
+    init(value: Int) {
+        self.value = value
+    }
+
+    init(runtimeValue: RuntimeValue) {
+        self.value = runtimeValue.legacyRawValue
+        self.isCharScalar = runtimeValue.tag == RuntimeValue.charTag
+    }
 
     func hash(into hasher: inout Hasher) {
         runtimeElementKeyHash(value, into: &hasher)
     }
 
     static func == (lhs: RuntimeElementKey, rhs: RuntimeElementKey) -> Bool {
-        runtimeValuesEqual(lhs.value, rhs.value)
+        if lhs.isCharScalar || rhs.isCharScalar {
+            return runtimeCharScalarKeyEqual(lhs, rhs)
+        }
+        return runtimeValuesEqual(lhs.value, rhs.value)
     }
+}
+
+/// Equality when at least one side is a bare char scalar. The other side is
+/// equal only if it is a `Char` too: another char scalar, a boxed `Char`, or a
+/// bare (non-object) number from an unboxed statically-typed `Char` lookup. A
+/// boxed `Int`/`Long`/... of the same numeric code is a different key.
+private func runtimeCharScalarKeyEqual(_ lhs: RuntimeElementKey, _ rhs: RuntimeElementKey) -> Bool {
+    let (scalar, other) = lhs.isCharScalar ? (lhs, rhs) : (rhs, lhs)
+    if other.isCharScalar {
+        return scalar.value == other.value
+    }
+    if let pointer = UnsafeMutableRawPointer(bitPattern: other.value),
+       runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: pointer)) })
+    {
+        guard let charBox = tryCast(pointer, to: RuntimeCharBox.self) else {
+            return false
+        }
+        return charBox.value == scalar.value
+    }
+    return scalar.value == other.value
 }
 
 /// Hashes an opaque runtime value directly into Swift's randomized `Hasher`
@@ -184,6 +220,19 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         return
     }
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        if objBox.backingSetBox == nil {
+            if let overridden = runtimeObjectHashCodeOverride(value) {
+                hasher.combine(16)
+                hasher.combine(overridden)
+                return
+            }
+            if !runtimeIsDataClass(classID: objBox.classID) {
+                // Plain classes inherit identity hashCode.
+                hasher.combine(15)
+                hasher.combine(Int(bitPattern: pointer))
+                return
+            }
+        }
         hasher.combine(14)
         hasher.combine(objBox.classID)
         let elements = objBox.elements

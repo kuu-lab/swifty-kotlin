@@ -1325,10 +1325,18 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             lhsLocale.country == rhsLocale.country &&
             lhsLocale.variant == rhsLocale.variant
     }
-    // Data class / user-defined object structural equality: compare classID and elements.
+    // Nominal objects follow Any.equals: a user `equals` override wins, data
+    // classes compare structurally, and plain classes compare by identity.
     if let lhsObj = tryCast(lhsPtr, to: RuntimeObjectBox.self),
        let rhsObj = tryCast(rhsPtr, to: RuntimeObjectBox.self)
     {
+        if lhsObj.backingSetBox == nil, rhsObj.backingSetBox == nil {
+            if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+                return overridden
+            }
+            guard lhsObj.classID == rhsObj.classID else { return false }
+            guard runtimeIsDataClass(classID: lhsObj.classID) else { return lhs == rhs }
+        }
         guard lhsObj.classID == rhsObj.classID else { return false }
         let lhsElems = lhsObj.elements
         let rhsElems = rhsObj.elements
@@ -1350,6 +1358,38 @@ public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
     kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
 }
 
+/// Calls the user `Any.equals` override registered for `lhs`, if any.
+func runtimeObjectEqualsOverride(_ lhs: Int, _ rhs: Int) -> Bool? {
+    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs),
+          let functionRaw = runtimeStorage.withMetadataLock({ state in
+              state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
+          })
+    else {
+        return nil
+    }
+    let equals = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return equals(lhs, rhs, nil) != 0
+}
+
+/// Calls the user `Any.hashCode` override registered for `value`, if any.
+func runtimeObjectHashCodeOverride(_ value: Int) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
+          let functionRaw = runtimeStorage.withMetadataLock({ state in
+              state.objectHashCodeOverrides[UInt(bitPattern: ptr)]
+          })
+    else {
+        return nil
+    }
+    let hashCode = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return Int(Int32(truncatingIfNeeded: hashCode(value, nil)))
+}
+
 /// Applies Kotlin's reference-equality default to RuntimeObjectBox values while
 /// retaining structural equality for data classes and collection/value boxes.
 /// Returns nil when either operand is not a nominal runtime object, allowing
@@ -1368,14 +1408,8 @@ func runtimeAnyObjectEquality(_ lhs: Int, _ rhs: Int) -> Bool? {
         return nil
     }
 
-    if let functionRaw = runtimeStorage.withMetadataLock({ state in
-        state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
-    }) {
-        let equals = unsafeBitCast(
-            functionRaw,
-            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
-        return equals(lhs, rhs, nil) != 0
+    if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+        return overridden
     }
 
     guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs),
