@@ -733,7 +733,7 @@ final class CallLowerer {
         {
             return loweredNumericConversion
         }
-        return lowerResolvedCallBody(
+        let loweredResult = lowerResolvedCallBody(
             exprID,
             args: args,
             loweredArgIDs: loweredArgIDs,
@@ -752,6 +752,33 @@ final class CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        // Range/progression handles produced by runtime factories never pass
+        // `kk_object_new`, so the constructor-site vtable registrations never
+        // ran for them — same gap as runtime collection factories above. Now
+        // that these classes have subtypes and source-backed open members
+        // (e.g. `UIntProgression.toString` once `UIntRange : UIntProgression`
+        // exists), member dispatch on them goes through `kk_vtable_lookup`;
+        // register the nominal vtable implementations on the produced box so
+        // the lookup resolves instead of trapping.
+        if let rangeResultClass = runtimeManagedRangeResultClassSymbol(
+            result: loweredResult,
+            boundType: boundType,
+            chosen: chosen,
+            arena: arena,
+            sema: sema,
+            interner: interner
+        ) {
+            appendFactoryObjectVtableMethodRegistrations(
+                objectValue: loweredResult,
+                nominalSymbol: rangeResultClass,
+                sema: sema,
+                cache: driver.ctx.nominalDispatchCache,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        return loweredResult
     }
 
     /// Resolves the concrete class a runtime collection factory result claims
@@ -769,6 +796,48 @@ final class CallLowerer {
               resolved.symbol.kind == .class
         else { return nil }
         return resolved.symbol.id
+    }
+
+    /// Resolves the range/progression nominal a runtime range factory result
+    /// claims to be, or nil when the call is not an external range factory.
+    /// The `externalLinkName` requirement is what keeps this sound: a
+    /// source-declared callee may return a subclass handle (`fun id(p:
+    /// UIntProgression) = p`), and registering the static result nominal's
+    /// methods would clobber the subclass's own registrations. Runtime
+    /// factories always produce exactly their declared nominal's handle.
+    private func runtimeManagedRangeResultClassSymbol(
+        result: KIRExprID,
+        boundType: TypeID?,
+        chosen: SymbolID?,
+        arena: KIRArena,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let chosen,
+              let externalLinkName = sema.symbols.externalLinkName(for: chosen),
+              !externalLinkName.isEmpty
+        else { return nil }
+        guard let classSymbol = collectionFactoryResultClassSymbol(
+            result: result,
+            boundType: boundType,
+            arena: arena,
+            sema: sema
+        ) else { return nil }
+        let rangesPackage: [InternedString] = [interner.intern("kotlin"), interner.intern("ranges")]
+        guard let fqName = sema.symbols.symbol(classSymbol)?.fqName,
+              fqName.count == rangesPackage.count + 1,
+              Array(fqName.prefix(rangesPackage.count)) == rangesPackage
+        else { return nil }
+        switch interner.resolve(fqName.last!) {
+        case "IntRange", "IntProgression",
+             "LongRange", "LongProgression",
+             "CharRange", "CharProgression",
+             "UIntRange", "UIntProgression",
+             "ULongRange", "ULongProgression":
+            return classSymbol
+        default:
+            return nil
+        }
     }
 
     /// Emits the call/allocation instructions for an already-resolved call

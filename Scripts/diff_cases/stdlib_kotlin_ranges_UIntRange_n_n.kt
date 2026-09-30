@@ -9,4 +9,8 @@ fun main() {
     println(acceptUIntRangeProgression(range))
     println(acceptUIntRangeClosedRange(range))
     println(acceptUIntRangeCompanion(UIntRange.Companion))
+
+    val asProgression: UIntProgression = range
+    println(asProgression)
+    println(asProgression == UIntRange(1u, 2u))
 }

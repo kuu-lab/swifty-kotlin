@@ -2258,4 +2258,52 @@ struct StdlibArtifactRegressionTests {
             #expect(normalizedStdout == "1\ntrue\n1\ntrue\n1\n")
         }
     }
+
+    /// `UIntProgression.fromClosedRange` / `downTo` / `step` lower to runtime
+    /// factories, so the returned handle never passes `kk_object_new` and never
+    /// received the constructor-site `kk_object_register_vtable_method`
+    /// registrations. Once `UIntRange : UIntProgression` made the progression
+    /// open, dispatch on its source-backed `toString`/`equals`/`hashCode` went
+    /// through `kk_vtable_lookup` and trapped. The lowering now registers the
+    /// nominal vtable implementations on range factory boxes, which also makes
+    /// `UIntRange` overrides win when a range handle is viewed through the
+    /// progression base type.
+    @Test
+    func testUIntProgressionOpenMembersDispatchOnFactoryBox() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun main() {
+            val positive = UIntProgression.fromClosedRange(2u, 11u, 3)
+            val negative = 10u downTo 1u step 3
+            println(positive)
+            println(negative)
+            val asProgression: UIntProgression = UIntRange(2u, 6u)
+            println(asProgression)
+            println(positive == UIntProgression.fromClosedRange(2u, 11u, 3))
+            println(positive == negative)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "UIntProgressionFactoryVtable",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "2..11 step 3\n10 downTo 1 step 3\n2..6\ntrue\nfalse\n")
+        }
+    }
 }
