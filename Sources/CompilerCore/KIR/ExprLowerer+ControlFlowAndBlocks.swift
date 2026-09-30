@@ -1,7 +1,6 @@
 // swiftlint:disable file_length
 
 extension ExprLowerer {
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func lowerExpr(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -2207,6 +2206,14 @@ extension ExprLowerer {
                     let resultType = arena.exprType(lhs) ?? lhsType
                     let resultID = arena.appendTemporary(type: resultType)
                     instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    // `b++` / `s--` / `ub++` on Byte, Short, UByte, UShort compute in a
+                    // 64-bit slot; wrap back to the operand's width (Kotlin `inc`/`dec`).
+                    if let wrapped = SmallIntegerWrap.append(
+                        resultID, type: resultType, sema: sema, arena: arena, interner: interner,
+                        instructions: &instructions
+                    ) {
+                        return wrapped
+                    }
                     return resultID
                 }
 

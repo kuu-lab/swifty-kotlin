@@ -185,6 +185,13 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
+    private func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case let .primitive(primitive, .nonNull) = sema.types.kind(of: type) {
+            return primitive != .char && primitive != .boolean
+        }
+        return false
+    }
+
     private func isPrimitiveIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .primitive = sema.types.kind(of: type) {
             return true
@@ -219,7 +226,11 @@ extension ExprTypeChecker {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
             return nil
         }
-        if let resolvedType = bindIncrementDecrementOperatorCall(
+        // Numeric primitives (everything but Char) keep `++` / `--` on the builtin path even
+        // though explicit `x.inc()` calls now resolve to the bundled extensions.
+        let usesBuiltinIncrement = isBuiltinNumericIncrementDecrementTarget(receiverType, sema: ctx.sema)
+        if !usesBuiltinIncrement,
+           let resolvedType = bindIncrementDecrementOperatorCall(
             exprID: exprID,
             op: op,
             receiverType: receiverType,
