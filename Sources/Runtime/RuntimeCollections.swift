@@ -237,7 +237,10 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         hasher.combine(objBox.classID)
         let elements = objBox.elements
         hasher.combine(elements.count)
-        for elem in elements {
+        let fieldMask = runtimeDataClassFieldMask(classID: objBox.classID)
+        for (index, elem) in elements.enumerated() {
+            // Must stay in sync with the slot filter in `runtimeValuesEqual`.
+            if let fieldMask, index < 63, fieldMask & (1 << Int64(index)) == 0 { continue }
             runtimeElementKeyHash(elem, into: &hasher, depth: depth + 1)
         }
         return

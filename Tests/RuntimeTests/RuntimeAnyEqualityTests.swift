@@ -43,6 +43,26 @@ struct RuntimeAnyEqualityTests {
     }
 
     @Test
+    func testDataClassFieldMaskIgnoresBodyPropertySlotsInEqualityAndHash() {
+        let classID = 0x51_20
+        _ = kk_runtime_register_data_class(classID)
+        // Slot 0 models a primary-constructor property, slot 1 a body property.
+        _ = kk_runtime_register_data_class_fields(classID, 0b01)
+        let first = kk_object_new(2, classID)
+        let second = kk_object_new(2, classID)
+        _ = kk_array_set(first, 0, 7, nil)
+        _ = kk_array_set(second, 0, 7, nil)
+        _ = kk_array_set(first, 1, 100, nil)
+        _ = kk_array_set(second, 1, 200, nil)
+
+        #expect(boolValue(kk_any_equals(first, 0, second, 0)))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(second, 0))
+
+        _ = kk_array_set(second, 0, 8, nil)
+        #expect(!boolValue(kk_any_equals(first, 0, second, 0)))
+    }
+
+    @Test
     func testRegisteredDataClassKeepsStructuralEquality() {
         let classID = 0x51_12
         _ = kk_runtime_register_data_class(classID)

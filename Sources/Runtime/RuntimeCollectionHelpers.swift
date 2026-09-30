@@ -1341,7 +1341,9 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let lhsElems = lhsObj.elements
         let rhsElems = rhsObj.elements
         guard lhsElems.count == rhsElems.count else { return false }
+        let fieldMask = runtimeDataClassFieldMask(classID: lhsObj.classID)
         for i in lhsElems.indices {
+            if let fieldMask, i < 63, fieldMask & (1 << Int64(i)) == 0 { continue }
             // swiftlint:disable:next for_where
             if !runtimeValuesEqual(lhsElems[i], rhsElems[i]) {
                 return false
