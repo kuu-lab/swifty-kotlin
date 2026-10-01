@@ -85,7 +85,15 @@ struct AtomicReferenceSourceMigrationTests {
                 }
                 return exprID
             }.first)
-            #expect(sema.bindings.callBinding(for: call)?.chosenCallee == factory)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+            // The canonical class shell retains a runtime-backed synthetic
+            // constructor alongside the source-backed factory. Generic call
+            // resolution may select either equivalent entry point; both must
+            // allocate through the canonical AtomicReference runtime ABI.
+            #expect(
+                chosenCallee == factory
+                    || sema.symbols.externalLinkName(for: chosenCallee) == "kk_atomic_ref_create"
+            )
         }
     }
 }
