@@ -297,7 +297,7 @@ struct RuntimeAtomicRefArrayTests {
     }
 
     @Test
-    func testCompareAndSetAtStringBoxesWithSameContentSucceeds() {
+    func testCompareAndSetAtStringBoxesRequiresSameReference() {
         let handle = kk_atomic_ref_array_new(2)
         let stringA = registerRuntimeObject(RuntimeStringBox("same_content"))
         let stringB = registerRuntimeObject(RuntimeStringBox("same_content"))
@@ -307,7 +307,13 @@ struct RuntimeAtomicRefArrayTests {
 
         kk_atomic_ref_array_storeAt(handle, 0, stringA)
         let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringB, updateRef)
-        #expect(result == 1, "CAS must succeed for distinct string boxes with identical contents")
+        #expect(result == 0, "Equal string contents must not satisfy a distinct reference expectation")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringA)
+        let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, stringB, updateRef)
+        #expect(old == stringA)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringA)
+        let witness = kk_atomic_ref_array_loadAt(handle, 0)
+        #expect(kk_atomic_ref_array_compareAndSetAt(handle, 0, witness, updateRef) == 1)
         #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
     }
 
