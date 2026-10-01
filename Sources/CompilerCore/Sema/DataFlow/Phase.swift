@@ -518,7 +518,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
         types: TypeSystem, ctx: CompilationContext
     ) {
-        bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        bindInheritanceEdges(
+            ast: ast, symbols: symbols, bindings: bindings, types: types,
+            diagnostics: ctx.diagnostics, interner: ctx.interner
+        )
         // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
         // kotlin.Annotation source, because its source declaration has no
         // explicit supertype clause and would otherwise erase the synthetic

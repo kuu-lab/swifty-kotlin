@@ -253,6 +253,7 @@ class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionHierarchyFQNames: [String] {
         [
             "kotlin.CancellationException",
+            "kotlin.coroutines.cancellation.CancellationException",
             "kotlinx.coroutines.CancellationException",
             "CancellationException",
             "kotlin.IllegalStateException",

@@ -9,6 +9,7 @@ import kotlin.internal.KsSymbolName
 
 // KSP-708: The typed range shell is source-backed; construction retains only
 // the hidden runtime factory for the range handle.
+// KSP-1296: Range value semantics are source-backed member overrides.
 public class CharRange @KsSymbolName("__kk_char_rangeTo") constructor(
     start: Char,
     endInclusive: Char,
@@ -23,6 +24,18 @@ public class CharRange @KsSymbolName("__kk_char_rangeTo") constructor(
             return last + 1
         }
     public override fun isEmpty(): Boolean = first > last
+
+    public override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is CharRange) return false
+        if (isEmpty()) return other.isEmpty()
+        return first == other.first && last == other.last
+    }
+
+    public override fun hashCode(): Int =
+        if (isEmpty()) -1 else 31 * first.hashCode() + last.hashCode()
+
+    public override fun toString(): String = "$first..$last"
 
     public companion object {}
 }

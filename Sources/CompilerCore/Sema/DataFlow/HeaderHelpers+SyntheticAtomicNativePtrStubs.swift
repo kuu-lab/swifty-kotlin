@@ -12,13 +12,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let nativePtrType = nativeConcurrentClassType(
-            packagePath: ["kotlinx", "cinterop"],
-            name: "NativePtr",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let classSymbol = ensureClassSymbol(
             named: "AtomicNativePtr",
             in: packageFQName,
@@ -38,71 +31,8 @@ extension DataFlowSemaPhase {
         // The constructor and field live in bundled Kotlin source. A
         // synthetic constructor here has no body or runtime link name and
         // emits a reference to the undefined `AtomicNativePtr` symbol.
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "load",
-            returnType: nativePtrType,
-            parameters: [],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "store",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: nativePtrType)],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "exchange",
-            returnType: nativePtrType,
-            parameters: [(name: "new", type: nativePtrType)],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "getAndSet",
-            returnType: nativePtrType,
-            parameters: [(name: "newValue", type: nativePtrType)],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "compareAndSet",
-            returnType: types.booleanType,
-            parameters: [
-                (name: "expect", type: nativePtrType),
-                (name: "update", type: nativePtrType),
-            ],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "compareAndExchange",
-            returnType: nativePtrType,
-            parameters: [
-                (name: "expect", type: nativePtrType),
-                (name: "update", type: nativePtrType),
-            ],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
+        // Receiver operations are source-backed extensions in
+        // `Stdlib/kotlin/concurrent/atomics/AtomicNativePtr/`; synthetic member
+        // stubs would also emit unresolved bare-symbol calls.
     }
 }

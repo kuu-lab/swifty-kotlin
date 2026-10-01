@@ -1240,6 +1240,17 @@ final class CallLowerer {
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
+        // KUU-938: this synthetic conversion has no runtime symbol. The
+        // receiver has already been inserted above, including for an outer
+        // implicit receiver; preserve its raw primitive representation.
+        if let chosen,
+           sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
+           sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
+           finalArgIDs.count == 1
+        {
+            instructions.append(.copy(from: finalArgIDs[0], to: result))
+            return result
+        }
         // KUU-655: an override that inherits its defaults never has its own
         // stub; resolve to the base declaration's stub instead (see
         // `defaultStubOwnerSymbol`).

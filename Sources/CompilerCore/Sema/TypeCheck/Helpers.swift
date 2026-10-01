@@ -849,6 +849,24 @@ struct TypeCheckHelpers {
                         .sorted(by: { $0.rawValue < $1.rawValue })
                 }
                 if let symbolID = candidates.first {
+                    if let symbol = sema.symbols.symbol(symbolID),
+                       symbol.flags.contains(.importedLibrary),
+                       let inferenceContext,
+                       !inferenceContext.visibilityChecker.isAccessible(
+                           symbol,
+                           fromFile: inferenceContext.currentFileID,
+                           enclosingClass: inferenceContext.enclosingClassSymbol
+                       ) {
+                        if let diagnostics {
+                            emitVisibilityError(
+                                for: symbol,
+                                name: interner.resolve(shortName),
+                                range: usageRange,
+                                diagnostics: diagnostics
+                            )
+                        }
+                        return sema.types.errorType
+                    }
                     if let inferenceContext, let diagnostics {
                         checkOptIn(
                             for: symbolID,
