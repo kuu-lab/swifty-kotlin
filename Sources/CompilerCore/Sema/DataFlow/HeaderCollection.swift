@@ -1745,19 +1745,6 @@ extension DataFlowSemaPhase {
                 interner: interner, isInline: funDecl.isInline,
                 diagnostics: diagnostics
             )
-            let receiverType = resolveTypeRef(
-                funDecl.receiverType,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                localTypeParameters: typeParamResult.localTypeParameters,
-                relativeOwnerFQName: package,
-                currentPackageFQName: package,
-                imports: file.imports,
-                diagnostics: diagnostics,
-                usageRange: funDecl.range
-            )
             let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
                 resolveTypeRef(
                     contextReceiver.type,
@@ -1773,6 +1760,23 @@ extension DataFlowSemaPhase {
                     usageRange: funDecl.range
                 )
             }
+            let explicitReceiverType = resolveTypeRef(
+                funDecl.receiverType,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: typeParamResult.localTypeParameters,
+                relativeOwnerFQName: package,
+                currentPackageFQName: package,
+                imports: file.imports,
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
+            )
+            // Top-level context functions use the first context receiver as their
+            // hidden receiver parameter in KIR. Member declarations are registered
+            // separately and keep the owning class as `receiverType`.
+            let receiverType = explicitReceiverType ?? contextReceiverTypes.first
             let params = collectValueParameters(
                 funDecl.valueParams,
                 localNamespaceFQName: localNamespaceFQName,
