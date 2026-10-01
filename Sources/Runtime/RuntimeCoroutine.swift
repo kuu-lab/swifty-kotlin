@@ -1678,56 +1678,63 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         }
     }
 
-    func waitForChildren() -> Int {
-        lock.lock()
-        let currentChildren = children
-        children.removeAll()
-        lock.unlock()
+    func waitForChildren(releaseOriginalHandles: Bool = true) -> Int {
         var firstFailure = 0
         var cancelledRemainingChildren = false
-        for (index, child) in currentChildren.enumerated() {
-            let childResult = runtimeJoinChild(child)
-            let shouldIgnoreChildCancellation = isCancelled && runtimeCoroutineIsCancellationResult(childResult)
-            if firstFailure == 0,
-               runtimeCoroutineIsThrowableResult(childResult),
-               !shouldIgnoreChildCancellation
-            {
-                firstFailure = childResult
-                if !isSupervisor, !cancelledRemainingChildren {
-                    cancelledRemainingChildren = true
-                    for remainingChild in currentChildren.dropFirst(index + 1) {
-                        runtimeCancelChild(remainingChild)
+        // A child can register more work while we join it. Drain successive
+        // batches so those descendants also finish before the scope returns.
+        while true {
+            lock.lock()
+            let currentChildren = children
+            children.removeAll()
+            lock.unlock()
+            if currentChildren.isEmpty {
+                return firstFailure
+            }
+            for (index, child) in currentChildren.enumerated() {
+                let childResult = runtimeJoinChild(child)
+                let shouldIgnoreChildCancellation = isCancelled && runtimeCoroutineIsCancellationResult(childResult)
+                if firstFailure == 0,
+                   runtimeCoroutineIsThrowableResult(childResult),
+                   !shouldIgnoreChildCancellation
+                {
+                    firstFailure = childResult
+                    if !isSupervisor, !cancelledRemainingChildren {
+                        cancelledRemainingChildren = true
+                        cancel()
+                        for remainingChild in currentChildren.dropFirst(index + 1) {
+                            runtimeCancelChild(remainingChild)
+                        }
                     }
                 }
-            }
-            if let ptr = UnsafeMutableRawPointer(bitPattern: child) {
-                // Check the per-handle flag to see if user code already consumed the passRetained.
-                // This is scope-independent: the flag lives on the handle object itself,
-                // so it works correctly even with nested scopes or cross-thread joins.
-                let consumed: Bool
-                let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-                switch RuntimeJobOrTask(obj) {
-                case .job(let job):
-                    consumed = job.consumedByUserCodeSnapshot()
-                case .task(let task):
-                    consumed = task.consumedByUserCodeSnapshot()
-                case .other:
-                    consumed = false
-                }
-                // Release the extra retain taken in registerChild
-                Unmanaged<AnyObject>.fromOpaque(ptr).release()
-                // Release the original passRetained only if user code hasn't already consumed it
-                // (via kk_job_join or kk_kxmini_async_await)
-                if !consumed {
+                if let ptr = UnsafeMutableRawPointer(bitPattern: child) {
+                    // Check the per-handle flag to see if user code already consumed the passRetained.
+                    // This is scope-independent: the flag lives on the handle object itself,
+                    // so it works correctly even with nested scopes or cross-thread joins.
+                    let consumed: Bool
+                    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+                    switch RuntimeJobOrTask(obj) {
+                    case .job(let job):
+                        consumed = job.consumedByUserCodeSnapshot()
+                    case .task(let task):
+                        consumed = task.consumedByUserCodeSnapshot()
+                    case .other:
+                        consumed = false
+                    }
+                    // Release the extra retain taken in registerChild
                     Unmanaged<AnyObject>.fromOpaque(ptr).release()
-                    // Clean up from RuntimeStorage
-                    runtimeStorage.withGCLock { state in
-                        state.objectPointers.remove(UInt(bitPattern: ptr))
+                    // Release the original passRetained only if user code hasn't already consumed it
+                    // (via kk_job_join or kk_kxmini_async_await)
+                    if !consumed, releaseOriginalHandles {
+                        Unmanaged<AnyObject>.fromOpaque(ptr).release()
+                        // Clean up from RuntimeStorage
+                        runtimeStorage.withGCLock { state in
+                            state.objectPointers.remove(UInt(bitPattern: ptr))
+                        }
                     }
                 }
             }
         }
-        return firstFailure
     }
 }
 
@@ -4363,8 +4370,20 @@ func runtimeRunBlockingOnEventLoop(
     continuation: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let loop = RuntimeEventLoop.current ?? RuntimeEventLoop()
-    runtimeContinuationState(from: continuation)?.eventLoop = loop
+    let previousLoop = RuntimeEventLoop.current
+    let loop = previousLoop ?? RuntimeEventLoop()
+    RuntimeEventLoop.current = loop
+    defer { RuntimeEventLoop.current = previousLoop }
+
+    let state = runtimeContinuationState(from: continuation)
+    state?.eventLoop = loop
+    // A fresh blocking coroutine owns its children's lifetime. Suspend-value
+    // launcher thunks borrow an existing scope instead; joining that scope
+    // here would wait for the very actor/producer executing this thunk.
+    let ownedScope = state != nil && state?.scope == nil ? RuntimeCoroutineScope() : nil
+    if let ownedScope {
+        state?.scope = ownedScope
+    }
 
     final class Outcome: @unchecked Sendable {
         private let lock = NSLock()
@@ -4406,7 +4425,14 @@ func runtimeRunBlockingOnEventLoop(
     )
     loop.run(until: { outcome.isFinished })
 
-    let (result, thrown) = outcome.snapshot()
+    let (result, bodyThrown) = outcome.snapshot()
+    if bodyThrown != 0 {
+        ownedScope?.cancel()
+    }
+    // Job/Deferred values may escape through the block's result or captures.
+    // Joining only consumes the scope's retain, not the live Kotlin handle.
+    let childThrown = ownedScope?.waitForChildren(releaseOriginalHandles: false) ?? 0
+    let thrown = bodyThrown != 0 ? bodyThrown : childThrown
     // Same contract as the previous synchronous path: report the failure
     // through `outThrown` and hand back 0 as the value.
     outThrown?.pointee = thrown
