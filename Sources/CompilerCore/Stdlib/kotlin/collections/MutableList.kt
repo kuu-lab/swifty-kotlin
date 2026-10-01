@@ -52,7 +52,7 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
         __kkMutableListSet(this, index, element)
 
     @IgnorableReturnValue
-    public fun add(element: E): Boolean =
+    public override fun add(element: E): Boolean =
         __kkMutableListAdd(this, element)
 
     public fun add(index: Int, element: E) {
@@ -81,16 +81,16 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     public override fun remove(element: E): Boolean =
         __kkMutableListRemove(this, element)
 
-    public fun clear() {
+    public override fun clear() {
         __kkMutableListClear(this)
     }
 
     @IgnorableReturnValue
-    public fun removeAll(elements: Collection<out E>): Boolean =
+    public override fun removeAll(elements: Collection<out E>): Boolean =
         __kkMutableListRemoveAll(this, elements)
 
     @IgnorableReturnValue
-    public fun retainAll(elements: Collection<out E>): Boolean =
+    public override fun retainAll(elements: Collection<out E>): Boolean =
         __kkMutableListRetainAll(this, elements)
 
     public operator fun plusAssign(element: E) {

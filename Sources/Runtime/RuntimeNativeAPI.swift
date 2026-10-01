@@ -609,6 +609,36 @@ public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
 }
 
+// MARK: - ImmutableBlob
+
+/// Returns a stable native address for `ImmutableBlob.asCPointer(offset)` /
+/// `asUCPointer(offset)` (upstream `Kotlin_ImmutableBlob_asCPointerImpl`).
+///
+/// RuntimeArrayBox storage is `[RuntimeValue]`, which is not byte-addressable
+/// C storage, so the blob's bytes are copied into a `RuntimeCValuesBox`'s
+/// unmanaged heap buffer and `baseAddress + offset` is returned. The box is
+/// pinned permanently: the escaped address has no release path in this API,
+/// and upstream ImmutableBlobs are effectively immortal once exposed as a C
+/// pointer.
+@_cdecl("__kk_immutable_blob_as_cpointer")
+public func __kk_immutable_blob_as_cpointer(_ blobRaw: Int, _ offset: Int) -> Int {
+    guard let array = runtimeArrayBox(from: blobRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid ImmutableBlob handle in __kk_immutable_blob_as_cpointer")
+    }
+    guard offset >= 0 && offset <= array.count else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_immutable_blob_as_cpointer offset \(offset) out of bounds for blob of size \(array.count)")
+    }
+    let box = RuntimeCValuesBox(bytes: array.elements)
+    let boxRaw = registerRuntimeObject(box)
+    runtimeStorage.withGCLock { state in
+        state.pinnedObjectCounts[UInt(bitPattern: boxRaw), default: 0] += 1
+    }
+    guard let baseAddress = box.storage.baseAddress else {
+        return 0
+    }
+    return Int(bitPattern: baseAddress) + offset
+}
+
 // MARK: - Pinned<T>
 
 /// Runtime backing for `kotlin.native.ref.Pinned<T>`.

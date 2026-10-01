@@ -367,6 +367,22 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testClosedRangeInterfaceMembershipUsesRangeBridge() throws {
+        let source = """
+        fun check(range: ClosedRange<Int>): Boolean = 3 in range && range.contains(3)
+        fun checkNotIn(range: ClosedRange<Int>): Boolean = 7 !in range
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        for functionName in ["check", "checkNotIn"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains("__kk_range_contains"), "ClosedRange membership must link to the range bridge: \(callees)")
+            #expect(!callees.contains("contains"), "A bare contains symbol cannot link: \(callees)")
+        }
+    }
+
     // ARCH-012: IntRange uses an induction variable, while other signed range
     // shapes retain the BUG-198 runtime iterator path.
     @Test func testBuildKIRLowersIntRangeForLoopThroughInductionVariablePath() throws {

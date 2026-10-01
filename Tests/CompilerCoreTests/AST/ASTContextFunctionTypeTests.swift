@@ -68,6 +68,24 @@ struct ASTContextFunctionTypeTests {
         #expect(renderTypeRef(blockType, in: ast, interner: ctx.interner) == "context(Int) () -> String")
     }
 
+    /// KUU-915: the first parentheses after `fun <R>` belong to the receiver,
+    /// while the parentheses after the name contain the value parameters.
+    @Test
+    func testSuspendFunctionTypeExtensionReceiver() throws {
+        let source = """
+        package demo
+        internal fun <R> (suspend () -> R).fireAndForget() {
+            this.hashCode()
+        }
+        """
+        let (ast, ctx) = try buildASTModule(from: source)
+        #expect(!ctx.diagnostics.hasError)
+        let function = try #require(firstFunDecl(named: "fireAndForget", in: ast, interner: ctx.interner))
+        let receiver = try #require(function.receiverType)
+        #expect(renderTypeRef(receiver, in: ast, interner: ctx.interner) == "suspend () -> R")
+        #expect(function.valueParams.isEmpty)
+    }
+
     private func renderTypeRef(_ typeRefID: TypeRefID, in ast: ASTModule, interner: StringInterner) -> String {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return "<invalid>"
