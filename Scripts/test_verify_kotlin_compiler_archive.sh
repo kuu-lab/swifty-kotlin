@@ -40,7 +40,7 @@ if ! grep -Fq '${{ runner.temp }}/kotlin-tools' "$WORKFLOW"; then
   echo "FAIL: Kotlin dependency jars must remain in the cached tools directory" >&2
   exit 1
 fi
-if grep -Fq 'unzip -q "$zip_path"' "$WORKFLOW"; then
+if grep -Fq 'unzip -q "$zip_path"' <<<"$verify_diff_job"; then
   echo "FAIL: CI must not extract the Kotlin compiler archive outside the verifier" >&2
   exit 1
 fi
