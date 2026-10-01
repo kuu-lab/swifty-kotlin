@@ -704,6 +704,16 @@ extension CallLowerer {
         )
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let result = arena.appendTemporary(type: resultType)
+        let runtimeNameEndLabel = emitRuntimeKCallableNameFastPath(
+            propertyInfo: propertyInfo,
+            ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         instructions.append(.virtualCall(
             symbol: getterSymbol,
             callee: interner.intern("get"),
@@ -714,7 +724,65 @@ extension CallLowerer {
             thrownResult: nil,
             dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         ))
+        if let runtimeNameEndLabel {
+            instructions.append(.label(runtimeNameEndLabel))
+        }
         return result
+    }
+
+    /// Runtime reflection values (tagged callable references, delegate
+    /// `property:` stubs, KClass member boxes) register a Swift C-convention
+    /// shim for `KCallable.name` in their itable. That shim returns the raw
+    /// String handle, but itable String members are invoked with the flat
+    /// `{ptr, i64, i64, i64}` aggregate return. x86-64 SysV demotes that return
+    /// to a hidden pointer in the first argument register, which the shim
+    /// detects; AArch64 returns it in x0-x3, which no Swift or C function can
+    /// produce, so the read yielded garbage or crashed. Ask the runtime first
+    /// and only fall through to interface dispatch for user implementations,
+    /// for which `__kk_kcallable_get_name` returns null.
+    ///
+    /// Emits the fast path and returns the label the caller must place after
+    /// its own itable call, or `nil` when `propertyInfo` is not `KCallable.name`.
+    private func emitRuntimeKCallableNameFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Int32? {
+        guard interner.resolve(propertyInfo.name) == "name",
+              ownerInfo.fqName.map(interner.resolve) == ["kotlin", "reflect", "KCallable"]
+        else {
+            return nil
+        }
+        let getNameCallee = interner.intern("__kk_kcallable_get_name")
+        let runtimeName = emitNonThrowingCall(
+            callee: getNameCallee,
+            arg: loweredReceiverID,
+            resultType: sema.types.nullableAnyType,
+            arena: arena,
+            into: &instructions
+        )
+        let runtimeLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let interfaceLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: runtimeName, target: runtimeLabel))
+        instructions.append(.jump(interfaceLabel))
+        instructions.append(.label(runtimeLabel))
+        // Re-read with the String result type so the backend bridges the raw
+        // handle into the caller's String representation.
+        emitNonThrowingCall(
+            callee: getNameCallee,
+            arg: loweredReceiverID,
+            result: result,
+            into: &instructions
+        )
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(interfaceLabel))
+        return endLabel
     }
 
     func tryLowerMemberPropertyAccessorRead(
