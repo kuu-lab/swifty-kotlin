@@ -18,3 +18,27 @@ package kotlin.concurrent.atomics
 @SinceKotlin("2.1")
 public fun <T> AtomicArray(array: Array<T>): AtomicArray<T> =
     atomicArrayOf(*array)
+
+/**
+ * Returns a string representation of this array's contents, e.g. `[a, b, c]`.
+ *
+ * `AtomicArray` itself is runtime-backed, so its `toString` is exposed as a
+ * bundled extension: bundled atomic extensions take precedence over the
+ * inherited synthetic `Any.toString` member.
+ */
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun <T> AtomicArray<T>.toString(): String {
+    val builder = StringBuilder()
+    builder.append("[")
+    var index = 0
+    while (index < this.size) {
+        if (index > 0) {
+            builder.append(", ")
+        }
+        builder.append(this.loadAt(index))
+        index++
+    }
+    builder.append("]")
+    return builder.toString()
+}

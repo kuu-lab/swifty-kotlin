@@ -603,3 +603,27 @@ extension TypeCheckHelpers {
         return decodeKotlinStringEscapes(value)
     }
 }
+
+/// Hidden declarations remain in metadata for binary compatibility, but must
+/// not participate in source overload resolution (including factory/constructor
+/// pairs with the same signature in the Native standard library).
+func isHiddenByDeprecatedAnnotation(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+    guard let annotation = symbols.annotations(for: symbol).first(where: {
+        KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
+    }) else { return false }
+    for (index, argument) in annotation.arguments.enumerated() {
+        let pieces = argument.split(separator: "=", maxSplits: 1).map(String.init)
+        let value: String
+        if pieces.count == 2 {
+            guard pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == "level" else { continue }
+            value = pieces[1]
+        } else {
+            guard index == 2 else { continue }
+            value = argument
+        }
+        let level = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ".").last.map(String.init)
+        if level == "HIDDEN" { return true }
+    }
+    return false
+}

@@ -13,3 +13,11 @@ package kotlin.collections
 // Keep the parameter name aligned with the residual shell so source collection
 // loading can reuse its type-parameter symbol without orphaning iterator calls.
 public interface Iterable<out E>
+
+// KSP-937: Create a fresh iterator for every traversal. Keep the parameter
+// name distinct from the overridden iterator() member.
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable(crossinline iteratorProducer: () -> Iterator<T>): Iterable<T> =
+    object : Iterable<T> {
+        override fun iterator(): Iterator<T> = iteratorProducer()
+    }
