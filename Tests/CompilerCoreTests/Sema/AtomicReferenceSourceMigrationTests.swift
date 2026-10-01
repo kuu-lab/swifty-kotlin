@@ -4,8 +4,8 @@ import Foundation
 import Testing
 
 /// KSP-1122: the canonical `kotlin.concurrent.atomics.AtomicReference(T)`
-/// constructor is represented by a source-backed factory that delegates to the
-/// runtime-linked `kotlin.concurrent.AtomicReference` constructor.
+/// constructor is represented by a source-backed factory linked directly to
+/// the runtime allocation for the canonical nominal type.
 @Suite(.serialized)
 struct AtomicReferenceSourceMigrationTests {
     @Test
@@ -31,8 +31,7 @@ struct AtomicReferenceSourceMigrationTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
             let constructorFQName = ["kotlin", "concurrent", "atomics", "AtomicReference"].map(interner.intern)
-            let underlyingFQName = ["kotlin", "concurrent", "AtomicReference"].map(interner.intern)
-            let underlyingSymbol = try #require(sema.symbols.lookup(fqName: underlyingFQName))
+            let canonicalSymbol = try #require(sema.symbols.lookup(fqName: constructorFQName))
 
             let factory = try #require(sema.symbols.lookupAll(fqName: constructorFQName).first { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID),
@@ -44,7 +43,7 @@ struct AtomicReferenceSourceMigrationTests {
                       case let .typeParam(paramType) = sema.types.kind(of: signature.parameterTypes[0]),
                       paramType.symbol == signature.typeParameterSymbols[0],
                       case let .classType(returnType) = sema.types.kind(of: signature.returnType),
-                      returnType.classSymbol == underlyingSymbol,
+                      returnType.classSymbol == canonicalSymbol,
                       returnType.args.count == 1,
                       case let .invariant(returnArg) = returnType.args[0],
                       case let .typeParam(returnArgType) = sema.types.kind(of: returnArg),
@@ -59,7 +58,7 @@ struct AtomicReferenceSourceMigrationTests {
             #expect(symbol.visibility == .public)
             #expect(!symbol.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(factory))
-            #expect(sema.symbols.externalLinkName(for: factory) == nil)
+            #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_ref_create")
             let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
             #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicReference/Stdlib.kt")
 

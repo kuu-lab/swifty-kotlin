@@ -75,3 +75,15 @@ public fun <T> AtomicReference<T>.updateAndFetch(transform: (T) -> T): T {
         if (compareAndExchange(old, newValue) === old) return newValue
     }
 }
+
+// Compatibility names retained from the former
+// kotlin.concurrent.AtomicReference typealias surface.
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun <T> AtomicReference<T>.getAndUpdate(transform: (T) -> T): T =
+    fetchAndUpdate(transform)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun <T> AtomicReference<T>.updateAndGet(transform: (T) -> T): T =
+    updateAndFetch(transform)

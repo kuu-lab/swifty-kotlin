@@ -9,8 +9,8 @@
 package kotlin.concurrent.atomics
 
 // KSP-1104: canonical atomics AtomicLong arithmetic/assignment and CAS-update
-// operators. The receiver aliases the runtime-backed kotlin.concurrent.AtomicLong
-// shell, so the bodies delegate to its retained addAndFetch/load/compareAndSet
+// operators. The distinct source-backed receiver uses the same runtime atomic
+// box, so the bodies delegate to its retained addAndFetch/load/compareAndSet
 // core operations; no new runtime bridge is required.
 
 @ExperimentalAtomicApi
@@ -52,3 +52,26 @@ public inline fun AtomicLong.updateAndFetch(transform: (Long) -> Long): Long {
         if (compareAndSet(old, newValue)) return newValue
     }
 }
+
+// Compatibility names retained from the former kotlin.concurrent.AtomicLong
+// typealias surface. They must be declared on the canonical receiver now that
+// the two nominal types are distinct.
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicLong.fetchAndUpdate(transform: (Long) -> Long): Long {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndSet(old, newValue)) return old
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicLong.getAndUpdate(transform: (Long) -> Long): Long =
+    fetchAndUpdate(transform)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicLong.updateAndGet(transform: (Long) -> Long): Long =
+    updateAndFetch(transform)
