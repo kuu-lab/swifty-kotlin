@@ -216,6 +216,13 @@ func runtimeRegisterDataClass(classID: Int64) {
     }
 }
 
+func runtimeDataClassFieldMask(classID: Int64) -> Int64? {
+    guard classID != 0 else { return nil }
+    return runtimeStorage.withMetadataLock { state in
+        state.dataClassFieldMasks[classID]
+    }
+}
+
 func runtimeIsDataClass(classID: Int64) -> Bool {
     guard classID != 0 else { return false }
     return runtimeStorage.withMetadataLock { state in
@@ -232,6 +239,18 @@ func runtimeIsDataClass(classID: Int64) -> Bool {
 @_cdecl("kk_runtime_register_data_class")
 public func kk_runtime_register_data_class(_ classID: Int) -> Int {
     runtimeRegisterDataClass(classID: Int64(classID))
+    return 0
+}
+
+/// Records which object slots hold a data class's primary-constructor properties so the
+/// structural `equals`/`hashCode` ignore properties declared in the class body.
+/// `mask` bit `i` set means object slot `i` participates.
+@_cdecl("kk_runtime_register_data_class_fields")
+public func kk_runtime_register_data_class_fields(_ classID: Int, _ mask: Int) -> Int {
+    guard classID != 0 else { return 0 }
+    runtimeStorage.withMetadataLock { state in
+        state.dataClassFieldMasks[Int64(classID)] = Int64(mask)
+    }
     return 0
 }
 

@@ -861,7 +861,7 @@ func registerMutableListIteratorItable(raw: Int) {
 
 private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorSet(raw, elem)
+    return runtimeListIteratorSet(raw, elem, outThrown)
 }
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
@@ -978,7 +978,7 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorRemove(iterRaw)
+    return runtimeListIteratorRemove(iterRaw, outThrown)
 }
 
 func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
@@ -1325,15 +1325,25 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             lhsLocale.country == rhsLocale.country &&
             lhsLocale.variant == rhsLocale.variant
     }
-    // Data class / user-defined object structural equality: compare classID and elements.
+    // Nominal objects follow Any.equals: a user `equals` override wins, data
+    // classes compare structurally, and plain classes compare by identity.
     if let lhsObj = tryCast(lhsPtr, to: RuntimeObjectBox.self),
        let rhsObj = tryCast(rhsPtr, to: RuntimeObjectBox.self)
     {
+        if lhsObj.backingSetBox == nil, rhsObj.backingSetBox == nil {
+            if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+                return overridden
+            }
+            guard lhsObj.classID == rhsObj.classID else { return false }
+            guard runtimeIsDataClass(classID: lhsObj.classID) else { return lhs == rhs }
+        }
         guard lhsObj.classID == rhsObj.classID else { return false }
         let lhsElems = lhsObj.elements
         let rhsElems = rhsObj.elements
         guard lhsElems.count == rhsElems.count else { return false }
+        let fieldMask = runtimeDataClassFieldMask(classID: lhsObj.classID)
         for i in lhsElems.indices {
+            if let fieldMask, i < 63, fieldMask & (1 << Int64(i)) == 0 { continue }
             // swiftlint:disable:next for_where
             if !runtimeValuesEqual(lhsElems[i], rhsElems[i]) {
                 return false
@@ -1348,6 +1358,38 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
 @_cdecl("__kk_values_equal")
 public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
     kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
+}
+
+/// Calls the user `Any.equals` override registered for `lhs`, if any.
+func runtimeObjectEqualsOverride(_ lhs: Int, _ rhs: Int) -> Bool? {
+    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs),
+          let functionRaw = runtimeStorage.withMetadataLock({ state in
+              state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
+          })
+    else {
+        return nil
+    }
+    let equals = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return equals(lhs, rhs, nil) != 0
+}
+
+/// Calls the user `Any.hashCode` override registered for `value`, if any.
+func runtimeObjectHashCodeOverride(_ value: Int) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
+          let functionRaw = runtimeStorage.withMetadataLock({ state in
+              state.objectHashCodeOverrides[UInt(bitPattern: ptr)]
+          })
+    else {
+        return nil
+    }
+    let hashCode = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return Int(Int32(truncatingIfNeeded: hashCode(value, nil)))
 }
 
 /// Applies Kotlin's reference-equality default to RuntimeObjectBox values while
@@ -1368,14 +1410,8 @@ func runtimeAnyObjectEquality(_ lhs: Int, _ rhs: Int) -> Bool? {
         return nil
     }
 
-    if let functionRaw = runtimeStorage.withMetadataLock({ state in
-        state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
-    }) {
-        let equals = unsafeBitCast(
-            functionRaw,
-            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
-        return equals(lhs, rhs, nil) != 0
+    if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+        return overridden
     }
 
     guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs),
@@ -1580,7 +1616,7 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let rangeBox = tryCast(ptr, to: RuntimeRangeBox.self) {
         let first = runtimeElementToString(rangeBox.first)
         let last = runtimeElementToString(rangeBox.last)
-        if rangeBox.step == 1 {
+        if !rangeBox.kind.isProgression {
             return "\(first)..\(last)"
         } else if rangeBox.step == -1 {
             return "\(first) downTo \(last) step 1"
