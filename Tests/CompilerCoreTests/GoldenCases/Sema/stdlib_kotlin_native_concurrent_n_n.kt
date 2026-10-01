@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION_ERROR")
+@file:Suppress("DEPRECATION_ERROR", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 

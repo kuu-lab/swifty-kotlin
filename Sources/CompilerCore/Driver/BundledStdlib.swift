@@ -103,7 +103,11 @@ package enum BundledStdlib {
         _bundledStdlibSources
     }
 
-    private static let _manifestHash: String = Self.stableFNV1a64Hex(for: _bundledStdlibSources)
+    // Visibility is now persisted in library metadata. Rebuild any cached
+    // stdlib artifact whose manifest predates the metadata change.
+    private static let _manifestHash: String = Self.stableFNV1a64Hex(
+        for: _bundledStdlibSources + [(path: "__metadata_visibility_v2", contents: Data())]
+    )
 
     /// Returns a stable hash of the bundled stdlib manifest.
     package static func manifestHash() -> String {

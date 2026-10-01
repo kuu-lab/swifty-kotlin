@@ -304,18 +304,12 @@ extension DataFlowSemaPhase {
                 interner: interner, into: &predeclared
             )
         }
+        // When no bundled declaration was predeclared above (--no-stdlib, or an
+        // imported artifact already supplies the symbol), fall back to a bare
+        // synthetic class shell so `Pair`/`Triple` still resolve as class types.
         for name in [pairName, tripleName] {
             let fqName = kotlinPkg + [name]
-            if let existing = symbols.lookup(fqName: fqName) {
-                // Compatibility shells intentionally keep a nil declSite so bundled
-                // source declarations do not displace them: a nil declSite keeps the
-                // shell's symbol identity stable for `ref=`/`call=` resolution, and
-                // `GoldenHarnessDump.isExcludedLibrarySymbol` omits it from `symbol`
-                // lines in golden dumps (only case-file-local declSites are listed).
-                // The pre-KSP-706 anchor never restored declSite for Pair/Triple
-                // either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`.
-                symbols.setDeclSite(nil, for: existing)
-            } else {
+            if symbols.lookup(fqName: fqName) == nil {
                 _ = symbols.define(
                     kind: .class,
                     name: name,
@@ -634,13 +628,6 @@ extension DataFlowSemaPhase {
                 sourceManager: sourceManager, diagnostics: diagnostics,
                 interner: interner, into: &predeclared
             )
-        }
-        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
-            // Keep the source file association for metadata and declaration
-            // binding, while retaining the historical compatibility-shell
-            // visibility used by semantic inventory goldens. The normal header
-            // pass still fills the source-backed declaration details.
-            symbols.setDeclSite(nil, for: charsetSymbol)
         }
     }
 
@@ -1012,6 +999,54 @@ extension DataFlowSemaPhase {
                 switch decl {
                 case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
                     return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1323: forward-declares the source-backed kotlin.reflect nominal
+    /// types (AssociatedObjectKey and the marker interfaces) before the
+    /// reflection synthetic stubs attach their residual members. Annotation
+    /// classes cannot claim synthetic shells, so AssociatedObjectKey must be
+    /// predeclared; the interfaces take the same path for a single owner.
+    func predeclareBundledReflectTopLevelHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("reflect")]
+        let targetNames: Set<InternedString> = [
+            interner.intern("AssociatedObjectKey"),
+            interner.intern("KAnnotatedElement"),
+            interner.intern("KClassifier"),
+            interner.intern("KDeclarationContainer"),
+            interner.intern("KFunction"),
+            interner.intern("KMutableProperty"),
+            interner.intern("KProperty"),
+            interner.intern("KTypeParameter"),
+        ]
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    guard let name = topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name
+                    else { return false }
+                    return targetNames.contains(name)
                 case .funDecl, .propertyDecl, .enumEntryDecl:
                     return false
                 }
@@ -2068,18 +2103,25 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func shouldRestoreDeclSiteForReusableSyntheticSymbol(
+    func shouldRestoreDeclSiteForReusableSyntheticSymbol(
         fqName: [InternedString],
         interner: StringInterner
     ) -> Bool {
-        // Compatibility shells intentionally keep a nil declSite so bundled
-        // source declarations do not displace them in golden semantic dumps.
-        // KSP-683 needs the migrated Duration nominals to remain source-backed
-        // for their value-class and enum metadata. KSP-1083 applies the same
-        // staged source-shell treatment to the kotlin.concurrent atomic
-        // nominals while their constructors and members remain residual.
+        // A shell reused without restoring its declSite stays non-source-backed
+        // (`isSourceBackedSymbol` returns false): that is the remaining
+        // compiler/metadata compatibility contract for nominals whose call
+        // lowering, export, or member binding still assumes the pre-migration
+        // shell. Golden dumping no longer reads declSite -- symbol origin is
+        // classified from the tracked source file ID instead -- so unlisted
+        // FQNames keep nil declSite only until their compiler-side paths are
+        // migrated off the shell. Listed FQNames were migrated deliberately:
+        // KSP-683 needs the Duration nominals source-backed for their
+        // value-class and enum metadata, and KSP-1083 applies the same staged
+        // source-shell treatment to the kotlin.concurrent atomic nominals
+        // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
         if resolvedFQName == ["kotlin", "collections", "Iterator"]
+            || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
             // KSP-1259: reusing the synthetic Debugging object shell must still
@@ -2092,6 +2134,7 @@ extension DataFlowSemaPhase {
             // KSP-1313: mirror the staged progression source-shell treatment
             // for UIntProgression's nominal and Companion.
             || resolvedFQName == ["kotlin", "ranges", "UIntProgression"]
+            || resolvedFQName == ["kotlin", "ranges", "CharProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
@@ -2110,6 +2153,9 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
+            // KUU-876: the source-backed InvalidMutabilityException must keep
+            // its bundled declSite when the synthetic anchor is reused.
+            || resolvedFQName == ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
             // KSP-1361: Reusing the synthetic SequenceScope shell must still
             // leave the bundled Kotlin declaration source-backed.
             || resolvedFQName == ["kotlin", "sequences", "SequenceScope"] {
@@ -2140,6 +2186,8 @@ extension DataFlowSemaPhase {
         fqName: [InternedString],
         namespacePrefix: String,
         declSite: SourceRange,
+        currentPackageFQName: [InternedString]? = nil,
+        imports: [ImportDecl] = [],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -2202,6 +2250,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: fqName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
                     diagnostics: diagnostics
                 )
             }

@@ -776,6 +776,7 @@ extension BuildASTPhase {
             isMutableProperty: isVarProperty,
             isOverrideProperty: isOverrideProperty,
             isOpenProperty: isOpenProperty,
+            propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
             isCrossinline: isCrossinline,
@@ -806,7 +807,7 @@ extension BuildASTPhase {
             } else {
                 param.type
             }
-            var propertyModifiers: Modifiers = []
+            var propertyModifiers: Modifiers = param.propertyVisibilityModifiers ?? []
             if param.isOverrideProperty {
                 propertyModifiers.insert(.override)
             }

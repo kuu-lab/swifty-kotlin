@@ -105,6 +105,28 @@ struct CodegenBackendRegexEdgeCasesTests {
     }
 
     @Test
+    func testCodegenRegexKuu770UsesKotlinCompatibleSignatures() throws {
+        let source = """
+        fun main() {
+            val regex = Regex("b")
+            val matches: Sequence<MatchResult> = regex.findAll("abcb")
+            println(matches.map { it.range.first }.toList())
+            println(regex.findAll("abcb", 2).map { it.range.first }.toList())
+            println(regex.find("abcb", 2)?.range)
+            println(regex.matchAt("abcb", 1)?.value)
+            println(regex.matchesAt("abcb", 1))
+            println(regex.replace("abcb") { it.value as CharSequence })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RegexKuu770Signatures",
+            expected: "[1, 3]\n[3]\n3..3\nb\ntrue\nabcb\n"
+        )
+    }
+
+    @Test
     func testCodegenMatchResultNextKeepsOriginalInputContext() throws {
         let source = """
         fun show(match: MatchResult?) {

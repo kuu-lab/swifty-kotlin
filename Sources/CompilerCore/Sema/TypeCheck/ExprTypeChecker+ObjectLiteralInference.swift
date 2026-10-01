@@ -111,22 +111,30 @@ extension ExprTypeChecker {
                 guard symbol.kind == .property,
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
-                      sema.symbols.symbol(ownerSymbol)?.kind == .class,
-                      !symbol.flags.contains(.mutable)
+                      sema.symbols.symbol(ownerSymbol)?.kind == .class
                 else {
                     return nil
                 }
                 return symbol.id
             }
         )
+        let mutableOuterReceiverPropertySymbols = Set(outerReceiverPropertySymbols.filter {
+            sema.symbols.symbol($0)?.flags.contains(.mutable) == true
+        })
         // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
         // reachable here: the enclosing object literal captured them, so a
         // nested literal can capture them again through the same chain even
         // though the enclosing member's `this` binding shadows them in
         // `outerLocalsSnapshot`.
-        let captureOuterSymbols = outerSymbols
+        var captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+        // An unqualified call to an enclosing class member still needs that
+        // receiver after the object literal's own receiver becomes active.
+        // Capture the enclosing receiver symbol as a value just like a local.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            captureOuterSymbols.insert(enclosingClassSymbol)
+        }
 
         let objectSymbol = sema.symbols.define(
             kind: symbolKind,
@@ -137,6 +145,12 @@ extension ExprTypeChecker {
             flags: [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
+        // A literal declared inside a class shares its lexical private scope.
+        // Keep that nesting in the symbol graph so its members can read the
+        // enclosing class's private constructor properties.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            sema.symbols.setParentSymbol(enclosingClassSymbol, for: objectSymbol)
+        }
         sema.symbols.setSourceFileID(ctx.currentFileID, for: objectSymbol)
 
         var directSuperSymbols: [SymbolID] = []
@@ -311,6 +325,30 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // Mutable outer receiver properties must keep addressing the enclosing
+        // instance. Capturing their current values would turn writes into writes
+        // to the anonymous object's copy, so capture the receiver once instead.
+        let capturesMutableOuterProperty = capturedSymbols.contains {
+            mutableOuterReceiverPropertySymbols.contains($0)
+        }
+        capturedSymbols.subtract(mutableOuterReceiverPropertySymbols)
+        if capturesMutableOuterProperty,
+           let currentDeclSymbol = ctx.currentDeclSymbol,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           let receiverOwnerSymbol = ctx.enclosingClassSymbol ?? driver.helpers.nominalSymbol(
+               of: sema.types.makeNonNullable(implicitReceiverType),
+               types: sema.types
+           )
+        {
+            let receiverCaptureSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
+            capturedSymbols.insert(receiverCaptureSymbol)
+            sema.bindings.bindCapturedLocalType(receiverCaptureSymbol, type: implicitReceiverType)
+            sema.bindings.bindObjectLiteralCapturedReceiver(
+                objectSymbol,
+                receiverSymbol: receiverCaptureSymbol,
+                ownerSymbol: receiverOwnerSymbol
+            )
+        }
         bindLocalNominalCaptures(
             capturedSymbols,
             ownerSymbol: objectSymbol,

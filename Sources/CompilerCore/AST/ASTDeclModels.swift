@@ -620,6 +620,9 @@ public struct ValueParamDecl: Equatable, Codable {
     /// `true` when a primary constructor property parameter carries the
     /// `open` modifier, e.g. `open class Foo(open val x: String)`.
     public let isOpenProperty: Bool
+    /// Explicit visibility on a primary constructor property. Optional so AST
+    /// payloads written before this field was introduced retain default visibility.
+    public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
     /// `true` when a function parameter is declared with `crossinline`.
@@ -636,6 +639,7 @@ public struct ValueParamDecl: Equatable, Codable {
         isMutableProperty: Bool = false,
         isOverrideProperty: Bool = false,
         isOpenProperty: Bool = false,
+        propertyVisibilityModifiers: Modifiers? = nil,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
         isCrossinline: Bool = false,
@@ -649,6 +653,7 @@ public struct ValueParamDecl: Equatable, Codable {
         self.isMutableProperty = isMutableProperty
         self.isOverrideProperty = isOverrideProperty
         self.isOpenProperty = isOpenProperty
+        self.propertyVisibilityModifiers = propertyVisibilityModifiers
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
         self.isCrossinline = isCrossinline

@@ -1,6 +1,8 @@
 package kotlin.text
 
 import kotlin.internal.KsSymbolName
+import kotlin.sequences.emptySequence
+import kotlin.sequences.generateSequence
 
 // KSP-487
 // Regex public API layer migrated from synthetic Swift stubs.
@@ -33,7 +35,7 @@ public class Regex {
     }
 
     @KsSymbolName("__kk_regex_find_flat")
-    public external fun find(input: String): MatchResult?
+    private external fun find(input: String): MatchResult?
 
     // Keep the CharSequence API as explicit arity overloads. The String bridge
     // above and a defaulted source-backed parameter can otherwise be exposed as
@@ -45,11 +47,12 @@ public class Regex {
         require(startIndex >= 0 && startIndex <= source.length) {
             "Start index out of bounds: $startIndex"
         }
-        return findFrom(source, startIndex)
+        var match = find(source)
+        while (match != null && match.range.first < startIndex) {
+            match = match.next()
+        }
+        return match
     }
-
-    @KsSymbolName("__kk_regex_findAll_flat")
-    public external fun findAll(input: String): List<MatchResult>
 
     public fun findAll(input: CharSequence): Sequence<MatchResult> = findAll(input, 0)
 
@@ -58,63 +61,45 @@ public class Regex {
         require(startIndex >= 0 && startIndex <= source.length) {
             "Start index out of bounds: $startIndex"
         }
-        val result = ArrayList<MatchResult>()
-        for (match in findAll(source)) {
-            if (match.range.first >= startIndex) result.add(match)
+        var first = find(source)
+        while (first != null && first.range.first < startIndex) {
+            first = first.next()
         }
-        return result.asSequence()
+        if (first == null) return emptySequence<MatchResult>()
+        return generateSequence<MatchResult>(first) { it.next() }
     }
 
-    @KsSymbolName("__kk_regex_matchEntire_flat")
-    public external fun matchEntire(input: String): MatchResult?
-
-    public fun matchAt(input: CharSequence, startIndex: Int): MatchResult? {
-        val match = find(input, startIndex) ?: return null
-        return if (match.range.first == startIndex) match else null
+    public fun matchAt(input: CharSequence, index: Int): MatchResult? {
+        val match = find(input, index) ?: return null
+        return if (match.range.first == index) match else null
     }
 
     public fun matchEntire(input: CharSequence): MatchResult? =
-        matchEntire(input.regexInputString())
-
-    @KsSymbolName("__kk_regex_containsMatchIn_flat")
-    public external fun containsMatchIn(input: String): Boolean
+        __kkRegexMatchEntire(this, input.regexInputString())
 
     public fun containsMatchIn(input: CharSequence): Boolean =
-        containsMatchIn(input.regexInputString())
-
-    @KsSymbolName("__kk_regex_matches_flat")
-    public external fun matches(input: String): Boolean
+        __kkRegexContainsMatchIn(this, input.regexInputString())
 
     public fun matches(input: CharSequence): Boolean =
-        matches(input.regexInputString())
+        __kkRegexMatches(this, input.regexInputString())
 
-    public fun matchesAt(input: CharSequence, startIndex: Int): Boolean =
-        matchAt(input, startIndex) != null
-
-    public fun replace(input: String, replacement: String): String =
-        __kk_replace_regex(input, this, replacement)
+    public fun matchesAt(input: CharSequence, index: Int): Boolean =
+        matchAt(input, index) != null
 
     public fun replace(input: CharSequence, replacement: String): String =
-        replace(input.regexInputString(), replacement)
-
-    public fun replaceFirst(input: String, replacement: String): String =
-        __kk_replaceFirst_regex(input, this, replacement)
+        regexReplace(this, input.regexInputString(), replacement)
 
     public fun replaceFirst(input: CharSequence, replacement: String): String =
-        replaceFirst(input.regexInputString(), replacement)
-
-    @KsSymbolName("__kk_regex_replace_lambda")
-    public external fun replace(input: String, transform: (MatchResult) -> String): String
+        regexReplaceFirst(this, input.regexInputString(), replacement)
 
     public fun replace(
         input: CharSequence,
         transform: (MatchResult) -> CharSequence
     ): String {
         val source = input.regexInputString()
-        val matches = findAll(source)
         val result = StringBuilder()
         var cursor = 0
-        for (match in matches) {
+        for (match in findAll(source)) {
             val start = match.range.first
             val end = match.range.last + 1
             if (start < cursor) continue
@@ -126,36 +111,51 @@ public class Regex {
         return result.toString()
     }
 
+    public fun split(input: CharSequence, limit: Int = 0): List<String> =
+        regexSplit(this, input.regexInputString(), limit)
+
+    public fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> =
+        regexSplit(this, input.regexInputString(), limit).asSequence()
+
     // Constructor parameter `pattern` is not a property; naming this
     // `= pattern` would bind to that parameter slot (uninitialized / null)
     // instead of the `Regex.pattern` extension.
-    public override fun toString(): String = __kkRegexPattern(this)
+    override fun toString(): String = __kkRegexPattern(this)
+}
 
-    public fun split(input: String, limit: Int = 0): List<String> {
-        requireNonNegativeLimit(limit)
-        if (limit == 0) {
-            return __kk_split_regex(input, this)
-        }
-        val result = ArrayList<String>()
-        var lastStart = 0
-        var count = 0
-        for (match in findAll(input)) {
-            if (count >= limit - 1) {
-                break
-            }
-            result.add(input.substring(lastStart, match.range.first))
-            lastStart = match.range.last + 1
-            count++
-        }
-        result.add(input.substring(lastStart, input.length))
-        return result
+@KsSymbolName("__kk_regex_matchEntire_flat")
+private external fun __kkRegexMatchEntire(regex: Regex, input: String): MatchResult?
+
+@KsSymbolName("__kk_regex_containsMatchIn_flat")
+private external fun __kkRegexContainsMatchIn(regex: Regex, input: String): Boolean
+
+@KsSymbolName("__kk_regex_matches_flat")
+private external fun __kkRegexMatches(regex: Regex, input: String): Boolean
+
+private fun regexReplace(regex: Regex, input: String, replacement: String): String =
+    __kk_replace_regex(input, regex, replacement)
+
+private fun regexReplaceFirst(regex: Regex, input: String, replacement: String): String =
+    __kk_replaceFirst_regex(input, regex, replacement)
+
+private fun regexSplit(regex: Regex, input: String, limit: Int = 0): List<String> {
+    requireNonNegativeLimit(limit)
+    if (limit == 0) {
+        return __kk_split_regex(input, regex)
     }
-
-    public fun split(input: CharSequence, limit: Int = 0): List<String> =
-        split(input.regexInputString(), limit)
-
-    public fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> =
-        split(input.regexInputString(), limit).asSequence()
+    val result = ArrayList<String>()
+    var lastStart = 0
+    var count = 0
+    for (match in regex.findAll(input)) {
+        if (count >= limit - 1) {
+            break
+        }
+        result.add(input.substring(lastStart, match.range.first))
+        lastStart = match.range.last + 1
+        count++
+    }
+    result.add(input.substring(lastStart, input.length))
+    return result
 }
 
 internal fun requireNonNegativeLimit(limit: Int) =
@@ -179,12 +179,4 @@ private fun CharSequence.regexInputString(): String {
         index++
     }
     return builder.toString()
-}
-
-private fun Regex.findFrom(input: String, startIndex: Int): MatchResult? {
-    var match = find(input)
-    while (match != null && match.range.first < startIndex) {
-        match = match.next()
-    }
-    return match
 }
