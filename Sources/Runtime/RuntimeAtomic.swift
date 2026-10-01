@@ -384,10 +384,10 @@ final class AtomicRefBox {
         kkrt_atomic_word_exchange(storage, new)
     }
 
-    /// CAS matching `runtimeAtomicRefValuesMatch` so value-type words that
+    /// CAS matching `runtimeAtomicRefValuesMatch` so primitive values that
     /// marshal differently across the erased-T boundary (bare primitive vs
-    /// fresh box, re-materialized string handle) still compare equal, while
-    /// real object references keep pointer identity. On success the caller's
+    /// fresh box) still compare equal, while references keep pointer identity.
+    /// On success the caller's
     /// `expect` word is returned rather than the stored word: the Kotlin-level
     /// `compareAndSet` is `compareAndExchange(...) === expectedValue`, and
     /// `===` is raw word equality, so returning the stored word would report
@@ -765,14 +765,14 @@ final class AtomicRefArrayBox {
         return kkrt_atomic_word_exchange(cell, newValue)
     }
 
-    /// Identity-based CAS, with string boxes compared structurally because aggregate
-    /// string lowering may materialize an equivalent RuntimeStringBox at ABI edges.
+    /// AtomicArray<T> CAS retains value matching for primitive values and strings,
+    /// including equivalent RuntimeStringBox values materialized at ABI edges.
     /// The CAS loop retries on the newly observed value so the swap still happens
     /// iff the cell held a matching value at the successful compare-exchange.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
         guard let cell = cell(at: index) else { return false }
         var observed = kkrt_atomic_word_load(cell)
-        while runtimeAtomicRefValuesMatch(observed, expect) {
+        while runtimeAtomicArrayValuesMatch(observed, expect) {
             var exchanged = false
             observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
             if exchanged { return true }
@@ -784,7 +784,7 @@ final class AtomicRefArrayBox {
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
         guard let cell = cell(at: index) else { return 0 }
         var observed = kkrt_atomic_word_load(cell)
-        while runtimeAtomicRefValuesMatch(observed, expect) {
+        while runtimeAtomicArrayValuesMatch(observed, expect) {
             var exchanged = false
             observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
             if exchanged { break }
@@ -895,18 +895,27 @@ private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
     word == 0 || word == runtimeNullSentinelInt
 }
 
-/// Value-typed CAS match for `AtomicReference` / `AtomicArray<T>`: identical
-/// words match (object identity and equal raw payloads), boxes of the same
-/// primitive/String kind match by payload, and a bare stored word matches a
-/// box carrying the same payload. Distinct object handles never match.
+/// AtomicReference CAS matches primitive value boxes across the erased-T ABI,
+/// but preserves reference identity for strings and other objects. Identical
+/// words always match; a bare primitive payload can match a box of that value.
 private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
+    runtimeAtomicValuesMatch(lhs, rhs, matchStringPayload: false)
+}
+
+/// AtomicArray<T> keeps value matching for String payloads as well as primitive
+/// boxes because its current bridge may rematerialize equivalent string boxes.
+private func runtimeAtomicArrayValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
+    runtimeAtomicValuesMatch(lhs, rhs, matchStringPayload: true)
+}
+
+private func runtimeAtomicValuesMatch(_ lhs: Int, _ rhs: Int, matchStringPayload: Bool) -> Bool {
     if lhs == rhs {
         return true
     }
     let left = runtimeAtomicRefWordValue(lhs)
     let right = runtimeAtomicRefWordValue(rhs)
     switch (left, right) {
-    case let (.string(l), .string(r)):
+    case let (.string(l), .string(r)) where matchStringPayload:
         return runtimeStringsEqual(l, r)
     case let (.bool(l), .bool(r)):
         return l == r
