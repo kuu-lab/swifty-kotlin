@@ -796,6 +796,7 @@ extension KotlinParser {
         var cursor = offset
         var work = 0
         var prefixIndices: [Int] = []
+        var sawValueModifier = false
         while true {
             guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
                 // Treat an over-budget prefix as a recovery boundary. The outer
@@ -806,6 +807,9 @@ extension KotlinParser {
 
             let token = stream.peek(cursor)
             if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
+                if kw == .value {
+                    sawValueModifier = true
+                }
                 prefixIndices.append(stream.index + cursor)
                 cursor += 1
                 continue
@@ -834,9 +838,24 @@ extension KotlinParser {
                 continue
             }
 
-            let result = isDeclarationStart(token.kind)
-            cacheGenuineDeclarationLookahead(result, for: prefixIndices)
-            genuineDeclarationLookahead[stream.index + cursor] = result
+            // `value` is a modifier for a value class, but it is also a legal
+            // identifier in an expression. In `fun f() =\n value\n fun g() = 0`,
+            // the next `fun` is a separate declaration, not one modified by
+            // `value`; otherwise `f` loses its expression body.
+            let startsDeclaration = isDeclarationStart(token.kind)
+            let result = startsDeclaration
+                && (!sawValueModifier || token.kind == .keyword(.class))
+            if sawValueModifier, !result {
+                // A suffix such as `suspend fun` can still start a declaration
+                // after the expression's `value` has been consumed. Do not
+                // cache this false verdict for every prefix token.
+                genuineDeclarationLookahead[startIndex] = false
+            } else {
+                cacheGenuineDeclarationLookahead(result, for: prefixIndices)
+            }
+            // The terminal keyword remains a declaration start on its own,
+            // even when this modifier prefix does not belong to it.
+            genuineDeclarationLookahead[stream.index + cursor] = startsDeclaration
             return result ? .declaration : .notDeclaration
         }
     }
