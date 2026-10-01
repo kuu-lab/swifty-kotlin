@@ -1,5 +1,5 @@
 package golden.sema
-
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 fun configureHexFormatBuilder(builder: kotlin.text.HexFormat.Builder): kotlin.text.HexFormat {
     val bytesBuilder: kotlin.text.HexFormat.BytesHexFormat.Builder = builder.bytes
     val numberBuilder: kotlin.text.HexFormat.NumberHexFormat.Builder = builder.number

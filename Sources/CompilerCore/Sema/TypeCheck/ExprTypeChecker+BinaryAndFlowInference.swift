@@ -82,11 +82,48 @@ extension ExprTypeChecker {
             return boolType
         }
 
-        let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
+        // A simple, already-available fallback can constrain a generic safe-call
+        // on the left (`x?.let { Result.failure(it) } ?: RESUME`). Resolve only
+        // an independent name reference early: arbitrary RHS expressions may
+        // read locals modified while checking the LHS and must keep their order.
+        let isSafeLetElvisFailure: Bool
+        if op == .elvis,
+           case let .safeMemberCall(_, member, _, args, _) = ast.arena.expr(lhsID),
+           interner.resolve(member) == "let", args.count == 1,
+           case let .lambdaLiteral(_, lambdaBodyID, _, _) = ast.arena.expr(args[0].expr)
+        {
+            let bodyID: ExprID? = if case let .blockExpr(_, trailing, _) = ast.arena.expr(lambdaBodyID) {
+                trailing
+            } else {
+                lambdaBodyID
+            }
+            isSafeLetElvisFailure = if let bodyID,
+               case let .memberCall(_, method, typeArgs, _, _) = ast.arena.expr(bodyID),
+               interner.resolve(method) == "failure", typeArgs.isEmpty
+            { true } else { false }
+        } else {
+            isSafeLetElvisFailure = false
+        }
+        let earlyElvisRhs: TypeID? = {
+            guard isSafeLetElvisFailure, expectedType == nil,
+                  case let .nameRef(rhsName, _) = ast.arena.expr(rhsID),
+                  locals[rhsName]?.isInitialized != false
+            else { return nil }
+            let rhsType = driver.inferExpr(rhsID, ctx: ctx, locals: &locals)
+            guard case let .classType(resultClass) = sema.types.kind(of: sema.types.makeNonNullable(rhsType)),
+                  sema.symbols.symbol(resultClass.classSymbol)?.fqName
+                    == KnownCompilerNames(interner: interner).kotlinResultFQName
+            else { return nil }
+            return rhsType
+        }()
+        let lhs = driver.inferExpr(
+            lhsID, ctx: ctx, locals: &locals,
+            expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
+        )
         // Elvis can narrow an integer literal on the right side to the overall
         // expected type, e.g. `val b: Byte = parsed ?: 0`.
         let rhsExpectedType: TypeID? = if op == .elvis { expectedType } else { nil }
-        let rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+        let rhs = earlyElvisRhs ?? driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely —

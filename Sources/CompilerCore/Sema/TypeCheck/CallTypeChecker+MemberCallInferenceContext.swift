@@ -384,6 +384,14 @@ extension CallTypeChecker {
         // namespace path, never type-checked above, so KIR lowering must not
         // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.
         sema.bindings.markFQNTopLevelCallExpr(id)
+        // KSP-1323: fully-qualified `kotlin.reflect.typeOf<T>()` expands
+        // through the same intrinsic as the unqualified spelling instead of
+        // calling the bundled declaration body.
+        if args.isEmpty,
+           sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
+        {
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(
             in: signature.returnType,

@@ -402,7 +402,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
     }
 
     @Test
-    func testLLVMBackendDoesNotEmitLegacyIfBlankEmptyRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendUsesFlatCompatibilityCallsForIfBlankEmptyStringOverloads() throws {
         let source = """
         fun main() {
             val blank = "   "
@@ -427,8 +427,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
             #expect(!ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
             #expect(!ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
-            #expect(!ir.contains("@kk_string_ifBlank_flat"), "Unexpected flat String ifBlank call after KSP-401")
-            #expect(!ir.contains("@kk_string_ifEmpty_flat"), "Unexpected flat String ifEmpty call after KSP-401")
+            #expect(ir.contains("@kk_string_ifBlank_flat"), "Expected flat String ifBlank compatibility call")
+            #expect(ir.contains("@kk_string_ifEmpty_flat"), "Expected flat String ifEmpty compatibility call")
         }
     }
 

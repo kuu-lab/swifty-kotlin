@@ -88,3 +88,45 @@ public fun AtomicInt.toString(): String =
 @SinceKotlin("2.1")
 public val AtomicInt.value: Int
     get() = __kkAtomicIntLoad()
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public operator fun AtomicInt.plusAssign(delta: Int): Unit {
+    addAndFetch(delta)
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public operator fun AtomicInt.minusAssign(delta: Int): Unit {
+    addAndFetch(-delta)
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun AtomicInt.incrementAndFetch(): Int =
+    addAndFetch(1)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public fun AtomicInt.decrementAndFetch(): Int =
+    addAndFetch(-1)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.2")
+public inline fun AtomicInt.update(transform: (Int) -> Int): Unit {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndSet(old, newValue)) return
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.2")
+public inline fun AtomicInt.updateAndFetch(transform: (Int) -> Int): Int {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndSet(old, newValue)) return newValue
+    }
+}
