@@ -96,6 +96,8 @@ extension ExprTypeChecker {
             return boolType
         }
         if (op == .equal || op == .notEqual),
+           !sema.bindings.isRangeExpr(lhsID),
+           !sema.bindings.isRangeExpr(rhsID),
            equalityHasIncompatibleBuiltinTypes(
                equalityDeclaredType(lhsID, inferred: lhs, sema: sema),
                equalityDeclaredType(rhsID, inferred: rhs, sema: sema),
@@ -694,6 +696,15 @@ extension ExprTypeChecker {
     // Type-parameter bounds and enum/value-class diagnostics have additional
     // warning rules and remain on the existing path.
     private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        // Nullable primitive equality has an existing runtime path that checks
+        // both operands for null (including mixed pairs such as Long? == Int?).
+        // Keep those comparisons available while rejecting non-null mismatches.
+        if case .primitive(_, .nullable) = sema.types.kind(of: lhs),
+           case .primitive(_, .nullable) = sema.types.kind(of: rhs)
+        {
+            return false
+        }
+
         func erasedOperand(_ type: TypeID) -> TypeID? {
             let nonNull = sema.types.makeNonNullable(type)
             switch sema.types.kind(of: nonNull) {

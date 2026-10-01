@@ -35,6 +35,11 @@ struct DisjointEqualityTypeTests {
             class Other
             fun openFinal(base: Base, other: Other) = base == other
             fun ranges(first: IntRange, second: LongRange) = first == second
+            fun rangeExpression(range: LongRange): Boolean {
+                val same = 2L..11L
+                return range == same
+            }
+            fun nullablePrimitives(first: Long?, second: Int?) = first == second
             fun <T> generic(value: T, number: Int) = value == number
             fun <T : Any> nonNullGeneric(value: T, number: Int) = value == number
             fun comparable(text: String, other: Comparable<Int>) = text == other
