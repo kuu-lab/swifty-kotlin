@@ -96,11 +96,9 @@ extension ExprTypeChecker {
             return boolType
         }
         if (op == .equal || op == .notEqual),
-           !sema.bindings.isRangeExpr(lhsID),
-           !sema.bindings.isRangeExpr(rhsID),
            equalityHasIncompatibleBuiltinTypes(
-               equalityDeclaredType(lhsID, inferred: lhs, sema: sema),
-               equalityDeclaredType(rhsID, inferred: rhs, sema: sema),
+               equalityOperandType(lhsID, inferred: lhs, ctx: ctx),
+               equalityOperandType(rhsID, inferred: rhs, ctx: ctx),
                sema: sema
            )
         {
@@ -676,6 +674,27 @@ extension ExprTypeChecker {
         }
     }
 
+    private func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
+        let sema = ctx.sema
+        let declared = equalityDeclaredType(expr, inferred: inferred, sema: sema)
+        // Range literals and their local references can carry a scalar element
+        // type for lowering. Compare their source-level range types instead.
+        guard sema.bindings.isRangeExpr(expr),
+              case .primitive = sema.types.kind(of: sema.types.makeNonNullable(declared))
+        else { return declared }
+        return driver.callChecker.sourceLevelRangeMemberLookupType(
+            receiverExpr: expr,
+            receiverType: declared,
+            sema: sema,
+            interner: ctx.interner
+        ) ?? driver.callChecker.floatingPointRangeArgumentType(
+            expr,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner
+        ) ?? declared
+    }
+
     // Use the declaration type for smart-cast references. Kotlin only warns
     // when a comparison becomes incompatible after smart casting.
     private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
@@ -696,15 +715,6 @@ extension ExprTypeChecker {
     // Type-parameter bounds and enum/value-class diagnostics have additional
     // warning rules and remain on the existing path.
     private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
-        // Nullable primitive equality has an existing runtime path that checks
-        // both operands for null (including mixed pairs such as Long? == Int?).
-        // Keep those comparisons available while rejecting non-null mismatches.
-        if case .primitive(_, .nullable) = sema.types.kind(of: lhs),
-           case .primitive(_, .nullable) = sema.types.kind(of: rhs)
-        {
-            return false
-        }
-
         func erasedOperand(_ type: TypeID) -> TypeID? {
             let nonNull = sema.types.makeNonNullable(type)
             switch sema.types.kind(of: nonNull) {
