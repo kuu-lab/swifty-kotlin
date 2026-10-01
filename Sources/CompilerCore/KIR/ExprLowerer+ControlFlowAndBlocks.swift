@@ -2208,15 +2208,27 @@ extension ExprLowerer {
             )
 
         case let .compoundAssign(op, _, valueExpr, _):
-            let rhsID = lowerExpr(
-                valueExpr,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+            // Kotlin's compound assignment reads the current target value
+            // BEFORE evaluating the right-hand side (e.g. `y += y++ + ++y`
+            // must read the pre-RHS value of `y`, not the value after the
+            // RHS's own increments have run). Lowering the RHS eagerly here
+            // — before any branch below has loaded the target's current
+            // value — would append the RHS's (possibly side-effecting)
+            // instructions first, so a later load of the same storage would
+            // observe the mutated value. `lowerRHS()` is called exactly
+            // once, from each branch below, immediately after that branch's
+            // load of the current value.
+            func lowerRHS() -> KIRExprID {
+                lowerExpr(
+                    valueExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
             let kirOp: KIRBinaryOp = switch op {
             case .plusAssign: .add
             case .minusAssign: .subtract
@@ -2433,6 +2445,7 @@ extension ExprLowerer {
                         sema: sema,
                         interner: interner
                     ))
+                    let rhsID = lowerRHS()
                     let computedValue = appendBuiltinCompoundResult(
                         lhs: loadedValue,
                         lhsType: propertyType,
@@ -2502,6 +2515,7 @@ extension ExprLowerer {
                             thrownResult: nil
                         ))
                     }
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2529,6 +2543,7 @@ extension ExprLowerer {
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
                     let loadedValue = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.loadGlobal(result: loadedValue, symbol: symbol))
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2588,6 +2603,7 @@ extension ExprLowerer {
                             thrownResult: nil
                         ))
                     }
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2619,6 +2635,7 @@ extension ExprLowerer {
                 {
                     let symbolType = driver.ctx.localDeclaredType(for: symbol)
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2691,6 +2708,7 @@ extension ExprLowerer {
                             thrownResult: nil
                         ))
                     }
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2713,16 +2731,26 @@ extension ExprLowerer {
                         // persists across loop iterations.
                         let symbolType = driver.ctx.localDeclaredType(for: symbol)
                             ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                        // `storageID` is this local's persistent storage register,
+                        // returned by identity (not a value snapshot). If the RHS
+                        // mutates the same local in place (e.g. `y += y++ + ++y`),
+                        // lowering it before reading the current value here would
+                        // let this read observe the RHS's own mutation instead of
+                        // the value Kotlin's left-to-right evaluation order
+                        // requires. Freeze it into a fresh temporary first.
+                        let frozenLHS = arena.appendTemporary(type: symbolType)
+                        instructions.append(.copy(from: storageID, to: frozenLHS))
+                        let rhsID = lowerRHS()
                         if let callBinding = sema.bindings.callBindings[exprID],
                            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                             if signature.returnType == sema.types.unitType {
-                                _ = appendOperatorCompoundResult(lhs: storageID, rhs: rhsID, resultType: signature.returnType)
-                            } else if let resultID = appendOperatorCompoundResult(lhs: storageID, rhs: rhsID, resultType: signature.returnType) {
+                                _ = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType)
+                            } else if let resultID = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType) {
                                 instructions.append(.copy(from: resultID, to: storageID))
                             }
                         } else {
                             let resultID = appendBuiltinCompoundResult(
-                                lhs: storageID,
+                                lhs: frozenLHS,
                                 lhsType: symbolType,
                                 rhs: rhsID,
                                 rhsType: arena.exprType(rhsID)
@@ -2736,6 +2764,7 @@ extension ExprLowerer {
                             ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                         let lhsID = arena.appendExpr(.symbolRef(symbol), type: symbolType)
                         instructions.append(.constValue(result: lhsID, value: .symbolRef(symbol)))
+                        let rhsID = lowerRHS()
                         if let callBinding = sema.bindings.callBindings[exprID],
                            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                             if signature.returnType == sema.types.unitType {
