@@ -126,6 +126,7 @@ extension DataFlowSemaPhase {
 
             records.append(ImportedLibrarySymbolRecord(
                 kind: metadataRecord.kind,
+                visibility: metadataRecord.visibility,
                 mangledName: metadataRecord.mangledName,
                 fqName: fqName,
                 arity: metadataRecord.arity,

@@ -1,5 +1,5 @@
 package golden.sema
-
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 fun countOverflowReturnsUnit(): Unit = kotlin.collections.throwCountOverflow()
 
 fun indexOverflowReturnsUnit(): Unit = kotlin.collections.throwIndexOverflow()

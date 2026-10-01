@@ -1,0 +1,19 @@
+symbol fq=golden.sema.atomicLongArrayUpdateAndFetchAt.$0.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayUpdateAndFetchAt.$0.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayUpdateAndFetchAt.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,fn{p=Long;ret=Long}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray,Int,(Long) -> Long] ret=Long
+symbol fq=golden.sema.atomicLongArrayUpdateAt.$1.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayUpdateAt.$1.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayUpdateAt.$1.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,fn{p=Long;ret=Long}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicLongArray,Int,(Long) -> Long] ret=Unit
+file fstdlib_kotlin_concurrent_atomics_AtomicLongArray_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicLongArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,fn{p=Long;ret=Long}] fun atomicLongArrayUpdateAt sym=golden.sema.atomicLongArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,fn{p=Long;ret=Long}]
+  decl golden.sema.atomicLongArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,fn{p=Long;ret=Long}] fun atomicLongArrayUpdateAndFetchAt sym=golden.sema.atomicLongArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicLongArray,Int,fn{p=Long;ret=Long}]
+expr e@11:11 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArrayUpdateAt.$1.values[kind=vparam]
+expr e@11:27 name(index) type=Int ref=golden.sema.atomicLongArrayUpdateAt.$1.index[kind=vparam]
+expr e@11:34 name(transform) type=(Long) -> Long ref=golden.sema.atomicLongArrayUpdateAt.$1.transform[kind=vparam]
+expr e@11:11#1 memberCall recv=e@11:11 callee=updateAt args=[_:e@11:27,_:e@11:34] type=Unit call=kotlin.concurrent.atomics.updateAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int,fn{p=Long;ret=Long}]
+expr e@17:11 name(values) type=kotlin.concurrent.atomics.AtomicLongArray ref=golden.sema.atomicLongArrayUpdateAndFetchAt.$0.values[kind=vparam]
+expr e@17:35 name(index) type=Int ref=golden.sema.atomicLongArrayUpdateAndFetchAt.$0.index[kind=vparam]
+expr e@17:42 name(transform) type=(Long) -> Long ref=golden.sema.atomicLongArrayUpdateAndFetchAt.$0.transform[kind=vparam]
+expr e@17:11#1 memberCall recv=e@17:11 callee=updateAndFetchAt args=[_:e@17:35,_:e@17:42] type=Long call=kotlin.concurrent.atomics.updateAndFetchAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int,fn{p=Long;ret=Long}]

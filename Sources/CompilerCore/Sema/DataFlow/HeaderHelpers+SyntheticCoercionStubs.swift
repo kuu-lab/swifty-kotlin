@@ -62,7 +62,7 @@ extension DataFlowSemaPhase {
 
             registerSyntheticCoercionFunction(
                 named: "toInt",
-                externalLinkName: "kk_int_to_int",
+                externalLinkName: "kk_primitive_identity",
                 receiverType: types.intType,
                 parameters: [],
                 returnType: types.intType,
@@ -351,6 +351,80 @@ extension DataFlowSemaPhase {
                     receiverType: stub.receiver,
                     parameters: [],
                     returnType: stub.result,
+                    packageFQName: kotlinPkg,
+                    packageSymbol: kotlinPackageSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    types: types
+                )
+            }
+
+            // KUU-938: explicit primitive receivers use the conversion path in
+            // CallLowerer+LegacyMemberLikeCalls, but a bare `toX()` in an
+            // extension body resolves through these kotlin.toX stubs. Share
+            // the existing runtime bridges and mark representation-preserving
+            // conversions for a KIR copy (there is no identity runtime symbol).
+            // Byte/Short.toChar() is error-level deprecated in Kotlin 2.3;
+            // leave it on the existing explicit receiver deprecation path.
+            let smallIntegerConversions: [(
+                name: String, link: String, receiver: TypeID, result: TypeID
+            )] = [
+                ("toInt", "kk_primitive_identity", types.byteType, types.intType),
+                ("toLong", "kk_primitive_identity", types.byteType, types.longType),
+                ("toShort", "kk_primitive_identity", types.byteType, types.shortType),
+                ("toUInt", "kk_int_to_uint", types.byteType, types.uintType),
+                ("toULong", "kk_int_to_ulong", types.byteType, types.ulongType),
+                ("toFloat", "kk_int_to_float", types.byteType, types.floatType),
+                ("toDouble", "kk_int_to_double_bits", types.byteType, types.doubleType),
+                ("toUByte", "kk_int_to_ubyte", types.byteType, types.ubyteType),
+                ("toUShort", "kk_int_to_ushort", types.byteType, types.ushortType),
+                ("toByte", "kk_int_to_byte", types.shortType, types.byteType),
+                ("toInt", "kk_primitive_identity", types.shortType, types.intType),
+                ("toLong", "kk_primitive_identity", types.shortType, types.longType),
+                ("toUInt", "kk_int_to_uint", types.shortType, types.uintType),
+                ("toULong", "kk_int_to_ulong", types.shortType, types.ulongType),
+                ("toFloat", "kk_int_to_float", types.shortType, types.floatType),
+                ("toDouble", "kk_int_to_double_bits", types.shortType, types.doubleType),
+                ("toUByte", "kk_int_to_ubyte", types.shortType, types.ubyteType),
+                ("toUShort", "kk_int_to_ushort", types.shortType, types.ushortType),
+            ]
+            for stub in smallIntegerConversions {
+                registerSyntheticCoercionFunction(
+                    named: stub.name,
+                    externalLinkName: stub.link,
+                    receiverType: stub.receiver,
+                    parameters: [],
+                    returnType: stub.result,
+                    packageFQName: kotlinPkg,
+                    packageSymbol: kotlinPackageSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    types: types
+                )
+            }
+
+            // Include the unsigned identities independently of the unsigned
+            // non-identity matrix in KUU-919. A source-backed declaration, if
+            // present, wins because registration skips its exact signature.
+            let primitiveIdentities: [(name: String, type: TypeID)] = [
+                ("toByte", types.byteType),
+                ("toShort", types.shortType),
+                ("toLong", types.longType),
+                ("toFloat", types.floatType),
+                ("toDouble", types.doubleType),
+                ("toChar", types.charType),
+                ("toUByte", types.ubyteType),
+                ("toUShort", types.ushortType),
+                ("toUInt", types.uintType),
+                ("toULong", types.ulongType),
+            ]
+            for identity in primitiveIdentities {
+                registerSyntheticCoercionFunction(
+                    named: identity.name,
+                    externalLinkName: "kk_primitive_identity",
+                    receiverType: identity.type,
+                    parameters: [],
+                    returnType: identity.type,
                     packageFQName: kotlinPkg,
                     packageSymbol: kotlinPackageSymbol,
                     symbols: symbols,

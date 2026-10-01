@@ -6,7 +6,7 @@ symbol fq=golden.sema.Bag.size[kind=prop] kind=property vis=public flags=overrid
 symbol fq=golden.sema.BagIterator.<init>.$1.items[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.BagIterator.<init>[kind=ctor;recv=golden.sema.BagIterator;params=kotlin.collections.ArrayList<Int>] kind=constructor vis=public flags=_ sig=recv=golden.sema.BagIterator params=[kotlin.collections.ArrayList<Int>] ret=golden.sema.BagIterator
 symbol fq=golden.sema.BagIterator.index[kind=prop] kind=property vis=private flags=mutable type=Int
-symbol fq=golden.sema.BagIterator.items[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.ArrayList<Int>
+symbol fq=golden.sema.BagIterator.items[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.ArrayList<Int>
 symbol fq=golden.sema.BagIterator[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.Bag[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.probe.$2.values[kind=vparam] kind=valueParameter vis=private flags=_

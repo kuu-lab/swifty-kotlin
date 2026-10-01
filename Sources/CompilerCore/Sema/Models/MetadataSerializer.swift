@@ -12,6 +12,7 @@ package enum MetadataModality: String {
 /// This is the single source of truth for what information survives the metadata round-trip.
 package struct MetadataRecord {
     package let kind: SymbolKind
+    package let visibility: Visibility
     let mangledName: String
     package let fqName: String
     package let arity: Int
@@ -140,6 +141,7 @@ package struct MetadataRecord {
 
     init(
         kind: SymbolKind,
+        visibility: Visibility = .public,
         mangledName: String = "",
         fqName: String = "",
         arity: Int = 0,
@@ -194,6 +196,7 @@ package struct MetadataRecord {
         nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
+        self.visibility = visibility
         self.mangledName = mangledName
         self.fqName = fqName
         self.arity = arity
@@ -752,6 +755,7 @@ package final class MetadataEncoder {
             if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
                 return MetadataRecord(
                     kind: symbol.kind,
+                    visibility: symbol.visibility,
                     mangledName: mangled,
                     fqName: fqName,
                     declaredFieldCount: layout.instanceFieldCount,
@@ -774,6 +778,7 @@ package final class MetadataEncoder {
             }
             return MetadataRecord(
                 kind: symbol.kind,
+                visibility: symbol.visibility,
                 mangledName: mangled,
                 fqName: fqName,
                 superFQName: computedSuperFQName,
@@ -1124,6 +1129,7 @@ package final class MetadataEncoder {
 
         return MetadataRecord(
             kind: symbol.kind,
+            visibility: symbol.visibility,
             mangledName: mangled,
             fqName: fqName,
             arity: arity,
@@ -1320,6 +1326,15 @@ package final class MetadataEncoder {
                 "fq=\(record.fqName)",
                 "schema=v1",
             ]
+            if record.visibility != .public {
+                let encoded: String = switch record.visibility {
+                case .public: "public"
+                case .private: "private"
+                case .internal: "internal"
+                case .protected: "protected"
+                }
+                fields.append("visibility=\(encoded)")
+            }
             if record.kind == .function || record.kind == .constructor {
                 fields.append("arity=\(record.arity)")
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
@@ -1740,6 +1755,7 @@ final class MetadataDecoder {
 
             records.append(MetadataRecord(
                 kind: kind,
+                visibility: rec.visibility,
                 mangledName: mangledName,
                 fqName: rec.fqName,
                 arity: rec.arity,
@@ -1802,6 +1818,7 @@ final class MetadataDecoder {
     /// Mutable accumulator used while parsing a single metadata line.
     private struct MutableMetadataRecord {
         var fqName: String = ""
+        var visibility: Visibility = .public
         var arity: Int = 0
         var isSuspend: Bool = false
         var isInline: Bool = false
@@ -1859,6 +1876,14 @@ final class MetadataDecoder {
         switch key {
         case "fq":
             record.fqName = value
+        case "visibility":
+            record.visibility = switch value {
+            case "public": .public
+            case "private": .private
+            case "internal": .internal
+            case "protected": .protected
+            default: .private
+            }
         case "arity":
             record.arity = Int(value) ?? Int.max
         case "suspend":

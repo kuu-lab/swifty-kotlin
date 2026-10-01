@@ -220,6 +220,16 @@ public func kk_ushort_to_ubyte(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
+@_cdecl("kk_byte_to_ubyte")
+public func kk_byte_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_short_to_ubyte")
+public func kk_short_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
 @_cdecl("kk_ubyte_to_uint")
 public func kk_ubyte_to_uint(_ value: Int) -> Int {
     // UByte is always in valid range for UInt
