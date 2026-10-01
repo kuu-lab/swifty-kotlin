@@ -1693,7 +1693,11 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
             }
             for (index, child) in currentChildren.enumerated() {
                 let childResult = runtimeJoinChild(child)
-                let shouldIgnoreChildCancellation = isCancelled && runtimeCoroutineIsCancellationResult(childResult)
+                // Cancelling one child Job is not a failure of its parent
+                // scope. Parent-scope cancellation is tracked separately by
+                // `isCancelled`; either way, a child's terminal
+                // CancellationException must not escape from the scope join.
+                let shouldIgnoreChildCancellation = runtimeCoroutineIsCancellationResult(childResult)
                 if firstFailure == 0,
                    runtimeCoroutineIsThrowableResult(childResult),
                    !shouldIgnoreChildCancellation
