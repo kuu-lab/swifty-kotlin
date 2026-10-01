@@ -1,4 +1,4 @@
-symbol fq=StableIterable.values[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.List<Int>
+symbol fq=StableIterable.values[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=StableIterable[kind=class] kind=class vis=private flags=_
 symbol fq=__local_0.fromIterable[kind=local] kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_1.checkedIterable[kind=local] kind=local vis=private flags=_ type=Boolean

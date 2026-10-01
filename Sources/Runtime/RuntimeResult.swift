@@ -26,11 +26,11 @@ private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
 }
 
 func runtimeResultSuccess(_ value: Int) -> Int {
-    registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0))
+    registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0), typeID: runtimeStableNominalTypeID(fqName: "kotlin.Result"))
 }
 
 func runtimeResultFailure(_ exception: Int) -> Int {
-    registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception))
+    registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception), typeID: runtimeStableNominalTypeID(fqName: "kotlin.Result"))
 }
 
 func runtimeResultIsSuccess(_ resultRaw: Int) -> Bool {

@@ -573,7 +573,7 @@ extension CallLowerer {
                         callee: runtimeGetter,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
+                        canThrow: calleeNameStr == "endExclusive",
                         thrownResult: nil
                     ))
                     return result
@@ -1104,6 +1104,10 @@ extension CallLowerer {
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
+            case ("toUByte", ubyteType, ubyteType): nil // identity
+            case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
+            case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
+            case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
@@ -1365,19 +1369,48 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeStr = calleeNameStr
-            let isCharSequenceReceiver: Bool = {
-                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
-                else {
-                    return false
-                }
-                return classType.classSymbol == charSequenceSymbol
-            }()
             let isCharSequenceTextHelper = calleeStr == "ifBlank"
                 || calleeStr == "ifEmpty"
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
-            if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
+            let isCharSequenceReceiver: Bool = {
+                guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("CharSequence"),
+                ]) else {
+                    return false
+                }
+                let charSequenceType = sema.types.make(.classType(ClassType(
+                    classSymbol: charSequenceSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                return sema.types.isSubtype(nonNullReceiverType, charSequenceType)
+            }()
+            if isCharSequenceReceiver,
+               !usesStringFlatABI,
+               isCharSequenceTextHelper
             {
+                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    loweredArgIDs[0],
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                let runtimeCallee = calleeStr == "ifBlank"
+                    ? "kk_charsequence_ifBlank"
+                    : "kk_charsequence_ifEmpty"
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(runtimeCallee),
+                    arguments: [loweredReceiverID, fnPtrExpr, envPtrExpr],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if usesStringFlatABI {
                 if calleeStr == "toRegex" {
                     let argType = sema.bindings.exprTypes[args[0].expr]
                     let isSetArg: Bool = {
@@ -1400,6 +1433,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                let flatStringHOFArguments: [KIRExprID]? = {
+                    guard isCharSequenceTextHelper else { return nil }
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        loweredArgIDs[0],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    return [loweredReceiverID, fnPtrExpr, envPtrExpr]
+                }()
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
@@ -1413,6 +1457,10 @@ extension CallLowerer {
                     } else {
                         nil
                     }
+                case "ifBlank":
+                    flatStringHOFArguments.map { ("kk_string_ifBlank_flat", $0) }
+                case "ifEmpty":
+                    flatStringHOFArguments.map { ("kk_string_ifEmpty_flat", $0) }
                 default:
                     nil
                 }

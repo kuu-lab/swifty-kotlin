@@ -36,7 +36,7 @@ private external fun AtomicLong.__kkAtomicLongFetchAndIncrement(): Long
 private external fun AtomicLong.__kkAtomicLongLoad(): Long
 
 @KsSymbolName("__kk_atomic_long_store")
-private external fun AtomicLong.__kkAtomicLongStore(value: Long): Long
+private external fun AtomicLong.__kkAtomicLongStore(value: Long): Int
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")

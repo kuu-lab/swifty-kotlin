@@ -967,7 +967,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractList` — class kotlin.collections.AbstractList  -- `abstract class <#A: out kotlin/Any?> kotlin.collections/AbstractList : kotlin.collections/AbstractCollection<#A>, kotlin.collections/List<#A> {`
 
-- [ ] KSP-937: kotlin.collections.Iterable-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-937: kotlin.collections.Iterable-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `Iterable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/IterableAggregateHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1029,13 +1029,14 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableListIterator` — interface kotlin.collections.MutableListIterator  -- `abstract interface <#A: kotlin/Any?> kotlin.collections/MutableListIterator : kotlin.collections/ListIterator<#A>, kotlin.collections/MutableIterator<#A> {`
 
-- [ ] KSP-949: kotlin.collections.array-family の未実装 stdlib API を実装する（3 件）
+- [~] KSP-949: kotlin.collections.array-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / top-level / family `array`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayAggregateHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_array.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_array.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_array.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 2026-09-27: `arrayListOf` 2 overload は CollectionFactories.kt に既存。残る Native internal `arrayOfUninitializedElements` をソース実装。Swift build / stdlib compile / 公開 factory の Kotlin 2.3.10 diff / internal API native 実行 / Sema Golden を確認。全体 CI は未実行。
   - 未実装シンボル一覧:
     - `kotlin.collections.arrayListOf` — fun arrayListOf(): ArrayList  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/arrayListOf(): kotlin.collections/ArrayList<#A>`
     - `kotlin.collections.arrayListOf` — fun arrayListOf(Array): ArrayList  -- `final fun <#A: kotlin/Any?> kotlin.collections/arrayListOf(kotlin/Array<out #A>...): kotlin.collections/ArrayList<#A>`
@@ -1219,7 +1220,7 @@
     - `kotlin.collections.List.listIterator` — fun List.listIterator(Int): ListIterator  -- `abstract fun listIterator(kotlin/Int): kotlin.collections/ListIterator<#A>`
     - `kotlin.collections.List.size` — val List.size: Int  -- `abstract val size`
 
-- [ ] KSP-1066: kotlin.collections.Map top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1066: kotlin.collections.Map top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.Map` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Map/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1229,7 +1230,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.Map.Entry` — interface kotlin.collections.Map.Entry  -- `abstract interface <#A1: out kotlin/Any?, #B1: out kotlin/Any?> Entry {`
 
-- [ ] KSP-1068: kotlin.collections.Map.Entry.Entry の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1068: kotlin.collections.Map.Entry.Entry の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections.Map.Entry` / receiver `Entry`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Map/Entry/Entry.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1736,7 +1737,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicLong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
 
-- [ ] KSP-1117: kotlin.concurrent.atomics.AtomicLong.AtomicLong の未実装 stdlib API を実装する（10 件）
+- [x] KSP-1117: kotlin.concurrent.atomics.AtomicLong.AtomicLong の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLong` / receiver `AtomicLong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicLong/AtomicLong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1754,8 +1755,9 @@
     - `kotlin.concurrent.atomics.AtomicLong.store` — fun AtomicLong.store(Long): Unit  -- `final fun store(kotlin/Long)`
     - `kotlin.concurrent.atomics.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
+  - 完了根拠（2026-09-28）: `AtomicLong/AtomicLong.kt` に 10 個の receiver API を source-backed 実装し、既存の `__kk_atomic_long_*` runtime bridge へ委譲。bundled extension の一般解決（KSP-1113 で導入、`isAtomicMigrationReceiver` が `atomics.AtomicLong` を既に包含）で canonical alias の呼び出しを source-backed 実装へ接続。legacy member stub（`concurrent.AtomicLong`）と `value` synthetic property は互換性のため保持。constructor は KSP-1116 の所有範囲のため今回は追加しない。
 
-- [ ] KSP-1118: kotlin.concurrent.atomics.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1118: kotlin.concurrent.atomics.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLongArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicLongArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1765,6 +1767,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicLongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.concurrent.atomics.AtomicLongArray.<init>` — constructor (LongArray)  -- `constructor <init>(kotlin/LongArray)`
+  - 完了根拠 (2026-09-28): 対象の 2 コンストラクタは KSP-1119 で `atomics/AtomicLongArray/Stdlib.kt` に追加済みの source-backed factory（`AtomicLongArray(Int)` は `kk_atomic_long_array_create` への external bridge、`AtomicLongArray(LongArray)` は public コピー実装）で充足済み。本 PR では未カバーだった完了ゲートを補完: golden ケース `stdlib_kotlin_concurrent_atomics_AtomicLongArray_n_n.kt`、diff ケース同名、`AtomicLongArrayCanonicalSourceMigrationTests`（canonical パッケージでの source-backed 解決と特殊経路の不使用を固定）を追加。bridge/stub 整理の対象となる `__kk_*`/`kk_*` 関数や stub 登録・name-string 特例の新規削除はなし（既存の合成パスガード `hasSourceBackedAtomicArrayFactory` が既に AtomicLongArray をカバー）。
 
 - [x] KSP-1119: kotlin.concurrent.atomics.AtomicLongArray.AtomicLongArray の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.concurrent.atomics.AtomicLongArray` / receiver `AtomicLongArray`
@@ -1781,7 +1784,7 @@
     - `kotlin.concurrent.atomics.AtomicLongArray.toString` — fun AtomicLongArray.toString(): String  -- `final fun toString(): kotlin/String`
   - 完了根拠 (2026-09-26): `AtomicLongArray/AtomicLongArray.kt` に `@ExperimentalAtomicApi` の source-backed class 宣言を追加し、`compareAndExchange` / `compareAndSet` / `length` / `size` / `toString` の 5 件を class member として実装した。`size` は `kk_atomic_long_array_size` への `__kkSize` private external bridge 経由、`compareAndExchange` / `compareAndSet` は `compareAndExchangeAt`、`length` / `toString` は `size` / `loadAt` に委譲する。class 化で `.synthetic` を要求する `AtomicLongArray(Int, init)` 特別経路が失われるため、`AtomicLongArray/Stdlib.kt` に `AtomicLongArray(Int)`（`kk_atomic_long_array_create` bridge）/`AtomicLongArray(LongArray)`/`AtomicLongArray(Int, init)` の source-backed factory を追加して通常解決へ移した（KSP-1118 の 2 件と KSP-1100 の該当 1 件も兼ねる）。既存 `*At` 合成 stub と runtime bridge は継続利用のため保持。
 
-- [ ] KSP-1121: kotlin.concurrent.atomics.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（8 件）
+- [x] KSP-1121: kotlin.concurrent.atomics.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.concurrent.atomics.AtomicNativePtr` / receiver `AtomicNativePtr`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicNativePtr/AtomicNativePtr.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1797,6 +1800,7 @@
     - `kotlin.concurrent.atomics.AtomicNativePtr.store` — fun AtomicNativePtr.store(NativePtr): Unit  -- `final fun store(kotlin.native.internal/NativePtr)`
     - `kotlin.concurrent.atomics.AtomicNativePtr.toString` — fun AtomicNativePtr.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicNativePtr.value` — val AtomicNativePtr.value: NativePtr  -- `final var value`
+  - 完了根拠 (2026-09-28): `atomics/AtomicNativePtr/AtomicNativePtr.kt` を新規作成し、`load` / `store` / `exchange` / `getAndSet` / `compareAndSet` / `compareAndExchange` / `toString` の 7 API を `kotlin.concurrent.atomics` 配下の source-backed `public` extension として実装（field-backed `value` member への sequential 委譲）。`AtomicNativePtr` には `__kk_atomic_native_ptr_*` Runtime 系が存在しないため `registerAtomicNativePtrSurface` の裸シンボルを吐くだけの同名 synthetic member 6 件（load/store/exchange/getAndSet/compareAndSet/compareAndExchange）を削除し、atomic-migration bundled-extension fallback で source decl が member 解決に勝つことを golden で固定（`value` は `kotlin.concurrent.atomics.AtomicNativePtr.value[kind=prop]` member を維持 — 同名 extension property は登録時に sibling 関数 decl の body を失わせるため source 化不可）。`swift build`、`--stdlib-only` artifact build、対象 Golden case（worker render を committed golden と一致確認済み）、対象 diff case（SKIP-DIFF: DEBT-DIFF-001）、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` を確認済み。全テストスイートと全 diff ケースは未実行（CI）。
 
 - [x] KSP-1122: kotlin.concurrent.atomics.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.AtomicReference` / top-level
@@ -1826,7 +1830,8 @@
     - `kotlin.concurrent.atomics.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
   - 完了根拠（2026-09-23）: 7 シンボルは全て `kotlin.concurrent` class shell の runtime-linked member stub で既に正しく解決しており、canonical API 表面を網羅済み。`AtomicReference/AtomicReference.kt` には `compareAndExchange` のみ source-backed 宣言を置いた（member は `AtomicMigration.kt` の `kotlin.concurrent` 拡張で既に抑制済み、atomics package 優先で本宣言が解決される）。`load`/`store`/`exchange`/`getAndSet`/`value` は member 所有のまま残した: 関数ジェネリック extern の T 戻り値は nullable 値型 (`Int?` 等) の stored `null` を型デフォルト値に misdecode する（KUU-840、KUU-837 と同一家系の erased-T 境界 marshal バグの戻り値側）。`var value` は bundled extension property が class 型パラメータを書けず `*` 投影の `Any?` 版は member の T 型 getter を隠すため source 化不可（KSWIFTK-PARSE-0002 制約）。`toString` は member `kotlin.Any.toString` がオーナー（member は extension に必ず勝つため source 側からは差し替え不可）のため、`runtimeElementToString` に `AtomicRefBox` の描画を追加して格納値を表示するよう修正（JDK AtomicReference 準拠: `String.valueOf(get())`）。既存バグ KUU-837（expected 引数 marshal）も member 経路で再現・本 PR 起因ではない。
 
-- [ ] KSP-1137: kotlin.coroutines.AbstractCoroutineContextElement.AbstractCoroutineContextElement の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1137: kotlin.coroutines.AbstractCoroutineContextElement.AbstractCoroutineContextElement の未実装 stdlib API を実装する（1 件）
+  - KUU-690: `CoroutineContextImpl.kt` の source owner に `public override val key` を実装。明示/別名 import したネスト型の継承先解決を修正。key の保存・基底型経由の getter override を単体 kotlinc diff / Sema Golden で確認。共通 CI 待ち。
   - 対象: `kotlin.coroutines.AbstractCoroutineContextElement` / receiver `AbstractCoroutineContextElement`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/CoroutineContextImpl.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1836,7 +1841,7 @@
   - 未実装シンボル一覧:
     - `kotlin.coroutines.AbstractCoroutineContextElement.key` — val AbstractCoroutineContextElement.key: Key  -- `open val key`
 
-- [ ] KSP-1139: kotlin.coroutines.Continuation.Continuation の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1139: kotlin.coroutines.Continuation.Continuation の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.coroutines.Continuation` / receiver `Continuation`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/Continuation/Continuation.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1886,7 +1891,7 @@
     - `kotlin.coroutines.CoroutineContext.Element.key` — val Element.key: Key  -- `abstract val key`
     - `kotlin.coroutines.CoroutineContext.Element.minusKey` — fun Element.minusKey(Key): CoroutineContext  -- `open fun minusKey(kotlin.coroutines/CoroutineContext.Key<*>): kotlin.coroutines/CoroutineContext`
 
-- [ ] KSP-1148: kotlin.coroutines.SafeContinuation.SafeContinuation の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1148: kotlin.coroutines.SafeContinuation.SafeContinuation の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.coroutines.SafeContinuation` / receiver `SafeContinuation`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/SafeContinuationNative.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1898,9 +1903,10 @@
     - `kotlin.coroutines.SafeContinuation.getOrThrow` — fun SafeContinuation.getOrThrow(): Any  -- `final fun getOrThrow(): kotlin/Any?`
     - `kotlin.coroutines.SafeContinuation.resumeWith` — fun SafeContinuation.resumeWith(Result): Unit  -- `final fun resumeWith(kotlin/Result<#A>)`
 
-- [ ] KSP-1149: kotlin.coroutines.cancellation top-level の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1149: kotlin.coroutines.cancellation top-level の未実装 stdlib API を実装する（3 件）
+  - 2026-09-27 (KUU-696): 既存 CancellationException class/4 constructor を維持し、Native の hidden expect-actual factory 2件を Kotlin source に追加。HIDDEN 宣言を一般の overload 候補から除外する Sema 修正と回帰2テストを追加（PASS）。fresh stdlib と対応 Sema Golden を検証。全体 CI は未実行。
   - 対象: `kotlin.coroutines.cancellation` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/cancellation/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/cancellation/CancellationException.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_coroutines_cancellation_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_coroutines_cancellation_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_coroutines_cancellation_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -1982,12 +1988,15 @@
   - 実装済み（2026-09-18）: `Platform.kt` の `MemoryModel`/`isExperimentalMM`、`Runtime.kt` の runtime hook 一式、`Blob.kt` の `ImmutableBlob`/`immutableBlobOf`、`simd.kt` の `vectorOf` を追加。source-backed 宣言を優先するよう合成 Sema 登録を整理し、`Vector128` の cinterop shell と `Nothing`/`_Noreturn void` ABI 契約も追加・整合させた。既存 source-backed 宣言（Annotations/BitSet/ObsoleteNativeApi/Platform 等）は重複追加せず維持。
   - 検証: `swift build`、Sema Golden shard 73/98（8 cases）、Native unhandled-exception surface/KIR/Runtime focused tests、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` は pass。diff case は `kotlin.native.*` のため既存 `SKIP-DIFF`（DEBT-DIFF-001）。全 Golden / 全 diff_cases は未実行。
 
-- [ ] KSP-1192: kotlin.native.ImmutableBlob の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1192: kotlin.native.ImmutableBlob の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native` / receiver `ImmutableBlob`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Blob.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ImmutableBlob_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 実装確認: `Blob.kt` に `toByteArray`/`toUByteArray`（範囲チェック＋コピーの純 Kotlin 実装）と `asCPointer`/`asUCPointer`（private external `asCPointerImpl` → `__kk_immutable_blob_as_cpointer` で blob 内容を `RuntimeCValuesBox` にコピーして恒久 pin したバッファの `baseAddress + offset` を返し、`kk_cpointer_new` 経由の private generic `__interpretCPointer` で `CPointer<T>` 化する upstream 構成を踏襲）を追加。bundled `ExperimentalUnsignedTypes` が FUNCTION ターゲットを持たないため `toUByteArray` の `@ExperimentalUnsignedTypes` は省略（既存の `Random.nextUBytes` 等と同様）。既存の `__kk_*`/`kk_*`・synthetic stub・name-string 特例は対象シンボルになく、追加は `__kk_immutable_blob_as_cpointer`（Runtime + `bridgeSpec` "Native"）のみ。同 PR で `toUByte` lowering の欠損（`Byte`/`Short`/`UShort` レシーバが Sema 受理されるが CallLowerer 3 系統とも未配線で `undefined reference to 'toUByte'`）を修正: `kk_byte_to_ubyte`/`kk_short_to_ubyte` を Runtime+spec に追加し、`kk_ushort_to_ubyte` への配線も全 3 テーブルに補完（回帰 diff ケース `to_ubyte_signed_receivers.kt` 追加）。`immutableBlobOf` 自体は dangling external（Runtime 実装なし）で実行時に blob を生成できない既存バグ → KUU-934 に起票。
+  - 個別検証: `CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（`-Xswiftc -swift-version -Xswiftc 6`）で 4 シンボルが `kotlin.native.asCPointer` / `asUCPointer` / `toByteArray` / `toUByteArray`（`recv=kotlin.native.ImmutableBlob`）に解決し、`CPointer<ByteVarOf<Int>>` / `CPointer<UByteVar>` / `ByteArray` / `UByteArray` を返すことを golden で確認。`bash Scripts/validate_runtime_abi_links.sh` green、`bash Scripts/check_todo_ids.sh` pass。diff ケースは Kotlin/JVM の参照 target がないため `SKIP-DIFF (DEBT-DIFF-001)`（単体実行で skipped=1/failed=0 を確認）。`to_ubyte_signed_receivers.kt` は kotlinc 差分 PASS。`asCPointer` 系を呼ぶプログラムがリンクまで通ることを確認（`immutableBlobOf` 欠如により実行は不可）。stdlib artifact（`kswiftc --stdlib-only --emit library`）のビルドも確認。
+  - 未実行: 四スイート一括の `--filter matchesGolden` と全 diff ケースは CI に委譲（Sema suite のみ UPDATE_GOLDEN 済み、他スイート差分なし）。なおローカルの Sema suite 実行では本件無関係の既存 golden drift（artifact 経路でも pristine master で再現）が一部残っており、無関係ファイルは revert 済み。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.asCPointer` — fun ImmutableBlob.asCPointer(Int): CPointer  -- `final fun (kotlin.native/ImmutableBlob).kotlin.native/asCPointer(kotlin/Int = ...): kotlinx.cinterop/CPointer<kotlinx.cinterop/ByteVarOf<kotlin/Byte>>`
@@ -2585,13 +2594,14 @@
     - `kotlin.ranges.CharProgression.step` — val CharProgression.step: Int  -- `final val step`
     - `kotlin.ranges.CharProgression.toString` — fun CharProgression.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-1296: kotlin.ranges.CharRange.CharRange の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1296: kotlin.ranges.CharRange.CharRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.CharRange` / receiver `CharRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/CharRange/CharRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_CharRange_CharRange_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_CharRange_CharRange_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_CharRange_CharRange_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装: `start`/`endInclusive`/`endExclusive` は KSP-708 で source-backed 済み。残る `equals`/`hashCode`/`toString` を `ranges/CharRange.kt` の member override として追加。空範囲同士は等価・hashCode は -1 とする。KUU-771 / PR #7297 で CharRange box の nominal 型判定は master に統合済み。対象メンバー専用の bridge/stub・ABI 登録は無い。
   - 未実装シンボル一覧:
     - `kotlin.ranges.CharRange.endExclusive` — val CharRange.endExclusive: Char  -- `final val endExclusive`
     - `kotlin.ranges.CharRange.endInclusive` — val CharRange.endInclusive: Char  -- `final val endInclusive`
@@ -2841,7 +2851,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.ULongProgression.Companion` — object kotlin.ranges.ULongProgression.Companion  -- `final object Companion {`
 
-- [ ] KSP-1318: kotlin.ranges.ULongProgression.ULongProgression の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1318: kotlin.ranges.ULongProgression.ULongProgression の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.ULongProgression` / receiver `ULongProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongProgression/ULongProgression.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2855,6 +2865,7 @@
     - `kotlin.ranges.ULongProgression.last` — val ULongProgression.last: ULong  -- `final val last`
     - `kotlin.ranges.ULongProgression.step` — val ULongProgression.step: Long  -- `final val step`
     - `kotlin.ranges.ULongProgression.toString` — fun ULongProgression.toString(): String  -- `open fun toString(): kotlin/String`
+  - 完了根拠: `ULongProgression/ULongProgression.kt` を追加し、`equals`/`first`/`hashCode`/`last`/`step`/`toString` を Kotlin source-backed に移行。`iterator` も標準ライブラリのメンバーとして移し、旧 extension を削除。`ULongProgression` と `ULongRange` の synthetic `step` 型を `Long` に揃え、ULong の負 step membership を修正。実体は `RuntimeRangeBox` のため、`equals`/`hashCode`/`toString`/`iterator` は既存 value semantics / iterator ABI に lower し、vtable を呼ばない。
 
 - [ ] KSP-1319: kotlin.ranges.ULongProgression.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.ULongProgression.Companion` / receiver `Companion`
@@ -3003,7 +3014,7 @@
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_element.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_element.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_element.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 完了根拠（2026-09-15、既存実装のTODO同期）: `SequenceAggregateHOF.kt:795-820`（コメント「KSP-442: Sequence terminal operations migrated to Kotlin source」ブロック内）に3シンボル全て実装済み（commit `c965a08f8` #5723）。`kk_sequence_elementAt`/`elementAtOrNull`/`elementAtOrElse` runtime bridge（`RuntimeSequence.swift`）は残置されているが、これは destination/laziness最適化用の既存基盤でありKSP-1360等の先行TODO同期PRでも保持方針。専用 golden/diff は本同期では追加しない。
+  - 完了根拠（2026-09-15、既存実装のTODO同期 → 2026-09-24、KSP-1341 canonical 移行）: 3シンボルは commit `c965a08f8` #5723 で `SequenceAggregateHOF.kt` に実装済みだったものを、`SequenceConversionsAndSetOps.kt` へ upstream Kotlin 2.3.10 の lazy traversal 契約（`toList()` しない iterator 走査、`elementAt` は `elementAtOrElse` 委譲）で移行。`kk_sequence_elementAt`/`elementAtOrNull`/`elementAtOrElse` runtime bridge（`RuntimeSequence.swift`）、RuntimeABISpec エントリ、CallTypeChecker/CallLowerer の name-string フォールバックは Iterable/List residual dispatch・unresolved-member recovery 共有のため保持（KSP-1357 と同方針）。synthetic stub 登録なし。専用 Sema Golden / Sema call-binding テスト / kotlinc diff `stdlib_kotlin_sequences_Sequence_element.kt` を追加済み。
   - 実装シンボル一覧:
     - `kotlin.sequences.elementAt` — fun Sequence.elementAt(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAt(kotlin/Int): #A`
     - `kotlin.sequences.elementAtOrElse` — fun Sequence.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`

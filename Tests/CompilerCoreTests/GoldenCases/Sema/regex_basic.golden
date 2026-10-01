@@ -17,7 +17,7 @@ expr e@4:13#1 memberCall recv=e@4:13 callee=contains args=[_:e@4:30] type=Boolea
 expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@5:17 name(regex) type=kotlin.text.Regex ref=__local_0.regex[kind=local]
 expr e@5:28 string(abc123) type=String
-expr e@5:17#1 memberCall recv=e@5:17 callee=find args=[_:e@5:28] type=kotlin.text.MatchResult? call=kotlin.text.Regex.find[kind=fun;recv=kotlin.text.Regex;params=String]
+expr e@5:17#1 memberCall recv=e@5:17 callee=find args=[_:e@5:28] type=kotlin.text.MatchResult? call=kotlin.text.Regex.find[kind=fun;recv=kotlin.text.Regex;params=kotlin.CharSequence]
 expr e@5:5 localDecl found mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_1.found[kind=local]
 expr e@6:13 name(found) type=kotlin.text.MatchResult? ref=__local_1.found[kind=local]
 expr e@6:13#1 safeMemberCall recv=e@6:13 callee=value args=[] type=String? call=kotlin.text.value.$get[kind=fun;recv=kotlin.text.MatchResult;params=]

@@ -937,36 +937,6 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     return old.legacyRawValue
 }
 
-// MARK: - MutableList shuffle/reverse (STDLIB-206)
-
-@_cdecl("__kk_mutable_list_shuffle")
-public func kk_mutable_list_shuffle(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return 0
-    }
-    // Fisher-Yates shuffle
-    let count = list.count
-    if count > 1 {
-        var rng = SystemRandomNumberGenerator()
-        list.withMutableValues { values in
-            for i in stride(from: count - 1, through: 1, by: -1) {
-                let j = Int.random(in: 0 ... i, using: &rng)
-                values.swapAt(i, j)
-            }
-        }
-    }
-    return 0
-}
-
-@_cdecl("__kk_mutable_list_reverse")
-public func kk_mutable_list_reverse(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return 0
-    }
-    list.withMutableValues { $0.reverse() }
-    return 0
-}
-
 // MARK: - MutableList bulk operations (STDLIB-207)
 
 @_cdecl("__kk_mutable_list_addAll")
