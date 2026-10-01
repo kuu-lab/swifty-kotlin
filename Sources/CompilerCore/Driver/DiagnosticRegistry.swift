@@ -822,6 +822,17 @@ enum DiagnosticRegistry {
         ),
     ]
 
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
+        ),
+    ]
+
     // MARK: - Backend pass (BACKEND)
 
     static let backendDescriptors: [DiagnosticDescriptor] = [
@@ -946,6 +957,7 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors

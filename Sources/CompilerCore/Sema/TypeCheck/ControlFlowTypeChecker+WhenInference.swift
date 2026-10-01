@@ -201,9 +201,10 @@ extension ControlFlowTypeChecker {
                     // (for synthetic subjects such as `this` or a lambda parameter,
                     // which never get an `identifierSymbols` binding) more reliable
                     // than resolving the checked expression through
-                    // `identifierSymbols` and comparing symbols.
+                    // `identifierSymbols` and comparing symbols. Qualified or
+                    // computed subjects do not have a local binding either, but
+                    // their `is` conditions still cover sealed subclasses.
                     guard !negated,
-                          subjectLocalBinding != nil,
                           checkedExprID == subjectID,
                           let targetType = sema.bindings.isCheckTargetType(for: conditionID),
                           let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types),
