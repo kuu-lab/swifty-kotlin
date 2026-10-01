@@ -145,6 +145,12 @@ extension ExprTypeChecker {
             flags: [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
+        // A literal declared inside a class shares its lexical private scope.
+        // Keep that nesting in the symbol graph so its members can read the
+        // enclosing class's private constructor properties.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            sema.symbols.setParentSymbol(enclosingClassSymbol, for: objectSymbol)
+        }
         sema.symbols.setSourceFileID(ctx.currentFileID, for: objectSymbol)
 
         var directSuperSymbols: [SymbolID] = []

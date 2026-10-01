@@ -374,6 +374,21 @@ extension ExprLowerer {
                     return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                 }()
 
+                // Arrays have their own storage ABI and are not Collection handles.
+                // Implicit `size` reads in extension bodies must use the same
+                // array primitive as an explicit `this.size` read.
+                if memberStr == "size", !implicitMemberUsesAccessor,
+                   ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(nonNullReceiverType)
+                {
+                    emitNonThrowingCall(
+                        callee: interner.intern("__kk_array_size"),
+                        arg: receiverExprID,
+                        result: result,
+                        into: &instructions
+                    )
+                    return result
+                }
+
                 if receiverMayBeCollection, memberStr == "size", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
                         callee: interner.intern("__kk_collection_size"),
@@ -1570,9 +1585,22 @@ extension ExprLowerer {
                         let requiresFreshSlotForMutableAlias = isMutable
                             && declaredTypeIsReferenceLike
                             && initializerIsBareSymbolRef
-                        if !isDelegated, declaredTypeIsReferenceLike,
-                           (initializerType != nil && initializerType != declaredType)
-                           || requiresFreshSlotForMutableAlias
+                        // A non-null Long widened to Long? must cross a typed
+                        // copy so ABI lowering can box Long.MIN_VALUE before
+                        // it collides with the nullable null sentinel.
+                        let requiresNullableLongBoxing: Bool = if let initializerType,
+                           case .primitive(.long, .nonNull) = sema.types.kind(of: initializerType),
+                           case .primitive(.long, .nullable) = sema.types.kind(of: declaredType)
+                        {
+                            true
+                        } else {
+                            false
+                        }
+                        if !isDelegated,
+                           (declaredTypeIsReferenceLike
+                               && ((initializerType != nil && initializerType != declaredType)
+                                   || requiresFreshSlotForMutableAlias))
+                               || requiresNullableLongBoxing
                         {
                             let localSlot = arena.appendTemporary(type: declaredType)
                             instructions.append(.copy(from: initializerID, to: localSlot))
@@ -3177,25 +3205,24 @@ extension ExprLowerer {
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil
         {
-            let containerType = sema.bindings.exprTypes[containerExpr] ?? sema.types.anyType
             let calleeName: InternedString
             if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
                !linkName.isEmpty
             {
                 calleeName = interner.intern(linkName)
-            } else if let rangeCallee = driver.callLowerer.closedRangeInterfaceRuntimeName(
-                memberName: "contains",
-                receiverExpr: containerExpr,
-                receiverType: containerType,
-                chosenCallee: callBinding.chosenCallee,
-                sema: sema,
-                interner: interner
-            ) {
-                // The generic `ClosedRange<T>.contains`/`OpenEndRange<T>.contains`
-                // interface residuals carry no external link; on a concrete range
-                // receiver they must dispatch through the runtime bridge, the
-                // same as the `r.contains(x)` member-call path.
-                calleeName = rangeCallee
+            } else if let receiverType = sema.bindings.exprTypes[containerExpr],
+                      let rangeLink = driver.callLowerer.closedRangeInterfaceRuntimeName(
+                          memberName: "contains",
+                          receiverExpr: containerExpr,
+                          receiverType: receiverType,
+                          chosenCallee: callBinding.chosenCallee,
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                // Generic range interface members may lack a link name; use
+                // the concrete runtime bridge, as in the `r.contains(x)` path.
+                calleeName = rangeLink
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
                 calleeName = sym.name
             } else {

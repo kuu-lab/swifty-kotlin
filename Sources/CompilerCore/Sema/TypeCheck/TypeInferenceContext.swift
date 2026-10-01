@@ -210,8 +210,18 @@ struct TypeInferenceContext: CustomStringConvertible {
     func filterByVisibility(_ candidates: [SymbolID]) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
         var visible: [SymbolID] = []
         var invisible: [SemanticSymbol] = []
+        // A hidden compatibility factory must not shadow a usable constructor
+        // or overload. When it is the only candidate, keep it long enough for
+        // the normal deprecation path to emit KSWIFTK-SEMA-DEPRECATED rather
+        // than degrading the diagnostic to an unresolved reference.
+        let hasNonHiddenCandidate = candidates.contains {
+            !isHiddenByDeprecatedAnnotation($0, symbols: sema.symbols)
+        }
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
+            guard !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
+                    || !hasNonHiddenCandidate
+            else { continue }
             if visibilityChecker.isAccessible(symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol) {
                 visible.append(candidate)
             } else {

@@ -390,6 +390,7 @@ func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -397,6 +398,7 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
     let raw = runtimePairNew(firstValue: key, secondValue: value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -409,6 +411,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
         pairBox.mutableMapKey = key
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -421,7 +424,27 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
         pairBox.mutableMapKey = key.legacyRawValue
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
+}
+
+// Map.Entry has no methods; its source-declared key/value property getters
+// occupy slots 0/1. Runtime-backed entries participate in the same interface
+// dispatch as user implementations without changing Pair's public ABI.
+private let runtimeMapEntryKeyGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_pair_first(raw)
+}
+
+private let runtimeMapEntryValueGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_pair_second(raw)
+}
+
+private func runtimeRegisterMapEntryGetters(_ raw: Int) {
+    _ = kk_object_register_itable_iface(raw, Int(mapEntryRuntimeTypeID), 0)
+    _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(runtimeMapEntryKeyGetter, to: Int.self))
+    _ = kk_object_register_itable_method(raw, 0, 1, unsafeBitCast(runtimeMapEntryValueGetter, to: Int.self))
 }
 
 @inline(__always)
@@ -1478,6 +1501,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     guard isObjectPointer else {
         return "\(elem)"
+    }
+    if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
+        return runtimeRangeToString(range)
     }
     if let override = runtimeAnyToStringOverride(elem),
        let pointer = extractString(from: override)
