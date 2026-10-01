@@ -43,6 +43,7 @@ struct ReflectKTypeParameterSyntheticTests {
         let kTypeParameterInfo = try #require(sema.symbols.symbol(kTypeParameterSymbol))
         #expect(kTypeParameterInfo.kind == .interface)
         #expect(!kTypeParameterInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(kTypeParameterSymbol))
         #expect(sema.symbols.directSupertypes(for: kTypeParameterSymbol).contains(kClassifierSymbol))
 
         let kVarianceType = sema.types.make(.classType(ClassType(

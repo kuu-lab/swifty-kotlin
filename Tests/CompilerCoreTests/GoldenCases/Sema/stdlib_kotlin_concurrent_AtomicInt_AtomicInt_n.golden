@@ -1,0 +1,36 @@
+symbol fq=__local_0.exchanged[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.added[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_2.incremented[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_3.decremented[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_4.current[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntReceiverSurface.$0.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntReceiverSurface.$0.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntReceiverSurface.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicInt,Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicInt,Int,Int,Int] ret=String
+file fstdlib_kotlin_concurrent_AtomicInt_AtomicInt_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicIntReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicInt,Int,Int,Int] fun atomicIntReceiverSurface sym=golden.sema.atomicIntReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicInt,Int,Int,Int]
+expr e@13:26 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@13:52 name(expectedValue) type=Int ref=golden.sema.atomicIntReceiverSurface.$0.expectedValue[kind=vparam]
+expr e@13:67 name(newValue) type=Int ref=golden.sema.atomicIntReceiverSurface.$0.newValue[kind=vparam]
+expr e@13:26#1 memberCall recv=e@13:26 callee=compareAndExchange args=[_:e@13:52,_:e@13:67] type=Int call=kotlin.concurrent.AtomicInt.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int,Int]
+expr e@13:5 localDecl exchanged mutable=0 type=Int init=e@13:26#1 type=Unit ref=__local_0.exchanged[kind=local]
+expr e@14:22 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@14:39 name(delta) type=Int ref=golden.sema.atomicIntReceiverSurface.$0.delta[kind=vparam]
+expr e@14:22#1 memberCall recv=e@14:22 callee=getAndAdd args=[_:e@14:39] type=Int call=kotlin.concurrent.AtomicInt.getAndAdd[kind=fun;recv=kotlin.concurrent.AtomicInt;params=Int]
+expr e@14:5 localDecl added mutable=0 type=Int init=e@14:22#1 type=Unit ref=__local_1.added[kind=local]
+expr e@15:28 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@15:28#1 memberCall recv=e@15:28 callee=getAndIncrement args=[] type=Int call=kotlin.concurrent.AtomicInt.getAndIncrement[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@15:5 localDecl incremented mutable=0 type=Int init=e@15:28#1 type=Unit ref=__local_2.incremented[kind=local]
+expr e@16:28 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@16:28#1 memberCall recv=e@16:28 callee=getAndDecrement args=[] type=Int call=kotlin.concurrent.AtomicInt.getAndDecrement[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@16:5 localDecl decremented mutable=0 type=Int init=e@16:28#1 type=Unit ref=__local_3.decremented[kind=local]
+expr e@17:24 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@17:24#1 memberCall recv=e@17:24 callee=value args=[] type=Int ref=kotlin.concurrent.AtomicInt.value[kind=prop]
+expr e@17:5 localDecl current mutable=0 type=Int init=e@17:24#1 type=Unit ref=__local_4.current[kind=local]
+expr e@18:5 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@18:20 name(newValue) type=Int ref=golden.sema.atomicIntReceiverSurface.$0.newValue[kind=vparam]
+expr e@18:5#1 memberAssign recv=e@18:5 callee=value value=e@18:20 type=Unit ref=kotlin.concurrent.AtomicInt.value[kind=prop]
+expr e@19:12 name(atomic) type=kotlin.concurrent.AtomicInt ref=golden.sema.atomicIntReceiverSurface.$0.atomic[kind=vparam]
+expr e@19:12#1 memberCall recv=e@19:12 callee=toString args=[] type=String call=kotlin.concurrent.AtomicInt.toString[kind=fun;recv=kotlin.concurrent.AtomicInt;params=]
+expr e@19:5 return value=e@19:12#1 type=Nothing

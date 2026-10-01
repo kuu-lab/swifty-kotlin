@@ -4,8 +4,9 @@ import Foundation
 /// Ownership/origin classification for Sema golden output (RF-GOLDEN-002).
 ///
 /// The classification deliberately does NOT trust `declSite` or the
-/// `synthetic` flag as identity: bundled source-backed declarations keep
-/// `declSite == nil` for compatibility (e.g. `kotlin.Pair`), and fixture code
+/// `synthetic` flag as identity: reused compatibility shells for bundled
+/// nominals keep `declSite == nil` while still tracking a bundled
+/// `sourceFileID`, and fixture code
 /// synthesizes declarations (data-class members, object literals, accessors)
 /// that are still fixture-owned. Instead it uses registration-time facts that
 /// production semantics do not depend on:

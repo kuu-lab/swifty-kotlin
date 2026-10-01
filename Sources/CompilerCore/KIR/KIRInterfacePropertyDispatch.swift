@@ -42,13 +42,26 @@ func kirInterfacePropertyGetterSlots(
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             let isSyntheticCollectionSize = isCollectionOrMap && property.name == sizeName
+            // BUG-240: Map's other runtime-bridged view properties
+            // (keys/values/entries/size) need itable getter slots too so a
+            // custom Map — delegated (`class C : Map<K,V> by d`) or
+            // hand-written — stays observable through `kk_map_keys` /
+            // `kk_map_values` / `kk_map_entries`, whose non-box path looks
+            // the getter up dynamically.
+            let isSyntheticMapProperty = interfaceInfo.fqName == knownNames.kotlinCollectionsMapFQName
+                && [
+                    interner.intern("entries"), interner.intern("keys"),
+                    sizeName, interner.intern("values"),
+                ].contains(property.name)
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `length`) are read through their external link, not an
             // itable slot — leave them out of the property getter table.
-            // Collection/Map `size` is the exception: its runtime bridge can
-            // fall back to source-backed itable dispatch for custom views.
+            // Collection/Map runtime-backed properties are the exception: their
+            // bridges can fall back to source-backed itable dispatch for custom
+            // views.
             if let linkName = sema.symbols.externalLinkName(for: id),
                !linkName.isEmpty,
+               !isSyntheticMapProperty,
                !isSyntheticCollectionSize
             {
                 return nil
@@ -56,10 +69,15 @@ func kirInterfacePropertyGetterSlots(
             // Likewise for synthetic runtime members registered on an otherwise
             // Kotlin-declared interface: only declarations that exist in Kotlin
             // (source, or the same declaration imported from a precompiled
-            // library) own an itable getter slot. Collection/Map `size` is the
-            // intentional exception: source-backed generic helpers need custom
-            // implementations to remain observable through the existing bridge.
-            guard property.declSite != nil || property.flags.contains(.importedLibrary) || isSyntheticCollectionSize else {
+            // library) own an itable getter slot. Collection/Map runtime-backed
+            // properties are intentional exceptions: source-backed generic
+            // helpers need custom implementations to remain observable through
+            // the existing bridge.
+            guard property.declSite != nil
+                || property.flags.contains(.importedLibrary)
+                || isSyntheticCollectionSize
+                || isSyntheticMapProperty
+            else {
                 return nil
             }
             return (symbol: id, name: property.name)
@@ -379,12 +397,48 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                 continue
             }
 
+            // A concrete String/primitive getter must implement the erased
+            // return ABI of an interface property such as Entry<K,V>. Build
+            // this adapter without a driver so boxed enum registrations use
+            // the same contract as ordinary constructor registrations.
+            var registeredGetter = implGetter
+            if let interfaceProperty = getterSlot.propertySymbol,
+               let interfaceReturn = sema.symbols.propertyType(for: interfaceProperty) {
+                let interfaceReceiver = sema.types.make(.classType(ClassType(
+                    classSymbol: interfaceSymbol, args: [], nullability: .nonNull
+                )))
+                let implementationProperty = sema.symbols.propertySymbol(forAccessor: implGetter)
+                let implementationFn = arena.function(for: implGetter)
+                let implementationReturn = implementationFn?.returnType
+                    ?? implementationProperty.flatMap { sema.symbols.propertyType(for: $0) }
+                    ?? sema.symbols.functionSignature(for: implGetter)?.returnType
+                if let implementationReturn {
+                    let implementationReceiver = implementationFn?.params.first?.type
+                        ?? sema.types.make(.classType(ClassType(
+                            classSymbol: nominalSymbol, args: [], nullability: .nonNull
+                        )))
+                    registeredGetter = itableBridgeSymbolForMethod(
+                        interfaceMethod: interfaceProperty, implementation: implGetter,
+                        nominalSymbol: nominalSymbol,
+                        interfaceSignature: FunctionSignature(
+                            receiverType: interfaceReceiver, parameterTypes: [],
+                            returnType: interfaceReturn, canThrow: true
+                        ),
+                        implementationSignature: FunctionSignature(
+                            receiverType: implementationReceiver, parameterTypes: [],
+                            returnType: implementationReturn, canThrow: true
+                        ),
+                        arena: arena, sema: sema, interner: interner
+                    )
+                }
+            }
+
             let methodSlot = Int64(getterSlot.slot)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
             instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
 
-            let methodFnExpr = arena.appendExpr(.symbolRef(implGetter), type: intType)
-            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implGetter)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(registeredGetter), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredGetter)))
 
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(

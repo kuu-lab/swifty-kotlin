@@ -464,16 +464,25 @@ extension OverloadResolver {
         // the direct receiver constraint instead of inferring them as Any?.
         if case let .typeParam(typeParam) = typeSystem.kind(of: implicitReceiverType),
            typeVarBySymbol[typeParam.symbol] == nil,
+           containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
            let symbols = typeSystem.symbolTable
         {
             let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
-            if !upperBounds.isEmpty,
-               upperBounds.allSatisfy({
-                   !typeSystem.typeContainsTypeParam($0, symbol: typeParam.symbol)
-                       && !containsStarProjection($0, typeSystem: typeSystem)
-               })
-            {
-                return upperBounds.flatMap { upperBound in
+            let matchingBounds = upperBounds.filter { upperBound in
+                guard !typeSystem.typeContainsTypeParam(upperBound, symbol: typeParam.symbol),
+                      !containsStarProjection(upperBound, typeSystem: typeSystem)
+                else {
+                    return false
+                }
+                return receiverBoundMatches(
+                    bound: upperBound,
+                    receiverType: receiverType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem
+                )
+            }
+            if !matchingBounds.isEmpty {
+                return matchingBounds.flatMap { upperBound in
                     decomposeSubtypeConstraint(
                         subtype: upperBound,
                         supertype: receiverType,
@@ -491,6 +500,35 @@ extension OverloadResolver {
             typeSystem: typeSystem,
             blameRange: range
         )
+    }
+
+    private func receiverBoundMatches(
+        bound: TypeID,
+        receiverType: TypeID,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        typeSystem: TypeSystem
+    ) -> Bool {
+        let nonNullBound = typeSystem.makeNonNullable(bound)
+        let nonNullReceiver = typeSystem.makeNonNullable(receiverType)
+        if case let .classType(superClass) = typeSystem.kind(of: nonNullReceiver) {
+            if case let .classType(subClass) = typeSystem.kind(of: nonNullBound) {
+                return subClass.classSymbol == superClass.classSymbol
+                    || typeSystem.isNominalSubtypeSymbol(subClass.classSymbol, of: superClass.classSymbol)
+            }
+            return false
+        }
+        if case let .functionType(superFunc) = typeSystem.kind(of: nonNullReceiver) {
+            if case let .functionType(subFunc) = typeSystem.kind(of: nonNullBound) {
+                return subFunc.params.count == superFunc.params.count
+            }
+            return false
+        }
+        if case let .typeParam(superParam) = typeSystem.kind(of: nonNullReceiver),
+           typeVarBySymbol[superParam.symbol] != nil
+        {
+            return true
+        }
+        return typeSystem.isSubtype(nonNullBound, nonNullReceiver)
     }
 
     private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {

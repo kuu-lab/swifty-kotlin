@@ -50,6 +50,7 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
     @Test
     func testUnsignedCompareHelperBothHighBits() throws {
         let source = """
+        @file:Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
         package kotlin
 
         fun main() {
