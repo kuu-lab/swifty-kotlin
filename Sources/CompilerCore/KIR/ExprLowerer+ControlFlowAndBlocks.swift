@@ -342,7 +342,8 @@ extension ExprLowerer {
                        receiverExpr: exprID,
                        accessorKind: .getter,
                        ast: ast,
-                       sema: sema
+                       sema: sema,
+                       interner: interner
                    )
                 {
                     instructions.append(.virtualCall(
