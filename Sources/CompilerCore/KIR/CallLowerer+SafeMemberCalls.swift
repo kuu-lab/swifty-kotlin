@@ -1114,6 +1114,15 @@ extension CallLowerer {
                 )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
+                ?? arena.exprType(loweredReceiverID)
+            let isRuntimeRangeReceiver = receiverTypeForDispatch.map { receiverType in
+                MemberRuntimeDispatch.rangeReceiverKind(
+                    receiverExpr: receiverExpr,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) != nil
+            } ?? false
             let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             let usesIteratorRuntimeVirtualBridge = chosen.map {
                 isIteratorRuntimeVirtualBridge(
@@ -1124,6 +1133,7 @@ extension CallLowerer {
                 )
             } ?? false
             if !isSuperCall,
+               !isRuntimeRangeReceiver,
                let chosen,
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)

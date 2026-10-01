@@ -223,9 +223,22 @@ extension CallLowerer {
         guard !isSuperCall, let chosenCallee else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
-                return sema.bindings.exprTypes[receiverExpr]
+                return sema.bindings.exprTypes[receiverExpr] ?? arena.exprType(loweredReceiverID)
             }
             return arena.exprType(loweredReceiverID)
+        }()
+        // Range values are opaque RuntimeRangeBox handles without Kotlin
+        // vtables. The KIR receiver can lose its source type binding, so use
+        // both the best available type and the source range-expression facts
+        // before emitting a virtual call such as LongRange.iterator().
+        let isRuntimeRangeReceiver: Bool = {
+            guard let receiverExpr, let receiverTypeForDispatch else { return false }
+            return MemberRuntimeDispatch.rangeReceiverKind(
+                receiverExpr: receiverExpr,
+                receiverType: receiverTypeForDispatch,
+                sema: sema,
+                interner: interner
+            ) != nil
         }()
         let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
             receiverType: receiverTypeForDispatch,
@@ -254,7 +267,8 @@ extension CallLowerer {
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
             || usesIteratorRuntimeVirtualBridge
         else { return nil }
-        guard let dispatchKind = resolveVirtualDispatch(
+        guard !isRuntimeRangeReceiver,
+              let dispatchKind = resolveVirtualDispatch(
             callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
         ) else { return nil }
         var vcArguments = finalArguments
