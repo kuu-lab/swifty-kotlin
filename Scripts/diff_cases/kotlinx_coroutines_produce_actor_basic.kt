@@ -48,14 +48,20 @@ fun main() = runBlocking {
     // actor: SendChannel processing messages on the launched coroutine
     // (block captures enclosing locals)
     val offset = 100
+    // The actor processes its buffered messages asynchronously. Use a rendezvous
+    // signal after its receive loop so output order does not depend on scheduler
+    // timing between close() and the parent coroutine's next println.
+    val actorDone = Channel<Int>(capacity = 1)
     val greeter = actor<Int> {
         for (msg in channel) {
             println("actor got: ${msg + offset}")
         }
+        actorDone.send(1)
     }
     greeter.send(7)
     greeter.send(8)
     greeter.close()
+    actorDone.receive()
 
     println("done")
 }
