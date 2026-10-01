@@ -121,7 +121,7 @@ extension DataFlowSemaPhase {
                 name: name,
                 fqName: record.fqName,
                 declSite: nil,
-                visibility: .public,
+                visibility: record.visibility,
                 flags: flags
             )
             if let moduleFQN {
@@ -1299,6 +1299,7 @@ extension DataFlowSemaPhase {
 
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
+        let visibility: Visibility
         let mangledName: String
         let fqName: [InternedString]
         let arity: Int
@@ -1369,6 +1370,7 @@ extension DataFlowSemaPhase {
 
         init(
             kind: SymbolKind,
+            visibility: Visibility = .public,
             mangledName: String = "",
             fqName: [InternedString] = [],
             arity: Int = 0,
@@ -1426,6 +1428,7 @@ extension DataFlowSemaPhase {
             nominalTypeParameters: String? = nil
         ) {
             self.kind = kind
+            self.visibility = visibility
             self.mangledName = mangledName
             self.fqName = fqName
             self.arity = arity

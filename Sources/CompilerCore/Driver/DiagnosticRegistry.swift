@@ -571,6 +571,24 @@ enum DiagnosticRegistry {
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-CYCLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cyclic supertype reference detected during nominal layout synthesis."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-DEPTH",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Inheritance chain exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-COUNT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Nominal type count exceeds the supported maximum."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0171",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -804,6 +822,17 @@ enum DiagnosticRegistry {
         ),
     ]
 
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
+        ),
+    ]
+
     // MARK: - Backend pass (BACKEND)
 
     static let backendDescriptors: [DiagnosticDescriptor] = [
@@ -928,6 +957,7 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors

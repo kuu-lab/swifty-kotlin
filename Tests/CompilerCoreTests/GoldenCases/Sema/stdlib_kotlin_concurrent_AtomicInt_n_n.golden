@@ -1,0 +1,6 @@
+symbol fq=golden.sema.constructAtomicInt.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.constructAtomicInt[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.concurrent.AtomicInt
+file fstdlib_kotlin_concurrent_AtomicInt_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class),@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.constructAtomicInt[kind=fun;params=Int] fun constructAtomicInt sym=golden.sema.constructAtomicInt[kind=fun;params=Int]
+expr e@8:59 name(value) type=Int ref=golden.sema.constructAtomicInt.$0.value[kind=vparam]
+expr e@8:49 call callee=e@8:49#1 args=[_:e@8:59] type=kotlin.concurrent.AtomicInt call=kotlin.concurrent.AtomicInt[kind=fun;params=Int]

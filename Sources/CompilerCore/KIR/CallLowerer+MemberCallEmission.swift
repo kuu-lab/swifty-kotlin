@@ -244,7 +244,8 @@ extension CallLowerer {
            }(),
            let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
            let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
-           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.typeParameterSymbols.count
+               == dispatchSignature.classTypeParameterCount,
            dispatchSignature.reifiedTypeParameterIndices.isEmpty,
            !dispatchSignature.isSuspend,
            finalArguments.first == receiver.loweredID
@@ -454,8 +455,16 @@ extension CallLowerer {
             interner: interner
         )
         let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
-        let callSymbol: SymbolID? = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
+        let runtimeProgressionMemberCallee = runtimeBackedULongProgressionMemberCallee(
+            memberName: interner.resolve(calleeName),
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        )
+        let usesRuntimeSetMember = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
+        let usesRuntimeProgressionMember = runtimeProgressionMemberCallee.map { $0 == loweredCallee } == true
+        let callSymbol: SymbolID? = usesRuntimeSetMember || usesRuntimeProgressionMember
             ? nil
             : chosenCallee
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,

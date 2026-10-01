@@ -5,6 +5,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine = DiagnosticEngine(),
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
@@ -14,10 +15,12 @@ extension DataFlowSemaPhase {
                     currentPackage: file.packageFQName,
                     imports: file.imports,
                     enclosingTypeParameters: [:],
+                    enclosingClassScopes: [],
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
                     types: types,
+                    diagnostics: diagnostics,
                     interner: interner
                 )
             }
@@ -29,10 +32,12 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
         guard let symbol = bindings.declSymbols[declID],
@@ -76,11 +81,37 @@ extension DataFlowSemaPhase {
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: mergedEnclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
                 ast: ast,
                 symbols: symbols,
                 types: types,
                 interner: interner
             ) {
+                if let imported = symbols.symbol(resolved.symbol),
+                   imported.flags.contains(.importedLibrary),
+                   let fileID = symbols.sourceFileID(for: symbol)
+                       ?? symbols.symbol(symbol)?.declSite?.start.file {
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(imported, fromFile: fileID, enclosingClass: nil) {
+                        let name = imported.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                        diagnostics.error(
+                            imported.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot inherit from '\(name)': it is not visible in this module.",
+                            range: symbols.symbol(symbol)?.declSite
+                        )
+                        continue
+                    }
+                }
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -147,16 +178,25 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes(uniqueSuperSymbols, for: symbol)
         types.setNominalDirectSupertypes(uniqueSuperSymbols, for: symbol)
 
+        // The current nominal's fqName joins the scope chain so nested
+        // declarations resolve sibling classifiers (e.g. `Inner` inside
+        // `Container` -> `Container.Inner`) per Kotlin's scope nesting.
+        var nestedScopes = enclosingClassScopes
+        if let ownerFQName = symbols.symbol(symbol)?.fqName {
+            nestedScopes.append(ownerFQName)
+        }
         for nestedDeclID in nestedDecls {
             bindInheritanceEdges(
                 declID: nestedDeclID,
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: mergedEnclosingTypeParameters,
+                enclosingClassScopes: nestedScopes,
                 ast: ast,
                 symbols: symbols,
                 bindings: bindings,
                 types: types,
+                diagnostics: diagnostics,
                 interner: interner
             )
         }
@@ -188,6 +228,7 @@ extension DataFlowSemaPhase {
         for path: [InternedString],
         currentPackage: [InternedString],
         imports: [ImportDecl],
+        enclosingClassScopes: [[InternedString]] = [],
         symbols: SymbolTable
     ) -> [[InternedString]] {
         guard !path.isEmpty else {
@@ -201,6 +242,13 @@ extension DataFlowSemaPhase {
                 return
             }
             candidates.append(candidate)
+        }
+
+        // Enclosing class scopes resolve sibling nested classifiers before
+        // package-level lookups, matching Kotlin's scope nesting (innermost
+        // scope first).
+        for scope in enclosingClassScopes.reversed() {
+            append(scope + path)
         }
 
         if path.count == 1 {
@@ -239,11 +287,49 @@ extension DataFlowSemaPhase {
             // but never let it shadow an explicit import above.
             append(path)
         } else {
+            // An imported classifier (including an alias) may qualify a nested
+            // supertype, e.g. CoroutineContext.Key<E>. Resolve that prefix before
+            // looking for a root-qualified path so the inheritance edge is kept.
+            for importDecl in imports where !importDecl.isWildcard {
+                let importedName = importDecl.alias ?? importDecl.path.last
+                if importedName == path.first {
+                    append(importDecl.path + path.dropFirst())
+                }
+            }
             append(path)
             if !currentPackage.isEmpty {
                 // Allow nested/package-relative supertypes such as
                 // `TimeSource.WithComparableMarks` inside `kotlin.time`.
                 append(currentPackage + path)
+            }
+
+            // A qualified supertype like `CoroutineContext.Key` resolves its
+            // first segment through imports the same way simple names do:
+            // `import kotlin.coroutines.CoroutineContext` contributes the
+            // candidate `kotlin.coroutines.CoroutineContext.Key`. Without
+            // this, user files outside the imported package silently drop
+            // the supertype and fall back to kotlin.Any.
+            let rootSegment = path[0]
+            let remainder = Array(path.dropFirst())
+            for importDecl in imports {
+                if let alias = importDecl.alias {
+                    if alias == rootSegment {
+                        append(importDecl.path + remainder)
+                    }
+                } else if importDecl.path.last == rootSegment {
+                    append(importDecl.path + remainder)
+                }
+            }
+
+            // Wildcard/package imports contribute the whole qualified path,
+            // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
+            for importDecl in imports where importDecl.alias == nil {
+                let isPackageImport = symbols.lookupAll(fqName: importDecl.path).contains { symbolID in
+                    symbols.symbol(symbolID)?.kind == .package
+                }
+                if isPackageImport {
+                    append(importDecl.path + path)
+                }
             }
         }
 
@@ -255,6 +341,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]] = [],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -326,6 +413,7 @@ extension DataFlowSemaPhase {
             for: path,
             currentPackage: currentPackage,
             imports: imports,
+            enclosingClassScopes: enclosingClassScopes,
             symbols: symbols
         )
 
@@ -352,7 +440,7 @@ extension DataFlowSemaPhase {
         // Kotlin default imports are considered after primitive/builtin names
         // in resolveTypeRefForInheritance. Supertype roots have no primitive
         // representation, so they can use the default-import packages here.
-        if path.count == 1 {
+        do {
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 let candidatePath = defaultPackage + path
                 if let symbol = symbols.lookupAll(fqName: candidatePath)
@@ -493,7 +581,7 @@ extension DataFlowSemaPhase {
             }
             // Kotlin default imports also apply to type arguments (e.g.
             // class X : Comparable<Int>), so search the standard default-import packages.
-            if path.count == 1 {
+            do {
                 for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                     let candidatePath = defaultPackage + path
                     if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
@@ -717,7 +805,10 @@ extension DataFlowSemaPhase {
         // bridges. AbstractSet and its subclasses remain intentionally abstract
         // skeletal collection types even when those bridges cover every
         // inherited member in the compiler's abstract-member set.
+        // An expect class may declare its abstract contract only in the actual
+        // implementation; an empty expect body is therefore not suspicious.
         if !hasAbstractMember,
+           !symbolInfo.flags.contains(.expectDeclaration),
            !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
         {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -899,24 +990,52 @@ extension DataFlowSemaPhase {
         }
 
         for interfaceSymbol in symbols.delegatedInterfaces(forClass: classSymbol) {
-            guard let fieldSymbol = symbols.classDelegationField(forClass: classSymbol, interface: interfaceSymbol),
-                  let interfaceSym = symbols.symbol(interfaceSymbol)
-            else {
+            guard let fieldSymbol = symbols.classDelegationField(
+                forClass: classSymbol,
+                interface: interfaceSymbol
+            ) else {
                 continue
             }
-            let interfaceMembers = symbols.children(ofFQName: interfaceSym.fqName)
-                .compactMap { symbols.symbol($0) }
-                // Extension member aliases (KSP-443) are lookup shims, not
-                // interface members — delegation must not forward to them.
-                .filter { !$0.flags.contains(.extensionMemberAlias) }
+            // Interface delegation forwards inherited contracts too. Looking
+            // only at the declared interface's own members misses e.g.
+            // List.get and Collection.size when the class delegates to
+            // MutableList, because those members are declared on its
+            // supertypes. Extension member aliases (KSP-443) are lookup
+            // shims, not interface members — do not forward them.
+            var interfaceQueue = [interfaceSymbol]
+            var visitedInterfaces: Set<SymbolID> = []
+            var interfaceMembersByID: [SymbolID: SemanticSymbol] = [:]
+            while let currentInterface = interfaceQueue.popLast() {
+                guard visitedInterfaces.insert(currentInterface).inserted,
+                      let currentInfo = symbols.symbol(currentInterface)
+                else {
+                    continue
+                }
+                for member in symbols.children(ofFQName: currentInfo.fqName)
+                    .compactMap({ symbols.symbol($0) })
+                    where !member.flags.contains(.extensionMemberAlias)
+                {
+                    interfaceMembersByID[member.id] = member
+                }
+                interfaceQueue.append(contentsOf: symbols.directSupertypes(for: currentInterface))
+            }
+            let interfaceMembers = interfaceMembersByID.values.sorted { $0.id.rawValue < $1.id.rawValue }
+            var forwardedMethodKeys: Set<DelegationDispatchKey> = []
 
             for methodSym in interfaceMembers where methodSym.kind == .function {
                 let key = delegationDispatchKey(for: methodSym.id, symbols: symbols, interner: interner)
                 guard !classMethodKeys.contains(key),
+                      forwardedMethodKeys.insert(key).inserted,
                       let ifaceSig = symbols.functionSignature(for: methodSym.id)
                 else { continue }
+                let forwardingSig = substituteDelegatedInterfaceSignature(
+                    ifaceSig,
+                    classSymbol: classSymbol,
+                    interfaceSymbol: interfaceSymbol,
+                    types: types
+                )
                 synthesizeForwardingMethod(
-                    methodSym: methodSym, ifaceSig: ifaceSig,
+                    methodSym: methodSym, ifaceSig: forwardingSig,
                     classDecl: classDecl, classSymbol: classSymbol, classFQName: classFQName,
                     interfaceSymbol: interfaceSymbol, fieldSymbol: fieldSymbol,
                     symbols: symbols, types: types, interner: interner
@@ -938,8 +1057,51 @@ extension DataFlowSemaPhase {
                     interfaceSymbol: interfaceSymbol, fieldSymbol: fieldSymbol,
                     symbols: symbols, types: types, interner: interner
                 )
+                classPropertyNames.insert(propSym.name)
             }
         }
+    }
+
+    private func substituteDelegatedInterfaceType(
+        _ type: TypeID,
+        classSymbol: SymbolID,
+        interfaceSymbol: SymbolID,
+        types: TypeSystem
+    ) -> TypeID {
+        let classTypeArgs = types.nominalTypeParameterSymbols(for: classSymbol).map {
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        guard let interfaceTypeArgs = types.liftedNominalSupertypeArgs(
+            from: classSymbol,
+            childArgs: classTypeArgs,
+            to: interfaceSymbol
+        ) else {
+            return type
+        }
+        let interfaceTypeParameterSymbols = types.nominalTypeParameterSymbols(for: interfaceSymbol)
+        let typeVarBySymbol = types.makeTypeVarBySymbol(interfaceTypeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, typeParameterSymbol) in interfaceTypeParameterSymbols.enumerated() {
+            guard index < interfaceTypeArgs.count,
+                  let typeVariable = typeVarBySymbol[typeParameterSymbol]
+            else {
+                continue
+            }
+            switch interfaceTypeArgs[index] {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                substitution[typeVariable] = inner
+            case .star:
+                substitution[typeVariable] = types.nullableAnyType
+            }
+        }
+        guard !substitution.isEmpty else {
+            return type
+        }
+        return types.substituteTypeParameters(
+            in: type,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
     private func synthesizeForwardingMethod(
@@ -1007,6 +1169,72 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Resolve the interface's nominal type parameters in a delegated method
+    /// before exposing the method on the concrete delegating class. Without
+    /// this substitution, `Map<String, Int>.get` is copied as `get(K): V?`,
+    /// so direct `CustomMap["key"]` lookup cannot match the synthetic method.
+    private func substituteDelegatedInterfaceSignature(
+        _ signature: FunctionSignature,
+        classSymbol: SymbolID,
+        interfaceSymbol: SymbolID,
+        types: TypeSystem
+    ) -> FunctionSignature {
+        let classTypeArgs = types.nominalTypeParameterSymbols(for: classSymbol).map {
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        guard let interfaceTypeArgs = types.liftedNominalSupertypeArgs(
+            from: classSymbol,
+            childArgs: classTypeArgs,
+            to: interfaceSymbol
+        ) else {
+            return signature
+        }
+
+        let interfaceTypeParameterSymbols = types.nominalTypeParameterSymbols(for: interfaceSymbol)
+        let typeVarBySymbol = types.makeTypeVarBySymbol(interfaceTypeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, typeParameterSymbol) in interfaceTypeParameterSymbols.enumerated() {
+            guard index < interfaceTypeArgs.count,
+                  let typeVariable = typeVarBySymbol[typeParameterSymbol]
+            else {
+                continue
+            }
+            switch interfaceTypeArgs[index] {
+            case let .invariant(type), let .out(type), let .in(type):
+                substitution[typeVariable] = type
+            case .star:
+                substitution[typeVariable] = types.nullableAnyType
+            }
+        }
+        guard !substitution.isEmpty else {
+            return signature
+        }
+
+        func substitute(_ type: TypeID) -> TypeID {
+            types.substituteTypeParameters(
+                in: type,
+                substitution: substitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+        return FunctionSignature(
+            receiverType: signature.receiverType.map(substitute),
+            parameterTypes: signature.parameterTypes.map(substitute),
+            returnType: substitute(signature.returnType),
+            isSuspend: signature.isSuspend,
+            canThrow: signature.canThrow,
+            valueParameterSymbols: signature.valueParameterSymbols,
+            valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+            valueParameterIsVararg: signature.valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+            typeParameterSymbols: signature.typeParameterSymbols,
+            reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+            typeParameterUpperBounds: signature.typeParameterUpperBounds,
+            typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+            classTypeParameterCount: signature.classTypeParameterCount
+        )
+    }
+
     /// Mirrors `synthesizeForwardingMethod` for a delegated interface
     /// property: gives the class its own `val`/`var` symbol (so member
     /// lookup on the class stops at this property instead of falling
@@ -1040,7 +1268,16 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(classSymbol, for: forwardingSymbol)
         let propType = symbols.propertyType(for: propSym.id) ?? types.anyType
-        symbols.setPropertyType(propType, for: forwardingSymbol)
+        symbols.setPropertyType(
+            substituteDelegatedInterfaceType(
+                propType,
+                classSymbol: classSymbol,
+                interfaceSymbol: interfaceSymbol,
+                types: types
+            ),
+            for: forwardingSymbol
+        )
+        symbols.setPropertyHasCustomGetter(true, for: forwardingSymbol)
 
         symbols.addClassDelegationForwardingProperty(
             forwardingSymbol,
@@ -1120,18 +1357,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // HashSet is source-backed for its nominal surface, while its
-        // iterator/size implementation remains on the shared runtime set
-        // bridge. Do not force the KSP-936 shell to duplicate KSP-1056/1057
-        // collection members just to satisfy the synthetic abstract stub.
-        let hashSetFQName = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("HashSet"),
-        ]
-        if symbolInfo.fqName == hashSetFQName {
-            return
-        }
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
