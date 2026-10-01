@@ -1415,7 +1415,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let indexID = freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
+            && expressionMayMutateState(valueExpr, ast: ast)
+            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+            : rawIndexID
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1598,7 +1601,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let indexID = freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
+            && expressionMayMutateState(valueExpr, ast: ast)
+            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+            : rawIndexID
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1766,7 +1772,10 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            return freezeEvaluationOrderOperand(rawIndex, arena: arena, instructions: &instructions)
+            return needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
+                && expressionMayMutateState(valueExpr, ast: ast)
+                ? freezeEvaluationOrderOperand(rawIndex, arena: arena, instructions: &instructions)
+                : rawIndex
         }
         let valueID = driver.lowerExpr(
             valueExpr,
