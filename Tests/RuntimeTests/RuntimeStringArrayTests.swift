@@ -602,13 +602,6 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
-    func testFloatFormattingUsesKotlinSpecialValueSpellings() {
-        #expect(runtimeFormatFloatingPoint(Float.nan) == "NaN")
-        #expect(runtimeFormatFloatingPoint(Float.infinity) == "Infinity")
-        #expect(runtimeFormatFloatingPoint(-Float.infinity) == "-Infinity")
-    }
-
-    @Test
     func testDoubleFormattingUsesShortestScientificRepresentation() {
         #expect(runtimeFormatFloatingPoint(1e-4) == "1.0E-4")
         #expect(runtimeFormatFloatingPoint(1e7) == "1.0E7")

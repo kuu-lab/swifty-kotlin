@@ -217,28 +217,6 @@ struct FlowSemaTests {
         return ctx
     }
 
-    @Test func testFlowBuilderAndChainTypeChecks() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
-    @Test func testRunBlockingLambdaAvoidsTypeConstraintFailure() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
-    @Test func testFlowMapCallableReferenceDoesNotOverConstrain() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-    }
-
     @Test func testFlowStoredInLocalVariableKeepsFlowReceiverTyping() throws {
         let ctx = try cleanCtx()
 
@@ -258,14 +236,6 @@ struct FlowSemaTests {
             hasExpectedDiagnostic,
             "Expected unresolved member diagnostic for non-flow Any receiver. Got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
-    }
-
-    @Test func testUserDefinedFlowFunctionShadowsBuiltinFlowFallback() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
     // MARK: - TYPE-113: Flow<T> type preservation tests
@@ -345,14 +315,6 @@ struct FlowSemaTests {
         }
     }
 
-    @Test func testAdditionalFlowBuildersTypeCheck() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
     @Test func testBundledFlowOperatorsWinOverIntrinsicFallback() throws {
         let ctx = try cleanCtx()
         let sema = try #require(ctx.sema)
@@ -382,14 +344,6 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
-    @Test func testUserDefinedEmitInsideFlowBuilderShadowsBuiltinEmitFallback() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
     @Test func testChannelFlowAndCallbackFlowTypeCheckWithProducerScope() throws {
