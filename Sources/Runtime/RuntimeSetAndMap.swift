@@ -88,7 +88,13 @@ public func kk_set_size(_ setRaw: Int) -> Int {
 @_cdecl("__kk_set_contains")
 public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return 0
+        return runtimeSourceInterfaceCall1(
+            setRaw,
+            element,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Set"),
+            methodSlot: 1,
+            context: "Set.contains dispatch"
+        ) ?? 0
     }
     return set.contains(rawValue: element) ? 1 : 0
 }
@@ -96,7 +102,15 @@ public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
 @_cdecl("__kk_set_is_empty")
 public func kk_set_is_empty(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return 1
+        if let result = runtimeSourceInterfaceCall0(
+            setRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Set"),
+            methodSlot: 0,
+            context: "Set.isEmpty dispatch"
+        ) {
+            return result
+        }
+        return (runtimeSourceCollectionSize(setRaw) ?? 0) == 0 ? 1 : 0
     }
     return set.isEmpty ? 1 : 0
 }
@@ -206,6 +220,9 @@ public func kk_mutable_set_add(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let sourceResult = runtimeSourceMutableSetAdd(setRaw, elem, outThrown: outThrown) {
+            return sourceResult
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -222,6 +239,16 @@ public func kk_mutable_set_remove(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let sourceResult = runtimeSourceInterfaceCall1(
+            setRaw,
+            elem,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 1,
+            context: "MutableSet.remove dispatch",
+            outThrown: outThrown
+        ) {
+            return sourceResult
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -237,6 +264,15 @@ public func kk_mutable_set_clear(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let sourceResult = runtimeSourceInterfaceCall0(
+            setRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 2,
+            context: "MutableSet.clear dispatch",
+            outThrown: outThrown
+        ) {
+            return sourceResult
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {

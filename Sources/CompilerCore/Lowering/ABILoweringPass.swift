@@ -234,6 +234,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: vcCallee,
                             interner: ctx.interner,
                             boxTypeParamArguments: isKotlinSourceCallee(vcSymbol, symbols: symbols),
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             newBody: &newBody
                         )
                     } else {
@@ -435,6 +437,10 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // outThrown channel regardless of whether their callee name appears
                 // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
+                    if isSyntheticAccessor, let s = callSymbol,
+                       symbols?.functionSignature(for: s)?.canThrow == true {
+                        return true
+                    }
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
                 }()
@@ -503,6 +509,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         callee: effectiveCallee,
                         interner: ctx.interner,
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         newBody: &newBody
                     )
                 } else {

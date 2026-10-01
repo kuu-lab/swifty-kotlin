@@ -77,12 +77,16 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        registerNativeThreadLocalAnnotationConstructor(
-            packageFQName: nativeConcurrentPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: nativeConcurrentPkg + [interner.intern("ThreadLocal")]
+        ) {
+            registerNativeThreadLocalAnnotationConstructor(
+                packageFQName: nativeConcurrentPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
     }
 }
 
@@ -361,21 +365,27 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        let threadLocalNativeAnnotationSymbol = ensureAnnotationClassSymbol(
-            named: "ThreadLocal",
-            in: packageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
+        // The bundled declaration owns @ThreadLocal in regular compilation.
+        // The synthetic annotation remains available without the stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: packageFQName + [interner.intern("ThreadLocal")]
+        ) {
+            let threadLocalNativeAnnotationSymbol = ensureAnnotationClassSymbol(
+                named: "ThreadLocal",
+                in: packageFQName,
+                symbols: symbols,
+                interner: interner
+            )
+            if let pkgSymbol {
+                symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
+            }
+            appendNativeConcurrentAnnotationMetadata(
+                to: threadLocalNativeAnnotationSymbol,
+                targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
+                retention: "AnnotationRetention.BINARY",
+                symbols: symbols
+            )
         }
-        appendNativeConcurrentAnnotationMetadata(
-            to: threadLocalNativeAnnotationSymbol,
-            targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
-            retention: "AnnotationRetention.BINARY",
-            symbols: symbols
-        )
     }
 }
 
@@ -679,15 +689,19 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        registerNativeConcurrentConstructor(
-            ownerSymbol: exceptionSymbol,
-            ownerType: exceptionType,
-            externalLinkName: "__kk_invalid_mutability_exception_new_message",
-            parameters: [(name: "message", type: types.stringType)],
-            defaultValues: [false],
-            symbols: symbols,
-            interner: interner
-        )
+        // The bundled class owns its bridged constructor. Retain this residual
+        // constructor only when compiling without the bundled stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: exceptionFQName) {
+            registerNativeConcurrentConstructor(
+                ownerSymbol: exceptionSymbol,
+                ownerType: exceptionType,
+                externalLinkName: "__kk_invalid_mutability_exception_new_message",
+                parameters: [(name: "message", type: types.stringType)],
+                defaultValues: [false],
+                symbols: symbols,
+                interner: interner
+            )
+        }
     }
 }
 

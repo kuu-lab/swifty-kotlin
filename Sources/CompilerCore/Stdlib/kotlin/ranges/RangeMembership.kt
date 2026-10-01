@@ -98,10 +98,10 @@ private fun containsUInt(value: UInt, first: UInt, last: UInt, step: Int): Boole
     return diff % step.toUInt() == 0u
 }
 
-private fun containsULong(value: ULong, first: ULong, last: ULong, step: Int): Boolean {
-    if (step > 0) {
+private fun containsULong(value: ULong, first: ULong, last: ULong, step: Long): Boolean {
+    if (step > 0L) {
         if (value < first || value > last) return false
-    } else if (step < 0) {
+    } else if (step < 0L) {
         if (value > first || value < last) return false
     } else {
         return false
@@ -134,7 +134,6 @@ public operator fun CharProgression.contains(value: Char): Boolean = containsCha
 
 public fun UIntRange.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
 public fun UIntProgression.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
-public fun ULongRange.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 public fun ULongProgression.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 
 @KsSymbolName("__kk_range_contains")

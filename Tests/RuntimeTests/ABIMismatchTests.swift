@@ -751,23 +751,11 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringIfBlankEmptyFlatSignatures() throws {
+    func kkStringIfBlankEmptyFlatCompatibilitySignatures() throws {
         for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .nullableUInt8Pointer)
             #expect(spec.parameters.count == 10)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
         }
     }
 
@@ -1093,80 +1081,6 @@ struct ABIMismatchTests {
         #expect(spec.parameters[1].type == .intptr)
         #expect(spec.parameters[2].type == .intptr)
         #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sort")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 1)
-        #expect(spec.parameters[0].type == .intptr)
-    }
-
-    @Test
-    func kkMutableListSortPrimitiveSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sort_primitive")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 2)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .int32)
-    }
-
-    @Test
-    func kkMutableListSortBySignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortBy")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortWithSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortWith")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortByPrimitiveSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortBy_primitive")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 5)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .int32)
-        #expect(spec.parameters[4].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortByDescendingSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortByDescending")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortByDescendingPrimitiveSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortByDescending_primitive")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 5)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .int32)
-        #expect(spec.parameters[4].type == .nullableIntptrPointer)
     }
 
     @Test

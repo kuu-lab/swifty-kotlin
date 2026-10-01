@@ -109,7 +109,8 @@ extension DataFlowSemaPhase {
                         for: path,
                         currentPackageFQName: currentPackageFQName,
                         imports: imports,
-                        symbols: symbols
+                        symbols: symbols,
+                        interner: interner
                     )
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
@@ -122,7 +123,8 @@ extension DataFlowSemaPhase {
                     for: path,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    symbols: symbols
+                    symbols: symbols,
+                    interner: interner
                 )
                 if !fqCandidates.isEmpty {
                     candidates = fqCandidates
@@ -133,6 +135,29 @@ extension DataFlowSemaPhase {
                 }
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
+                if resolved.flags.contains(.importedLibrary), let usageRange {
+                    let fileID = usageRange.start.file
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
+                        let label = resolved.visibility == .internal ? "internal" : "private"
+                        diagnostics?.error(
+                            resolved.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot access '\(interner.resolve(shortName))': it is \(label).",
+                            range: usageRange
+                        )
+                        return types.errorType
+                    }
+                }
                 let resolvedArgs = resolveTypeArgRefs(
                     argRefs,
                     ast: ast,
@@ -412,7 +437,8 @@ extension DataFlowSemaPhase {
         for path: [InternedString],
         currentPackageFQName: [InternedString]?,
         imports: [ImportDecl],
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) -> [SemanticSymbol] {
         guard !path.isEmpty else {
             return []
@@ -427,15 +453,28 @@ extension DataFlowSemaPhase {
                     paths.append(currentPackageFQName + path)
                 }
                 if let shortName = path.first {
+                    var wildcardPaths: [[InternedString]] = []
                     for importDecl in imports {
                         if let alias = importDecl.alias, alias == shortName {
                             paths.append(importDecl.path)
+                        } else if importDecl.alias == nil,
+                                  importDecl.isWildcard
+                        {
+                            // `import pkg.*` exposes `pkg.Name` as `Name`;
+                            // without this expansion a same-named root-package
+                            // symbol (e.g. the CancellationException
+                            // compatibility class, KSP-1150) shadows the
+                            // wildcard-imported declaration.
+                            wildcardPaths.append(importDecl.path + path)
                         } else if importDecl.alias == nil,
                                   importDecl.path.last == shortName
                         {
                             paths.append(importDecl.path)
                         }
                     }
+                    // Wildcard imports rank below same-package and explicit
+                    // imports, matching Kotlin's unqualified-name precedence.
+                    paths.append(contentsOf: wildcardPaths)
                 }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility
@@ -466,10 +505,21 @@ extension DataFlowSemaPhase {
                 if let alias = importDecl.alias, alias == firstComponent {
                     candidatePaths.append(importDecl.path + tail)
                 } else if importDecl.alias == nil,
+                          importDecl.isWildcard
+                {
+                    candidatePaths.append(importDecl.path + path)
+                } else if importDecl.alias == nil,
                           importDecl.path.last == firstComponent
                 {
                     candidatePaths.append(importDecl.path + tail)
                 }
+            }
+            // A nested type can be rooted in a default-imported declaration,
+            // such as Map.Entry. Header resolution must use the same import
+            // packages as expression/type checking instead of requiring an
+            // explicit import of the outer declaration.
+            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                candidatePaths.append(defaultPackage + path)
             }
         }
 
