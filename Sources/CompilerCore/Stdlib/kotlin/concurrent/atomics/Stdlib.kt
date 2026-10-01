@@ -14,7 +14,8 @@ import kotlin.internal.KsSymbolName
 // KSP-1100: canonical kotlin.concurrent.atomics nominal declarations.
 // These class shells claim the residual runtime-backed synthetic surfaces and
 // replace the atomics -> kotlin.concurrent typealiases; the receiver member
-// migrations remain owned by the per-type sibling tickets.
+// migrations remain owned by the per-type sibling tickets. AtomicArray is
+// declared in AtomicArray/AtomicArray.kt (KSP-1109).
 
 /**
  * A [Boolean] value that may be updated atomically.
@@ -50,13 +51,6 @@ public class AtomicNativePtr private constructor()
 @SinceKotlin("2.1")
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 public class AtomicReference<T> private constructor()
-
-/**
- * An array of objects in which elements may be updated atomically.
- */
-@SinceKotlin("2.1")
-@kotlin.concurrent.atomics.ExperimentalAtomicApi
-public class AtomicArray<T> private constructor()
 
 /**
  * Creates a new [AtomicArray] of the given [size], where each element is

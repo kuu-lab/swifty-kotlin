@@ -11,7 +11,7 @@ symbol fq=golden.sema.atomicIntReceiverMembers[kind=fun;params=] kind=function v
 file fstdlib_kotlin_concurrent_atomics_AtomicInt_AtomicInt_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
   decl golden.sema.atomicIntReceiverMembers[kind=fun;params=] fun atomicIntReceiverMembers sym=golden.sema.atomicIntReceiverMembers[kind=fun;params=]
 expr e@8:28 int(10) type=Int
-expr e@8:18 call callee=e@8:18#1 args=[_:e@8:28] type=kotlin.concurrent.atomics.AtomicInt call=kotlin.concurrent.atomics.AtomicInt.<init>[kind=ctor;params=Int]
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:28] type=kotlin.concurrent.atomics.AtomicInt call=kotlin.concurrent.atomics.AtomicInt[kind=fun;params=Int]
 expr e@8:5 localDecl atomic mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.atomic[kind=local]
 expr e@9:18 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=__local_0.atomic[kind=local]
 expr e@9:18#1 memberCall recv=e@9:18 callee=load args=[] type=Int call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]

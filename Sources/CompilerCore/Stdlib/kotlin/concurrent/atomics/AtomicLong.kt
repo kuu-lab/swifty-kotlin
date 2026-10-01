@@ -4,6 +4,8 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
 
 // KSP-1104: canonical atomics AtomicLong arithmetic/assignment and CAS-update
