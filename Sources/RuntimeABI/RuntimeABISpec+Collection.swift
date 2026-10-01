@@ -1642,41 +1642,6 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_shuffle",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_reverse",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_sortDescending",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_sortDescending_primitive",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "kindRaw", type: .int32),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_mutable_set_add",
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),

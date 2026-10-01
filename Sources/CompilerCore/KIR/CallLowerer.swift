@@ -902,6 +902,12 @@ final class CallLowerer {
                    of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                ),
                functionType.receiver != nil,
+               // `finalArgIDs` here is `[closure] + normalizedArgs`.
+               // When the receiver was already supplied positionally
+               // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
+               // elements and finalArgIDs.count is params.count + 2 -- there
+               // is no missing receiver slot to fill from the ambient scope.
+               finalArgIDs.count == functionType.params.count + 1,
                let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
             {
                 // A receiver-function value invoked as `block()` inside a
@@ -1233,6 +1239,17 @@ final class CallLowerer {
            !callableInfo.captureArguments.isEmpty
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
+        }
+        // KUU-938: this synthetic conversion has no runtime symbol. The
+        // receiver has already been inserted above, including for an outer
+        // implicit receiver; preserve its raw primitive representation.
+        if let chosen,
+           sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
+           sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
+           finalArgIDs.count == 1
+        {
+            instructions.append(.copy(from: finalArgIDs[0], to: result))
+            return result
         }
         // KUU-655: an override that inherits its defaults never has its own
         // stub; resolve to the base declaration's stub instead (see
@@ -2015,6 +2032,9 @@ final class CallLowerer {
         case ("toUByte", sema.types.uintType, sema.types.ubyteType): interner.intern("kk_uint_to_ubyte")
         case ("toUByte", sema.types.ulongType, sema.types.ubyteType): interner.intern("kk_ulong_to_ubyte")
         case ("toUByte", sema.types.ubyteType, sema.types.ubyteType): nil
+        case ("toUByte", sema.types.ushortType, sema.types.ubyteType): interner.intern("kk_ushort_to_ubyte")
+        case ("toUByte", sema.types.byteType, sema.types.ubyteType): interner.intern("kk_byte_to_ubyte")
+        case ("toUByte", sema.types.shortType, sema.types.ubyteType): interner.intern("kk_short_to_ubyte")
         case ("toUShort", sema.types.intType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
         case ("toUShort", sema.types.longType, sema.types.ushortType): interner.intern("kk_long_to_ushort")
         case ("toUShort", sema.types.uintType, sema.types.ushortType): interner.intern("kk_uint_to_ushort")
