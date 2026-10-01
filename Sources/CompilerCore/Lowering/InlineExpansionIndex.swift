@@ -292,6 +292,108 @@ final class InlineExpansionIndex {
         return lhs.symbol.rawValue < rhs.symbol.rawValue
     }
 
+    // MARK: - Mandatory-expansion contract
+
+    /// Whether a `.call` with this callee identity names a bodyless callee
+    /// -- one whose body never reaches an object file, so the call must have
+    /// been expanded away rather than left for the linker. Applies the same
+    /// binding rule as `inlineTarget` (a known symbol binds to its own
+    /// snapshot only; a symbol-unknown call takes the unique by-name
+    /// candidate) without materializing a deferred body.
+    ///
+    /// A known symbol is only mandatory while the callee text still names
+    /// that symbol's emitted identity -- the declared name or its external
+    /// link name. Codegen binds `.call` by callee text, so a call whose
+    /// callee was rewritten to a different name (e.g. a CallLowerer bridge
+    /// rewrite that keeps the original symbol) no longer binds to the
+    /// bodyless symbol: leaving it is correct, and only the name-based rule
+    /// below can still mark it.
+    func isMandatoryExpansionCall(
+        callSymbol: SymbolID?,
+        callee: InternedString,
+        inlineFunctionsByName: [InternedString: [SymbolID]],
+        interner: StringInterner,
+        externalLinkName: (SymbolID) -> String?
+    ) -> Bool {
+        if let callSymbol {
+            guard bodylessInlineSymbols.contains(callSymbol) else {
+                return false
+            }
+            let declaredName = allFunctionsBySymbol[callSymbol]?.name
+                ?? inlineFunctionsBySymbol[callSymbol]?.name
+                ?? importedStore.descriptors[callSymbol]?.name
+            if callee == declaredName || declaredName == nil {
+                return true
+            }
+            if let linkName = externalLinkName(callSymbol),
+               interner.intern(linkName) == callee {
+                return true
+            }
+        }
+        guard let candidates = inlineFunctionsByName[callee], candidates.count == 1 else {
+            return false
+        }
+        return bodylessInlineSymbols.contains(candidates[0])
+    }
+
+    /// Bodyless symbols whose expansion can never terminate because a call
+    /// cycle of bodyless callees is reachable from them in the *current*
+    /// bodies -- self-loops and mutual recursion included. Unlike
+    /// `bodylessCallees`, self-calls count as edges here: a bodyless
+    /// self-call is a one-node cycle. A caller whose residue callee is in
+    /// this set cannot converge no matter how many rounds run; a callee
+    /// outside it simply outgrew the round bounds.
+    func recursiveBodylessCallees() -> Set<SymbolID> {
+        var edges: [SymbolID: Set<SymbolID>] = [:]
+        for symbol in bodylessInlineSymbols {
+            guard let body = (allFunctionsBySymbol[symbol] ?? inlineFunctionsBySymbol[symbol])?.body else {
+                continue
+            }
+            var targets: Set<SymbolID> = []
+            for instruction in body {
+                guard case let .call(callee, _, _, _, _, _, _, _) = instruction,
+                      let callee, bodylessInlineSymbols.contains(callee)
+                else {
+                    continue
+                }
+                targets.insert(callee)
+            }
+            if !targets.isEmpty {
+                edges[symbol] = targets
+            }
+        }
+        // A symbol is cyclic when its own successors can reach it again.
+        var cyclic: Set<SymbolID> = []
+        for (symbol, targets) in edges {
+            var visited: Set<SymbolID> = []
+            var stack = Array(targets)
+            while let next = stack.popLast() {
+                if next == symbol {
+                    cyclic.insert(symbol)
+                    break
+                }
+                guard visited.insert(next).inserted else { continue }
+                stack.append(contentsOf: edges[next] ?? [])
+            }
+        }
+        // Backward closure: a callee that can reach a cyclic one inherits
+        // the same non-termination even though it is not on the cycle.
+        var reaching = cyclic
+        var reverseEdges: [SymbolID: [SymbolID]] = [:]
+        for (from, targets) in edges {
+            for to in targets {
+                reverseEdges[to, default: []].append(from)
+            }
+        }
+        var stack = Array(cyclic)
+        while let node = stack.popLast() {
+            for predecessor in reverseEdges[node] ?? [] where reaching.insert(predecessor).inserted {
+                stack.append(predecessor)
+            }
+        }
+        return reaching
+    }
+
     // MARK: - Write-back
 
     /// Records an expanded snapshot for `symbol` in every table that holds

@@ -5,6 +5,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine = DiagnosticEngine(),
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
@@ -19,6 +20,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     types: types,
+                    diagnostics: diagnostics,
                     interner: interner
                 )
             }
@@ -35,6 +37,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
         guard let symbol = bindings.declSymbols[declID],
@@ -84,6 +87,31 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner
             ) {
+                if let imported = symbols.symbol(resolved.symbol),
+                   imported.flags.contains(.importedLibrary),
+                   let fileID = symbols.sourceFileID(for: symbol)
+                       ?? symbols.symbol(symbol)?.declSite?.start.file {
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(imported, fromFile: fileID, enclosingClass: nil) {
+                        let name = imported.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                        diagnostics.error(
+                            imported.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot inherit from '\(name)': it is not visible in this module.",
+                            range: symbols.symbol(symbol)?.declSite
+                        )
+                        continue
+                    }
+                }
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -168,6 +196,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 types: types,
+                diagnostics: diagnostics,
                 interner: interner
             )
         }
@@ -258,11 +287,49 @@ extension DataFlowSemaPhase {
             // but never let it shadow an explicit import above.
             append(path)
         } else {
+            // An imported classifier (including an alias) may qualify a nested
+            // supertype, e.g. CoroutineContext.Key<E>. Resolve that prefix before
+            // looking for a root-qualified path so the inheritance edge is kept.
+            for importDecl in imports where !importDecl.isWildcard {
+                let importedName = importDecl.alias ?? importDecl.path.last
+                if importedName == path.first {
+                    append(importDecl.path + path.dropFirst())
+                }
+            }
             append(path)
             if !currentPackage.isEmpty {
                 // Allow nested/package-relative supertypes such as
                 // `TimeSource.WithComparableMarks` inside `kotlin.time`.
                 append(currentPackage + path)
+            }
+
+            // A qualified supertype like `CoroutineContext.Key` resolves its
+            // first segment through imports the same way simple names do:
+            // `import kotlin.coroutines.CoroutineContext` contributes the
+            // candidate `kotlin.coroutines.CoroutineContext.Key`. Without
+            // this, user files outside the imported package silently drop
+            // the supertype and fall back to kotlin.Any.
+            let rootSegment = path[0]
+            let remainder = Array(path.dropFirst())
+            for importDecl in imports {
+                if let alias = importDecl.alias {
+                    if alias == rootSegment {
+                        append(importDecl.path + remainder)
+                    }
+                } else if importDecl.path.last == rootSegment {
+                    append(importDecl.path + remainder)
+                }
+            }
+
+            // Wildcard/package imports contribute the whole qualified path,
+            // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
+            for importDecl in imports where importDecl.alias == nil {
+                let isPackageImport = symbols.lookupAll(fqName: importDecl.path).contains { symbolID in
+                    symbols.symbol(symbolID)?.kind == .package
+                }
+                if isPackageImport {
+                    append(importDecl.path + path)
+                }
             }
         }
 
@@ -373,7 +440,7 @@ extension DataFlowSemaPhase {
         // Kotlin default imports are considered after primitive/builtin names
         // in resolveTypeRefForInheritance. Supertype roots have no primitive
         // representation, so they can use the default-import packages here.
-        if path.count == 1 {
+        do {
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 let candidatePath = defaultPackage + path
                 if let symbol = symbols.lookupAll(fqName: candidatePath)
@@ -514,7 +581,7 @@ extension DataFlowSemaPhase {
             }
             // Kotlin default imports also apply to type arguments (e.g.
             // class X : Comparable<Int>), so search the standard default-import packages.
-            if path.count == 1 {
+            do {
                 for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                     let candidatePath = defaultPackage + path
                     if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
@@ -738,7 +805,10 @@ extension DataFlowSemaPhase {
         // bridges. AbstractSet and its subclasses remain intentionally abstract
         // skeletal collection types even when those bridges cover every
         // inherited member in the compiler's abstract-member set.
+        // An expect class may declare its abstract contract only in the actual
+        // implementation; an empty expect body is therefore not suspicious.
         if !hasAbstractMember,
+           !symbolInfo.flags.contains(.expectDeclaration),
            !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
         {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -920,20 +990,42 @@ extension DataFlowSemaPhase {
         }
 
         for interfaceSymbol in symbols.delegatedInterfaces(forClass: classSymbol) {
-            guard let fieldSymbol = symbols.classDelegationField(forClass: classSymbol, interface: interfaceSymbol),
-                  let interfaceSym = symbols.symbol(interfaceSymbol)
-            else {
+            guard let fieldSymbol = symbols.classDelegationField(
+                forClass: classSymbol,
+                interface: interfaceSymbol
+            ) else {
                 continue
             }
-            let interfaceMembers = symbols.children(ofFQName: interfaceSym.fqName)
-                .compactMap { symbols.symbol($0) }
-                // Extension member aliases (KSP-443) are lookup shims, not
-                // interface members — delegation must not forward to them.
-                .filter { !$0.flags.contains(.extensionMemberAlias) }
+            // Interface delegation forwards inherited contracts too. Looking
+            // only at the declared interface's own members misses e.g.
+            // List.get and Collection.size when the class delegates to
+            // MutableList, because those members are declared on its
+            // supertypes. Extension member aliases (KSP-443) are lookup
+            // shims, not interface members — do not forward them.
+            var interfaceQueue = [interfaceSymbol]
+            var visitedInterfaces: Set<SymbolID> = []
+            var interfaceMembersByID: [SymbolID: SemanticSymbol] = [:]
+            while let currentInterface = interfaceQueue.popLast() {
+                guard visitedInterfaces.insert(currentInterface).inserted,
+                      let currentInfo = symbols.symbol(currentInterface)
+                else {
+                    continue
+                }
+                for member in symbols.children(ofFQName: currentInfo.fqName)
+                    .compactMap({ symbols.symbol($0) })
+                    where !member.flags.contains(.extensionMemberAlias)
+                {
+                    interfaceMembersByID[member.id] = member
+                }
+                interfaceQueue.append(contentsOf: symbols.directSupertypes(for: currentInterface))
+            }
+            let interfaceMembers = interfaceMembersByID.values.sorted { $0.id.rawValue < $1.id.rawValue }
+            var forwardedMethodKeys: Set<DelegationDispatchKey> = []
 
             for methodSym in interfaceMembers where methodSym.kind == .function {
                 let key = delegationDispatchKey(for: methodSym.id, symbols: symbols, interner: interner)
                 guard !classMethodKeys.contains(key),
+                      forwardedMethodKeys.insert(key).inserted,
                       let ifaceSig = symbols.functionSignature(for: methodSym.id)
                 else { continue }
                 let forwardingSig = substituteDelegatedInterfaceSignature(

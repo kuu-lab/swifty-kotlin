@@ -144,6 +144,16 @@ private let runtimeMapSizeGetterSlot = 4
 private let runtimeMapValuesGetterSlot = 5
 private let runtimeMapIsEmptyMethodSlot = 0
 private let runtimeMapGetMethodSlot = 1
+private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.List"
+)
+private let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableCollection"
+)
+private let runtimeMutableSetInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableSet"
+)
+
 
 /// Source-defined Collection/Map implementations expose `size` through the
 /// same dynamic interface-property getter table used by ordinary Kotlin code.
@@ -164,6 +174,132 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     let result = fn(rawValue, &thrown)
     if thrown != 0 {
         runtimeStructuredPanic("Collection.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// Calls a source implementation of `List.get` when the receiver is a
+/// source-backed object rather than one of the runtime's native list boxes.
+/// `List.get` occupies the first method slot in List's own interface table.
+@inline(__always)
+func runtimeSourceListGet(
+    _ rawValue: Int,
+    _ index: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeListGetInterfaceTypeID), 0)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, index, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "List.get dispatch"
+        )
+    }
+    return result
+}
+
+/// Calls the source `MutableCollection.add` implementation through its own
+/// interface table, whose methods start at slot zero.
+@inline(__always)
+func runtimeSourceMutableCollectionAdd(
+    _ rawValue: Int,
+    _ element: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMutableCollectionInterfaceTypeID),
+        0
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, element, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "MutableCollection.add dispatch"
+        )
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMutableSetAdd(
+    _ rawValue: Int,
+    _ element: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeMutableSetInterfaceTypeID), 0)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, element, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "MutableSet.add dispatch"
+        )
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceInterfaceCall0(
+    _ rawValue: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    context: String,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceInterfaceCall1(
+    _ rawValue: Int,
+    _ argument: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    context: String,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, argument, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
     }
     return result
 }
@@ -254,6 +390,7 @@ func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -261,6 +398,7 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
     let raw = runtimePairNew(firstValue: key, secondValue: value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -273,6 +411,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
         pairBox.mutableMapKey = key
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -285,7 +424,27 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
         pairBox.mutableMapKey = key.legacyRawValue
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
+}
+
+// Map.Entry has no methods; its source-declared key/value property getters
+// occupy slots 0/1. Runtime-backed entries participate in the same interface
+// dispatch as user implementations without changing Pair's public ABI.
+private let runtimeMapEntryKeyGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_pair_first(raw)
+}
+
+private let runtimeMapEntryValueGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_pair_second(raw)
+}
+
+private func runtimeRegisterMapEntryGetters(_ raw: Int) {
+    _ = kk_object_register_itable_iface(raw, Int(mapEntryRuntimeTypeID), 0)
+    _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(runtimeMapEntryKeyGetter, to: Int.self))
+    _ = kk_object_register_itable_method(raw, 0, 1, unsafeBitCast(runtimeMapEntryValueGetter, to: Int.self))
 }
 
 @inline(__always)

@@ -5,6 +5,8 @@
 
 package kotlin.ranges
 
+// KSP-1317: The ULongProgression nominal, its Companion, and the receiver
+// member surface are source-backed.
 private fun progressionLastElement(start: ULong, endInclusive: ULong, step: Long): ULong {
     if (step > 0) {
         if (start >= endInclusive) return endInclusive
