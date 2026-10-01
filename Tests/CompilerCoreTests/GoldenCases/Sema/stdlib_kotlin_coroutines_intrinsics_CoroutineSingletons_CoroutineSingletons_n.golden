@@ -10,7 +10,7 @@ expr e@5:13#2 memberCall recv=e@5:13#1 callee=size args=[] type=Int call=kotlin.
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@6:13 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
 expr e@6:13#1 memberCall recv=e@6:13 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons> ref=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion.entries[kind=prop]
-expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@7:19 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
 expr e@7:19#1 memberCall recv=e@7:19 callee=values args=[] type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons> ref=kotlin.coroutines.intrinsics.CoroutineSingletons.values[kind=fun;params=] call=kotlin.coroutines.intrinsics.CoroutineSingletons.values[kind=fun;params=]
