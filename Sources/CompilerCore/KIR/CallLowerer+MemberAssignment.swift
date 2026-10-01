@@ -98,7 +98,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.virtualCall(
@@ -190,7 +191,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.virtualCall(
@@ -373,7 +375,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
         }
         let virtualSetterDispatch = propertySymbol.flatMap { propertySymbol in
@@ -382,7 +385,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
         }
 
