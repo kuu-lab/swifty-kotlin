@@ -3,7 +3,7 @@ symbol fq=__try_0_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kot
 symbol fq=__try_1_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kotlin.Throwable
 symbol fq=golden.sema.ThrowingResource.<init>.$0.throwOnClose[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.ThrowingResource.<init>[kind=ctor;recv=golden.sema.ThrowingResource;params=Boolean] kind=constructor vis=public flags=_ sig=recv=golden.sema.ThrowingResource params=[Boolean] ret=golden.sema.ThrowingResource
-symbol fq=golden.sema.ThrowingResource.throwOnClose[kind=prop] kind=property vis=public flags=_ type=Boolean
+symbol fq=golden.sema.ThrowingResource.throwOnClose[kind=prop] kind=property vis=private flags=_ type=Boolean
 symbol fq=golden.sema.ThrowingResource[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.useWithNullReceiver[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useWithPrimary[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Throwable

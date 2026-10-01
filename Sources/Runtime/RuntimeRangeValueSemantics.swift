@@ -107,6 +107,22 @@ func runtimeRangeHashCode(_ range: RuntimeRangeBox) -> Int {
     return Int(hash)
 }
 
+func runtimeRangeToString(_ range: RuntimeRangeBox) -> String {
+    let first = range.kind.usesUnsignedValues
+        ? String(UInt(bitPattern: range.first))
+        : String(range.first)
+    let last = range.kind.usesUnsignedValues
+        ? String(UInt(bitPattern: range.last))
+        : String(range.last)
+    guard range.kind.isProgression else {
+        return "\(first)..\(last)"
+    }
+    if range.step > 0 {
+        return "\(first)..\(last) step \(range.step)"
+    }
+    return "\(first) downTo \(last) step \(range.step.magnitude)"
+}
+
 func runtimeRangesEqual(_ lhs: RuntimeRangeBox, _ rhs: RuntimeRangeBox) -> Bool {
     guard lhs.kind == rhs.kind else {
         return false
@@ -118,4 +134,61 @@ func runtimeRangesEqual(_ lhs: RuntimeRangeBox, _ rhs: RuntimeRangeBox) -> Bool 
         return false
     }
     return !lhs.kind.isProgression || lhs.step == rhs.step
+}
+
+/// Nominal type ID a `RuntimeRangeBox` kind stands in for during `is`/`as`
+/// checks. Range handles are allocated by the `__kk_*_rangeTo`/`downTo`/`until`
+/// factories and never carry `objectTypeByPointer` metadata, so `kk_op_is`
+/// recovers the nominal identity from the kind tag — mirroring
+/// `runtimePrimitiveBoxNominalTypeID` for primitive boxes.
+func runtimeRangeBoxNominalTypeID(_ kind: RuntimeRangeKind) -> Int64 {
+    switch kind {
+    case .intRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.IntRange")
+    case .intProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.IntProgression")
+    case .longRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.LongRange")
+    case .longProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.LongProgression")
+    case .charRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.CharRange")
+    case .charProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.CharProgression")
+    case .uintRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.UIntRange")
+    case .uintProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.UIntProgression")
+    case .ulongRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.ULongRange")
+    case .ulongProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.ULongProgression")
+    }
+}
+
+/// Installs the nominal supertype edges range classes have in Kotlin:
+/// `XRange : XProgression, ClosedRange<X>, OpenEndRange<X>`,
+/// `XProgression : Iterable<X>`, and `ClosedFloatingPointRange : ClosedRange`.
+/// Mirrors `RuntimePrimitiveNominalTypeIDs.registerEdgesOnce`, including its
+/// resettability: `kk_runtime_reset_metadata` clears `typeParents` and
+/// `rangeTypeEdgesRegistered` together so the edges re-register on the next
+/// `is` check after a metadata reset.
+func registerRangeTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        if state.rangeTypeEdgesRegistered {
+            return
+        }
+        let closedRange = runtimeStableNominalTypeID(fqName: "kotlin.ranges.ClosedRange")
+        let openEndRange = runtimeStableNominalTypeID(fqName: "kotlin.ranges.OpenEndRange")
+        let iterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+        for (range, progression) in [
+            (RuntimeRangeKind.intRange, RuntimeRangeKind.intProgression),
+            (RuntimeRangeKind.longRange, RuntimeRangeKind.longProgression),
+            (RuntimeRangeKind.charRange, RuntimeRangeKind.charProgression),
+            (RuntimeRangeKind.uintRange, RuntimeRangeKind.uintProgression),
+            (RuntimeRangeKind.ulongRange, RuntimeRangeKind.ulongProgression),
+        ] {
+            let rangeID = runtimeRangeBoxNominalTypeID(range)
+            let progressionID = runtimeRangeBoxNominalTypeID(progression)
+            state.typeParents[rangeID, default: []].insert(progressionID)
+            state.typeParents[rangeID, default: []].insert(closedRange)
+            state.typeParents[rangeID, default: []].insert(openEndRange)
+            state.typeParents[progressionID, default: []].insert(iterable)
+        }
+        let closedFloatingPointRange = runtimeStableNominalTypeID(
+            fqName: "kotlin.ranges.ClosedFloatingPointRange"
+        )
+        state.typeParents[closedFloatingPointRange, default: []].insert(closedRange)
+        state.rangeTypeEdgesRegistered = true
+    }
 }
