@@ -61,6 +61,46 @@ struct DisjointEqualityTypeTests {
         }
     }
 
+    @Test func lambdaEqualityUsesParameterTypesBeforeSmartCasting() throws {
+        let sources = [
+            """
+            package valid
+            fun lambdas() {
+                val explicitEqual: (Any) -> Boolean = { value ->
+                    if (value is Int) value == "a" else false
+                }
+                val explicitNotEqual: (Any) -> Boolean = { value ->
+                    if (value is Int) "a" != value else false
+                }
+                val implicitEqual: (Any) -> Boolean = {
+                    if (it is Int) it == "a" else false
+                }
+                val implicitNotEqual: (Any) -> Boolean = {
+                    if (it is Int) "a" != it else false
+                }
+            }
+            """,
+            """
+            package invalid
+            fun lambdas() {
+                val explicit: (Int) -> Boolean = { value -> value == "a" }
+                val implicit: (Int) -> Boolean = { "a" != it }
+                val annotated = { value: Int -> value == "a" }
+                val cast: (Any) -> Boolean = { (it as Int) != "a" }
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let valid = diagnosticsForPath(paths[0], in: ctx)
+            #expect(valid.isEmpty, "Smart-cast lambda parameters should use their declared types: \(valid)")
+            let invalid = diagnosticsForPath(paths[1], in: ctx)
+            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0002" }.count == 4)
+        }
+    }
+
     @Test func rangeOperandsUseSourceLevelTypes() throws {
         let sources = [
             """
