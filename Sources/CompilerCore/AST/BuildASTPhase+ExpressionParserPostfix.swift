@@ -15,6 +15,27 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
+    /// Parses an explicitly labeled trailing lambda (`foo(...) lbl@{ ... }`).
+    /// Returns nil (leaving the cursor untouched) unless the next tokens are
+    /// exactly `identifier @ {`.
+    private func parseLabeledTrailingLambda() -> ExprID? {
+        guard let nameToken = current(),
+              let name = identifierFromToken(nameToken),
+              let atToken = peek(1), atToken.kind == .symbol(.at),
+              let braceToken = peek(2), braceToken.kind == .symbol(.lBrace)
+        else {
+            return nil
+        }
+        let savedIndex = index
+        _ = consume()
+        _ = consume()
+        if let lambda = parseLambdaLiteral(label: name, start: nameToken.range.start) {
+            return lambda
+        }
+        index = savedIndex
+        return nil
+    }
+
     func parsePostfixOrPrimary() -> ExprID? {
         guard var expr = parsePrimary() else {
             return nil
@@ -73,6 +94,9 @@ extension BuildASTPhase.ExpressionParser {
                 {
                     args.append(CallArgument(expr: trailingLambda))
                     callEndRange = astArena.exprRange(trailingLambda) ?? braceToken.range
+                } else if let trailingLambda = parseLabeledTrailingLambda() {
+                    args.append(CallArgument(expr: trailingLambda))
+                    callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
                 }
                 let fallbackEnd = close?.range.end ?? open.range.end
                 let endRange = SourceRange(start: fallbackEnd, end: fallbackEnd)
