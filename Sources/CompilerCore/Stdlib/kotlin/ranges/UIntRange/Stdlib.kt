@@ -18,6 +18,18 @@ public class UIntRange @KsSymbolName("__kk_uint_rangeTo") constructor(
     start: UInt,
     endInclusive: UInt,
 ) : UIntProgression(start, endInclusive, 1), ClosedRange<UInt>, OpenEndRange<UInt> {
+    public override val endInclusive: UInt get() = last
+
+    public override val endExclusive: UInt
+        get() {
+            if (last == UInt.MAX_VALUE) {
+                throw IllegalStateException("Cannot return the exclusive upper bound of a range that includes MAX_VALUE.")
+            }
+            return last + 1u
+        }
+
+    public override fun isEmpty(): Boolean = first > last
+
     public override fun equals(other: Any?): Boolean =
         other is UIntRange && (isEmpty() && other.isEmpty() || first == other.first && last == other.last)
 
