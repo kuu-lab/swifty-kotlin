@@ -1030,31 +1030,13 @@ final class CallLowerer {
                 // its enclosing class. The literal is the active receiver while
                 // lowering its member body, so use the captured enclosing receiver
                 // when the callee's owner is available as a captured local value.
+                // (An inner class's own enclosing instance isn't captured this
+                // way -- it's resolved through the `$outer` chain below instead.)
                 if let owner = sema.symbols.parentSymbol(for: chosen),
-                   owner != driver.ctx.activeImplicitReceiverSymbol()
+                   owner != driver.ctx.activeImplicitReceiverSymbol(),
+                   let capturedReceiver = driver.ctx.localValue(for: owner)
                 {
-                    if let capturedReceiver = driver.ctx.localValue(for: owner) {
-                        implicitReceiver = capturedReceiver
-                    } else if let currentReceiver = implicitReceiver,
-                              let resolved = resolveOuterChainValue(
-                                  from: currentReceiver,
-                                  to: owner,
-                                  sema: sema,
-                                  arena: arena,
-                                  interner: interner,
-                                  instructions: &instructions
-                              )
-                    {
-                        // BUG-inner-outer: a bare call inside an *inner
-                        // class*'s own method body resolving to a member of
-                        // an enclosing class has no captured-local-value
-                        // entry for that owner -- an inner class stores its
-                        // outer link in the `$outer` field, not as a
-                        // captured local the way an object literal does.
-                        // Walk the `$outer` chain from the active implicit
-                        // receiver instead.
-                        implicitReceiver = resolved
-                    }
+                    implicitReceiver = capturedReceiver
                 }
             }
             if implicitReceiver == nil,
