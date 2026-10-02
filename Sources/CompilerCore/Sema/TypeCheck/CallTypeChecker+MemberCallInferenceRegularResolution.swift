@@ -3115,7 +3115,7 @@ extension CallTypeChecker {
         return finalType
     }
 
-    private func floatingPointRangeArgumentType(
+    func floatingPointRangeArgumentType(
         _ exprID: ExprID,
         ast: ASTModule,
         sema: SemaModule,

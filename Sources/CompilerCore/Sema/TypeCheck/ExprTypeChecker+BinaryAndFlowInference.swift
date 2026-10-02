@@ -132,6 +132,21 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
+        if (op == .equal || op == .notEqual),
+           equalityHasIncompatibleBuiltinTypes(
+               equalityOperandType(lhsID, inferred: lhs, ctx: ctx),
+               equalityOperandType(rhsID, inferred: rhs, ctx: ctx),
+               sema: sema
+           )
+        {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "Operator '\(op == .equal ? "==" : "!=")' cannot be applied to unrelated types.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if op == .add,
            isCoroutineContextLikeType(lhs, sema: sema, interner: interner),
            isCoroutineContextLikeType(rhs, sema: sema, interner: interner),
@@ -694,6 +709,77 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    private func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
+        let sema = ctx.sema
+        let declared = equalityDeclaredType(expr, inferred: inferred, sema: sema)
+        // Range literals and their local references can carry a scalar element
+        // type for lowering. Compare their source-level range types instead.
+        guard sema.bindings.isRangeExpr(expr),
+              case .primitive = sema.types.kind(of: sema.types.makeNonNullable(declared))
+        else { return declared }
+        return driver.callChecker.sourceLevelRangeMemberLookupType(
+            receiverExpr: expr,
+            receiverType: declared,
+            sema: sema,
+            interner: ctx.interner
+        ) ?? driver.callChecker.floatingPointRangeArgumentType(
+            expr,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner
+        ) ?? declared
+    }
+
+    // Use the declaration type for smart-cast references. Kotlin only warns
+    // when a comparison becomes incompatible after smart casting.
+    private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
+        guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
+        if let declared = sema.symbols.propertyType(for: symbol) { return declared }
+        if let owner = sema.symbols.valueParameterOwner(for: symbol),
+           let signature = sema.symbols.functionSignature(for: owner),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           signature.parameterTypes.indices.contains(index)
+        {
+            return signature.parameterTypes[index]
+        }
+        return inferred
+    }
+
+    // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or
+    // String is involved. Ordinary classes may implement cross-type equals.
+    // Type-parameter bounds and enum/value-class diagnostics have additional
+    // warning rules and remain on the existing path.
+    private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        func erasedOperand(_ type: TypeID) -> TypeID? {
+            let nonNull = sema.types.makeNonNullable(type)
+            switch sema.types.kind(of: nonNull) {
+            case .typeParam, .intersection:
+                return nil
+            case let .classType(classType):
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: classType.classSymbol,
+                    args: classType.args.map { _ in .star },
+                    nullability: .nonNull
+                )))
+            default:
+                return nonNull
+            }
+        }
+        guard let lhs = erasedOperand(lhs), let rhs = erasedOperand(rhs),
+              !sema.types.isSubtype(lhs, rhs), !sema.types.isSubtype(rhs, lhs)
+        else { return false }
+
+        func requiresCompatibleOperand(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case .primitive, .stringStruct:
+                return true
+            default:
+                return false
+            }
+        }
+        return requiresCompatibleOperand(lhs) || requiresCompatibleOperand(rhs)
     }
 
     private func coroutineContextType(sema: SemaModule, interner: StringInterner) -> TypeID? {
