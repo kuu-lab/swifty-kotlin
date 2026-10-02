@@ -29,6 +29,22 @@ extension CallLowerer {
         }
     }
 
+    /// Whether `symbol` is a `const val` whose value `tryFoldConstMemberProperty`
+    /// inlines at the use site.
+    func isFoldableConstProperty(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) -> Bool {
+        guard let symInfo = sema.symbols.symbol(symbol),
+              symInfo.flags.contains(.constValue)
+        else {
+            return false
+        }
+        return propertyConstantInitializers[symbol] != nil
+            || sema.symbols.constValueExprKind(for: symbol) != nil
+    }
+
     func tryFoldConstMemberProperty(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -42,8 +58,9 @@ extension CallLowerer {
         guard args.isEmpty else { return nil }
         let callBinding = sema.bindings.callBindings[exprID]
         guard let chosen = callBinding?.chosenCallee,
-              let symInfo = sema.symbols.symbol(chosen),
-              symInfo.flags.contains(.constValue)
+              isFoldableConstProperty(
+                  chosen, sema: sema, propertyConstantInitializers: propertyConstantInitializers
+              )
         else {
             return nil
         }
