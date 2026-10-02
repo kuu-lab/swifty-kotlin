@@ -7,6 +7,53 @@ import Testing
 @Suite
 struct LibraryMetadataImportIntegrationTests {
     @Test
+    func testImportedNominalVarianceIsComposedInMemberDeclarations() throws {
+        let librarySource = """
+        package varianceLib
+        interface Source<out E>
+        interface Sink<in E>
+        interface Cell<E>
+        """
+        try withCompiledLibrary(source: librarySource, moduleName: "VarianceLib") { libraryPath in
+            let appSource = """
+            import varianceLib.*
+            import varianceLib.Sink as Consumer
+            interface Input<in T> {
+                val delegate: Consumer<T>
+                val nested: Source<Sink<T>>
+                fun accept(value: Source<T>)
+            }
+            interface Output<out T> {
+                val nested: varianceLib.Sink<Source<Sink<T>>>
+                fun accept(value: Consumer<T>)
+            }
+            interface Invalid<out T> {
+                val delegate: Consumer<T>
+                val cell: Cell<T>
+                val nestedCell: Cell<Sink<T>>
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath], moduleName: "VarianceApp",
+                    emit: .kirDump, searchPaths: [libraryPath]
+                )
+                try runSema(appCtx)
+                let errors = appCtx.diagnostics.diagnostics.filter { $0.severity == .error }
+                #expect(errors.count == 3, "\(errors)")
+                #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+                let sema = try #require(appCtx.sema)
+                for (name, variance) in [("Source", TypeVariance.out), ("Sink", .in), ("Cell", .invariant)] {
+                    let symbol = try #require(sema.symbols.allSymbols().first {
+                        appCtx.interner.resolve($0.name) == name && $0.flags.contains(.importedLibrary)
+                    })
+                    #expect(sema.types.nominalTypeParameterVariances(for: symbol.id) == [variance])
+                }
+            }
+        }
+    }
+
+    @Test
     func testSemaLoadsSymbolsFromKklibSearchPath() throws {
         let librarySource = """
         package extdemo
