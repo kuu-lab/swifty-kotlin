@@ -284,6 +284,59 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // A nominal member has no extension receiver in its function
+        // signature, but its leading type parameters still belong to the
+        // declaring class/interface. Constrain those parameters from the
+        // actual receiver before argument inference. Otherwise an inherited
+        // member such as OpenEndRange<T>.contains(T) can incorrectly infer T
+        // from a Byte/Long argument instead of Int from IntRange, making an
+        // inapplicable member steal the call from an exact user extension.
+        if !isConstructor,
+           signature.receiverType == nil,
+           signature.classTypeParameterCount > 0,
+           let implicitReceiverType,
+           isNominalMemberFunction(candidate, typeSystem: ctx.types),
+           let owner = ctx.symbols.parentSymbol(for: candidate)
+        {
+            let ownerArguments: [TypeArg] = signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .map { typeParameter in
+                    .invariant(ctx.types.make(.typeParam(TypeParamType(
+                        symbol: typeParameter,
+                        nullability: .nonNull
+                    ))))
+                }
+            let ownerType = ctx.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: ownerArguments,
+                nullability: .nonNull
+            )))
+            let receiverOwnerType: TypeID = {
+                let nonNullReceiverType = ctx.types.makeNonNullable(implicitReceiverType)
+                guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
+                      let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
+                          from: receiverClassType.classSymbol,
+                          childArgs: receiverClassType.args,
+                          to: owner
+                      )
+                else {
+                    return implicitReceiverType
+                }
+                return ctx.types.make(.classType(ClassType(
+                    classSymbol: owner,
+                    args: liftedArguments,
+                    nullability: .nonNull
+                )))
+            }()
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: receiverOwnerType,
+                supertype: ownerType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.types,
+                blameRange: call.range
+            ))
+        }
+
         guard let parameterMapping = buildParameterMapping(
             signature: signature,
             callArgs: call.args,
@@ -866,7 +919,57 @@ extension OverloadResolver {
         if winners.count == 1 {
             return winners[0]
         }
+        // Candidates that tied on every specificity criterion (empty `winners`
+        // means no candidate was more specific than all the others). When they
+        // are all member functions with pairwise-equivalent instantiated
+        // signatures, the same Kotlin member was reached through multiple
+        // supertype paths — e.g. `IntRange` inherits `ClosedRange.contains` and
+        // `OpenEndRange.contains` — so collapse them to one deterministic
+        // winner instead of reporting the call as ambiguous. Scope extensions
+        // and mismatched-signature members stay genuinely ambiguous.
+        let tied = winners.isEmpty ? candidates : winners
+        if tied.count > 1,
+           tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
+           tied.allSatisfy({ lhs in
+               tied.allSatisfy { rhs in
+                   lhs.symbol == rhs.symbol
+                       || (lhs.instantiatedParameterTypes.count == rhs.instantiatedParameterTypes.count
+                           && zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).allSatisfy {
+                               typeSystem.isSubtype($0, $1) && typeSystem.isSubtype($1, $0)
+                           })
+               }
+           })
+        {
+            return tied.min { lhs, rhs in
+                let lhsSynthetic = typeSystem.symbolTable?.symbol(lhs.symbol)?.flags.contains(.synthetic) ?? false
+                let rhsSynthetic = typeSystem.symbolTable?.symbol(rhs.symbol)?.flags.contains(.synthetic) ?? false
+                if lhsSynthetic != rhsSynthetic {
+                    return !lhsSynthetic
+                }
+                return lhs.symbol.rawValue < rhs.symbol.rawValue
+            }
+        }
         return nil
+    }
+
+    /// True when `symbol` is a function declared directly inside a nominal
+    /// (class/interface/object) — as opposed to a package-scope extension or a
+    /// local function — so multiple copies reached via supertypes denote the
+    /// same unified Kotlin member.
+    private func isNominalMemberFunction(
+        _ symbol: SymbolID,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard let parent = typeSystem.symbolTable?.parentSymbol(for: symbol),
+              let parentKind = typeSystem.symbolTable?.symbol(parent)?.kind
+        else {
+            return false
+        }
+        return parentKind == .class
+            || parentKind == .interface
+            || parentKind == .object
+            || parentKind == .enumClass
+            || parentKind == .annotationClass
     }
 
     /// Returns true if `lhs` is at least as specific as `rhs`.

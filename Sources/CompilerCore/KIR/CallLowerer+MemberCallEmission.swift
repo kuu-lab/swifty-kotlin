@@ -464,7 +464,18 @@ extension CallLowerer {
         let usesRuntimeSetMember = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
         let usesRuntimeProgressionMember = runtimeProgressionMemberCallee.map { $0 == loweredCallee } == true
-        let callSymbol: SymbolID? = usesRuntimeSetMember || usesRuntimeProgressionMember
+        let rangeInterfaceCallee = closedRangeInterfaceRuntimeName(
+            memberName: interner.resolve(calleeName),
+            receiverExpr: receiver.expr,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        )
+        let usesRuntimeRangeMember = rangeInterfaceCallee.map { $0 == loweredCallee } == true
+        // Remapped runtime bridges must not retain a source symbol whose own
+        // external link would override the concrete runtime callee.
+        let callSymbol: SymbolID? = usesRuntimeSetMember || usesRuntimeProgressionMember || usesRuntimeRangeMember
             ? nil
             : chosenCallee
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,

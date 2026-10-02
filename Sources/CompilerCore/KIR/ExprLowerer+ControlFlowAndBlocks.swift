@@ -3279,10 +3279,11 @@ extension ExprLowerer {
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil
         {
-            let calleeName: InternedString = if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
-                                                !linkName.isEmpty
+            let calleeName: InternedString
+            if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
+               !linkName.isEmpty
             {
-                interner.intern(linkName)
+                calleeName = interner.intern(linkName)
             } else if let receiverType = sema.bindings.exprTypes[containerExpr],
                       let rangeLink = driver.callLowerer.closedRangeInterfaceRuntimeName(
                           memberName: "contains",
@@ -3293,13 +3294,13 @@ extension ExprLowerer {
                           interner: interner
                       )
             {
-                // KUU-932: the interface member can lack a link name even
-                // though ordinary range.contains() uses this runtime bridge.
-                rangeLink
+                // Generic range interface members may lack a link name; use
+                // the concrete runtime bridge, as in the `r.contains(x)` path.
+                calleeName = rangeLink
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
-                sym.name
+                calleeName = sym.name
             } else {
-                interner.intern("contains")
+                calleeName = interner.intern("contains")
             }
             instructions.append(.call(
                 symbol: callBinding.chosenCallee,
