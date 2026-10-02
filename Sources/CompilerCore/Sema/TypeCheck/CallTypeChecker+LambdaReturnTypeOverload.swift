@@ -892,9 +892,17 @@ extension CallTypeChecker {
             }
         } else if signature.classTypeParameterCount > 0,
                   callSiteClass.args.count >= signature.classTypeParameterCount {
-            let prefix = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
-            declaredClassArgs = prefix
-            concreteClassArgs = prefix
+            declaredClassArgs = signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).map {
+                .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+            }
+            if let owner = sema.symbols.parentSymbol(for: candidate),
+               let lifted = sema.types.liftedNominalSupertypeArgs(
+                   from: callSiteClass.classSymbol, childArgs: callSiteClass.args, to: owner
+               ) {
+                concreteClassArgs = lifted
+            } else {
+                concreteClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            }
         } else {
             return parameterType
         }
@@ -1666,4 +1674,3 @@ extension CallTypeChecker {
         )
     }
 }
-

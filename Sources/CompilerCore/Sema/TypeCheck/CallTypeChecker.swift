@@ -84,6 +84,13 @@ final class CallTypeChecker {
                 return inferredType
             }
         }
+        if let builderType = inferReceiverBuilderCall(
+            id, calleeName: calleeName, args: args, range: range,
+            ctx: ctx, locals: &locals, expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return builderType
+        }
         if let customBuilderType = inferExperimentalBuilderCallExpr(
             id,
             calleeName: calleeName,
