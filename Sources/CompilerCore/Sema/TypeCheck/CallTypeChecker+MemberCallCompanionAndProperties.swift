@@ -51,7 +51,8 @@ extension CallTypeChecker {
         receiverType: TypeID,
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
-        preferredSourcePackage: [InternedString]? = nil
+        preferredSourcePackage: [InternedString]? = nil,
+        bindCall: Bool = true
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -116,7 +117,6 @@ extension CallTypeChecker {
             }
         }
         for candidate in visible {
-            guard getterCandidates.isEmpty else { break }
             collectGetterCandidate(from: candidate, requireSynthetic: false)
         }
         // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection
@@ -193,19 +193,24 @@ extension CallTypeChecker {
             return nil
         }
 
-        sema.bindings.bindCall(
-            id,
-            binding: CallBinding(
-                chosenCallee: chosen,
-                substitutedTypeArguments: resolved.substitutedTypeArguments
-                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map(\.value),
-                parameterMapping: resolved.parameterMapping
+        if bindCall {
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping
+                )
             )
-        )
-        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        }
         let deprecationCheckTarget: SymbolID
-        if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen) {
+        if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
+            ?? sema.symbols.parentSymbol(for: chosen),
+            sema.symbols.symbol(ownerProperty)?.kind == .property
+        {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
         } else {

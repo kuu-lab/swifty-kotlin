@@ -99,5 +99,49 @@ extension BuildKIRRegressionTests {
         }, "expected a call to the extension setter accessor, got: \(result.callees)")
         #expect(!result.callees.contains("tag"), "must not call the bare property name, got: \(result.callees)")
     }
+
+    @Test(arguments: [false, true])
+    func testExtensionVarAssignmentSelectsMostSpecificReceiver(specificFirst: Bool) throws {
+        try checkExtensionVarReceiverSelection(specificFirst: specificFirst, assignment: "\"x\".tag = 1", getterCount: 0)
+    }
+
+    @Test(arguments: [false, true])
+    func testExtensionVarCompoundAssignmentSelectsMostSpecificReceiver(specificFirst: Bool) throws {
+        try checkExtensionVarReceiverSelection(specificFirst: specificFirst, assignment: "\"x\".tag += 1\n\"x\".tag++", getterCount: 2)
+    }
+
+    private func checkExtensionVarReceiverSelection(specificFirst: Bool, assignment: String, getterCount: Int) throws {
+        let general = """
+        var Any.tag: Int
+            get() = 100
+            set(value) { println("Any") }
+        """
+        let specific = """
+        var String.tag: Int
+            get() = 10
+            set(value) { println("String") }
+        """
+        let declarations = specificFirst ? "\(specific)\n\(general)" : "\(general)\n\(specific)"
+        let result = try mainCalleeNames("""
+        \(declarations)
+        fun main() {
+            \(assignment)
+        }
+        """)
+        let sema = try #require(result.ctx.sema)
+        let property = try #require(sema.symbols.allSymbols().first { symbol in
+            symbol.kind == .property
+                && result.ctx.interner.resolve(symbol.name) == "tag"
+                && sema.symbols.extensionPropertyReceiverType(for: symbol.id) == sema.types.stringType
+        })
+        let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: property.id))
+        let setter = try #require(sema.symbols.extensionPropertySetterAccessor(for: property.id))
+        let getterCalls = result.calls.filter { $0.1 == "get" }
+        let setterCalls = result.calls.filter { $0.1 == "set" }
+        #expect(getterCalls.count == getterCount)
+        #expect(getterCalls.allSatisfy { $0.0 == getter })
+        #expect(setterCalls.count == (getterCount == 0 ? 1 : getterCount))
+        #expect(setterCalls.allSatisfy { $0.0 == setter })
+    }
 }
 #endif

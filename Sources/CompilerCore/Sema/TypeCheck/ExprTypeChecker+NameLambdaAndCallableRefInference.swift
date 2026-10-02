@@ -571,31 +571,29 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
-    /// Resolves `receiver.name` on the left of an assignment to a user-declared
-    /// extension `var` (`var Foo.tag: String { get() ... set(v) ... }`).
-    /// `lookupMemberProperty` only sees members, so without this fallback the
-    /// assignment carries no property binding and KIR lowering emits a call to
-    /// the bare property name. Only properties with a setter accessor qualify.
-    func lookupExtensionPropertyForAssignment(
+    /// Resolve the property read in a compound assignment through the existing
+    /// getter overload rules. Reserve the expression's call binding for its
+    /// arithmetic operator; lowering reads and writes the selected property.
+    private func resolveExtensionPropertyForCompoundAssignment(
+        id: ExprID,
         named calleeName: InternedString,
         receiverType: TypeID,
+        range: SourceRange,
         ctx: TypeInferenceContext
     ) -> (symbol: SymbolID, type: TypeID)? {
         let sema = ctx.sema
-        let actual = sema.types.makeNonNullable(receiverType)
-        for candidate in ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible {
-            guard let symbol = sema.symbols.symbol(candidate),
-                  symbol.kind == .property,
-                  sema.symbols.extensionPropertySetterAccessor(for: candidate) != nil,
-                  let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
-                  sema.types.isSubtype(actual, sema.types.makeNonNullable(declaredReceiver)),
-                  let propertyType = sema.symbols.propertyType(for: candidate)
-            else {
-                continue
-            }
-            return (candidate, propertyType)
+        guard let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
+            id: id,
+            calleeName: calleeName,
+            range: range,
+            receiverType: receiverType,
+            expectedType: nil,
+            ctx: ctx,
+            bindCall: false
+        ), let property = sema.bindings.identifierSymbol(for: id) else {
+            return nil
         }
-        return nil
+        return (property, propertyType)
     }
 
     /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
@@ -623,9 +621,11 @@ extension ExprTypeChecker {
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
-        ) ?? lookupExtensionPropertyForAssignment(
+        ) ?? resolveExtensionPropertyForCompoundAssignment(
+            id: id,
             named: calleeName,
             receiverType: nonNullReceiver,
+            range: range,
             ctx: ctx
         ) else {
             ctx.semaCtx.diagnostics.error(
