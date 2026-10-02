@@ -374,7 +374,7 @@ final class DataFlowAnalyzer {
         case let .isCheck(exprID, typeRefID, negated, _):
             return narrowedStateForIsCheck(
                 exprID: exprID, typeRefID: typeRefID, negated: negated,
-                subjectSymbol: subjectSymbol, conditionID: conditionID,
+                subjectSymbol: subjectSymbol, subjectType: subjectType, conditionID: conditionID,
                 base: base, ast: ast, sema: sema, interner: interner, scope: scope
             )
         default:
@@ -413,9 +413,12 @@ final class DataFlowAnalyzer {
             else {
                 return base
             }
-            let narrowed = sema.types.make(.classType(ClassType(
+            let rawNarrowed = sema.types.make(.classType(ClassType(
                 classSymbol: conditionSymbolID, args: [], nullability: .nonNull
             )))
+            // Same "no explicit type argument" narrowing gap as
+            // narrowedStateForIsCheck -- see refineIsCheckTargetType.
+            let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
             var vars = base.variables
             vars[subjectSymbol] = VariableFlowState(
                 possibleTypes: [narrowed], nullability: .nonNull, isStable: true
@@ -431,6 +434,7 @@ final class DataFlowAnalyzer {
         typeRefID: TypeRefID,
         negated: Bool,
         subjectSymbol: SymbolID,
+        subjectType: TypeID,
         conditionID _: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -446,11 +450,15 @@ final class DataFlowAnalyzer {
             return base
         }
         guard !negated else { return base }
-        guard let narrowed = resolveIsCheckTargetType(
+        guard let rawNarrowed = resolveIsCheckTargetType(
             typeRefID: typeRefID, scope: scope, ast: ast, sema: sema, interner: interner
         ) else {
             return base
         }
+        // `when (this) { is List -> ... }` on a value known to be
+        // `Iterable<T>` must narrow to `List<T>`, not an under-specified
+        // `List` -- see the matching fix in branchOnIsCheck/refineIsCheckTargetType.
+        let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
         let narrowedNullability = sema.types.nullability(of: narrowed)
         var vars = base.variables
         vars[subjectSymbol] = VariableFlowState(
