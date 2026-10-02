@@ -35,7 +35,7 @@ expr e@14:9 name(x) type=Int ref=noElseGuard.$1.x[kind=vparam]
 expr e@14:13 int(0) type=Int
 expr e@14:9#1 binary(greaterThan) lhs=e@14:9 rhs=e@14:13 type=Boolean
 expr e@14:18 name(result) type=Int ref=__local_0.result[kind=local]
-expr e@12:5 when subject=_ branches=[e@13:9#1->e@13:19,e@14:9#1->e@14:18] else=_ type=Int
+expr e@12:5 when subject=_ branches=[e@13:9#1->e@13:19,e@14:9#1->e@14:18] else=_ type=Any
 expr e@16:12 name(result) type=Int ref=__local_0.result[kind=local]
 expr e@16:5 return value=e@16:12 type=Nothing
 expr e@21:9 bool(true) type=Boolean
