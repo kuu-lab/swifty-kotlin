@@ -447,9 +447,7 @@ extension DataFlowSemaPhase {
         var candidatePaths: [[InternedString]] = {
             var paths: [[InternedString]] = []
             if path.count == 1 {
-                if let currentPackageFQName,
-                   !currentPackageFQName.isEmpty
-                {
+                if let currentPackageFQName {
                     paths.append(currentPackageFQName + path)
                 }
                 if let shortName = path.first {
@@ -475,6 +473,9 @@ extension DataFlowSemaPhase {
                     // Wildcard imports rank below same-package and explicit
                     // imports, matching Kotlin's unqualified-name precedence.
                     paths.append(contentsOf: wildcardPaths)
+                }
+                for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                    paths.append(defaultPackage + path)
                 }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility

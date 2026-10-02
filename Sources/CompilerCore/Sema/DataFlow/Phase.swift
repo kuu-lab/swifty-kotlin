@@ -467,9 +467,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
-        // Resolve kotlin.Number as early as possible. Number is a builtin type
-        // name (BuiltinTypeNames.number), so signatures that mention `Number`
-        // need types.numberClassSymbol set before they are resolved.
+        // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
             symbols: symbols,
             types: types,
