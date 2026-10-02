@@ -1071,6 +1071,25 @@ final class CallLowerer {
                 ))
                 implicitReceiver = receiver
             }
+            // An inner class's active implicit receiver is the inner instance,
+            // but an unqualified call to a member declared on an enclosing
+            // class must use that enclosing instance as its dispatch receiver.
+            // Resolve through the same `$outer` chain used by field accesses;
+            // for ordinary subtype/interface dispatch the helper returns the
+            // existing receiver unchanged.
+            if let owner = sema.symbols.parentSymbol(for: chosen),
+               let receiver = implicitReceiver,
+               let ownerReceiver = resolveOuterChainValue(
+                   from: receiver,
+                   to: owner,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
+               )
+            {
+                implicitReceiver = ownerReceiver
+            }
             if let implicitReceiver {
                 finalArgIDs.insert(implicitReceiver, at: 0)
                 // Runtime-backed MutableSet values (including collection
