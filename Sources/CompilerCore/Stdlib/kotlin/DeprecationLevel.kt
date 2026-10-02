@@ -6,3 +6,6 @@ public enum class DeprecationLevel {
     ERROR,
     HIDDEN
 }
+
+public val DeprecationLevel.entries: kotlin.enums.EnumEntries<DeprecationLevel>
+    get() = enumEntries<DeprecationLevel>()
