@@ -360,14 +360,15 @@ extension BuildKIRRegressionTests {
                 && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
                     == [ctx.interner.intern("Writer")]
         }?.id)
+        // The bound reference is lowered to a helper function that performs the
+        // virtual call; its name is an implementation detail, so find it by body.
         let wrapper = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-                && function.body.contains { instruction in
-                    if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
-                        return symbol == interfaceFlush
-                    }
-                    return false
+            function.body.contains { instruction in
+                if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
+                    return symbol == interfaceFlush
                 }
+                return false
+            }
         })
         #expect(wrapper.params.count == 1, "Bound interface reference must capture its receiver.")
         #expect(!wrapper.body.contains { instruction in
@@ -404,20 +405,27 @@ extension BuildKIRRegressionTests {
                 && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
                     == [ctx.interner.intern("Writer")]
         }?.id)
-        let thunk = try #require(findAllKIRFunctions(in: module).first { function in
+        let allFunctions = findAllKIRFunctions(in: module)
+        #expect(allFunctions.contains { function in
             ctx.interner.resolve(function.name).hasPrefix("kk_sam_ref_thunk_")
         })
-        #expect(thunk.body.contains { instruction in
-            if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
-                return symbol == interfaceFlush
+        // The SAM thunk reaches the interface member through a virtual call
+        // (directly or via the bound-reference helper), never a direct call.
+        #expect(allFunctions.contains { function in
+            function.body.contains { instruction in
+                if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
+                    return symbol == interfaceFlush
+                }
+                return false
             }
-            return false
         })
-        #expect(!thunk.body.contains { instruction in
-            if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
-                return symbol == interfaceFlush
+        #expect(!allFunctions.contains { function in
+            function.body.contains { instruction in
+                if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
+                    return symbol == interfaceFlush
+                }
+                return false
             }
-            return false
         })
     }
 
