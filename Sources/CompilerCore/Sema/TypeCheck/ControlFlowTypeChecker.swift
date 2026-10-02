@@ -661,10 +661,8 @@ final class ControlFlowTypeChecker {
         for (index, clause) in catchClauses.enumerated() {
             var catchLocals = preTryLocals
             let catchParamType = resolveCatchClauseParameterType(
-                clause.paramTypeName,
-                sema: sema,
-                interner: interner,
-                diagnostics: ctx.semaCtx.diagnostics,
+                clause.paramType,
+                ctx: ctx,
                 range: clause.range
             )
             var catchParamSymbol = SymbolID.invalid
@@ -726,52 +724,46 @@ final class ControlFlowTypeChecker {
     }
 
     private func resolveCatchClauseParameterType(
-        _ typeName: InternedString?,
-        sema: SemaModule,
-        interner: StringInterner,
-        diagnostics: DiagnosticEngine,
+        _ paramType: TypeRefID?,
+        ctx: TypeInferenceContext,
         range: SourceRange?
     ) -> TypeID {
-        guard let typeName else {
+        let sema = ctx.sema
+        guard let paramType else {
             return sema.types.anyType
         }
-        if let builtin = driver.helpers.resolveBuiltinTypeName(typeName, types: sema.types, interner: interner) {
-            return builtin
-        }
-        let candidates = sema.symbols.lookupAll(fqName: [typeName])
-            .filter { symbolID in
-                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                switch symbol.kind {
-                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                    return true
-                default:
-                    return false
-                }
-            }
-            .sorted { $0.rawValue < $1.rawValue }
-        let resolvedCandidates = if !candidates.isEmpty {
-            candidates
-        } else {
-            sema.symbols.lookupByShortName(typeName)
-                .filter { symbolID in
-                    guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                    switch symbol.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                        return true
-                    default:
-                        return false
-                    }
-                }
-                .sorted { $0.rawValue < $1.rawValue }
-        }
-        guard let symbol = resolvedCandidates.first else {
-            diagnostics.error(
+        // Route through the same type-reference resolution used by declarations
+        // and `is`/`as` expressions so that import priority (explicit > wildcard
+        // > default), aliases, and qualified names resolve identically here.
+        let resolved = driver.helpers.resolveTypeRef(
+            paramType,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner,
+            scope: ctx.scope,
+            diagnostics: nil,
+            inferenceContext: nil,
+            usageRange: range
+        )
+        if resolved == sema.types.errorType {
+            ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0085",
-                "Unresolved exception type '\(interner.resolve(typeName))' in catch clause.",
+                "Unresolved exception type '\(catchParamTypeDisplayName(paramType, ctx: ctx))' in catch clause.",
                 range: range
             )
-            return sema.types.errorType
         }
-        return sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        return resolved
+    }
+
+    private func catchParamTypeDisplayName(_ typeRef: TypeRefID, ctx: TypeInferenceContext) -> String {
+        guard let ref = ctx.ast.arena.typeRef(typeRef) else {
+            return "?"
+        }
+        switch ref {
+        case let .named(path, _, _):
+            return path.map { ctx.interner.resolve($0) }.joined(separator: ".")
+        default:
+            return "?"
+        }
     }
 }

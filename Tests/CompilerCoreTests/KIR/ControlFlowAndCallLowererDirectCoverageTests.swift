@@ -11,7 +11,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         let catchExprID = fixture.astArena.appendExpr(.intLiteral(0, range))
         let catchClause = CatchClause(
             paramName: fixture.interner.intern("e"),
-            paramTypeName: fixture.interner.intern("Int"),
+            paramType: fixture.astArena.appendTypeRef(.named(path: [fixture.interner.intern("Int")], args: [], nullable: false)),
             body: catchExprID,
             range: range
         )
@@ -25,6 +25,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         let resolvedExisting = fixture.driver.controlFlowLowerer.resolveCatchClauseBinding(
             catchClause,
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
@@ -34,7 +35,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         let fallbackExprID = fixture.astArena.appendExpr(.intLiteral(1, range))
         let fallbackClause = CatchClause(
             paramName: fixture.interner.intern("x"),
-            paramTypeName: fixture.interner.intern("Long"),
+            paramType: fixture.astArena.appendTypeRef(.named(path: [fixture.interner.intern("Long")], args: [], nullable: false)),
             body: fallbackExprID,
             range: range
         )
@@ -43,15 +44,23 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         let resolvedFallback = fixture.driver.controlFlowLowerer.resolveCatchClauseBinding(
             fallbackClause,
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
         #expect(resolvedFallback.parameterSymbol == fallbackSymbol)
         #expect(fixture.types.kind(of: resolvedFallback.parameterType) == .primitive(.long, .nonNull))
 
+        func namedRef(_ path: [String]) -> TypeRefID {
+            fixture.astArena.appendTypeRef(
+                .named(path: path.map { fixture.interner.intern($0) }, args: [], nullable: false)
+            )
+        }
+
         #expect(
             fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
                 nil,
+                ast: fixture.ast,
                 sema: fixture.sema,
                 interner: fixture.interner
             ) == fixture.types.anyType
@@ -68,7 +77,8 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         for (name, expectedKind) in builtinNames {
             let resolved = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
-                fixture.interner.intern(name),
+                namedRef([name]),
+                ast: fixture.ast,
                 sema: fixture.sema,
                 interner: fixture.interner
             )
@@ -77,7 +87,8 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         let classSymbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["CustomThrowable"])
         let resolvedClass = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
-            fixture.interner.intern("CustomThrowable"),
+            namedRef(["CustomThrowable"]),
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
@@ -86,8 +97,21 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
             .classType(ClassType(classSymbol: classSymbol, args: [], nullability: .nonNull))
         )
 
+        let qualifiedClassSymbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "QualifiedThrowable"])
+        let resolvedQualified = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
+            namedRef(["pkg", "QualifiedThrowable"]),
+            ast: fixture.ast,
+            sema: fixture.sema,
+            interner: fixture.interner
+        )
+        #expect(
+            fixture.types.kind(of: resolvedQualified) ==
+            .classType(ClassType(classSymbol: qualifiedClassSymbol, args: [], nullability: .nonNull))
+        )
+
         let unresolvedType = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
-            fixture.interner.intern("MissingType"),
+            namedRef(["MissingType"]),
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )

@@ -83,7 +83,12 @@ struct LambdaLowererDirectCoverageTests {
         let tryExpr = fixture.astArena.appendExpr(
             .tryExpr(
                 body: lhs,
-                catchClauses: [CatchClause(paramName: fixture.interner.intern("e"), paramTypeName: fixture.interner.intern("Int"), body: catchBody, range: range)],
+                catchClauses: [CatchClause(
+                    paramName: fixture.interner.intern("e"),
+                    paramType: fixture.astArena.appendTypeRef(.named(path: [fixture.interner.intern("Int")], args: [], nullable: false)),
+                    body: catchBody,
+                    range: range
+                )],
                 finallyExpr: value,
                 range: range
             )
