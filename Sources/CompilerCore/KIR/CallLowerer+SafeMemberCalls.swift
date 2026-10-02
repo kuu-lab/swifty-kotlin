@@ -1262,6 +1262,15 @@ func resolveVirtualDispatchKind(
     guard let parentID = sema.symbols.parentSymbol(for: callee),
           let parentSymbol = sema.symbols.symbol(parentID)
     else { return nil }
+    // Members declared on a range/progression class are only ever invoked on
+    // RuntimeRangeBox handles — the constructors are internal, so no
+    // vtable-carrying subclass exists. Keep them on direct dispatch even when
+    // the receiver's static type lost the nominal (e.g. ClosedRange<Long>).
+    if parentSymbol.kind == .class,
+       MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: parentSymbol, interner: interner) != nil
+    {
+        return nil
+    }
     guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
     if parentSymbol.kind == .interface {
         return resolveItableDispatchKind(

@@ -104,14 +104,20 @@ enum MemberRuntimeDispatch {
         interner: StringInterner
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        let nominalName: String? = {
-            guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
-                return nil
-            }
-            return interner.resolve(symbol.name)
-        }()
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
+            return nil
+        }
+        return rangeReceiverKind(forClassSymbol: symbol, interner: interner)
+    }
 
-        switch nominalName {
+    /// Maps a class symbol to its range/progression receiver kind by nominal
+    /// name. Every runtime value of these classes is a RuntimeRangeBox, so
+    /// members *declared on* them are only ever invoked on boxes.
+    static func rangeReceiverKind(
+        forClassSymbol symbol: SemanticSymbol,
+        interner: StringInterner
+    ) -> MemberDispatchReceiverKind? {
+        switch interner.resolve(symbol.name) {
         case "IntProgression":
             return .intProgression
         case "LongProgression":
