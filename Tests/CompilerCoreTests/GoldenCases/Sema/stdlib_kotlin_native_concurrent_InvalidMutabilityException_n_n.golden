@@ -6,9 +6,9 @@ file fstdlib_kotlin_native_concurrent_InvalidMutabilityException_n_n package=gol
   decl golden.sema.construct[kind=fun;params=String] fun construct sym=golden.sema.construct[kind=fun;params=String]
   decl golden.sema.catchMessage[kind=fun;params=] fun catchMessage sym=golden.sema.catchMessage[kind=fun;params=]
 expr e@7:79 name(message) type=String ref=golden.sema.construct.$0.message[kind=vparam]
-expr e@7:52 call callee=e@7:52#1 args=[_:e@7:79] type=kotlin.native.concurrent.InvalidMutabilityException call=kotlin.native.concurrent.InvalidMutabilityException.<init>[kind=ctor;params=String]
+expr e@7:52 call callee=e@7:52#1 args=[_:e@7:79] type=kotlin.native.concurrent.InvalidMutabilityException call=kotlin.native.concurrent.InvalidMutabilityException.<init>[kind=ctor;recv=kotlin.native.concurrent.InvalidMutabilityException;params=String]
 expr e@11:42 string(mutation blocked) type=String
-expr e@11:15 call callee=e@11:15#1 args=[_:e@11:42] type=kotlin.native.concurrent.InvalidMutabilityException call=kotlin.native.concurrent.InvalidMutabilityException.<init>[kind=ctor;params=String]
+expr e@11:15 call callee=e@11:15#1 args=[_:e@11:42] type=kotlin.native.concurrent.InvalidMutabilityException call=kotlin.native.concurrent.InvalidMutabilityException.<init>[kind=ctor;recv=kotlin.native.concurrent.InvalidMutabilityException;params=String]
 expr e@11:9 throw value=e@11:15 type=Nothing
 expr e@10:9 blockExpr stmts=[] trailing=e@11:9 type=Nothing
 expr e@13:9 name(e) type=kotlin.native.concurrent.InvalidMutabilityException ref=__try_0_catch_0.e[kind=local]

@@ -1,7 +1,6 @@
 // swiftlint:disable file_length
 
 extension ExprLowerer {
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func lowerExpr(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -373,6 +372,21 @@ extension ExprLowerer {
                     }
                     return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                 }()
+
+                // Arrays have their own storage ABI and are not Collection handles.
+                // Implicit `size` reads in extension bodies must use the same
+                // array primitive as an explicit `this.size` read.
+                if memberStr == "size", !implicitMemberUsesAccessor,
+                   ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(nonNullReceiverType)
+                {
+                    emitNonThrowingCall(
+                        callee: interner.intern("__kk_array_size"),
+                        arg: receiverExprID,
+                        result: result,
+                        into: &instructions
+                    )
+                    return result
+                }
 
                 if receiverMayBeCollection, memberStr == "size", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
@@ -1845,6 +1859,28 @@ extension ExprLowerer {
             )
 
         case let .returnExpr(value, label, _):
+            // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
+            // ends only that iteration: run the inner `finally` blocks, then jump.
+            if let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
+                if let value {
+                    _ = lowerExpr(
+                        value,
+                        ast: ast, sema: sema, arena: arena, interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
+                }
+                inlineFinallyBlocksForBreakOrContinue(
+                    label: label,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                instructions.append(.jump(iterationEnd))
+                let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
             if let value {
                 let lowered = lowerExpr(
                     value,
@@ -1855,6 +1891,22 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
+                // A bare variable read resolves to the variable's own storage
+                // register (see `driver.ctx.localValue(for:)` above), not a
+                // copy. If this return is inside a try-with-finally,
+                // `inlineAllEnclosingFinallyBlocks` below runs the finally body
+                // next -- if it reassigns that same variable, `lowered` would
+                // retroactively observe the mutation. Snapshot into a fresh
+                // register first, same as the `val a = b` aliasing guard in the
+                // `.localDecl` case above.
+                let returnValue: KIRExprID
+                if isBareVariableRead(value, ast: ast), !driver.ctx.enclosingFinallyBlocks().isEmpty {
+                    let snapshot = arena.appendTemporary(type: arena.exprType(lowered) ?? sema.types.anyType)
+                    instructions.append(.copy(from: lowered, to: snapshot))
+                    returnValue = snapshot
+                } else {
+                    returnValue = lowered
+                }
                 // CODE-001: Inline all enclosing finally blocks before return.
                 inlineAllEnclosingFinallyBlocks(
                     ast: ast, sema: sema, arena: arena, interner: interner,
@@ -1862,9 +1914,9 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(lowered))
+                    instructions.append(.nonLocalReturn(returnValue))
                 } else {
-                    instructions.append(.returnValue(lowered))
+                    instructions.append(.returnValue(returnValue))
                 }
             } else {
                 // CODE-001: Inline all enclosing finally blocks before return.
@@ -2204,6 +2256,14 @@ extension ExprLowerer {
                     let resultType = arena.exprType(lhs) ?? lhsType
                     let resultID = arena.appendTemporary(type: resultType)
                     instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    // `b++` / `s--` / `ub++` on Byte, Short, UByte, UShort compute in a
+                    // 64-bit slot; wrap back to the operand's width (Kotlin `inc`/`dec`).
+                    if let wrapped = SmallIntegerWrap.append(
+                        resultID, type: resultType, sema: sema, arena: arena, interner: interner,
+                        instructions: &instructions
+                    ) {
+                        return wrapped
+                    }
                     return resultID
                 }
 
@@ -3143,6 +3203,7 @@ extension ExprLowerer {
                     exprID: exprID,
                     elementID: lhsID,
                     containerID: rhsID,
+                    containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
                     interner: interner,
@@ -3180,6 +3241,7 @@ extension ExprLowerer {
                 exprID: exprID,
                 elementID: lhsID,
                 containerID: rhsID,
+                containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
                 interner: interner,
@@ -3199,6 +3261,7 @@ extension ExprLowerer {
         exprID: ExprID,
         elementID: KIRExprID,
         containerID: KIRExprID,
+        containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
         interner: StringInterner,
@@ -3217,6 +3280,19 @@ extension ExprLowerer {
                                                 !linkName.isEmpty
             {
                 interner.intern(linkName)
+            } else if let receiverType = sema.bindings.exprTypes[containerExpr],
+                      let rangeLink = driver.callLowerer.closedRangeInterfaceRuntimeName(
+                          memberName: "contains",
+                          receiverExpr: containerExpr,
+                          receiverType: receiverType,
+                          chosenCallee: callBinding.chosenCallee,
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                // KUU-932: the interface member can lack a link name even
+                // though ordinary range.contains() uses this runtime bridge.
+                rangeLink
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
                 sym.name
             } else {

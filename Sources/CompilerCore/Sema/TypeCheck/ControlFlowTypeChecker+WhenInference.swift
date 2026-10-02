@@ -201,9 +201,10 @@ extension ControlFlowTypeChecker {
                     // (for synthetic subjects such as `this` or a lambda parameter,
                     // which never get an `identifierSymbols` binding) more reliable
                     // than resolving the checked expression through
-                    // `identifierSymbols` and comparing symbols.
+                    // `identifierSymbols` and comparing symbols. Qualified or
+                    // computed subjects do not have a local binding either, but
+                    // their `is` conditions still cover sealed subclasses.
                     guard !negated,
-                          subjectLocalBinding != nil,
                           checkedExprID == subjectID,
                           let targetType = sema.bindings.isCheckTargetType(for: conditionID),
                           let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types),
@@ -465,7 +466,9 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            let type = sema.types.lub(branchTypes)
+            // A non-exhaustive `when` can fall through with no value (Unit); do not let
+            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -592,7 +595,9 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            let type = sema.types.lub(branchTypes)
+            // A non-exhaustive `when` can fall through with no value (Unit); do not let
+            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         }

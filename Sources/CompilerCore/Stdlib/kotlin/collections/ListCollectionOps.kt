@@ -252,9 +252,9 @@ public fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double {
 
 public fun List<Int>.average(): Double {
     if (size == 0) return Double.NaN
-    var total = 0
-    for (element in this) total += element
-    return total.toDouble() / size.toDouble()
+    var total = 0.0
+    for (element in this) total += element.toDouble()
+    return total / size.toDouble()
 }
 
 public fun List<Double>.average(): Double {

@@ -1171,9 +1171,9 @@ extension CallTypeChecker {
                 // Any.equals/hashCode/toString win before extension fallback.
                 standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
-                // Source-backed bundled extensions are the live implementation
-                // for migrated atomic APIs, including overrides of inherited
-                // synthetic Any members such as AtomicInt.toString().
+                // Source-backed bundled declarations are the live implementation
+                // for migrated atomic APIs and should win over residual synthetic
+                // candidates such as inherited Any members.
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1349,6 +1349,24 @@ extension CallTypeChecker {
                             }()
                             let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
                             guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                                return false
+                            }
+                            // A member extension declared in a companion is
+                            // callable only when that companion is in lexical
+                            // scope or explicitly imported. Scope lookup above
+                            // already covers both; the global short-name
+                            // fallback must not expose it to every file.
+                            // Extensions declared *on* the companion type
+                            // (e.g. `fun Worker.Companion.start`) are also
+                            // parented under the companion symbol (KSP-443);
+                            // they remain visible through normal imports, so
+                            // only member extensions whose declared receiver
+                            // is a different type are excluded here.
+                            if let parent = sema.symbols.parentSymbol(for: candidate),
+                               let owner = sema.symbols.parentSymbol(for: parent),
+                               sema.symbols.companionObjectSymbol(for: owner) == parent,
+                               resolveClassType(recvType, sema: sema)?.classSymbol != parent
+                            {
                                 return false
                             }
                             // kotlin.math is not a Kotlin default import. Do not let this
@@ -2003,6 +2021,7 @@ extension CallTypeChecker {
                 }
                 return [:]
             }(),
+            contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,

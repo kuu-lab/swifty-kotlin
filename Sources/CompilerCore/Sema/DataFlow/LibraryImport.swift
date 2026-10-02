@@ -151,7 +151,7 @@ extension DataFlowSemaPhase {
                     name: name,
                     fqName: record.fqName,
                     declSite: nil,
-                    visibility: .public,
+                    visibility: record.visibility,
                     flags: flags
                 )
                 if let libraryModuleFQN {
@@ -932,6 +932,7 @@ extension DataFlowSemaPhase {
 
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
+        let visibility: Visibility
         let mangledName: String
         let fqName: [InternedString]
         let arity: Int
@@ -985,6 +986,7 @@ extension DataFlowSemaPhase {
         let sealedSubclassFQNames: [[InternedString]]
         let propertyReceiverTypeSignature: String?
         let propertyGetterExternalLinkName: String?
+        let propertySetterExternalLinkName: String?
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
@@ -1001,6 +1003,7 @@ extension DataFlowSemaPhase {
 
         init(
             kind: SymbolKind,
+            visibility: Visibility = .public,
             mangledName: String = "",
             fqName: [InternedString] = [],
             arity: Int = 0,
@@ -1047,6 +1050,7 @@ extension DataFlowSemaPhase {
             sealedSubclassFQNames: [[InternedString]] = [],
             propertyReceiverTypeSignature: String? = nil,
             propertyGetterExternalLinkName: String? = nil,
+            propertySetterExternalLinkName: String? = nil,
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
@@ -1057,6 +1061,7 @@ extension DataFlowSemaPhase {
             nominalTypeParameters: String? = nil
         ) {
             self.kind = kind
+            self.visibility = visibility
             self.mangledName = mangledName
             self.fqName = fqName
             self.arity = arity
@@ -1103,6 +1108,7 @@ extension DataFlowSemaPhase {
             self.sealedSubclassFQNames = sealedSubclassFQNames
             self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
             self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+            self.propertySetterExternalLinkName = propertySetterExternalLinkName
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
@@ -1485,6 +1491,9 @@ extension DataFlowSemaPhase {
                     for: setterSymbol
                 )
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+                if let setterLink = record.propertySetterExternalLinkName, !setterLink.isEmpty {
+                    symbols.setExternalLinkName(setterLink, for: setterSymbol)
+                }
             }
         }
         // Member and top-level properties with custom getters also carry a
@@ -1547,6 +1556,47 @@ extension DataFlowSemaPhase {
             {
                 symbols.setFunctionABIReturnType(getterAbiReturnType, for: getterSymbol)
             }
+        }
+        // `var` properties with a custom setter carry the precompiled setter
+        // link for the same reason as the getter: without it a consumer's
+        // `a.prop = x` lowers to a call named `set` and fails to link.
+        let setterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
+        if record.isMutable,
+           let setterLink = record.propertySetterExternalLinkName,
+           !setterLink.isEmpty,
+           record.propertyReceiverTypeSignature == nil,
+           setterOwnerInfo == nil || setterOwnerInfo?.kind == .package
+               || setterOwnerInfo?.kind == .class || setterOwnerInfo?.kind == .enumClass
+               || setterOwnerInfo?.kind == .interface
+               || setterOwnerInfo?.kind == .object
+        {
+            let ownerType: TypeID? = setterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
+            let setName = interner.intern("set")
+            let setterFQName = record.fqName + [interner.intern("$set")]
+            let setterSymbol = symbols.define(
+                kind: .function,
+                name: setName,
+                fqName: setterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: setterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: setterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: ownerType,
+                    parameterTypes: [propertyType],
+                    returnType: types.unitType
+                ),
+                for: setterSymbol
+            )
+            symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+            symbols.setExternalLinkName(setterLink, for: setterSymbol)
         }
     }
 
