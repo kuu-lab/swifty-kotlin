@@ -21,6 +21,14 @@ public class UIntRange @KsSymbolName("__kk_uint_rangeTo") constructor(
     start: UInt,
     endInclusive: UInt,
 ) : UIntProgression(start, endInclusive, 1), ClosedRange<UInt>, OpenEndRange<UInt> {
+    public override val endExclusive: UInt
+        get() {
+            if (last == UInt.MAX_VALUE) {
+                throw IllegalStateException("Cannot return the exclusive upper bound of a range that includes MAX_VALUE.")
+            }
+            return last + 1u
+        }
+
     public override fun toString(): String = "$first..$last"
 
     public companion object {}
