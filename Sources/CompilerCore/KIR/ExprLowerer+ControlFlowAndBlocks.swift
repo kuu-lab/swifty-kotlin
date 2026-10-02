@@ -1,7 +1,6 @@
 // swiftlint:disable file_length
 
 extension ExprLowerer {
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func lowerExpr(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -1848,6 +1847,28 @@ extension ExprLowerer {
             )
 
         case let .returnExpr(value, label, _):
+            // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
+            // ends only that iteration: run the inner `finally` blocks, then jump.
+            if let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
+                if let value {
+                    _ = lowerExpr(
+                        value,
+                        ast: ast, sema: sema, arena: arena, interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
+                }
+                inlineFinallyBlocksForBreakOrContinue(
+                    label: label,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                instructions.append(.jump(iterationEnd))
+                let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
             if let value {
                 let lowered = lowerExpr(
                     value,
@@ -1858,6 +1879,22 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
+                // A bare variable read resolves to the variable's own storage
+                // register (see `driver.ctx.localValue(for:)` above), not a
+                // copy. If this return is inside a try-with-finally,
+                // `inlineAllEnclosingFinallyBlocks` below runs the finally body
+                // next -- if it reassigns that same variable, `lowered` would
+                // retroactively observe the mutation. Snapshot into a fresh
+                // register first, same as the `val a = b` aliasing guard in the
+                // `.localDecl` case above.
+                let returnValue: KIRExprID
+                if isBareVariableRead(value, ast: ast), !driver.ctx.enclosingFinallyBlocks().isEmpty {
+                    let snapshot = arena.appendTemporary(type: arena.exprType(lowered) ?? sema.types.anyType)
+                    instructions.append(.copy(from: lowered, to: snapshot))
+                    returnValue = snapshot
+                } else {
+                    returnValue = lowered
+                }
                 // CODE-001: Inline all enclosing finally blocks before return.
                 inlineAllEnclosingFinallyBlocks(
                     ast: ast, sema: sema, arena: arena, interner: interner,
@@ -1865,9 +1902,9 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(lowered))
+                    instructions.append(.nonLocalReturn(returnValue))
                 } else {
-                    instructions.append(.returnValue(lowered))
+                    instructions.append(.returnValue(returnValue))
                 }
             } else {
                 // CODE-001: Inline all enclosing finally blocks before return.
@@ -2171,15 +2208,27 @@ extension ExprLowerer {
             )
 
         case let .compoundAssign(op, _, valueExpr, _):
-            let rhsID = lowerExpr(
-                valueExpr,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+            // Kotlin's compound assignment reads the current target value
+            // BEFORE evaluating the right-hand side (e.g. `y += y++ + ++y`
+            // must read the pre-RHS value of `y`, not the value after the
+            // RHS's own increments have run). Lowering the RHS eagerly here
+            // — before any branch below has loaded the target's current
+            // value — would append the RHS's (possibly side-effecting)
+            // instructions first, so a later load of the same storage would
+            // observe the mutated value. `lowerRHS()` is called exactly
+            // once, from each branch below, immediately after that branch's
+            // load of the current value.
+            func lowerRHS() -> KIRExprID {
+                lowerExpr(
+                    valueExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
             let kirOp: KIRBinaryOp = switch op {
             case .plusAssign: .add
             case .minusAssign: .subtract
@@ -2207,6 +2256,14 @@ extension ExprLowerer {
                     let resultType = arena.exprType(lhs) ?? lhsType
                     let resultID = arena.appendTemporary(type: resultType)
                     instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    // `b++` / `s--` / `ub++` on Byte, Short, UByte, UShort compute in a
+                    // 64-bit slot; wrap back to the operand's width (Kotlin `inc`/`dec`).
+                    if let wrapped = SmallIntegerWrap.append(
+                        resultID, type: resultType, sema: sema, arena: arena, interner: interner,
+                        instructions: &instructions
+                    ) {
+                        return wrapped
+                    }
                     return resultID
                 }
 
@@ -2388,6 +2445,7 @@ extension ExprLowerer {
                         sema: sema,
                         interner: interner
                     ))
+                    let rhsID = lowerRHS()
                     let computedValue = appendBuiltinCompoundResult(
                         lhs: loadedValue,
                         lhsType: propertyType,
@@ -2457,6 +2515,7 @@ extension ExprLowerer {
                             thrownResult: nil
                         ))
                     }
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2484,6 +2543,7 @@ extension ExprLowerer {
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
                     let loadedValue = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.loadGlobal(result: loadedValue, symbol: symbol))
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2543,6 +2603,7 @@ extension ExprLowerer {
                             thrownResult: nil
                         ))
                     }
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2574,6 +2635,7 @@ extension ExprLowerer {
                 {
                     let symbolType = driver.ctx.localDeclaredType(for: symbol)
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2646,6 +2708,7 @@ extension ExprLowerer {
                             thrownResult: nil
                         ))
                     }
+                    let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
@@ -2668,16 +2731,26 @@ extension ExprLowerer {
                         // persists across loop iterations.
                         let symbolType = driver.ctx.localDeclaredType(for: symbol)
                             ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                        // `storageID` is this local's persistent storage register,
+                        // returned by identity (not a value snapshot). If the RHS
+                        // mutates the same local in place (e.g. `y += y++ + ++y`),
+                        // lowering it before reading the current value here would
+                        // let this read observe the RHS's own mutation instead of
+                        // the value Kotlin's left-to-right evaluation order
+                        // requires. Freeze it into a fresh temporary first.
+                        let frozenLHS = arena.appendTemporary(type: symbolType)
+                        instructions.append(.copy(from: storageID, to: frozenLHS))
+                        let rhsID = lowerRHS()
                         if let callBinding = sema.bindings.callBindings[exprID],
                            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                             if signature.returnType == sema.types.unitType {
-                                _ = appendOperatorCompoundResult(lhs: storageID, rhs: rhsID, resultType: signature.returnType)
-                            } else if let resultID = appendOperatorCompoundResult(lhs: storageID, rhs: rhsID, resultType: signature.returnType) {
+                                _ = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType)
+                            } else if let resultID = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType) {
                                 instructions.append(.copy(from: resultID, to: storageID))
                             }
                         } else {
                             let resultID = appendBuiltinCompoundResult(
-                                lhs: storageID,
+                                lhs: frozenLHS,
                                 lhsType: symbolType,
                                 rhs: rhsID,
                                 rhsType: arena.exprType(rhsID)
@@ -2691,6 +2764,7 @@ extension ExprLowerer {
                             ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                         let lhsID = arena.appendExpr(.symbolRef(symbol), type: symbolType)
                         instructions.append(.constValue(result: lhsID, value: .symbolRef(symbol)))
+                        let rhsID = lowerRHS()
                         if let callBinding = sema.bindings.callBindings[exprID],
                            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                             if signature.returnType == sema.types.unitType {

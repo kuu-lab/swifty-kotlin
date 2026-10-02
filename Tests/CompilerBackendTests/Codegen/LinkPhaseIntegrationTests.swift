@@ -6,6 +6,57 @@ import Testing
 @Suite(.serialized)
 struct LinkPhaseIntegrationTests {
     @Test
+    func testImportedStoredTopLevelPropertiesInitializeBeforeConsumerProperties() throws {
+        let librarySource = """
+        package extdemo
+
+        var initializationCount = 0
+        fun nextValue(): String {
+            initializationCount += 1
+            return "ready"
+        }
+        val storedValue: String = nextValue()
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "StoredValues") { libraryPath in
+            let manifestURL = URL(fileURLWithPath: libraryPath).appendingPathComponent("manifest.json")
+            let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+            #expect(manifest?["topLevelInitializerLinkName"] as? String != nil)
+
+            let appSource = """
+            import extdemo.storedValue
+            import extdemo.initializationCount
+
+            val valueSeenAtStartup = storedValue
+            fun main() {
+                println(valueSeenAtStartup)
+                println(storedValue.length)
+                println(initializationCount)
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: outputPath) }
+                let ctx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "StoredValuesApp",
+                    emit: .executable,
+                    outputPath: outputPath,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(ctx)
+                try LoweringPhase().run(ctx)
+                try CodegenPhase().run(ctx)
+                assertLinkSucceeds(ctx)
+
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "ready\n5\n1\n")
+            }
+        }
+    }
+
+    @Test
     func testLinkPhaseDoesNotCollectObjectSymlinkOutsideLibrary() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -77,6 +77,10 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     public fun removeAt(index: Int): E =
         __kkMutableListRemoveAt(this, index)
 
+    @IgnorableReturnValue
+    public override fun remove(element: E): Boolean =
+        __kkMutableListRemove(this, element)
+
     public override fun clear() {
         __kkMutableListClear(this)
     }
