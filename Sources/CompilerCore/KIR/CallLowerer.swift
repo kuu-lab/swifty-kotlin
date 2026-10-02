@@ -381,6 +381,10 @@ final class CallLowerer {
             canThrow: canThrow,
             thrownResult: nil
         ))
+        appendRuntimeRangeItableRegistrations(
+            objectValue: result, factoryName: callee,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         return result
     }
 
@@ -1477,6 +1481,10 @@ final class CallLowerer {
                     thrownResult: thrownResult
                 ))
             }
+            appendRuntimeRangeItableRegistrations(
+                objectValue: callResult, factoryName: loweredCalleeName,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             if let arrayResultTypeID {
                 let typeIDExpr = arena.appendExpr(
                     .intLiteral(arrayResultTypeID),

@@ -719,6 +719,14 @@ extension CallLowerer {
         else {
             return nil
         }
+        guard MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil else {
+            return nil
+        }
         let elementType: TypeID
         switch typeArg {
         case let .invariant(type), let .out(type), let .in(type):
