@@ -109,39 +109,11 @@ extension CallLowerer {
         // access to the object's state, so it must trigger the object's
         // lazy clinit-equivalent first. Imported-library objects restore the
         // guard through metadata; compiler pseudo-objects such as
-        // `Dispatchers`/`Charsets` below remain no-ops.
+        // `Charsets` below remain no-ops.
         driver.emitObjectLazyInitGuardIfNeeded(
             objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
         )
         let knownNames = KnownCompilerNames(interner: interner)
-        if let parentInfo = sema.symbols.symbol(parent),
-           parentInfo.name == knownNames.dispatchers
-        {
-            let runtimeCallee: InternedString
-            switch interner.resolve(info.name) {
-            case "Default":
-                runtimeCallee = interner.intern("kk_dispatcher_default")
-            case "IO":
-                runtimeCallee = interner.intern("kk_dispatcher_io")
-            case "Main":
-                runtimeCallee = interner.intern("kk_dispatcher_main")
-            default:
-                return nil
-            }
-            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
-                    ?? sema.symbols.propertyType(for: valueSym)
-                    ?? sema.types.anyType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: runtimeCallee,
-                arguments: [],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
         // STDLIB-581: Charsets.UTF_8 / ISO_8859_1 / US_ASCII / UTF_16 / ...
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets

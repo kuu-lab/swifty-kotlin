@@ -312,12 +312,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let dispatchersSymbol = ensureSyntheticObjectSymbol(
-            named: "Dispatchers",
-            in: coroutinesPkg,
-            symbols: symbols,
-            interner: interner
-        )
         let flowInterfaceSymbol = ensureInterfaceSymbol(
             named: "Flow",
             in: flowPkg,
@@ -424,11 +418,6 @@ extension DataFlowSemaPhase {
         )))
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let dispatchersType = types.make(.classType(ClassType(
-            classSymbol: dispatchersSymbol,
             args: [],
             nullability: .nonNull
         )))
@@ -670,7 +659,6 @@ extension DataFlowSemaPhase {
 
         symbols.setPropertyType(jobType, for: jobSymbol)
         symbols.setPropertyType(deferredType, for: deferredSymbol)
-        symbols.setPropertyType(dispatchersType, for: dispatchersSymbol)
         symbols.setPropertyType(flowRawType, for: flowInterfaceSymbol)
         symbols.setPropertyType(dispatcherType, for: dispatcherSymbol)
         symbols.setPropertyType(coroutineStartType, for: coroutineStartSymbol)
@@ -2149,31 +2137,6 @@ extension DataFlowSemaPhase {
             )))
             symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
         }
-
-        registerSyntheticObjectProperty(
-            ownerSymbol: dispatchersSymbol,
-            ownerType: dispatchersType,
-            name: "Default",
-            propertyType: dispatcherType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: dispatchersSymbol,
-            ownerType: dispatchersType,
-            name: "IO",
-            propertyType: dispatcherType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: dispatchersSymbol,
-            ownerType: dispatchersType,
-            name: "Main",
-            propertyType: dispatcherType,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerSyntheticCoroutineMember(
             ownerSymbol: jobSymbol,
