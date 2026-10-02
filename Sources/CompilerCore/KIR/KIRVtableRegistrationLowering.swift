@@ -257,6 +257,64 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         interner: interner,
         instructions: &instructions
     )
+    appendObjectAnyHashCodeOverrideRegistration(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+}
+
+/// Mirror of `appendObjectAnyEqualsOverrideRegistration` for `Any.hashCode`:
+/// hashed collections only see an erased handle, so the most-specific user
+/// `hashCode` override is kept alongside each object.
+private func appendObjectAnyHashCodeOverrideRegistration<C: RangeReplaceableCollection>(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    cache: KIRNominalDispatchCache,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout C
+) where C.Element == KIRInstruction {
+    let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+    guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
+          let anyHashCode = sema.symbols.lookupAll(
+              fqName: anyFQName + [interner.intern("hashCode")]
+          ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol })
+    else {
+        return
+    }
+    let implementation = cache.itableImplementation(
+        for: anyHashCode,
+        in: nominalSymbol,
+        sema: sema,
+        interner: interner
+    )
+    guard implementation != anyHashCode,
+          sema.symbols.symbol(implementation)?.flags.contains(.overrideMember) == true,
+          let signature = sema.symbols.functionSignature(for: implementation),
+          signature.parameterTypes.isEmpty,
+          signature.returnType == sema.types.intType
+    else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
+    instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        symbol: nil,
+        callee: interner.intern("kk_object_register_hashcode_override"),
+        arguments: [objectValue, methodFnExpr],
+        result: registerResult,
+        canThrow: false,
+        thrownResult: nil
+    ))
 }
 
 /// KSP-967: Generic equality in source-backed functions is lowered through
@@ -688,9 +746,22 @@ func itableBridgeSymbolForMethod(
     if needsErasedPrimitiveReturnBoxing {
         needsBridge = true
     }
+    // Callers of the erased signature box `T`-typed arguments, but the
+    // implementation body expects the raw primitive (direct calls pass raw
+    // values), so the bridge must unbox them before forwarding.
+    func needsErasedPrimitiveParamUnboxing(implType: TypeID, ifaceType: TypeID) -> Bool {
+        guard case .typeParam = sema.types.kind(of: ifaceType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: implType)
+        else {
+            return false
+        }
+        return true
+    }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
-            if isStringAggregate(implType) != isStringAggregate(ifaceType) {
+            if isStringAggregate(implType) != isStringAggregate(ifaceType)
+                || needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: ifaceType)
+            {
                 needsBridge = true
                 break
             }
@@ -742,6 +813,25 @@ func itableBridgeSymbolForMethod(
         body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
         bridgeParamExprs.append(expr)
     }
+    let unboxingTable = BoxingCalleeTable(interner: interner)
+    var forwardedArgExprs = bridgeParamExprs
+    for (index, implType) in implementationParamTypes.enumerated() {
+        guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
+              let unboxCallee = unboxingTable.unboxCallee(
+                  for: implType, types: sema.types, requireNonNull: true, preferStaticPrimitive: true
+              ) ?? unboxingTable.unboxCallee(for: implType, types: sema.types, requireNonNull: true)
+        else { continue }
+        let unboxed = arena.appendTemporary(type: implType)
+        body.append(.call(
+            symbol: nil,
+            callee: unboxCallee,
+            arguments: [bridgeParamExprs[index]],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        forwardedArgExprs[index] = unboxed
+    }
 
     let callResult = arena.appendTemporary(type: implementationReturnType)
     let thrownResult: KIRExprID? = implSig.canThrow
@@ -753,7 +843,7 @@ func itableBridgeSymbolForMethod(
     body.append(.call(
         symbol: implementation,
         callee: implName,
-        arguments: bridgeParamExprs,
+        arguments: forwardedArgExprs,
         result: callResult,
         canThrow: implSig.canThrow,
         thrownResult: thrownResult

@@ -651,20 +651,12 @@ public func kk_op_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_op_rangeUntil")
 public func __kk_op_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
-    if rhs <= lhs {
-        return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0, kind: .intRange))
-    }
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1, kind: .intRange))
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .intRange, endAtOrBelowMinimum: rhs <= Int(Int32.min))
 }
 
 @_cdecl("__kk_op_ulong_rangeUntil")
 public func __kk_op_ulong_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
-    let lhsUnsigned = UInt(bitPattern: lhs)
-    let rhsUnsigned = UInt(bitPattern: rhs)
-    if rhsUnsigned <= lhsUnsigned {
-        return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0, kind: .ulongRange))
-    }
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1, kind: .ulongRange))
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .ulongRange, endAtOrBelowMinimum: rhs == 0)
 }
 
 @_cdecl("__kk_op_downTo")
@@ -1522,7 +1514,7 @@ public func __kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStar
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
-    guard step != Int.min else {
+    guard step != Int(Int32.min) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
@@ -1567,7 +1559,7 @@ public func __kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
-    guard step != Int.min else {
+    guard step != Int(Int32.min) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
@@ -1610,7 +1602,7 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
-    guard step != Int.min else {
+    guard step != Int(Int32.min) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
