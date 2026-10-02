@@ -353,10 +353,10 @@ public func kk_emptyList() -> Int {
 
 @_cdecl("__kk_list_size")
 public func kk_list_size(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return runtimeSourceCollectionSize(listRaw) ?? 0
+    if let list = runtimeListBox(from: listRaw) {
+        return list.count
     }
-    return list.count
+    return runtimeSourceCollectionSize(listRaw) ?? 0
 }
 
 @_cdecl("__kk_list_get")
@@ -405,10 +405,13 @@ public func kk_enum_entries_get(
 
 @_cdecl("kk_list_is_empty")
 public func kk_list_is_empty(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(1)
+    if let list = runtimeListBox(from: listRaw) {
+        return kk_box_bool(list.count == 0 ? 1 : 0)
     }
-    return kk_box_bool(list.count == 0 ? 1 : 0)
+    if let isEmpty = runtimeSourceCollectionIsEmpty(listRaw) {
+        return kk_box_bool(isEmpty != 0 ? 1 : 0)
+    }
+    return kk_box_bool(1)
 }
 
 @_cdecl("kk_list_iterator")
@@ -484,6 +487,9 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
 public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let result = runtimeSourceListIteratorAt(listRaw, index: index, outThrown: outThrown) {
+            return result
+        }
         let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
         registerListIteratorItable(raw: raw)
         return raw
@@ -529,6 +535,14 @@ public func kk_list_subList(
 ) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        if let result = runtimeSourceMutableListSubList(
+            listRaw,
+            fromIndex: fromIndex,
+            toIndex: toIndex,
+            outThrown: outThrown
+        ) {
+            return result
+        }
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
@@ -986,7 +1000,15 @@ public func kk_mutable_list_addAll_at(
 public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
+        if let result = runtimeSourceMutableListSet(
+            listRaw,
+            index: index,
+            element: element,
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
         return 0
     }
     let values = list.values

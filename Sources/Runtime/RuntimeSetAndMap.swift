@@ -174,6 +174,9 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     if let set = runtimeSetBox(from: collRaw) {
         return set.isEmpty ? 1 : 0
     }
+    if let sourceResult = runtimeSourceCollectionIsEmpty(collRaw) {
+        return sourceResult != 0 ? 1 : 0
+    }
     if let sourceSize = runtimeSourceCollectionSize(collRaw) {
         return sourceSize == 0 ? 1 : 0
     }
