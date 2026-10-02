@@ -9,6 +9,7 @@ class Number(val n: Int) {
 
 fun <Number> identity(value: Number): Number = value
 fun builtinNumber(value: kotlin.Number): Int = value.toInt()
+fun numberValue(value: Any): Int = if (value is Number) value.n else -1
 
 fun main() {
     var n = Number(10)
@@ -18,4 +19,6 @@ fun main() {
     println(n.copy()?.n)
     println(identity(n).n)
     println(builtinNumber(7))
+    println(numberValue(n))
+    println(numberValue(7))
 }

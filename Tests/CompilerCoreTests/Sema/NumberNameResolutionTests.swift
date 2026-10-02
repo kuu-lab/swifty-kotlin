@@ -54,6 +54,10 @@ struct NumberNameResolutionTests {
             }
             fun qualified(): models.Number = models.Number(20)
             fun <Number> identity(value: Number): Number = value
+            fun narrowed(value: Any): Int {
+                if (value is \(name)) return value.n
+                return 0
+            }
             """,
         ]) { paths in
             let ctx = makeCompilationContext(
@@ -87,6 +91,14 @@ struct NumberNameResolutionTests {
             fun defaultNumber(value: Number?): Number? = value
             fun qualifiedNumber(value: kotlin.Number): kotlin.Number = value
             fun <T : Number> bounded(value: T): T = value
+            fun narrowed(value: Any): Int {
+                if (value is Number) return value.toInt()
+                return 0
+            }
+            fun whenNumber(value: Any): Int = when (value) {
+                is Number -> value.toInt()
+                else -> 0
+            }
             fun main() { println(qualifiedNumber(10).toInt()) }
             """,
         ]) { paths in
