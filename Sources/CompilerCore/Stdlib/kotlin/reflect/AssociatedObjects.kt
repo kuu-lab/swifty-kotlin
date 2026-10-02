@@ -19,15 +19,6 @@ package kotlin.reflect
 public annotation class ExperimentalAssociatedObjects
 
 /**
- * An annotation that designates a property or a function returning a key for
- * associated object lookup.
- */
-@kotlin.reflect.ExperimentalAssociatedObjects
-@kotlin.annotation.Retention(AnnotationRetention.BINARY)
-@kotlin.annotation.Target(AnnotationTarget.ANNOTATION_CLASS)
-public annotation class AssociatedObjectKey
-
-/**
  * If [T] is an @[AssociatedObjectKey]-annotated annotation class and [this] class is annotated with @[T] (`S::class`),
  * returns object `S`.
  *
