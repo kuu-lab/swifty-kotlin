@@ -7,7 +7,30 @@
 
 package kotlinx.coroutines.flow
 
+import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.ensureActive
+
+public interface Flow<out T>
+
+public interface FlowCollector<in T> {
+    public suspend fun emit(value: T)
+}
+
+@KsSymbolName("kk_flow_collect")
+internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
+
+public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
+    if (this is SharedFlow<*>) {
+        @Suppress("UNCHECKED_CAST")
+        (this as SharedFlow<T>).collect(collector)
+    } else {
+        this.collectCold { value -> collector(value) }
+    }
+}
+
+public suspend fun <T> Flow<T>.collect(collector: FlowCollector<T>) {
+    this.collect { value -> collector.emit(value) }
+}
 
 // MIGRATION-FLOW-004 (KSP-499)
 // Flow operators are bundled Kotlin source. The compiler/runtime keep only the
@@ -300,9 +323,9 @@ public suspend fun <T> Flow<T>.retryWhen(
 }
 
 // `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
-// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). There is no
-// FlowCollector type on this surface, so — like `catch`/`onCompletion` above —
-// the receiver is dropped and the action cannot emit fallback elements. The
+// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). As with
+// `catch`/`onCompletion` above, this overload drops the receiver and the action
+// cannot emit fallback elements. The
 // action's result is typed `Any` (as `coroutineScope`'s block is): a strict
 // `() -> Unit` parameter does not accept a plain zero-parameter lambda.
 public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {

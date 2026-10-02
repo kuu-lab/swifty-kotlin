@@ -57,6 +57,26 @@ private struct RuntimeFlowOp {
     let argument: Int
 }
 
+private final class RuntimeFlowEmitter {
+    let fnPtr: Int
+    let templateState: RuntimeContinuationState?
+
+    init(fnPtr: Int, continuation: Int) {
+        self.fnPtr = fnPtr
+        templateState = runtimeContinuationState(from: continuation)
+        if templateState != nil, continuation != 0 {
+            _ = kk_coroutine_state_exit(continuation, 0)
+        }
+    }
+
+    func makeContinuation() -> Int {
+        guard let templateState else { return 0 }
+        let continuation = kk_coroutine_continuation_new(Int(templateState.functionID))
+        runtimeContinuationState(from: continuation)?.launcherArgs = templateState.launcherArgs
+        return continuation
+    }
+}
+
 /// Factory for the channel used by one `channelFlow`/`callbackFlow` collect.
 /// The template continuation is kept alive only to retain captured values;
 /// every collection receives a fresh continuation and channel.
@@ -95,7 +115,7 @@ private final class RuntimeChannelProducer {
 }
 
 private enum RuntimeFlowSource {
-    case emitter(fnPtr: Int, continuation: Int)
+    case emitter(RuntimeFlowEmitter)
     case channelProducer(RuntimeChannelProducer)
     case fixed([RuntimeFlowEvent])
     case merge([Int])
@@ -153,17 +173,8 @@ private final class RuntimeFlowHandle {
     let fixedValues: [Int]?
 
     var emitterFnPtr: Int {
-        if case let .emitter(emitterFnPtr, _) = source {
-            return emitterFnPtr
-        }
-        return 0
-    }
-
-    /// Continuation carrying captured values for a capturing `flow { }` builder.
-    /// Zero for non-capturing builders, whose emitter is invoked directly.
-    var emitterContinuation: Int {
-        if case let .emitter(_, continuation) = source {
-            return continuation
+        if case let .emitter(emitter) = source {
+            return emitter.fnPtr
         }
         return 0
     }
@@ -187,7 +198,7 @@ private final class RuntimeFlowHandle {
             self.init(source: .fixed(fixedEvents), opChain: opChain, fixedValues: fixedValues)
         } else {
             self.init(
-                source: .emitter(fnPtr: emitterFnPtr, continuation: emitterContinuation),
+                source: .emitter(RuntimeFlowEmitter(fnPtr: emitterFnPtr, continuation: emitterContinuation)),
                 opChain: opChain,
                 fixedValues: nil
             )
@@ -202,7 +213,8 @@ private final class RuntimeFlowHandle {
 /// invokes the thunk with that continuation so the emitter receives its
 /// captures. Non-capturing builders keep the direct `(outThrown)` ABI.
 private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inout Int) {
-    let continuation = flow.emitterContinuation
+    guard case let .emitter(emitter) = flow.source else { return }
+    let continuation = emitter.makeContinuation()
     if continuation != 0 {
         if let context = runtimeFlowCurrentCollectContext() {
             runtimeContinuationState(from: continuation)?.flowCollectContext = context
@@ -1511,14 +1523,8 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received invalid flow handle")
     }
-    let source: RuntimeFlowSource = switch flow.source {
-    case let .channelProducer(producer):
-        .channelProducer(producer)
-    case .emitter, .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
-        .emitter(fnPtr: flow.emitterFnPtr, continuation: flow.emitterContinuation)
-    }
     let derived = RuntimeFlowHandle(
-        source: source,
+        source: flow.source,
         opChain: flow.opChain + [RuntimeFlowOp(kind: opKind, argument: value)],
         fixedValues: flow.fixedValues
     )

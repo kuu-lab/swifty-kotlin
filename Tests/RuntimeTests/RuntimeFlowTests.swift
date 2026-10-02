@@ -173,6 +173,12 @@ func runtime_test_flow_fixed_values_emitter(_ continuation: Int, _ outThrown: Un
     return 0
 }
 
+@_cdecl("runtime_test_flow_completing_captured_emitter")
+func runtime_test_flow_completing_captured_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let result = runtime_test_flow_fixed_values_emitter(continuation, outThrown)
+    return kk_coroutine_state_exit(continuation, result)
+}
+
 @_cdecl("runtime_test_flow_map_throw_on_two")
 func runtime_test_flow_map_throw_on_two(_: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeFlowTestState.recordMapCall()
@@ -468,6 +474,26 @@ struct RuntimeFlowTests {
         let secondCollect = runtimeFlowTestState.snapshot().values
         #expect(secondCollect == [1, 2, 3, 4], "Cold stream should re-emit on each collect.")
         #expect(runtimeFlowEmitterCallCounter.count == 2, "Emitter should run again on second collect (cold stream).")
+    }
+
+    @Test func testCapturedColdStreamReExecutesAfterContinuationCompletes() {
+        let continuation = kk_coroutine_continuation_new(0)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 2)
+        _ = kk_coroutine_launcher_arg_set(continuation, 1, 7)
+        _ = kk_coroutine_launcher_arg_set(continuation, 2, 8)
+        let emitterPtr = unsafeBitCast(
+            runtime_test_flow_completing_captured_emitter as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let source = kk_flow_create(emitterPtr, continuation)
+        let derived = kk_flow_emit(source, 1, RuntimeFlowTag.take.rawValue)
+
+        for flow in [source, derived, source, derived] {
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(flow, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == (flow == source ? [7, 8] : [7]))
+        }
     }
 
     @Test func testLazyMapOnlyProcessesNeededElements() {

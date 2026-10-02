@@ -1759,6 +1759,123 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test
+    func testFlowSharingSurfaceThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kotlinx_coroutines_flow_share_surface.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            collector=1
+            collector=2
+            7
+            [-1, -2, 7]
+            true
+            true
+            true
+            -1
+            []
+            []
+            invalid-stop
+            invalid-replay
+
+            """)
+    }
+
+    @Test
+    func testFlowSharingSnapshotsAndLegacyOverloadsThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        class SubscriptionCounts : StateFlow<Int> {
+            override val value: Int get() = 0
+            override val replayCache: List<Int> get() = listOf(0)
+            override suspend fun collect(collector: suspend (Int) -> Unit) {
+                collector(0)
+                collector(1)
+                collector(2)
+                collector(0)
+            }
+        }
+
+        fun main() = runBlocking {
+            val scope = CoroutineScope(Job())
+            val counts = SubscriptionCounts()
+            println(SharingStarted.Lazily.command(counts).toList() == listOf(SharingCommand.START))
+            println(SharingStarted.WhileSubscribed().command(counts).toList() ==
+                listOf(SharingCommand.START, SharingCommand.STOP))
+            println(SharingStarted.WhileSubscribed(0L, 0L).command(counts).toList() ==
+                listOf(SharingCommand.START, SharingCommand.STOP_AND_RESET_REPLAY_CACHE))
+            val state = flowOf(2, 3).stateIn(scope, SharingStarted.Lazily, -1)
+            println(state.value)
+            state.collect { println("state=$it") }
+            println(state.value)
+            val shared = flowOf(4, 5).shareIn(scope, SharingStarted.Lazily, 2)
+            println(shared.replayCache)
+            shared.collect { println("shared=$it") }
+            println(shared.replayCache)
+            val reset = flowOf(6).stateIn(scope, SharingStarted.WhileSubscribed(0L, 0L), -2)
+            reset.collect { println("reset=$it") }
+            println(reset.value)
+            reset.collect { println("restart=$it") }
+            println(reset.value)
+            val eager = flowOf(7).shareIn(scope, SharingStarted.Eagerly, 1)
+            eager.collect { println("eager=$it") }
+            println(eager.replayCache)
+            val mutable = MutableStateFlow(0)
+            val collector: FlowCollector<Int> = mutable
+            flowOf(10, 11).collect(collector)
+            println(mutable.value)
+            println(flowOf(8, 9).stateIn(0).value)
+            println(flowOf(12, 13, 14).shareIn(2).replayCache)
+            scope.cancel()
+        }
+        """
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            true
+            true
+            true
+            -1
+            state=3
+            3
+            []
+            shared=4
+            shared=5
+            [4, 5]
+            reset=6
+            -2
+            restart=6
+            -2
+            eager=7
+            [7]
+            11
+            9
+            [13, 14]
+
+            """)
+    }
+
+    private func expectFlowSharingOutput(_ source: String, artifactPath: String, expected: String) throws {
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "TestModule", emit: .executable,
+                outputPath: outputBase, includeStdlib: false, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
+        }
+    }
+
     /// STDLIB-ARTIFACT-003: an inline stdlib function whose body reads a
     /// property of a bundled Kotlin class (`Map.plus` reading `pair.first` /
     /// `pair.second`) links through the shared artifact.

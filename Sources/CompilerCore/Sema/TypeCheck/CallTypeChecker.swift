@@ -3018,15 +3018,6 @@ final class CallTypeChecker {
             }
         }
 
-        if let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
-            calleeName: calleeName,
-            argumentCount: args.count,
-            sema: sema,
-            interner: interner
-        ) {
-            sema.bindings.bindExprType(id, type: builtinType)
-            return builtinType
-        }
         // Builder DSL member functions (STDLIB-002).
         // Inside builder lambdas, unqualified `append`/`add`/`put` resolve as
         // implicit-receiver member calls that return Unit.
@@ -3252,6 +3243,16 @@ final class CallTypeChecker {
                 range: range, ctx: ctx, locals: &locals, expectedType: expectedType,
                 explicitTypeArgs: explicitTypeArgs
             ) { return fallbackType }
+        }
+
+        if let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
+            calleeName: calleeName,
+            argumentCount: args.count,
+            sema: sema,
+            interner: interner
+        ) {
+            sema.bindings.bindExprType(id, type: builtinType)
+            return builtinType
         }
 
         if let firstInvisible = callInvisible.first, let calleeName {
