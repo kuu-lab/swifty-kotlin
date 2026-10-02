@@ -13,8 +13,12 @@ package kotlin.ranges
 // `HeaderHelpers+SyntheticRangeInterfaceStubs.swift` /
 // `HeaderHelpers+SyntheticRangeProgressionStubs.swift`.
 //
-// The members (`start`, `endInclusive`, `endExclusive`, `contains`, `isEmpty`,
-// `lessThanOrEquals`) stay compiler residuals for interface-typed dispatch.
+// KSP-1311 moved the `OpenEndRange` declaration and its `start`/`endExclusive`/
+// `contains`/`isEmpty` members into `OpenEndRange/OpenEndRange.kt` (runtime
+// `__kk_range_*` links retained — the range boxes have no interface itables).
+// The `ClosedRange`/`ClosedFloatingPointRange` members (`start`,
+// `endInclusive`, `contains`, `isEmpty`, `lessThanOrEquals`) stay compiler
+// residuals for interface-typed dispatch (KSP-1299).
 // Typed range class shells are source-backed by IntRange.kt, LongRange.kt, and
 // CharRange.kt; unsigned range shells remain residual until KSP-709.
 
@@ -22,11 +26,6 @@ package kotlin.ranges
  * Represents a range of values of type [T] with both bounds included in the range.
  */
 public interface ClosedRange<T : Comparable<T>>
-
-/**
- * Represents a range of [Comparable] values with the upper bound excluded from the range.
- */
-public interface OpenEndRange<T : Comparable<T>>
 
 /**
  * Represents a range of floating point numbers, where `lessThanOrEquals` keeps the

@@ -274,11 +274,13 @@ extension CallTypeChecker {
     /// Scope lookup for an unqualified call also returns package-scope extension
     /// functions that merely share the simple name but declare a receiver the
     /// enclosing implicit receiver cannot satisfy (e.g. `AtomicInt.compareAndSet`
-    /// seen from an `AtomicBoolean` extension body).  Such candidates are not
-    /// callable without an explicit receiver, so the call has to resolve against
-    /// the implicit receiver's own members instead of failing overload
-    /// resolution. Only recovers calls whose scope candidates have already
-    /// failed overload resolution; a viable member takes precedence.
+    /// seen from an `AtomicBoolean` extension body), or whose arguments cannot
+    /// be satisfied even though the receiver matches (e.g. the kotlin.text
+    /// `T.append(vararg CharSequence?)` extension seen from an `Appendable`
+    /// extension body calling `append('\n')`).  Scope-candidate resolution has
+    /// already failed when this runs, so the call has to resolve against the
+    /// implicit receiver's own members instead of failing overload resolution.
+    /// Only recovers calls that would otherwise be reported as errors.
     func tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
         _ id: ExprID,
         calleeName: InternedString,
@@ -296,6 +298,7 @@ extension CallTypeChecker {
               args.count == argTypes.count
         else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
+
         // Kotlin's implicit-receiver tower: the innermost receiver first, then
         // enclosing receivers whose `this` value is reachable through capture.
         // Only entries carrying a receiver symbol participate — the symbol is

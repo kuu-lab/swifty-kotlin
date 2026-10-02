@@ -9,6 +9,8 @@ import kotlin.internal.KsSymbolName
 
 // KSP-708: Keep the typed range shell in bundled Kotlin source. The signed
 // range operator still uses the shared operator-core ABI.
+// KSP-1303: equals/hashCode/toString are members so `==` and erased virtual
+// dispatch use the range value rather than Any's identity behavior.
 public class IntRange @KsSymbolName("kk_op_rangeTo") constructor(
     start: Int,
     endInclusive: Int,
@@ -23,6 +25,18 @@ public class IntRange @KsSymbolName("kk_op_rangeTo") constructor(
             return last + 1
         }
     public override fun isEmpty(): Boolean = first > last
+
+    public override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is IntRange) return false
+        if (isEmpty()) return other.isEmpty()
+        return first == other.first && last == other.last
+    }
+
+    public override fun hashCode(): Int =
+        if (isEmpty()) -1 else 31 * first + last
+
+    public override fun toString(): String = "$first..$last"
 
     public companion object {}
 }

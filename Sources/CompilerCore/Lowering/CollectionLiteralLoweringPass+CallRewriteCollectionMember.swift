@@ -36,8 +36,8 @@ extension CollectionLiteralConstructionLoweringPass {
                         callee: kkName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: callee == lookup.endExclusiveName,
+                        thrownResult: callee == lookup.endExclusiveName ? thrownResult : nil
                     ))
                     return true
                 }

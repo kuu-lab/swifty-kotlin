@@ -92,6 +92,9 @@ public fun <T> Array<T>.binarySearch(
 
 // --- Primitive arrays: sortedArray / sortedArrayDescending / binarySearch ------
 
+// KUU-756: sorted() returns a list, leaving the primitive array unchanged.
+public fun IntArray.sorted(): List<Int> = sortedArray().toList()
+
 public fun IntArray.sortedArray(): IntArray {
     val result = this.copyOf()
     result.stableSortImpl(false)

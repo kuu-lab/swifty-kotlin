@@ -229,9 +229,24 @@ struct TypeConstraintBoundsTests {
     // now deferred to run after inheritance edges are bound (see
     // HeaderHelpers+TypeParameterBoundValidation.swift). Same scenario as
     // subtypeRelatedClassUpperBoundsEmitNoDiagnostic above, but through a class's own type
-    // parameters (registerNominalTypeParameters) rather than a function's.
-
-
-
-
+    @Test func testTypeParamWithMultipleUpperBoundsCallingExtension() throws {
+        let sources = [
+            """
+            package sampleMultipleBounds
+            fun CharSequence.isBlank(): Boolean = this.length == 0
+            fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSequence, C : R {
+                return if (isBlank()) defaultValue() else this
+            }
+            fun test() {
+                val s: String = "test"
+                s.ifBlank { "fallback" }
+            }
+            """
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+        }
+    }
 }

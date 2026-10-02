@@ -26,6 +26,28 @@ enum GoldenHarnessDumpError: Error, CustomStringConvertible {
     }
 }
 
+/// Which contract `dumpSema` renders the ordinary `symbol`/`expr`/`decl`
+/// body under (RF-GOLDEN-007).
+///
+/// `.current` is the committed format: `symbol` rows for every referenced
+/// symbol whose `declSite` sits inside the case file, and `call=`/`ref=`/
+/// `type=` spelled with the RF-GOLDEN-010 implementation-topology key.
+///
+/// `.fixtureOwned` is the fixture-scoped format: `symbol` rows keep only
+/// declarations the RF-GOLDEN-002 origin classifier proves fixture-owned —
+/// `.unknown` stays surfaced rather than silently folded into external
+/// coverage — and `call=`/`ref=`/`type=`/`sig=`/`targs=` spell the
+/// RF-GOLDEN-006 public declaration reference. The `section stdlib-targets`
+/// block (RF-GOLDEN-011) renders identically under both contracts; the split
+/// between ordinary and dedicated output happens at render time from
+/// ownership and the spec's target list, never by post-processing strings.
+/// RF-GOLDEN-008 flips the default after maintainer review; until then only
+/// tests select this contract.
+enum GoldenSemaRenderingContract {
+    case current
+    case fixtureOwned
+}
+
 enum GoldenHarnessDump {
     static func dumpLexer(sourcePath: String) throws -> String {
         let ctx = makeCompilationContext(
@@ -80,7 +102,8 @@ enum GoldenHarnessDump {
         sourcePath: String,
         preInjectedFiles: [(path: String, contents: Data)] = [],
         stdlibLibraryPath: String? = nil,
-        caseSpec: GoldenHarnessCaseSpec? = nil
+        caseSpec: GoldenHarnessCaseSpec? = nil,
+        renderingContract: GoldenSemaRenderingContract = .current
     ) throws -> String {
         let stdlib = try resolveStdlibMode(spec: caseSpec, stdlibLibraryPath: stdlibLibraryPath)
         let ctx = makeCompilationContext(
@@ -113,7 +136,8 @@ enum GoldenHarnessDump {
             sourceManager: ctx.sourceManager,
             sourceFileID: sourceFileID,
             diagnostics: ctx.diagnostics,
-            caseSpec: caseSpec
+            caseSpec: caseSpec,
+            renderingContract: renderingContract
         )
     }
 
@@ -145,16 +169,23 @@ enum GoldenHarnessDump {
 
     // MARK: - Stable sema rendering
 
-    private static func renderSemaOutput(
+    static func renderSemaOutput(
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner,
         sourceManager: SourceManager,
         sourceFileID: FileID,
         diagnostics: DiagnosticEngine,
-        caseSpec: GoldenHarnessCaseSpec?
+        caseSpec: GoldenHarnessCaseSpec?,
+        renderingContract: GoldenSemaRenderingContract = .current
     ) throws -> String {
-        let ctx = StableRenderContext(sema: sema, interner: interner, ast: ast, sourceManager: sourceManager)
+        let ctx = StableRenderContext(
+            sema: sema,
+            interner: interner,
+            ast: ast,
+            sourceManager: sourceManager,
+            contract: renderingContract
+        )
 
         // 1. Render body lines (files, decls, exprs) first to track referenced symbols
         var bodyLines: [String] = []
@@ -188,10 +219,10 @@ enum GoldenHarnessDump {
         // a numeric-aware comparison so embedded ordinals sort by value.
         let requiredSymbols = sema.symbols.allSymbols()
             .filter { ctx.requiredSymbols.contains($0.id.rawValue) }
-            .filter { !isExcludedLibrarySymbol($0, sourceFileID: sourceFileID) }
+            .filter { ctx.rendersOrdinarySymbolRow($0, sourceFileID: sourceFileID) }
             .sorted { lhs, rhs in
-                let lhsKey = ctx.stableKey(for: lhs.id)
-                let rhsKey = ctx.stableKey(for: rhs.id)
+                let lhsKey = ctx.ordinarySymbolKey(for: lhs.id)
+                let rhsKey = ctx.ordinarySymbolKey(for: rhs.id)
                 if lhsKey != rhsKey {
                     return lhsKey.compare(rhsKey, options: .numeric) == .orderedAscending
                 }
@@ -271,28 +302,16 @@ enum GoldenHarnessDump {
     }
 
 
-    /// `symbol` lines list only declarations authored inside the golden case
-    /// file itself. Library-owned symbols — bundled-stdlib decls, imported
-    /// `.kklib` decls, and synthetic stdlib stubs or compiler-internal
-    /// helpers (all of which have no case-file `declSite`) — are internal
-    /// topology that differs between the bundled-source and artifact loading
-    /// paths; the expr-level `ref=`/`call=`/`type=` output already pins how
-    /// they were resolved, so listing them here only adds noise.
-    private static func isExcludedLibrarySymbol(_ symbol: SemanticSymbol, sourceFileID: FileID) -> Bool {
-        guard let declSite = symbol.declSite else { return true }
-        return declSite.start.file != sourceFileID
-    }
-
     private static func renderSymbol(_ symbol: SemanticSymbol, ctx: StableRenderContext) -> String {
         var extra: [String] = []
         if let signature = ctx.sema.symbols.functionSignature(for: symbol.id) {
-            extra.append("sig=\(ctx.renderSignature(signature))")
+            extra.append("sig=\(ctx.ordinarySignature(signature))")
         }
         if let propertyType = ctx.sema.symbols.propertyType(for: symbol.id) {
-            extra.append("type=\(ctx.renderType(propertyType))")
+            extra.append("type=\(ctx.ordinaryType(propertyType))")
         }
         let extras = extra.isEmpty ? "" : " " + extra.joined(separator: " ")
-        let key = ctx.stableKey(for: symbol.id)
+        let key = ctx.ordinarySymbolKey(for: symbol.id)
         let flags = GoldenHarnessSemaFormat.renderSymbolFlags(symbol.flags)
         return "symbol fq=\(key) kind=\(symbol.kind) vis=\(symbol.visibility) flags=\(flags)\(extras)"
     }
@@ -318,7 +337,7 @@ enum GoldenHarnessDump {
             let symKey: String
             if let symbolID = ctx.sema.bindings.declSymbols[declID] {
                 ctx.requireSymbol(symbolID)
-                symKey = ctx.stableKey(for: symbolID)
+                symKey = ctx.ordinarySymbolKey(for: symbolID)
             } else {
                 symKey = "_"
             }
@@ -333,7 +352,7 @@ enum GoldenHarnessDump {
         var line = "expr \(ctx.exprKey(id)) \(GoldenHarnessExprFormat.renderExpr(expr, id: id, ctx: ctx))"
 
         if let exprType = ctx.sema.bindings.exprTypes[id] {
-            line += " type=\(ctx.renderType(exprType))"
+            line += " type=\(ctx.ordinaryType(exprType))"
         } else {
             line += " type=_"
         }
@@ -349,7 +368,7 @@ enum GoldenHarnessDump {
             if !isAccessorPair {
                 if refSymbol.rawValue >= 0 {
                     ctx.requireSymbol(refSymbol)
-                    line += " ref=\(ctx.stableKey(for: refSymbol))"
+                    line += " ref=\(ctx.ordinarySymbolKey(for: refSymbol))"
                 } else {
                     line += " ref=s\(refSymbol.rawValue)"
                 }
@@ -358,9 +377,9 @@ enum GoldenHarnessDump {
 
         if let callBinding = ctx.sema.bindings.callBindings[id] {
             ctx.requireSymbol(callBinding.chosenCallee)
-            line += " call=\(ctx.stableKey(for: callBinding.chosenCallee))"
+            line += " call=\(ctx.ordinarySymbolKey(for: callBinding.chosenCallee))"
             if !callBinding.substitutedTypeArguments.isEmpty {
-                let typeArgs = callBinding.substitutedTypeArguments.map { ctx.renderType($0) }.joined(separator: ",")
+                let typeArgs = callBinding.substitutedTypeArguments.map { ctx.ordinaryType($0) }.joined(separator: ",")
                 line += " targs=[\(typeArgs)]"
             }
         }

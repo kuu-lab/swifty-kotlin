@@ -15,7 +15,8 @@ public fun String.equals(other: String?): Boolean = __kkStringEquals(other)
 // MIGRATION-TEXT-009
 
 /**
- * Returns the longest common prefix of this string and the specified [other] string.
+ * Returns the longest common prefix of this string and the specified [other] string,
+ * without splitting a surrogate pair at the boundary.
  *
  * @param other The string to compare with.
  * @param ignoreCase `true` to ignore character case when comparing. By default `false`.
@@ -28,13 +29,17 @@ public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): 
         if (!__kkCharsEqual(this[i], other[i], ignoreCase)) break
         i++
     }
+    if (__kkHasSurrogatePairAt(this, i - 1) || __kkHasSurrogatePairAt(other, i - 1)) {
+        i--
+    }
     if (i == 0) return ""
     if (i == this.length) return this
     return this.substring(0, i)
 }
 
 /**
- * Returns the longest common suffix of this string and the specified [other] string.
+ * Returns the longest common suffix of this string and the specified [other] string,
+ * without splitting a surrogate pair at the boundary.
  *
  * @param other The string to compare with.
  * @param ignoreCase `true` to ignore character case when comparing. By default `false`.
@@ -46,6 +51,11 @@ public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): 
     while (i < shortestLength) {
         if (!__kkCharsEqual(this[this.length - 1 - i], other[other.length - 1 - i], ignoreCase)) break
         i++
+    }
+    if (__kkHasSurrogatePairAt(this, this.length - i - 1) ||
+        __kkHasSurrogatePairAt(other, other.length - i - 1)
+    ) {
+        i--
     }
     if (i == 0) return ""
     if (i == this.length) return this
