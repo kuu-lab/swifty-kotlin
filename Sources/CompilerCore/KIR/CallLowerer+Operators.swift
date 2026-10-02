@@ -170,6 +170,40 @@ extension CallLowerer {
             guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
             return true
         }()
+        if (op == .identityEqual || op == .notIdentityEqual), lhsIsString || rhsIsString {
+            // Compare canonical object handles, including String/Any mixed
+            // operands. Normalize both runtime null representations before
+            // the raw comparison; flat String boxing returns zero for null.
+            var handles: [KIRExprID] = []
+            for (id, isString) in [(lhsID, lhsIsString), (rhsID, rhsIsString)] {
+                var handle = id
+                if isString {
+                    handle = arena.appendTemporary(type: sema.types.nullableAnyType)
+                    instructions.append(.call(
+                        symbol: nil, callee: interner.intern("kk_string_from_flat"),
+                        arguments: [id], result: handle,
+                        canThrow: false, thrownResult: nil
+                    ))
+                }
+                let normalized = arena.appendTemporary(type: sema.types.nullableAnyType)
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: handle, target: nonNullLabel))
+                instructions.append(.constValue(result: normalized, value: .null))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                instructions.append(.copy(from: handle, to: normalized))
+                instructions.append(.label(endLabel))
+                handles.append(normalized)
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
+                arguments: handles, result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
         let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
             || (rhsIsString && lhsIsNullLiteral)
         let isStringComparison: Bool = if isStringOperand {
@@ -465,12 +499,7 @@ extension CallLowerer {
                 return nullStringID
             }
             switch op {
-            // `===`/`!==` fold into the same content-equality codegen as `==`/`!=`
-            // here: String is a "flat" by-value aggregate (data/length/byteCount/hash)
-            // in this runtime, not a heap reference, so there is no separate pointer
-            // identity to compare — `kk_op_eq`/`kk_op_ne` also cannot accept it
-            // (their ABI takes one word per operand, not a 4-word aggregate).
-            case .equal, .identityEqual:
+            case .equal:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
@@ -482,7 +511,7 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
                 return result
-            case .notEqual, .notIdentityEqual:
+            case .notEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 let eqResult = arena.appendTemporary(type: boolType)
@@ -714,7 +743,7 @@ extension CallLowerer {
             kirOp = .notEqual
         case .identityEqual, .notIdentityEqual:
             // Always resolved earlier: builtinBinaryRuntimeCallee (kk_op_eq/kk_op_ne)
-            // for ordinary operands, or the string content-equality path above for
+            // for ordinary operands, or the canonical string-handle path above for
             // String operands. Neither falls through to this raw KIRBinaryOp path.
             preconditionFailure("=== / !== must be lowered before reaching the raw KIRBinaryOp path")
         case .lessThan:
