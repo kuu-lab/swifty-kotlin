@@ -1,5 +1,5 @@
 package golden.sema
-
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 fun main() {
     val empty = UShortArray(0)
     val zeros = UShortArray(3)

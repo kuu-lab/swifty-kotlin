@@ -1,6 +1,42 @@
 import RuntimeABI
 
 final class CallLowerer {
+    /// Bitmask of object slot indices holding a data class's primary-constructor properties.
+    /// Returns nil when the layout is unknown or a slot does not fit in the mask, in which case
+    /// the runtime keeps comparing every stored slot.
+    func dataClassFieldSlotMask(owner ownerSymbol: SymbolID, sema: SemaModule) -> Int64? {
+        guard let owner = sema.symbols.symbol(ownerSymbol),
+              let fieldOffsets = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets
+        else {
+            return nil
+        }
+        let children = sema.symbols.children(ofFQName: owner.fqName).compactMap { sema.symbols.symbol($0) }
+        guard let primaryConstructor = children.filter({ $0.kind == .constructor }).min(by: { lhs, rhs in
+            let lhsOffset = lhs.declSite?.start.offset ?? Int.max
+            let rhsOffset = rhs.declSite?.start.offset ?? Int.max
+            return lhsOffset != rhsOffset ? lhsOffset < rhsOffset : lhs.id.rawValue < rhs.id.rawValue
+        }) else {
+            return nil
+        }
+        let parameterNames = sema.symbols.functionSignature(for: primaryConstructor.id)?
+            .valueParameterSymbols.compactMap { sema.symbols.symbol($0)?.name } ?? []
+        let properties = Dictionary(
+            children.filter { $0.kind == .property && !$0.flags.contains(.synthetic) }.map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var mask: Int64 = 0
+        for name in parameterNames {
+            guard let property = properties[name],
+                  let offset = fieldOffsets[property.id],
+                  offset >= 0, offset < 62
+            else {
+                return nil
+            }
+            mask |= Int64(1) << Int64(offset)
+        }
+        return mask
+    }
+
     unowned let driver: KIRLoweringDriver
 
     init(driver: KIRLoweringDriver) {
@@ -902,6 +938,12 @@ final class CallLowerer {
                    of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                ),
                functionType.receiver != nil,
+               // `finalArgIDs` here is `[closure] + normalizedArgs`.
+               // When the receiver was already supplied positionally
+               // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
+               // elements and finalArgIDs.count is params.count + 2 -- there
+               // is no missing receiver slot to fill from the ambient scope.
+               finalArgIDs.count == functionType.params.count + 1,
                let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
             {
                 // A receiver-function value invoked as `block()` inside a
@@ -928,6 +970,43 @@ final class CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+            // KUU-555: a local class's `<init>` runs as an independent KIR
+            // function — materialize captured outer locals into the fresh
+            // instance's fields here, where the enclosing scope's locals are
+            // still active (same convention as object-literal capture
+            // materialization in `lowerStoredObjectLiteralExpr`).
+            if let ownerNominalSymbol = sema.symbols.parentSymbol(for: chosen),
+               let layout = sema.symbols.nominalLayout(for: ownerNominalSymbol)
+            {
+                let intType = sema.types.make(.primitive(.int, .nonNull))
+                for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerNominalSymbol) {
+                    guard let fieldOffset = layout.fieldOffsets[capturedSymbol],
+                          let captureValue = driver.lambdaLowerer.captureValueExpr(
+                              for: capturedSymbol,
+                              sema: sema,
+                              arena: arena,
+                              interner: interner,
+                              instructions: &instructions
+                          )
+                    else {
+                        continue
+                    }
+                    let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+                    instructions.append(.constValue(
+                        result: captureOffsetExpr,
+                        value: .intLiteral(Int64(fieldOffset))
+                    ))
+                    let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_set"),
+                        arguments: [allocatedObj, captureOffsetExpr, captureValue],
+                        result: captureSetResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+            }
             finalArgIDs.insert(allocatedObj, at: 0)
             if isSyntheticAnyConstructor(chosen, sema: sema) {
                 // Any's implicit constructor is represented by allocation only;
@@ -1094,6 +1173,17 @@ final class CallLowerer {
            !callableInfo.captureArguments.isEmpty
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
+        }
+        // KUU-938: this synthetic conversion has no runtime symbol. The
+        // receiver has already been inserted above, including for an outer
+        // implicit receiver; preserve its raw primitive representation.
+        if let chosen,
+           sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
+           sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
+           finalArgIDs.count == 1
+        {
+            instructions.append(.copy(from: finalArgIDs[0], to: result))
+            return result
         }
         // KUU-655: an override that inherits its defaults never has its own
         // stub; resolve to the base declaration's stub instead (see
@@ -1876,6 +1966,9 @@ final class CallLowerer {
         case ("toUByte", sema.types.uintType, sema.types.ubyteType): interner.intern("kk_uint_to_ubyte")
         case ("toUByte", sema.types.ulongType, sema.types.ubyteType): interner.intern("kk_ulong_to_ubyte")
         case ("toUByte", sema.types.ubyteType, sema.types.ubyteType): nil
+        case ("toUByte", sema.types.ushortType, sema.types.ubyteType): interner.intern("kk_ushort_to_ubyte")
+        case ("toUByte", sema.types.byteType, sema.types.ubyteType): interner.intern("kk_byte_to_ubyte")
+        case ("toUByte", sema.types.shortType, sema.types.ubyteType): interner.intern("kk_short_to_ubyte")
         case ("toUShort", sema.types.intType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
         case ("toUShort", sema.types.longType, sema.types.ushortType): interner.intern("kk_long_to_ushort")
         case ("toUShort", sema.types.uintType, sema.types.ushortType): interner.intern("kk_uint_to_ushort")

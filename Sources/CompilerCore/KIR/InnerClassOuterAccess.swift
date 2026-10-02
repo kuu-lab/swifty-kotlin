@@ -137,6 +137,19 @@ func allocateAndRegisterConstructedObject(
             result: registerDataClassResult,
             into: &instructions
         )
+        if let fieldMask = driver.callLowerer.dataClassFieldSlotMask(owner: ownerNominalSymbol, sema: sema) {
+            let maskExpr = arena.appendExpr(.intLiteral(fieldMask), type: intType)
+            instructions.append(.constValue(result: maskExpr, value: .intLiteral(fieldMask)))
+            let registerFieldsResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_runtime_register_data_class_fields"),
+                arguments: [classIDExpr, maskExpr],
+                result: registerFieldsResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
     }
     let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
         symbol: ownerNominalSymbol,

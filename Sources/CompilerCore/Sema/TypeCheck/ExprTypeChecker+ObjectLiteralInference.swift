@@ -111,14 +111,16 @@ extension ExprTypeChecker {
                 guard symbol.kind == .property,
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
-                      sema.symbols.symbol(ownerSymbol)?.kind == .class,
-                      !symbol.flags.contains(.mutable)
+                      sema.symbols.symbol(ownerSymbol)?.kind == .class
                 else {
                     return nil
                 }
                 return symbol.id
             }
         )
+        let mutableOuterReceiverPropertySymbols = Set(outerReceiverPropertySymbols.filter {
+            sema.symbols.symbol($0)?.flags.contains(.mutable) == true
+        })
         // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
         // reachable here: the enclosing object literal captured them, so a
         // nested literal can capture them again through the same chain even
@@ -143,6 +145,12 @@ extension ExprTypeChecker {
             flags: [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
+        // A literal declared inside a class shares its lexical private scope.
+        // Keep that nesting in the symbol graph so its members can read the
+        // enclosing class's private constructor properties.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            sema.symbols.setParentSymbol(enclosingClassSymbol, for: objectSymbol)
+        }
         sema.symbols.setSourceFileID(ctx.currentFileID, for: objectSymbol)
 
         var directSuperSymbols: [SymbolID] = []
@@ -247,6 +255,7 @@ extension ExprTypeChecker {
             // entry whose type is the enclosing `this` type.
             for index in objectOuterReceiverTypes.indices
                 where objectOuterReceiverTypes[index].type == thisBinding.type
+                && objectOuterReceiverTypes[index].symbol == nil
             {
                 objectOuterReceiverTypes[index].symbol = thisBinding.symbol
             }
@@ -317,6 +326,30 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // Mutable outer receiver properties must keep addressing the enclosing
+        // instance. Capturing their current values would turn writes into writes
+        // to the anonymous object's copy, so capture the receiver once instead.
+        let capturesMutableOuterProperty = capturedSymbols.contains {
+            mutableOuterReceiverPropertySymbols.contains($0)
+        }
+        capturedSymbols.subtract(mutableOuterReceiverPropertySymbols)
+        if capturesMutableOuterProperty,
+           let currentDeclSymbol = ctx.currentDeclSymbol,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           let receiverOwnerSymbol = ctx.enclosingClassSymbol ?? driver.helpers.nominalSymbol(
+               of: sema.types.makeNonNullable(implicitReceiverType),
+               types: sema.types
+           )
+        {
+            let receiverCaptureSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
+            capturedSymbols.insert(receiverCaptureSymbol)
+            sema.bindings.bindCapturedLocalType(receiverCaptureSymbol, type: implicitReceiverType)
+            sema.bindings.bindObjectLiteralCapturedReceiver(
+                objectSymbol,
+                receiverSymbol: receiverCaptureSymbol,
+                ownerSymbol: receiverOwnerSymbol
+            )
+        }
         bindLocalNominalCaptures(
             capturedSymbols,
             ownerSymbol: objectSymbol,
@@ -769,15 +802,25 @@ extension ExprTypeChecker {
         let inheritedCandidatesByKey = vtableInheritedCandidatesByKey(
             inheritedVtableSlots: inheritedVtableSlots, symbols: sema.symbols
         )
+        // A local `open`/`abstract` class can itself be a superclass, so its
+        // own non-overriding methods need fresh slots (like
+        // `synthesizeLayoutForNominal` does for named classes); otherwise a
+        // call through a base-typed reference finds no slot and is lowered as
+        // a direct call to the base implementation.
+        var nextVtableSlot = max(inheritedVtableSize ?? 0, (inheritedVtableSlots.values.max() ?? -1) + 1)
         for memberSymbolID in memberFunctionSymbolsByDecl.values.sorted(by: { $0.rawValue < $1.rawValue }) {
-            guard let method = sema.symbols.symbol(memberSymbolID),
-                  method.flags.contains(.overrideMember),
-                  let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]
-            else { continue }
-            let parameterTypes = sema.symbols.functionSignature(for: method.id)?.parameterTypes ?? []
-            if let matchedSlot = resolveOverriddenVtableSlot(parameterTypes: parameterTypes, candidates: candidates, types: sema.types) {
-                vtableSlots[method.id] = matchedSlot
+            guard let method = sema.symbols.symbol(memberSymbolID) else { continue }
+            if method.flags.contains(.overrideMember),
+               let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]
+            {
+                let parameterTypes = sema.symbols.functionSignature(for: method.id)?.parameterTypes ?? []
+                if let matchedSlot = resolveOverriddenVtableSlot(parameterTypes: parameterTypes, candidates: candidates, types: sema.types) {
+                    vtableSlots[method.id] = matchedSlot
+                    continue
+                }
             }
+            vtableSlots[method.id] = nextVtableSlot
+            nextVtableSlot += 1
         }
 
         // BUG-242: mirror the named-class path
@@ -836,7 +879,7 @@ extension ExprTypeChecker {
                 fieldOffsets: fieldOffsets,
                 vtableSlots: vtableSlots,
                 itableSlots: itableSlots,
-                vtableSize: inheritedVtableSize,
+                vtableSize: nextVtableSlot,
                 itableSize: nextItableSlot,
                 superClass: superClass
             ),

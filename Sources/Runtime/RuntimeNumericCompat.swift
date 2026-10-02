@@ -403,7 +403,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             // constructor fields are the tagged slots that follow it; plain
             // inherited fields remain untagged and are not part of the
             // compiler-synthesized data-class hash contract.
-            let fields = objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            let fieldMask = runtimeDataClassFieldMask(classID: objBox.classID)
+            let fields: [RuntimeValue] = if let fieldMask {
+                objBox.values.enumerated().filter { index, _ in
+                    index < 63 && fieldMask & (1 << Int64(index)) != 0
+                }.map(\.element)
+            } else {
+                objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            }
             guard let firstField = fields.first else {
                 return 0
             }
@@ -1673,7 +1680,5 @@ public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
 public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    let last = endChar &- 1
-    let step = endChar <= startChar ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: last, step: step, kind: .charRange))
+    return runtimeUntilRange(first: startChar, exclusiveEnd: endChar, kind: .charRange, endAtOrBelowMinimum: endChar <= 0)
 }
