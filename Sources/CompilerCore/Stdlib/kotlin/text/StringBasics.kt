@@ -148,6 +148,7 @@ public fun CharSequence.reversed(): CharSequence {
 }
 
 public fun String.padStart(length: Int, padChar: Char = ' '): String {
+    if (length < 0) throw IllegalArgumentException("Desired length $length is less than zero.")
     val padding = length - this.length
     if (padding <= 0) return this
     val sb = StringBuilder()
@@ -158,6 +159,7 @@ public fun String.padStart(length: Int, padChar: Char = ' '): String {
 }
 
 public fun String.padEnd(length: Int, padChar: Char = ' '): String {
+    if (length < 0) throw IllegalArgumentException("Desired length $length is less than zero.")
     val padding = length - this.length
     if (padding <= 0) return this
     val sb = StringBuilder()

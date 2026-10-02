@@ -88,7 +88,13 @@ public func kk_set_size(_ setRaw: Int) -> Int {
 @_cdecl("__kk_set_contains")
 public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return 0
+        return runtimeSourceInterfaceCall1(
+            setRaw,
+            element,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Set"),
+            methodSlot: 1,
+            context: "Set.contains dispatch"
+        ) ?? 0
     }
     return set.contains(rawValue: element) ? 1 : 0
 }
@@ -96,7 +102,15 @@ public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
 @_cdecl("__kk_set_is_empty")
 public func kk_set_is_empty(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return 1
+        if let result = runtimeSourceInterfaceCall0(
+            setRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Set"),
+            methodSlot: 0,
+            context: "Set.isEmpty dispatch"
+        ) {
+            return result
+        }
+        return (runtimeSourceCollectionSize(setRaw) ?? 0) == 0 ? 1 : 0
     }
     return set.isEmpty ? 1 : 0
 }
@@ -206,6 +220,9 @@ public func kk_mutable_set_add(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let sourceResult = runtimeSourceMutableSetAdd(setRaw, elem, outThrown: outThrown) {
+            return sourceResult
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -222,6 +239,16 @@ public func kk_mutable_set_remove(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let sourceResult = runtimeSourceInterfaceCall1(
+            setRaw,
+            elem,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 1,
+            context: "MutableSet.remove dispatch",
+            outThrown: outThrown
+        ) {
+            return sourceResult
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -237,6 +264,15 @@ public func kk_mutable_set_clear(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let sourceResult = runtimeSourceInterfaceCall0(
+            setRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 2,
+            context: "MutableSet.clear dispatch",
+            outThrown: outThrown
+        ) {
+            return sourceResult
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -448,7 +484,8 @@ public func kk_mutable_map_put(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMutableMapPut(mapRaw, key: key, value: value, outThrown: outThrown)
+            ?? runtimeNullSentinelInt
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
@@ -468,7 +505,8 @@ public func kk_mutable_map_remove(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMutableMapRemove(mapRaw, key: key, outThrown: outThrown)
+            ?? runtimeNullSentinelInt
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
@@ -483,7 +521,7 @@ public func kk_mutable_map_clear(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return 0
+        return runtimeSourceMutableMapClear(mapRaw, outThrown: outThrown) ?? 0
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
@@ -499,8 +537,10 @@ public func kk_mutable_map_putAll(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw),
-          let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return runtimeSourceMutableMapPutAll(mapRaw, otherMapRaw: otherMapRaw, outThrown: outThrown) ?? 0
+    }
+    guard let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
     }
@@ -687,7 +727,7 @@ public func kk_map_iterator(_ mapRaw: Int) -> Int {
     } else {
         ([], [])
     }
-    return registerRuntimeObject(RuntimeMapIteratorBox(keys: keys, values: values))
+    return registerRuntimeObject(RuntimeMapIteratorBox(mapRaw: mapRaw, keys: keys, values: values))
 }
 
 @_cdecl("__kk_map_iterator_hasNext")
@@ -709,6 +749,10 @@ public func kk_map_iterator_next(
           iter.index < iter.keys.count
     else {
         return runtimeThrowIteratorExhausted(outThrown)
+    }
+    guard iter.isInSyncWithBackingMap() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -739,6 +783,10 @@ public func kk_mutable_map_iterator_next(
           iter.index < iter.keys.count
     else {
         return runtimeThrowIteratorExhausted(outThrown)
+    }
+    guard iter.isInSyncWithBackingMap() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -777,6 +825,10 @@ public func kk_mutable_map_iterator_remove(
         return runtimeExceptionCaughtSentinel
     }
     iter.lastKey = nil
+    // The removal above just bumped the backing map's modCount through this
+    // same iterator — resync so the next `next()` call does not see this
+    // iterator's own change as a concurrent modification.
+    iter.expectedModCount = runtimeMapBox(from: iter.mapRaw)?.modCount ?? iter.expectedModCount
     return 0
 }
 

@@ -257,5 +257,26 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test func testEmptyExpectAbstractClassDoesNotWarn() throws {
+        let source = """
+        expect abstract class CharsetEncoder
+
+        actual abstract class CharsetEncoder {
+            abstract fun encode(): String
+        }
+
+        abstract class RegularEmpty
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let emptyAbstractWarnings = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                && $0.message.contains("has no abstract members")
+        }
+        #expect(emptyAbstractWarnings.count == 1)
+        #expect(emptyAbstractWarnings.first?.message.contains("RegularEmpty") == true)
+    }
+
 }
 #endif

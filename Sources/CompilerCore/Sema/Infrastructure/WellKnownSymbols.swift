@@ -67,13 +67,29 @@ enum WellKnownEnumIntrinsic: CaseIterable, Hashable, Sendable {
     }
 }
 
+/// Compiler-owned reflection intrinsics. The bundled `kotlin.reflect.typeOf`
+/// declaration is expanded by the `typeOf` special-call path in the call type
+/// checker, the same way the enum intrinsics dispatch to their own lowering.
+enum WellKnownReflectIntrinsic: CaseIterable, Hashable, Sendable {
+    case typeOf
+
+    var fqNameParts: [String] {
+        switch self {
+        case .typeOf:
+            ["kotlin", "reflect", "typeOf"]
+        }
+    }
+}
+
 private enum WellKnownSymbol: Hashable, Sendable {
     case collectionFactory(WellKnownCollectionFactory)
     case enumIntrinsic(WellKnownEnumIntrinsic)
+    case reflectIntrinsic(WellKnownReflectIntrinsic)
 
     static var all: [WellKnownSymbol] {
         WellKnownCollectionFactory.allCases.map { .collectionFactory($0) }
             + WellKnownEnumIntrinsic.allCases.map { .enumIntrinsic($0) }
+            + WellKnownReflectIntrinsic.allCases.map { .reflectIntrinsic($0) }
     }
 
     var fqNameParts: [String] {
@@ -81,6 +97,8 @@ private enum WellKnownSymbol: Hashable, Sendable {
         case let .collectionFactory(factory):
             ["kotlin", "collections", factory.simpleName]
         case let .enumIntrinsic(intrinsic):
+            intrinsic.fqNameParts
+        case let .reflectIntrinsic(intrinsic):
             intrinsic.fqNameParts
         }
     }
@@ -139,6 +157,15 @@ struct WellKnownSymbols: Sendable {
     func enumIntrinsic(for symbol: SymbolID?) -> WellKnownEnumIntrinsic? {
         guard let symbol,
               case let .enumIntrinsic(intrinsic) = symbolByID[symbol]
+        else {
+            return nil
+        }
+        return intrinsic
+    }
+
+    func reflectIntrinsic(for symbol: SymbolID?) -> WellKnownReflectIntrinsic? {
+        guard let symbol,
+              case let .reflectIntrinsic(intrinsic) = symbolByID[symbol]
         else {
             return nil
         }

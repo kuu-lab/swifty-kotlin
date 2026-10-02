@@ -254,6 +254,35 @@ struct CoroutineIntrinsicsSyntheticStubTests {
     }
 
     @Test
+    func testRestrictsSuspensionIsSourceBackedWithBundledStdlib() throws {
+        try withTemporaryFile(contents: "@kotlin.coroutines.RestrictsSuspension class Scope") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlin", "coroutines", "RestrictsSuspension"].map {
+                ctx.interner.intern($0)
+            }
+            #expect(sema.bundledIndex.containsNominal(fqName: fqName))
+            let symbols = sema.symbols.lookupAll(fqName: fqName)
+            #expect(symbols.count == 1)
+            let symbol = try #require(symbols.first)
+            let info = try #require(sema.symbols.symbol(symbol))
+            #expect(info.kind == .annotationClass)
+            #expect(info.declSite != nil)
+            #expect(!info.flags.contains(.synthetic))
+            let constructors = sema.symbols.lookupAll(fqName: fqName + [ctx.interner.intern("<init>")])
+            #expect(constructors.count == 1)
+            let constructor = try #require(constructors.first)
+            #expect(sema.symbols.functionSignature(for: constructor)?.parameterTypes.isEmpty == true)
+            #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        }
+    }
+
+    @Test
     func testRestrictsSuspensionAnnotationIsRegisteredWithClassTarget() throws {
         let (sema, interner) = try sharedSema()
 

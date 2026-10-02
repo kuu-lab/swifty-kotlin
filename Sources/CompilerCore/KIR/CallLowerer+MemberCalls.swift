@@ -357,6 +357,33 @@ extension CallLowerer {
             return scopeResult
         }
 
+        // Explicit `.invoke(...)` on a receiver whose own type is a function
+        // type (e.g. `f.invoke(3)`, `ef.invoke(5, 6)`) -- unlike the
+        // receiver-lambda sugar just below, `receiverExpr` here IS the
+        // callable value itself, not a separate dispatch receiver.
+        if interner.resolve(calleeName) == "invoke",
+           sema.bindings.callableValueCalls[exprID] != nil,
+           case .functionType = sema.types.kind(
+               of: sema.types.makeNonNullable(sema.bindings.exprType(for: receiverExpr) ?? sema.types.anyType)
+           )
+        {
+            let loweredReceiverID = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
+                exprID,
+                calleeName: calleeName,
+                args: args,
+                loweredReceiverID: loweredReceiverID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions
+            ) {
+                return invokeResult
+            }
+        }
+
         // Receiver-lambda invocation: `receiver.localVar()` where localVar has
         // a function-with-receiver type (e.g. `sb.action()` with action: StringBuilder.() -> Unit).
         // Some frontends may also encode the receiver as the first parameter of a regular

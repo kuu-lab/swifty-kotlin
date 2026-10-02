@@ -9,6 +9,66 @@ import Testing
 struct AnyConstructorRegressionTests {
 
     @Test
+    func genericSecondaryDelegationUsesDeclaredOwnerTypeArguments() throws {
+        let source = """
+        package ksp557
+
+        open class Base<A, B> {
+            constructor(capacity: Int)
+            constructor(label: String)
+        }
+
+        class FromSuper<K, V> : Base<V, K> {
+            constructor(capacity: Int) : super(capacity)
+            constructor(label: String) : super(label)
+        }
+
+        class FromThis<K, V>(capacity: Int) : Base<String, V>(capacity) {
+            constructor(capacity: Int, loadFactor: Float) : this(capacity)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Generic delegations should resolve: \(errors)")
+        let sema = try #require(ctx.sema)
+        let fromSuper = try #require(sema.symbols.allSymbols().first {
+            $0.kind == .class && ctx.interner.resolve($0.name) == "FromSuper"
+        })
+        let targets = sema.bindings.constructorDelegationTargets.compactMap { source, target -> SymbolID? in
+            sema.symbols.parentSymbol(for: source) == fromSuper.id ? target : nil
+        }
+        #expect(targets.count == 2)
+        #expect(Set(targets).count == 2, "Distinct super(...) overloads must retain distinct targets")
+    }
+
+    @Test
+    func genericSecondaryDelegationStillRejectsWrongArgumentType() throws {
+        let source = """
+        package ksp557
+
+        open class Base<K, V> {
+            constructor(capacity: Int)
+        }
+
+        class Wrong<K, V> : Base<K, V> {
+            constructor(label: String) : super(label)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.code)
+        #expect(
+            codes.contains("KSWIFTK-SEMA-0002") || codes.contains("KSWIFTK-TYPE-0001"),
+            "Wrong super(...) argument should be rejected by overload resolution: \(codes)"
+        )
+    }
+
+    @Test
     func implicitAnyConstructorDoesNotResolveBareSuperDelegation() throws {
         let source = """
         package ksp805

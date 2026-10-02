@@ -557,7 +557,10 @@ extension CallLowerer {
             if !isStringCompound {
                 let result = arena.appendTemporary(type: propType)
                 instructions.append(.binary(op: kirOp, lhs: currentValue, rhs: valueID, result: result))
-                return result
+                return SmallIntegerWrap.append(
+                    result, type: propType, sema: sema, arena: arena, interner: interner,
+                    instructions: &instructions
+                ) ?? result
             }
             // Kotlin's `String += Any?` calls toString() on a non-String operand
             // (Kotlin's String.plus(other: Any?)); a non-String currentValue/valueID
