@@ -7,3 +7,8 @@ package kotlinx.coroutines
 public fun interface DisposableHandle {
     public fun dispose()
 }
+
+public object NonDisposableHandle : DisposableHandle {
+    override fun dispose() {}
+    override fun toString(): String = "NonDisposableHandle"
+}
