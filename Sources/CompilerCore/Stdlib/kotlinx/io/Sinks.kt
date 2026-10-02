@@ -8,15 +8,15 @@
  *   Buffer.kt), so digits are staged in a `ByteArray` and written through
  *   `Sink.write(ByteArray, Int, Int)`. Observable behavior (bytes written, thrown exceptions)
  *   is identical.
- * - upstream's `-Util.kt` helpers (`reverseBytes`, `hexNumberLength`) are private functions
- *   here using the same `*Common` bodies.
+ * - the `-Util.kt` helpers (`reverseBytes`, `hexNumberLength`) are bundled separately and
+ *   used as upstream does.
  * - `writeDecimalLong`'s `Long.MIN_VALUE` shortcut calls `Sink.writeString` upstream; the
  *   UTF-8 codec (`Utf8.kt`) is not bundled yet, so the same ASCII bytes are written directly.
  * - `writeToInternalBuffer` keeps `inline` + `contract`, but the upstream opt-in annotations
  *   (`@DelicateIoApi`, `@OptIn(InternalIoApi::class, UnsafeIoApi::class)`) are dropped —
  *   `Annotations.kt` is not bundled yet.
- * - upstream's top-level `HEX_DIGIT_BYTES` array became a private function: stored top-level
- *   `val` initializers do not survive .kklib deserialization yet.
+ * - upstream's `HEX_DIGIT_BYTES` byte array is the `-Util.kt` `HEX_DIGIT_CHARS` string
+ *   here; `Char.code.toByte()` adapts its elements to `Byte`.
  * - `Sink.write(ByteArray)` / `Sink.write(ByteArray, Int)` are separate `Sink` members
  *   (upstream folds them into `write(ByteArray, Int, Int)`'s default parameter values —
  *   see the note in Sink.kt): an extension named `write` would be shadowed by the `write`
@@ -27,48 +27,6 @@ package kotlinx.io
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
-
-// Upstream: `private val HEX_DIGIT_BYTES = ByteArray(16) { ... }`.
-private fun hexDigitByte(digit: Int): Byte =
-    ((if (digit < 10) '0'.code else 'a'.code - 10) + digit).toByte()
-
-// Upstream `-Util.kt` declares these as `internal expect`/`internal inline` helpers.
-private fun Short.reverseBytes(): Short {
-    val i = this.toInt() and 0xffff
-    val reversed = (i and 0xff00 ushr 8) or
-            (i and 0x00ff shl 8)
-    return reversed.toShort()
-}
-
-private fun Int.reverseBytes(): Int {
-    return (this and -0x1000000 ushr 24) or
-            (this and 0x00ff0000 ushr 8) or
-            (this and 0x0000ff00 shl 8) or
-            (this and 0x000000ff shl 24)
-}
-
-private fun Long.reverseBytes(): Long {
-    return (this and -0x100000000000000L ushr 56) or
-            (this and 0x00ff000000000000L ushr 40) or
-            (this and 0x0000ff0000000000L ushr 24) or
-            (this and 0x000000ff00000000L ushr 8) or
-            (this and 0x00000000ff000000L shl 8) or
-            (this and 0x0000000000ff0000L shl 24) or
-            (this and 0x000000000000ff00L shl 40) or
-            (this and 0x00000000000000ffL shl 56)
-}
-
-/**
- * Returns the number of characters required to encode [v]
- * as a hexadecimal number without leading zeros (with `v == 0L` being the only exception,
- * `hexNumberLength(0) == 1`).
- */
-private fun hexNumberLength(v: Long): Int {
-    if (v == 0L) return 1
-    val exactWidth = (Long.SIZE_BITS - v.countLeadingZeroBits())
-    // Round up to the nearest full nibble
-    return ((exactWidth + 3) / 4)
-}
 
 /**
  * Writes two bytes containing [short], in the little-endian order, to this sink.
@@ -176,7 +134,7 @@ public fun Sink.writeDecimalLong(long: Long) {
 
     val digits = ByteArray(width)
     for (pos in width - 1 downTo if (negative) 1 else 0) {
-        digits[pos] = hexDigitByte((v % 10).toInt())
+        digits[pos] = HEX_DIGIT_CHARS[(v % 10).toInt()].code.toByte()
         v /= 10
     }
     if (negative) {
@@ -207,7 +165,7 @@ public fun Sink.writeHexadecimalUnsignedLong(long: Long) {
 
     val digits = ByteArray(width)
     for (pos in width - 1 downTo 0) {
-        digits[pos] = hexDigitByte(v.toInt().and(0xF))
+        digits[pos] = HEX_DIGIT_CHARS[v.toInt().and(0xF)].code.toByte()
         v = v ushr 4
     }
     this.write(digits, 0, digits.size)
