@@ -624,6 +624,9 @@ extension ExprTypeChecker {
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
         let propSymbol = sema.symbols.symbol(propResult.symbol)
+        if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
+            _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
+        }
 
         if let resolvedType = inferIncrementDecrementIfNeeded(
             exprID: id,

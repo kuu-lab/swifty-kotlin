@@ -1,8 +1,32 @@
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct ExtensionPropertyCompoundAssignTests {
+    @Test
+    func testCachedPostfixValueSurvivesASTSnapshot() throws {
+        let ctx = makeContextFromSource("""
+        class Box { var x: Int = 0 }
+        var Box.y: Int
+            get() = x
+            set(v) { x = v }
+        fun mutate(b: Box): Int = b.y++
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let snapshot = ast.arena.snapshot()
+        #expect(snapshot.incrementDecrementCachedValues.count == 1)
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(ASTArenaSnapshot.self, from: data)
+        let arena = ASTArena(snapshot: decoded)
+        for (expression, cachedValue) in snapshot.incrementDecrementCachedValues {
+            #expect(arena.isIncrementDecrement(expression))
+            #expect(arena.incrementDecrementCachedValue(for: expression) == cachedValue)
+        }
+    }
+
     @Test
     func testExtensionPropertyCompoundAssignUsesRegisteredAccessors() throws {
         let ctx = makeContextFromSource("""
@@ -45,7 +69,8 @@ struct ExtensionPropertyCompoundAssignTests {
             }
             return nil
         }
-        #expect(accessorCalls == Array(repeating: [getter, setter], count: 9).flatMap { $0 })
+        #expect(accessorCalls == Array(repeating: [getter, setter], count: 6).flatMap { $0 }
+            + [getter, setter, getter, getter, setter, getter, setter, getter])
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(!callees.contains("kk_array_get_inbounds"))
         #expect(!callees.contains("kk_array_set"))

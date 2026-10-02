@@ -20,14 +20,14 @@ fun receiver(b: Box): Box {
     return b
 }
 
-class Number(val n: Int) {
-    operator fun plus(x: Int): Number = Number(n + x)
-    operator fun inc(): Number = Number(n + 1)
-    operator fun dec(): Number = Number(n - 1)
+class CounterValue(val n: Int) {
+    operator fun plus(x: Int): CounterValue = CounterValue(n + x)
+    operator fun inc(): CounterValue = CounterValue(n + 1)
+    operator fun dec(): CounterValue = CounterValue(n - 1)
 }
 
-class NumberBox(var item: Number)
-var NumberBox.y: Number
+class NumberBox(var item: CounterValue)
+var NumberBox.y: CounterValue
     get() = item
     set(v) { item = v }
 
@@ -62,7 +62,7 @@ fun main() {
     println(b.writes)
     println(receiverCalls)
 
-    val numbers = NumberBox(Number(10))
+    val numbers = NumberBox(CounterValue(10))
     numbers.y += 5
     println(numbers.y.n)
     println(numbers.y++.n)
