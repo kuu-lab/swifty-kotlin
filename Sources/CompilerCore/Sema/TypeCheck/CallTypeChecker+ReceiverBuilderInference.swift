@@ -114,7 +114,9 @@ extension CallTypeChecker {
             candidates: candidates,
             call: CallExpr(range: range, calleeName: calleeName, args: zip(args, argumentTypes).map {
                 CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
-            }, explicitTypeArgs: explicitTypeArgs),
+            }, explicitTypeArgs: signature.typeParameterSymbols.compactMap { symbol in
+                variables[symbol].flatMap { solution.substitution[$0] }
+            }),
             expectedType: expectedType, implicitReceiverType: ctx.implicitReceiverType, ctx: sema
         )
         if let diagnostic = resolved.diagnostic {
@@ -128,6 +130,8 @@ extension CallTypeChecker {
         )
         driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
         applyContractEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
-        return bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 }

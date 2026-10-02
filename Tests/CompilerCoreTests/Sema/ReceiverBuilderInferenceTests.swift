@@ -61,6 +61,24 @@ struct ReceiverBuilderInferenceTests {
         """, callCount: 2)
     }
 
+    @Test func inheritedMemberExtensionUsesDispatchTypeArguments() throws {
+        try expectIntResult("""
+        class Clause<T>
+        open class Choice<R> {
+            fun <T> Clause<T>.onResult(block: (T) -> R) {}
+        }
+        class DerivedChoice<R> : Choice<R>()
+        fun <R> choose(builder: DerivedChoice<R>.() -> Unit): R = null as R
+        fun main() {
+            val clause = Clause<Int>()
+            val inferred = choose { clause.onResult { it + 1 } }
+            val expected: Int = choose { clause.onResult { it + 2 } }
+            val explicit = choose<Int> { clause.onResult { it + 3 } }
+            println(inferred + expected + explicit)
+        }
+        """, callee: "choose", callCount: 3)
+    }
+
     @Test func boundedBuilderRejectsIncompatibleCallback() throws {
         let source = """
         class Builder<T> { fun use(block: () -> T) {} }
