@@ -23,9 +23,21 @@ extension CallLowerer {
         receiverExpr: ExprID,
         accessorKind: PropertyAccessorKind,
         ast: ASTModule,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> (accessorSymbol: SymbolID, dispatch: KIRDispatchKind)? {
         if case .superRef = ast.arena.expr(receiverExpr) {
+            return nil
+        }
+        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        if MemberRuntimeDispatch.rangeReceiverKind(
+            for: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil {
+            // Runtime range values are RuntimeRangeBox handles without Kotlin
+            // object vtables. Keep source-backed range property accessors on
+            // their direct ABI bridge path, just like range member calls.
             return nil
         }
         return resolvePropertyAccessorVirtualDispatch(
@@ -417,6 +429,11 @@ extension CallLowerer {
         // source-backed nominal class. Let the list runtime fallback handle
         // the property instead of indexing the opaque collection handle.
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let isRuntimeRangeReceiver = MemberRuntimeDispatch.rangeReceiverKind(
+            for: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil
         if isConcreteListLikeType(receiverType, sema: sema, interner: interner) {
             return nil
         }
@@ -519,6 +536,7 @@ extension CallLowerer {
             ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
+           !isRuntimeRangeReceiver,
            !isHashMapRealizedRuntimeBridgedMapProperty,
            !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
            let propertyInfo = sema.symbols.symbol(propertySymbol),
@@ -555,7 +573,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: resultType)
                 instructions.append(.virtualCall(
@@ -630,7 +649,8 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             accessorKind: .getter,
             ast: ast,
-            sema: sema
+            sema: sema,
+            interner: interner
         ) {
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.virtualCall(
@@ -772,7 +792,8 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             accessorKind: .getter,
             ast: ast,
-            sema: sema
+            sema: sema,
+            interner: interner
         ) {
             instructions.append(.virtualCall(
                 symbol: accessorSymbol,
