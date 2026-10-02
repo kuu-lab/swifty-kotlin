@@ -60,8 +60,25 @@ extension ABILoweringPass {
         "__kk_mutable_map_put",
         "__kk_mutable_map_putAll",
         "__kk_mutable_map_plusAssign_pair",
+        // Lookups must carry the same concrete type tag as inserted keys, or a
+        // bare `Char`/`Int`/`Long` code would match a key of another type.
+        "__kk_set_contains",
+        "__kk_map_get",
+        "__kk_mutable_set_remove",
+        "__kk_mutable_map_remove",
         "__kk_sequence_builder_yield",
         "__kk_iterator_builder_yield",
+    ]
+
+    /// The key-lookup subset of `typeParamBoxingBoundaryCallees`. Their point is to
+    /// keep a primitive key's concrete tag (Char vs Int vs Long); an enum entry is a
+    /// plain object, and `resolveValueClassKind` only models it as an Int for
+    /// unboxing, so boxing it here would not match how library code stored it.
+    static let keyLookupBoundaryCallees: Set<String> = [
+        "__kk_set_contains",
+        "__kk_map_get",
+        "__kk_mutable_set_remove",
+        "__kk_mutable_map_remove",
     ]
 
     /// True when the call target is a declaration compiled from Kotlin source —
@@ -91,7 +108,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
-        interner: StringInterner
+        arrayName: InternedString
     ) -> Bool {
         guard let receiver, let types, let symbols,
               let receiverType = module.arena.exprType(receiver),
@@ -100,7 +117,7 @@ extension ABILoweringPass {
         else {
             return false
         }
-        return interner.resolve(symbol.name) == "Array"
+        return symbol.name == arrayName
     }
 
     func boxingCallee(
@@ -115,6 +132,13 @@ extension ABILoweringPass {
         preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
+        if let callee,
+           ABILoweringPass.keyLookupBoundaryCallees.contains(interner.resolve(callee)),
+           case let .classType(argClass) = types.kind(of: types.makeNonNullable(argType)),
+           symbols?.symbol(argClass.classSymbol)?.kind == .enumClass
+        {
+            return nil
+        }
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
         // Resolve the parameter's value-class type to its underlying kind too —
         // otherwise a parameter declared as a value class (e.g. `s: SecondsXYZ`)

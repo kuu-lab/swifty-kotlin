@@ -162,10 +162,10 @@ extension DeclTypeChecker {
 
     func typeCheckClassDelegation(
         _ classDecl: ClassDecl,
-        symbol _: SymbolID,
+        symbol: SymbolID,
         ctx: TypeInferenceContext,
-        solver _: ConstraintSolver,
-        diagnostics _: DiagnosticEngine
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
     ) {
         let sema = ctx.sema
         let delegatedEntries = classDecl.superTypeEntries.filter { $0.delegateExpression != nil }
@@ -205,12 +205,38 @@ extension DeclTypeChecker {
                     )
                 }
             }
-            _ = driver.inferExpr(
+            let expectedDelegateType: TypeID? = sema.symbols
+                .delegatedInterfaces(forClass: symbol)
+                .first(where: { interfaceSymbol in
+                    sema.symbols.classDelegationExpr(
+                        forClass: symbol,
+                        interface: interfaceSymbol
+                    ) == expr
+                })
+                .flatMap { interfaceSymbol in
+                    sema.symbols.classDelegationField(
+                        forClass: symbol,
+                        interface: interfaceSymbol
+                    )
+                }
+                .flatMap { sema.symbols.propertyType(for: $0) }
+
+            let delegateType = driver.inferExpr(
                 expr,
                 ctx: delegationCtx,
                 locals: &locals,
-                expectedType: nil
+                expectedType: expectedDelegateType
             )
+            if let expectedDelegateType {
+                driver.emitSubtypeConstraint(
+                    left: delegateType,
+                    right: expectedDelegateType,
+                    range: ctx.ast.arena.exprRange(expr),
+                    solver: solver,
+                    sema: sema,
+                    diagnostics: diagnostics
+                )
+            }
         }
     }
 
@@ -494,6 +520,14 @@ extension DeclTypeChecker {
             ownerSymbol: ownerSymbol,
             thisType: ownerType
         )
+
+        // Property initializers (and accessors) are checked directly in this
+        // scope rather than a function scope, so the class's own type
+        // parameters must be visible for explicit type arguments such as
+        // `val items = mutableListOf<T>()` to resolve.
+        for typeParameterSymbol in sema.types.nominalTypeParameterSymbols(for: ownerSymbol) {
+            classScope.insert(typeParameterSymbol)
+        }
 
         for declID in memberFunctions + memberProperties + nestedClasses + nestedObjects {
             if let symbol = sema.bindings.declSymbols[declID] {

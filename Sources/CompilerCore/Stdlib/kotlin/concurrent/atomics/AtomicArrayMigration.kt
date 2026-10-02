@@ -30,10 +30,8 @@ public fun AtomicLongArray.fetchAndUpdateAt(index: Int, transform: (Long) -> Lon
 }
 
 // ── AtomicArray<T> ─────────────────────────────────────────────────────────
-// AtomicArray<T> slots model an initially-null element, so loadAt returns a
-// nullable element and the transform operates on the nullable element type.
 
-public fun <T> AtomicArray<T>.fetchAndUpdateAt(index: Int, transform: (T?) -> T?): T? {
+public fun <T> AtomicArray<T>.fetchAndUpdateAt(index: Int, transform: (T) -> T): T {
     while (true) {
         val old = loadAt(index)
         val newValue = transform(old)
@@ -41,7 +39,7 @@ public fun <T> AtomicArray<T>.fetchAndUpdateAt(index: Int, transform: (T?) -> T?
     }
 }
 
-public fun <T> AtomicArray<T>.updateAt(index: Int, transform: (T?) -> T?): Unit {
+public fun <T> AtomicArray<T>.updateAt(index: Int, transform: (T) -> T): Unit {
     while (true) {
         val old = loadAt(index)
         val newValue = transform(old)
@@ -49,7 +47,7 @@ public fun <T> AtomicArray<T>.updateAt(index: Int, transform: (T?) -> T?): Unit 
     }
 }
 
-public fun <T> AtomicArray<T>.updateAndFetchAt(index: Int, transform: (T?) -> T?): T? {
+public fun <T> AtomicArray<T>.updateAndFetchAt(index: Int, transform: (T) -> T): T {
     while (true) {
         val old = loadAt(index)
         val newValue = transform(old)

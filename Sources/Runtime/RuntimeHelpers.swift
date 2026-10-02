@@ -31,8 +31,12 @@ func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPoint
     return UnsafeMutableRawPointer(bitPattern: baseBits)
 }
 
+/// Registers `box` under its tagged primitive-box handle. The caller must
+/// already hold the GC lock and passes its `GCState` as `state` — this helper
+/// never acquires `withGCLock` itself, so it can run inside a larger critical
+/// section (e.g. `runtimeStaticBox`'s probe-and-register fast path).
 @inline(__always)
-func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
+func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCState) -> Int {
     let pointer = Unmanaged.passRetained(box).toOpaque()
     let bits = UInt(bitPattern: pointer)
     precondition(
@@ -40,9 +44,7 @@ func registerTaggedPrimitiveBox(_ box: AnyObject) -> Int {
         "Swift object pointer is not representable by primitive box tagging"
     )
     let taggedBits = bits | runtimePrimitiveBoxTag
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(taggedBits)
-    }
+    state.objectPointers.insert(taggedBits)
     guard let taggedPointer = UnsafeMutableRawPointer(bitPattern: taggedBits) else {
         preconditionFailure("Tagged primitive box pointer must be non-null")
     }
@@ -74,6 +76,50 @@ func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {
         return nil
     }
     return unsafeBitCast(rawValue, to: KKSuspendEntryPoint.self)
+}
+
+/// FIFO queue with amortized O(1) `enqueue`/`dequeue`.
+///
+/// Elements are stored in an array behind a head index: `dequeue` advances the
+/// head (releasing the slot) instead of shifting every element like
+/// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
+/// storage is compacted back to `head == 0`, which keeps the steady-state cost
+/// O(1) amortized; a fully drained queue resets its head so alternating
+/// enqueue/dequeue never accumulates dead slots.
+struct RuntimeFIFOQueue<Element> {
+    private var elements: [Element?] = []
+    private var head = 0
+
+    var isEmpty: Bool { head >= elements.count }
+    var count: Int { elements.count - head }
+
+    mutating func enqueue(_ element: Element) {
+        elements.append(element)
+    }
+
+    mutating func dequeue() -> Element? {
+        guard head < elements.count, let element = elements[head] else {
+            return nil
+        }
+        elements[head] = nil
+        head += 1
+        if head == elements.count {
+            elements.removeAll(keepingCapacity: true)
+            head = 0
+        } else if head >= 32 && head * 2 >= elements.count {
+            elements.removeFirst(head)
+            head = 0
+        }
+        return element
+    }
+
+    /// Removes all queued elements and returns them in FIFO order.
+    mutating func drain() -> [Element] {
+        let queued = elements[head...].compactMap { $0 }
+        elements.removeAll(keepingCapacity: true)
+        head = 0
+        return queued
+    }
 }
 
 func runtimeArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
@@ -170,6 +216,13 @@ func runtimeRegisterDataClass(classID: Int64) {
     }
 }
 
+func runtimeDataClassFieldMask(classID: Int64) -> Int64? {
+    guard classID != 0 else { return nil }
+    return runtimeStorage.withMetadataLock { state in
+        state.dataClassFieldMasks[classID]
+    }
+}
+
 func runtimeIsDataClass(classID: Int64) -> Bool {
     guard classID != 0 else { return false }
     return runtimeStorage.withMetadataLock { state in
@@ -186,6 +239,18 @@ func runtimeIsDataClass(classID: Int64) -> Bool {
 @_cdecl("kk_runtime_register_data_class")
 public func kk_runtime_register_data_class(_ classID: Int) -> Int {
     runtimeRegisterDataClass(classID: Int64(classID))
+    return 0
+}
+
+/// Records which object slots hold a data class's primary-constructor properties so the
+/// structural `equals`/`hashCode` ignore properties declared in the class body.
+/// `mask` bit `i` set means object slot `i` participates.
+@_cdecl("kk_runtime_register_data_class_fields")
+public func kk_runtime_register_data_class_fields(_ classID: Int, _ mask: Int) -> Int {
+    guard classID != 0 else { return 0 }
+    runtimeStorage.withMetadataLock { state in
+        state.dataClassFieldMasks[Int64(classID)] = Int64(mask)
+    }
     return 0
 }
 

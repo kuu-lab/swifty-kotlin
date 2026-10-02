@@ -33,6 +33,162 @@ extension BuildKIRRegressionTests {
         #expect(!(callees.contains("kk_op_rangeTo")), "Custom rangeTo should not lower to kk_op_rangeTo, got: \(callees)")
     }
 
+    // KSWIFTK-BUG: a bare integer literal index (`b[0]`) must contextualize to
+    // a non-Int operator get()/set() parameter type (Long here), the same way
+    // Kotlin already contextualizes the assigned value in `x[i] = value`.
+    // Before the fix, the literal defaulted to Int, overload resolution
+    // rejected the only get()/set() candidate (Int is not a subtype of Long),
+    // and lowering silently fell back to raw kk_array_get/kk_array_set on the
+    // non-array receiver instead of dispatching to the custom operator.
+    @Test func testBuildKIRUsesCustomLongIndexedGetSetOperators() throws {
+        let source = """
+        class LongIndexedBox {
+            private var data: ByteArray = byteArrayOf(9, 8, 7, 6)
+            operator fun get(position: Long): Byte = data[position.toInt()]
+            operator fun set(position: Long, value: Byte) { data[position.toInt()] = value }
+        }
+
+        fun use(box: LongIndexedBox): Byte {
+            box[0] = box[1]
+            return box[0]
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("get"), "Expected custom Long-indexed get call, got: \(callees)")
+        #expect(callees.contains("set"), "Expected custom Long-indexed set call, got: \(callees)")
+        #expect(!callees.contains("kk_array_get"), "Long-indexed get() must not fall back to raw array access, got: \(callees)")
+        #expect(!callees.contains("kk_array_set"), "Long-indexed set() must not fall back to raw array access, got: \(callees)")
+    }
+
+    // KSWIFTK-BUG: `a[i] += v` / `a[i]++` on a receiver with a custom (or
+    // source-backed member, e.g. MutableList) get()/set() pair previously
+    // always lowered to raw kk_array_get/kk_array_set on the receiver's own
+    // memory, completely bypassing the custom operators (confirmed
+    // empirically: the write had no effect through the custom get()).
+    // lowerIndexedCompoundAssignExpr must instead dispatch through the
+    // resolved get()/set() calls, mirroring how lowerIndexedAssignExpr
+    // already does for plain `a[i] = v`.
+    @Test func testBuildKIRUsesCustomOperatorsForIndexedCompoundAssignAndIncrement() throws {
+        let source = """
+        class Bucket(private val values: MutableList<Int>) {
+            operator fun get(index: Int): Int = values[index]
+            operator fun set(index: Int, value: Int) { values[index] = value }
+        }
+
+        fun use(box: Bucket): Int {
+            box[0] += 5
+            box[1]++
+            return box[0] + box[1]
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("get"), "Expected custom get calls for the read halves, got: \(callees)")
+        #expect(callees.contains("set"), "Expected custom set calls for the write-back halves, got: \(callees)")
+        #expect(!callees.contains("kk_array_get"), "Compound assign on a custom operator must not read via raw array access, got: \(callees)")
+        #expect(!callees.contains("kk_array_set"), "Compound assign on a custom operator must not write via raw array access, got: \(callees)")
+    }
+
+    // A genuine built-in array must keep using the raw array/boxing runtime
+    // path for compound assignment: it has no user-defined get()/set() to
+    // dispatch through, and Array<T> in particular needs the box/unbox
+    // handling this path alone provides.
+    @Test func testBuildKIRKeepsRawArrayPathForBuiltInArrayCompoundAssign() throws {
+        let source = """
+        fun use(a: IntArray): Int {
+            a[0] += 5
+            a[1]++
+            return a[0] + a[1]
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("kk_array_get"), "Built-in IntArray compound assign should still use the raw array read, got: \(callees)")
+        #expect(callees.contains("kk_array_set"), "Built-in IntArray compound assign should still use the raw array write, got: \(callees)")
+    }
+
+    // KSWIFTK-BUG: the same dispatch-through-get()/set() fix above must also
+    // hold for a multi-argument indexed operator (`grid[i, j]`), not just the
+    // single-index case: both index expressions have to reach both the get()
+    // read and the set() write-back, for `+=`, postfix `++`, and statement-
+    // level prefix `++`/`--` alike.
+    @Test func testBuildKIRUsesCustomOperatorsForMultiIndexCompoundAssignAndIncrement() throws {
+        let source = """
+        class Grid(val w: Int, val h: Int) {
+            private val cells = IntArray(w * h)
+            operator fun get(i: Int, j: Int): Int = cells[j * w + i]
+            operator fun set(i: Int, j: Int, v: Int) { cells[j * w + i] = v }
+        }
+
+        fun use(grid: Grid): Int {
+            grid[0, 0] += 5
+            grid[1, 1]++
+            ++grid[0, 1]
+            return grid[0, 0] + grid[1, 1] + grid[0, 1]
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(!callees.contains("kk_array_get"), "Multi-index compound assign must not read via raw array access, got: \(callees)")
+        #expect(!callees.contains("kk_array_set"), "Multi-index compound assign must not write via raw array access, got: \(callees)")
+
+        let getArgCounts: [Int] = body.compactMap { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "get"
+            else { return nil }
+            return arguments.count
+        }
+        let setArgCounts: [Int] = body.compactMap { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "set"
+            else { return nil }
+            return arguments.count
+        }
+
+        // += , postfix ++, and prefix ++ each read once and write once (3
+        // get() calls), plus 3 more get() calls from the plain reads in the
+        // final `return` expression = 6 total; only the compound-assign
+        // statements write, so 3 set() calls.
+        #expect(getArgCounts.count == 6, "Expected 6 custom get() calls (3 compound-assign reads + 3 return-expression reads), got: \(getArgCounts.count)")
+        #expect(setArgCounts.count == 3, "Expected 3 custom set() calls (+=, postfix ++, prefix ++), got: \(setArgCounts.count)")
+        // set() must carry one more argument than its compound assign's own
+        // get() (the extra value parameter): if a fix regresses to only
+        // threading the first index through, both counts collapse by the
+        // same amount and this delta check still catches it without hard-
+        // coding the receiver-inclusion convention of the surrounding call
+        // ABI. The first 3 get() calls are the compound-assign reads, in
+        // program order, matching the 3 set() calls one-for-one.
+        for (getCount, setCount) in zip(getArgCounts.prefix(3), setArgCounts) {
+            #expect(setCount == getCount + 1, "set() should carry exactly one more argument than get() (the value), got get=\(getCount) set=\(setCount)")
+        }
+        #expect(getArgCounts.allSatisfy { $0 >= 2 }, "Expected both indices to reach get(), got argument counts: \(getArgCounts)")
+    }
+
     @Test func testBuildKIRUsesCustomIteratorOperatorsInForLoops() throws {
         let source = """
         class Entry(val first: Int, val second: Int) {
@@ -271,6 +427,22 @@ extension BuildKIRRegressionTests {
             #expect(hasSourceBackedRangeContains, "Expected source-backed range contains call, got: \(callees)")
             #expect(callees.contains("__kk_range_contains"), "Expected __kk_range_contains callee, got: \(callees)")
             #expect(!callees.contains("kk_op_contains"), "Range membership must not fall back to runtime kk_op_contains, got: \(callees)")
+        }
+    }
+
+    @Test func testClosedRangeInterfaceMembershipUsesRangeBridge() throws {
+        let source = """
+        fun check(range: ClosedRange<Int>): Boolean = 3 in range && range.contains(3)
+        fun checkNotIn(range: ClosedRange<Int>): Boolean = 7 !in range
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        for functionName in ["check", "checkNotIn"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains("__kk_range_contains"), "ClosedRange membership must link to the range bridge: \(callees)")
+            #expect(!callees.contains("contains"), "A bare contains symbol cannot link: \(callees)")
         }
     }
 

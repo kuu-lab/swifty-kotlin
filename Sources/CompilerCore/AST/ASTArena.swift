@@ -311,6 +311,7 @@ public final class ASTArena: @unchecked Sendable {
              let .objectLiteral(_, _, range),
              let .callableRef(_, _, range),
              let .localFunDecl(_, _, _, _, _, range),
+             let .localNominalDecl(_, range),
              let .blockExpr(_, _, range),
              let .superRef(_, range),
              let .thisRef(_, range),
@@ -410,6 +411,11 @@ public final class ASTModule {
     /// All callers that previously used `sortedFiles` now use this directly.
     public let sortedFiles: [ASTFile]
 
+    /// Files indexed by fileID so resolving a declaration's owning file does
+    /// not scan the whole file list. `fileID` is unique per file, so a
+    /// dictionary hit is identical to `files.first { $0.fileID == fileID }`.
+    private let filesByID: [FileID: ASTFile]
+
     public init(
         files: [ASTFile],
         arena: ASTArena,
@@ -423,10 +429,20 @@ public final class ASTModule {
         self.tokenCount = tokenCount
         self.activeDeclsByFileRawID = activeDeclsByFileRawID
         sortedFiles = files.sorted(by: { $0.fileID.rawValue < $1.fileID.rawValue })
+        filesByID = Dictionary(
+            files.map { ($0.fileID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         // ASTModule is finalized after all expressions have been appended, so
         // build the index before the first position-based query pays for it.
         arena.prepareExpressionRangeIndex()
+    }
+
+    /// O(1) lookup of the file with `fileID`; identical result to a linear
+    /// `files.first { $0.fileID == fileID }` scan.
+    public func file(for fileID: FileID) -> ASTFile? {
+        filesByID[fileID]
     }
 
     public var activeDeclarationIDs: Set<DeclID> {

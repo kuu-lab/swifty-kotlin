@@ -257,6 +257,11 @@ extension BuildASTPhase {
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
+        if let expr = Self.parseLocalNominalDeclExpr(
+            from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
+        ) {
+            return expr
+        }
         if let expr = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
@@ -274,7 +279,7 @@ extension BuildASTPhase {
         var current: [Token] = []
         var depth = BracketDepth()
         for (idx, token) in tokens.enumerated() {
-            if depth.isAtTopLevel {
+            if depth.isBracketBraceParenTopLevel {
                 if token.kind == .symbol(.semicolon) {
                     if !current.isEmpty {
                         groups.append(current)
@@ -401,7 +406,7 @@ extension BuildASTPhase {
         switch kind {
         case .statement, .propertyDecl, .loopStmt,
              .ifExpr, .whenExpr, .tryExpr, .callExpr,
-             .funDecl:
+             .funDecl, .classDecl, .objectDecl:
             true
         default:
             false

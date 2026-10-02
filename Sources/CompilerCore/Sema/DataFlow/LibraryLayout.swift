@@ -1,5 +1,7 @@
 import Foundation
 
+let maximumImportedNominalLayoutValue = 1_000_000
+
 extension DataFlowSemaPhase {
     func parseImportedFieldOffsets(
         token: String,
@@ -210,6 +212,28 @@ extension DataFlowSemaPhase {
         metadataPath: String,
         interner: StringInterner
     ) {
+        let declaredLayoutValues = [
+            record.declaredFieldCount,
+            record.declaredInstanceSizeWords,
+            record.declaredVtableSize,
+            record.declaredItableSize,
+        ].compactMap { $0 }
+        let slotValues = record.fieldOffsets.map(\.offset)
+            + record.vtableSlots.map(\.slot)
+            + record.itableSlots.map(\.slot)
+        guard declaredLayoutValues.allSatisfy({ (0 ... maximumImportedNominalLayoutValue).contains($0) }),
+              slotValues.allSatisfy({ (0 ... maximumImportedNominalLayoutValue).contains($0) }),
+              record.fieldOffsets.count <= maximumImportedNominalLayoutValue,
+              record.vtableSlots.count <= maximumImportedNominalLayoutValue,
+              record.itableSlots.count <= maximumImportedNominalLayoutValue
+        else {
+            diagnoseInvalidImportedLayout(
+                diagnostics: diagnostics,
+                metadataPath: metadataPath,
+                symbol: symbol
+            )
+            return
+        }
         guard !record.fieldOffsets.isEmpty || !record.vtableSlots.isEmpty || !record.itableSlots.isEmpty else {
             return
         }
@@ -286,14 +310,24 @@ extension DataFlowSemaPhase {
         }
 
         let objectHeaderWords = 2
-        let maxFieldOffsetSize = (resolvedFieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1
+        let (maxFieldOffsetSize, fieldOffsetOverflow) =
+            (resolvedFieldOffsets.values.max() ?? (objectHeaderWords - 1)).addingReportingOverflow(1)
         let instanceFieldCount = max(record.declaredFieldCount ?? 0, resolvedFieldOffsets.count)
+        let (headerAndFields, fieldCountOverflow) = objectHeaderWords.addingReportingOverflow(instanceFieldCount)
+        let (maxVTableSize, vtableSlotOverflow) = (resolvedVTableSlots.values.max() ?? -1).addingReportingOverflow(1)
+        let (maxITableSize, itableSlotOverflow) = (resolvedITableSlots.values.max() ?? -1).addingReportingOverflow(1)
+        guard !fieldOffsetOverflow, !fieldCountOverflow, !vtableSlotOverflow, !itableSlotOverflow else {
+            diagnoseInvalidImportedLayout(
+                diagnostics: diagnostics,
+                metadataPath: metadataPath,
+                symbol: symbol
+            )
+            return
+        }
         let instanceSizeWords = max(
             record.declaredInstanceSizeWords ?? 0,
-            max(objectHeaderWords + instanceFieldCount, maxFieldOffsetSize)
+            max(headerAndFields, maxFieldOffsetSize)
         )
-        let maxVTableSize = (resolvedVTableSlots.values.max() ?? -1) + 1
-        let maxITableSize = (resolvedITableSlots.values.max() ?? -1) + 1
         if let declaredVTableSize = record.declaredVtableSize,
            declaredVTableSize >= 0,
            declaredVTableSize < maxVTableSize
@@ -333,6 +367,18 @@ extension DataFlowSemaPhase {
                 superClass: superClass
             ),
             for: symbol
+        )
+    }
+
+    private func diagnoseInvalidImportedLayout(
+        diagnostics: DiagnosticEngine,
+        metadataPath: String,
+        symbol: SymbolID
+    ) {
+        diagnostics.warning(
+            "KSWIFTK-LIB-0003",
+            "Invalid nominal layout values in metadata at \(metadataPath) for symbol \(symbol.rawValue)",
+            range: nil
         )
     }
 

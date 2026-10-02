@@ -3,6 +3,12 @@
 import Foundation
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @Suite
 struct IncrementalCompilationCacheTests {
     private var tempDir: String
@@ -223,6 +229,7 @@ struct IncrementalCompilationCacheTests {
         try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         let manifest = "{\"version\": 999, \"fingerprints\": []}"
         try manifest.write(toFile: tempDir + "/manifest.json", atomically: true, encoding: .utf8)
+        try secureAndIndex(tempDir)
 
         let cache = IncrementalCompilationCache(cachePath: tempDir)
         cache.loadPreviousState()
@@ -296,6 +303,14 @@ struct IncrementalCompilationCacheTests {
         try manifest.write(toFile: cacheRoot + "/manifest.json", atomically: true, encoding: .utf8)
     }
 
+    /// Mirrors what `saveState` guarantees before a cache is readable: the
+    /// directory is private and every file on disk is covered by the
+    /// authenticated integrity index.
+    private func secureAndIndex(_ cacheRoot: String) throws {
+        #expect(chmod(cacheRoot, 0o700) == 0)
+        try #require(IncrementalCacheTrust.writeIntegrityIndex(cachePath: cacheRoot) != nil)
+    }
+
     @Test
     func testRestoreCachedOutputCopiesValidArtifact() throws {
         let cacheRoot = tempDir + "/cache"
@@ -312,6 +327,7 @@ struct IncrementalCompilationCacheTests {
         try "cached".write(toFile: artifactFile, atomically: true, encoding: .utf8)
 
         try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+        try secureAndIndex(cacheRoot)
 
         let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
         cache2.loadPreviousState()
@@ -334,6 +350,7 @@ struct IncrementalCompilationCacheTests {
         let buildHash = cache.buildConfigurationHash(for: options)
 
         try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: "../secret.txt")
+        try secureAndIndex(cacheRoot)
 
         let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
         cache2.loadPreviousState()
@@ -355,12 +372,289 @@ struct IncrementalCompilationCacheTests {
         try "secret".write(toFile: secretFile, atomically: true, encoding: .utf8)
 
         try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: secretFile)
+        try secureAndIndex(cacheRoot)
 
         let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
         cache2.loadPreviousState()
         let result = cache2.restoreCachedOutput(for: options)
         #expect(result == false)
         #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    // MARK: - KUU-806 Regression Tests
+
+    @Test
+    func testRestoreCachedOutputRejectsIntermediateDirectorySymlink() throws {
+        let cacheRoot = tempDir + "/cache"
+        let outsideDir = tempDir + "/outside_artifacts"
+        try FileManager.default.createDirectory(atPath: outsideDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        let outsideHashDir = outsideDir + "/\(buildHash)"
+        try FileManager.default.createDirectory(atPath: outsideHashDir, withIntermediateDirectories: true)
+        let outsideOutput = outsideHashDir + "/output"
+        try "outside_secret".write(toFile: outsideOutput, atomically: true, encoding: .utf8)
+
+        // Make cacheRoot/artifacts -> outsideDir
+        let artifactsLink = cacheRoot + "/artifacts"
+        try FileManager.default.createSymbolicLink(atPath: artifactsLink, withDestinationPath: outsideDir)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsBuildHashDirectorySymlink() throws {
+        let cacheRoot = tempDir + "/cache"
+        let outsideHashDir = tempDir + "/outside_hash_dir"
+        try FileManager.default.createDirectory(atPath: outsideHashDir, withIntermediateDirectories: true)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        let outsideOutput = outsideHashDir + "/output"
+        try "outside_secret".write(toFile: outsideOutput, atomically: true, encoding: .utf8)
+
+        let artifactsDir = cacheRoot + "/artifacts"
+        try FileManager.default.createDirectory(atPath: artifactsDir, withIntermediateDirectories: true)
+        let hashLink = artifactsDir + "/\(buildHash)"
+        try FileManager.default.createSymbolicLink(atPath: hashLink, withDestinationPath: outsideHashDir)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsArtifactFileSymlink() throws {
+        let cacheRoot = tempDir + "/cache"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+        let outsideSecret = tempDir + "/secret.txt"
+        try "outside_secret".write(toFile: outsideSecret, atomically: true, encoding: .utf8)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        let artifactDir = cacheRoot + "/artifacts/\(buildHash)"
+        try FileManager.default.createDirectory(atPath: artifactDir, withIntermediateDirectories: true)
+        let outputLink = artifactDir + "/output"
+        try FileManager.default.createSymbolicLink(atPath: outputLink, withDestinationPath: outsideSecret)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRestoreCachedOutputPreservesDestinationOnRejection() throws {
+        let cacheRoot = tempDir + "/cache"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+        let outsideSecret = tempDir + "/secret.txt"
+        try "outside_secret".write(toFile: outsideSecret, atomically: true, encoding: .utf8)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        // Put valid prior output at destination
+        try "valid_previous_output".write(toFile: options.outputPath, atomically: true, encoding: .utf8)
+
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        let artifactDir = cacheRoot + "/artifacts/\(buildHash)"
+        try FileManager.default.createDirectory(atPath: artifactDir, withIntermediateDirectories: true)
+        let outputLink = artifactDir + "/output"
+        try FileManager.default.createSymbolicLink(atPath: outputLink, withDestinationPath: outsideSecret)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        // Ensure destination was NOT removed or overwritten
+        #expect(FileManager.default.fileExists(atPath: options.outputPath))
+        let content = try String(contentsOfFile: options.outputPath, encoding: .utf8)
+        #expect(content == "valid_previous_output")
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsKindMismatchFileExpected() throws {
+        let cacheRoot = tempDir + "/cache"
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        // Manifest specifies kind: file, but actual filesystem artifact is a directory
+        let artifactDir = cacheRoot + "/artifacts/\(buildHash)/output"
+        try FileManager.default.createDirectory(atPath: artifactDir, withIntermediateDirectories: true)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(
+            cacheRoot: cacheRoot,
+            buildConfigurationHash: buildHash,
+            relativePath: relativePath,
+            kind: "file"
+        )
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsKindMismatchDirectoryExpected() throws {
+        let cacheRoot = tempDir + "/cache"
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        // Manifest specifies kind: directory, but actual filesystem artifact is a regular file
+        let parentDir = cacheRoot + "/artifacts/\(buildHash)"
+        try FileManager.default.createDirectory(atPath: parentDir, withIntermediateDirectories: true)
+        let artifactFile = parentDir + "/output"
+        try "not_a_directory".write(toFile: artifactFile, atomically: true, encoding: .utf8)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(
+            cacheRoot: cacheRoot,
+            buildConfigurationHash: buildHash,
+            relativePath: relativePath,
+            kind: "directory"
+        )
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsDirectoryContainingSymlink() throws {
+        let cacheRoot = tempDir + "/cache"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+        let outsideSecret = tempDir + "/outside_secret.txt"
+        try "outside".write(toFile: outsideSecret, atomically: true, encoding: .utf8)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        // Directory artifact containing an internal symlink
+        let artifactDir = cacheRoot + "/artifacts/\(buildHash)/output"
+        try FileManager.default.createDirectory(atPath: artifactDir, withIntermediateDirectories: true)
+        let linkPath = artifactDir + "/symlink_file"
+        try FileManager.default.createSymbolicLink(atPath: linkPath, withDestinationPath: outsideSecret)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        try writeManifest(
+            cacheRoot: cacheRoot,
+            buildConfigurationHash: buildHash,
+            relativePath: relativePath,
+            kind: "directory"
+        )
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRejectsGroupOrOtherWritableCache() throws {
+        let cacheRoot = tempDir + "/insecure_cache"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+        chmod(cacheRoot, 0o777)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: "artifacts/\(buildHash)/output")
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        #expect(!cache2.hasPreviousCache)
+        #expect(cache2.restoreCachedOutput(for: options) == false)
+    }
+
+    @Test
+    func testRejectsSymlinkedCacheRoot() throws {
+        let realCache = tempDir + "/real_cache"
+        let symlinkCache = tempDir + "/symlink_cache"
+        try FileManager.default.createDirectory(atPath: realCache, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: symlinkCache, withDestinationPath: realCache)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: realCache)
+        let buildHash = cache.buildConfigurationHash(for: options)
+        try writeManifest(cacheRoot: realCache, buildConfigurationHash: buildHash, relativePath: "artifacts/\(buildHash)/output")
+
+        let cache2 = IncrementalCompilationCache(cachePath: symlinkCache)
+        cache2.loadPreviousState()
+        #expect(!cache2.hasPreviousCache)
+        #expect(cache2.restoreCachedOutput(for: options) == false)
+    }
+
+    @Test
+    func testSaveStateDoesNotFollowSymlinks() throws {
+        let cacheRoot = tempDir + "/cache"
+        let outsideDir = tempDir + "/outside_dir"
+        try FileManager.default.createDirectory(atPath: outsideDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+
+        let canaryFile = outsideDir + "/important.txt"
+        try "canary".write(toFile: canaryFile, atomically: true, encoding: .utf8)
+
+        // Make cacheRoot/artifacts -> outsideDir
+        let artifactsLink = cacheRoot + "/artifacts"
+        try FileManager.default.createSymbolicLink(atPath: artifactsLink, withDestinationPath: outsideDir)
+
+        let sourceFile = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: sourceFile, atomically: true, encoding: .utf8)
+
+        let options = CompilerOptions(
+            moduleName: "M",
+            inputs: [sourceFile],
+            outputPath: tempDir + "/out",
+            emit: .executable,
+            target: TargetTriple.hostDefault()
+        )
+        // Also put dummy source artifact
+        try "compiled_binary".write(toFile: options.outputPath, atomically: true, encoding: .utf8)
+
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache.computeCurrentFingerprints(for: [sourceFile])
+        cache.saveState(dependencyGraph: DependencyGraph(), options: options)
+
+        // Ensure outsideDir canary was untouched
+        #expect(FileManager.default.fileExists(atPath: canaryFile))
+        let canaryContent = try String(contentsOfFile: canaryFile, encoding: .utf8)
+        #expect(canaryContent == "canary")
     }
 
     // MARK: - stdlib manifest hash

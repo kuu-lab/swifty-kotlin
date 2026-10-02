@@ -2,6 +2,11 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 @Suite
 struct LibraryMetadataManifestValidationTests {
@@ -219,6 +224,32 @@ struct LibraryMetadataManifestValidationTests {
 
     // MARK: - P5-54: Path traversal protection
 
+    @Test func testManifestSymlinkOutsideLibraryEmitsErrorWithoutReadingIt() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        let outsideManifest = baseDir.appendingPathComponent("outside-manifest.json")
+        try #"{"formatVersion":1,"moduleName":"OutsideManifest"}"#.write(
+            to: outsideManifest,
+            atomically: true,
+            encoding: .utf8
+        )
+        try fm.createSymbolicLink(
+            at: libDir.appendingPathComponent("manifest.json"),
+            withDestinationURL: outsideManifest
+        )
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ManifestSymlinkApp", emit: .kirDump, searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            assertHasDiagnostic("KSWIFTK-LIB-0018", in: ctx)
+        }
+    }
+
     @Test func testManifestMetadataPathTraversalEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -243,6 +274,32 @@ struct LibraryMetadataManifestValidationTests {
             )
             try runToKIR(ctx)
 
+            assertHasDiagnostic("KSWIFTK-LIB-0018", in: ctx)
+        }
+    }
+
+    @Test func testManifestMetadataSymlinkOutsideLibraryEmitsError() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        let outsideMetadata = baseDir.appendingPathComponent("outside-metadata.bin")
+        try "symbols=0\n".write(to: outsideMetadata, atomically: true, encoding: .utf8)
+        try fm.createSymbolicLink(
+            at: libDir.appendingPathComponent("metadata.bin"),
+            withDestinationURL: outsideMetadata
+        )
+        let manifest = """
+        {"formatVersion":1,"moduleName":"MetadataSymlink","metadata":"metadata.bin"}
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "MetadataSymlinkApp", emit: .kirDump, searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
             assertHasDiagnostic("KSWIFTK-LIB-0018", in: ctx)
         }
     }
@@ -278,6 +335,60 @@ struct LibraryMetadataManifestValidationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0018", in: ctx)
+        }
+    }
+
+    @Test func testManifestObjectSymlinkOutsideLibraryEmitsError() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        let objectsDir = libDir.appendingPathComponent("objects")
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: objectsDir, withIntermediateDirectories: true)
+        let outsideObject = baseDir.appendingPathComponent("outside.o")
+        try Data().write(to: outsideObject)
+        try fm.createSymbolicLink(
+            at: objectsDir.appendingPathComponent("external.o"),
+            withDestinationURL: outsideObject
+        )
+        try "symbols=0\n".write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        let manifest = """
+        {"formatVersion":1,"moduleName":"ObjectSymlink","metadata":"metadata.bin","objects":["objects/external.o"]}
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ObjectSymlinkApp", emit: .kirDump, searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            assertHasDiagnostic("KSWIFTK-LIB-0018", in: ctx)
+        }
+    }
+
+    @Test func testManifestObjectFIFOEmitsErrorWithoutReadingIt() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        let objectsDir = libDir.appendingPathComponent("objects")
+        try fm.createDirectory(at: objectsDir, withIntermediateDirectories: true)
+        try "symbols=0\n".write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        let fifoPath = objectsDir.appendingPathComponent("blocked.o").path
+        let fifoResult = fifoPath.withCString { mkfifo($0, mode_t(S_IRUSR | S_IWUSR)) }
+        guard fifoResult == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        let manifest = """
+        {"formatVersion":1,"moduleName":"ObjectFIFO","metadata":"metadata.bin","objects":["objects/blocked.o"]}
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ObjectFIFOApp", emit: .kirDump, searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            assertHasDiagnostic("KSWIFTK-LIB-0014", in: ctx)
         }
     }
 

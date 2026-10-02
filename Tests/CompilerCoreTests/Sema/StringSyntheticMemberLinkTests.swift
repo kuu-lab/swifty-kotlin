@@ -926,8 +926,8 @@ struct StringSyntheticMemberLinkTests {
                     #expect(symbolInfo.declSite != nil)
                     #expect(!symbolInfo.flags.contains(.synthetic))
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) != nil,
-                        "Appendable.append must retain its private runtime dispatch bridge"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Appendable.append must dispatch through the implementing class"
                     )
                 }
 
@@ -2100,8 +2100,9 @@ struct StringSyntheticMemberLinkTests {
                     return exprID
                 }
                 // 2 user calls, plus 1 in bundled Base64.kt's decode(ByteArray)
-                // overload (`source.decodeToString()`, KSP-482).
-                #expect(callExprIDs.count == 3, "Expected two decodeToString range calls plus the bundled Base64 call")
+                // overload (`source.decodeToString()`, KSP-482), plus 1 in bundled
+                // kotlinx.io ByteString.decodeToString().
+                #expect(callExprIDs.count == 4, "Expected two decodeToString range calls plus the bundled Base64 and ByteString calls")
 
                 // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
                 // defined in BundledStdlib Kotlin source (not synthetic stubs), so they have

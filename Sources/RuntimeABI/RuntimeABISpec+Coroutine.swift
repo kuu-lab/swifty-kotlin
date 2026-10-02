@@ -339,6 +339,50 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // CoroutineStart.LAZY / UNDISPATCHED async (STDLIB-CORO-001).
+        // The launch family above returns a Job handle; these return a Deferred
+        // one carrying the block's result, so each start mode needs its own
+        // entry point rather than sharing launch's.
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_lazy",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_lazy_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_undispatched",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_undispatched_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         // CoroutineExceptionHandler (STDLIB-CORO-072)
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_new",
@@ -1058,6 +1102,46 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_job_get_cancellation_exception",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_invoke_on_completion",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "onCancelling", type: .intptr),
+                RuntimeABIParameter(name: "handlerFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "handlerClosureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_dispose_completion_handler",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "handlerID", type: .intptr),
+            ],
+            returnType: .void,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_context_get_job",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_cancel",
             parameters: [
                 RuntimeABIParameter(name: "continuation", type: .intptr),
@@ -1095,6 +1179,7 @@ public extension RuntimeABISpec {
             name: "kk_mutex_unlock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1150,6 +1235,7 @@ public extension RuntimeABISpec {
             name: "kk_semaphore_release",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"

@@ -33,3 +33,17 @@ public fun AtomicIntArray(array: IntArray): AtomicIntArray {
     }
     return result
 }
+
+/**
+ * Creates a new [AtomicIntArray] of the given [size], where each element is
+ * initialised by calling the [init] function with its index.
+ */
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicIntArray(size: Int, init: (Int) -> Int): AtomicIntArray {
+    val result = AtomicIntArray(size)
+    for (index in 0 until size) {
+        result[index] = init(index)
+    }
+    return result
+}

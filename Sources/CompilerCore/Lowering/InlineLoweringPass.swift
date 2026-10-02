@@ -28,9 +28,9 @@ final class InlineLoweringPass: LoweringPass {
         // The expansion-target index snapshots every body the pass can
         // splice: module declarations (regular, `inline`, lambda bodies) and
         // imported inline metadata, classified per symbol.
-        var index = InlineExpansionIndex(
+        let index = InlineExpansionIndex(
             module: module,
-            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? [:]
+            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore()
         )
 
         // An inline body — or a lambda body that gets spliced into its caller —
@@ -39,7 +39,7 @@ final class InlineLoweringPass: LoweringPass {
         // call to a symbol that no object file defines. Expand those nested
         // calls inside the snapshots first.
         expandNestedBodylessInlineCalls(
-            index: &index,
+            index: index,
             module: module,
             ctx: ctx,
             unitType: unitType
@@ -57,6 +57,11 @@ final class InlineLoweringPass: LoweringPass {
                 unitType: unitType
             )
         }
+        // Calls to bodyless callees must never reach codegen: their bodies
+        // are not emitted, so an unexpanded call dangles at link time.
+        // Diagnose the residue deterministically instead of letting it
+        // surface as a missing symbol in the linker.
+        diagnoseMandatoryInlineResidue(module: module, index: index, ctx: ctx)
         module.recordLowering(Self.name)
     }
 
@@ -65,7 +70,7 @@ final class InlineLoweringPass: LoweringPass {
         callerLocations: [SourceRange?],
         function: KIRFunction,
         index: InlineExpansionIndex,
-        inlineFunctionsByName: [InternedString: [KIRFunction]],
+        inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?
@@ -73,6 +78,14 @@ final class InlineLoweringPass: LoweringPass {
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
+        if labels.hasOverflowed {
+            ctx.diagnostics.error(
+                "KSWIFTK-KIR-0003",
+                "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                range: function.sourceRange
+            )
+            return (callerBody, callerLocations, false)
+        }
 
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(callerBody.count)
@@ -156,6 +169,14 @@ final class InlineLoweringPass: LoweringPass {
                             let unitExpr = module.arena.appendExpr(.unit, type: nil)
                             loweredBody.append(.copy(from: unitExpr, to: result))
                         }
+                    }
+                    if labels.hasOverflowed {
+                        ctx.diagnostics.error(
+                            "KSWIFTK-KIR-0003",
+                            "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                            range: function.sourceRange
+                        )
+                        return (callerBody, callerLocations, false)
                     }
                     continue
                 }
@@ -331,6 +352,23 @@ final class InlineLoweringPass: LoweringPass {
                     loweredBody.append(.copy(from: unitExpr, to: result))
                 }
             }
+            if labels.hasOverflowed {
+                ctx.diagnostics.error(
+                    "KSWIFTK-KIR-0003",
+                    "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                    range: function.sourceRange
+                )
+                return (callerBody, callerLocations, false)
+            }
+        }
+
+        if labels.hasOverflowed {
+            ctx.diagnostics.error(
+                "KSWIFTK-KIR-0003",
+                "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
+                range: function.sourceRange
+            )
+            return (callerBody, callerLocations, false)
         }
 
         return (loweredBody.instructions, loweredBody.instructionLocations, didExpand)

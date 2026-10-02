@@ -14,8 +14,8 @@ struct RuntimeCharTests {
     }
 
     @Test func lowercaseCodeUsesOnlySingleScalarLowercaseMappings() {
-        // U+0130 lowercases to "i" + U+0307; the caller keeps the original Char.
-        #expect(__kk_char_lowercase_code(scalarValue(of: "İ")) == -1)
+        // U+0130 fully lowercases to "i" + U+0307, but its simple mapping is "i".
+        #expect(__kk_char_lowercase_code(scalarValue(of: "İ")) == scalarValue(of: "i"))
         #expect(__kk_char_lowercase_code(scalarValue(of: "A")) == scalarValue(of: "a"))
         #expect(__kk_char_lowercase_code(scalarValue(of: "5")) == scalarValue(of: "5"))
     }
@@ -32,6 +32,17 @@ struct RuntimeCharTests {
         #expect(__kk_char_titlecase_code(scalarValue(of: "a")) == scalarValue(of: "A"))
         #expect(__kk_char_titlecase_code(scalarValue(of: "ǆ")) == scalarValue(of: "ǅ"))
         #expect(__kk_char_titlecase_code(scalarValue(of: "+")) == scalarValue(of: "+"))
+    }
+
+    @Test func uppercaseCodeUsesSimpleMappingForIotaSubscriptLetters() {
+        // Full mapping is "ἈΙ"; the simple mapping is the titlecase letter U+1F88.
+        #expect(__kk_char_uppercase_code(0x1F80) == 0x1F88)
+    }
+
+    @Test func caseStringBridgesKeepLoneSurrogates() {
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeStringValue(__kk_char_uppercase_string(0xD83D))) == [0xD83D])
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeStringValue(__kk_char_lowercase_string(0xDE00))) == [0xDE00])
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeStringValue(__kk_char_titlecase_string(0xD83D))) == [0xD83D])
     }
 
     @Test func caseMappingBridgesRejectUnpairedSurrogates() {

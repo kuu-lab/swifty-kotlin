@@ -1,18 +1,53 @@
 
 struct VisibilityChecker {
     let symbols: SymbolTable
+    let sourceManager: SourceManager?
+    /// Files that opted into calling otherwise-invisible declarations via
+    /// `@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")`, the same
+    /// escape hatch kotlin-stdlib uses to reach `@PublishedApi internal` API.
+    let invisibleAccessFiles: Set<Int32>
+
+    init(symbols: SymbolTable, sourceManager: SourceManager? = nil, invisibleAccessFiles: Set<Int32> = []) {
+        self.symbols = symbols
+        self.sourceManager = sourceManager
+        self.invisibleAccessFiles = invisibleAccessFiles
+    }
 
     func isAccessible(
         _ symbol: SemanticSymbol,
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?
     ) -> Bool {
+        // An explicitly public constructor or member cannot expose an owner
+        // whose declaration is private or internal in an imported library.
+        if symbol.flags.contains(.importedLibrary),
+           let parent = symbols.parentSymbol(for: symbol.id),
+           let owner = symbols.symbol(parent),
+           owner.flags.contains(.importedLibrary),
+           !isAccessible(owner, fromFile: accessFileID, enclosingClass: enclosingClass) {
+            return false
+        }
         switch symbol.visibility {
-        case .public, .internal:
+        case .public:
             return true
+        case .internal:
+            if symbol.flags.contains(.importedLibrary) {
+                return invisibleAccessFiles.contains(accessFileID.rawValue)
+            }
+            guard let sourceManager,
+                  let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
+                  sourceManager.origin(of: declarationFileID)?.isBundledStdlib == true
+            else {
+                return true
+            }
+            return sourceManager.origin(of: accessFileID)?.isBundledStdlib == true
+                || invisibleAccessFiles.contains(accessFileID.rawValue)
         case .private:
             if isLocalOrParameter(symbol.kind) {
                 return true
+            }
+            if symbol.flags.contains(.importedLibrary) {
+                return false
             }
             if let parent = symbols.parentSymbol(for: symbol.id) {
                 // Allow access from companion object to the containing class's private members

@@ -94,7 +94,10 @@ extension KIRLoweringDriver {
         // A source-backed top-level singleton must have a real runtime handle
         // even when it has no interfaces or virtual slots: it may cross an Any
         // boundary.
-        let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: objectSymbol, sema: sema)
+        let interfaceSupertypes = ctx.nominalDispatchCache.transitiveInterfaceSupertypes(
+            of: objectSymbol,
+            sema: sema
+        )
 
         let arena = shared.arena
         let interner = shared.interner
@@ -181,12 +184,12 @@ extension KIRLoweringDriver {
                 ) {
                     let methodSlot = Int64(methodSlotInt)
                     // Find the override in the object's member functions.
-                    let implementationSymbol = kirFindOverrideMethod(
+                    let implementationSymbol = ctx.nominalDispatchCache.itableImplementation(
                         for: methodSymbol,
                         in: objectSymbol,
                         sema: sema,
                         interner: interner
-                    ) ?? methodSymbol
+                    )
                     let bridgeSymbol = itableBridgeSymbolForMethod(
                         interfaceMethod: methodSymbol,
                         implementation: implementationSymbol,
@@ -216,6 +219,19 @@ extension KIRLoweringDriver {
                 objectValue: allocatedObj,
                 nominalSymbol: objectSymbol,
                 sema: sema,
+                cache: ctx.nominalDispatchCache,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+            // Setter counterpart: register interface property setters into
+            // the itable so a write through an interface-typed receiver can
+            // dispatch to them.
+            appendObjectItablePropertySetterRegistrations(
+                objectValue: allocatedObj,
+                nominalSymbol: objectSymbol,
+                sema: sema,
+                cache: ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &body.instructions
@@ -387,8 +403,20 @@ extension KIRLoweringDriver {
             candidates: candidates,
             argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             sema: sema
-        ),
-        sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+        )
+        else {
+            return
+        }
+        // Source-backed constructors — bundled stdlib or imported .kklib
+        // declarations — carry a linkable external body, so their non-empty
+        // externalLinkName must not suppress the call (the same rule
+        // emitSuperConstructorDelegation applies for named classes). Only
+        // synthetic shells with no real body and runtime factory constructors
+        // (whose ABI returns a fresh box instead of initializing `this`) are
+        // skipped.
+        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
+            || sema.symbols.isSourceBackedSymbol(superCtorSymbol),
+            !callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
         else {
             return
         }

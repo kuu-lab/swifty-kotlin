@@ -29,7 +29,7 @@ extension DataFlowSemaPhase {
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
         let sourceManager = ctx.sourceManager
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let ownerFQName = owner.fqName
@@ -257,9 +257,29 @@ extension DataFlowSemaPhase {
             let offsetReifiedIndices: Set<Int> = classTPCount == 0
                 ? typeParamResult.reifiedIndices
                 : Set(typeParamResult.reifiedIndices.map { $0 + classTPCount })
+            // A companion's member extension has two receivers in Kotlin: the
+            // companion singleton (dispatch) and the declared extension type.
+            // The singleton needs no runtime argument, so represent the latter
+            // as the function's receiver for call resolution and lowering.
+            let isCompanionMember = symbols.parentSymbol(for: ownerSymbol).map { parent in
+                symbols.companionObjectSymbol(for: parent) == ownerSymbol
+            } ?? false
+            let extensionReceiverType = isCompanionMember ? resolveTypeRef(
+                funDecl.receiverType,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: mergedLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
+            ) : nil
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: ownerType,
+                    receiverType: extensionReceiverType ?? ownerType,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,
@@ -652,7 +672,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> SymbolID {
         let reusableSyntheticSymbol: SymbolID? = {
-            guard let file = ast.files.first(where: { $0.fileID == sourceFileID }) else {
+            guard let file = ast.file(for: sourceFileID) else {
                 return nil
             }
             return reusableSyntheticDeclarationSymbol(
@@ -678,6 +698,10 @@ extension DataFlowSemaPhase {
         if let reusableSyntheticSymbol {
             nestedSymbol = reusableSyntheticSymbol
             symbols.removeFlags(.synthetic, for: nestedSymbol)
+            symbols.insertFlags(flags, for: nestedSymbol)
+            if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
+                symbols.setDeclSite(declSite, for: nestedSymbol)
+            }
         } else {
             nestedSymbol = symbols.define(
                 kind: kind,
@@ -722,7 +746,7 @@ extension DataFlowSemaPhase {
         guard let decl = ast.arena.decl(declID) else {
             return
         }
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let anyType = types.anyType
@@ -1136,19 +1160,32 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
-            let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: [], nullability: .nonNull)))
+            let nestedTypeParams = registerNominalTypeParameters(
+                nestedInterface.typeParams,
+                ownerSymbol: nestedSymbol,
+                fqName: nestedFQName,
+                namespacePrefix: "$iface",
+                declSite: nestedInterface.range,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics
+            )
+            let nestedTypeArgs: [TypeArg] = nestedTypeParams.symbols.map {
+                .invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            let nestedType = types.make(.classType(ClassType(
+                classSymbol: nestedSymbol, args: nestedTypeArgs, nullability: .nonNull
+            )))
             let nestedScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
                 ownerSymbol: nestedSymbol,
                 thisType: nestedType
             )
-            if !nestedInterface.typeParams.isEmpty {
-                types.setNominalTypeParameterVariances(
-                    nestedInterface.typeParams.map(\.variance),
-                    for: nestedSymbol
-                )
-            }
             collectNestedTypeAliases(
                 nestedInterface.nestedTypeAliases,
                 ownerFQName: nestedFQName,
@@ -1175,7 +1212,9 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 scope: nestedScope,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParams.symbols,
+                classLocalTypeParameters: nestedTypeParams.localMap
             )
             if let companionDeclID = nestedInterface.companionObject {
                 collectCompanionObjectHeader(

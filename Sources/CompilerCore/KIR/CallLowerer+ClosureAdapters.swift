@@ -340,9 +340,11 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Suspend callables are lowered through coroutine launcher/invoke paths,
-        // not the ordinary kk_function_create_N function-value ABI.
-        guard !functionType.isSuspend else {
+        // Receiver-bearing callables cannot cross the kk_function_create_N ABI
+        // (it has no receiver slot; see materializeEscapingCallableValue), and a
+        // suspend callable's leading param is the receiver rather than a
+        // closureRaw, so receiver-bearing suspend values always stay raw.
+        if functionType.isSuspend, functionType.receiver != nil {
             return loweredArgID
         }
 
@@ -360,11 +362,24 @@ extension CallLowerer {
             )
         }
 
+        // Suspend callables are lowered through coroutine launcher/invoke paths
+        // whose raw-thunk entry is `(args..., outThrown)`; boxing one of those
+        // thunks would prepend a closure parameter its entry point does not
+        // accept. A collection-HOF lambda's thunk is closure-first instead
+        // (`(closureRaw, args..., outThrown)`), so it must still cross the
+        // kk_function_create_N ABI: kk_suspend_function_invoke dispatches
+        // through kk_function_invoke, which supplies the closure argument only
+        // for boxed values.
+        if functionType.isSuspend, callableInfo?.hasClosureParam != true {
+            return loweredArgID
+        }
+
         guard var resolvedCallableInfo = callableInfo else {
             return loweredArgID
         }
 
-        if !resolvedCallableInfo.hasClosureParam,
+        if !functionType.isSuspend,
+           !resolvedCallableInfo.hasClosureParam,
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,

@@ -1190,10 +1190,29 @@ extension CoroutineLoweringPass {
             return nil
         }
 
+        // The inner-producer search, the bail-out predicates below, and the
+        // nested yieldAll callee lookup all resolve functions in this module,
+        // so index them once instead of re-scanning arena.declarations per query.
+        let functionBySymbol: [SymbolID: KIRFunction]
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee {
+            functionBySymbol = Dictionary(
+                rewrite.module.arena.declarations.lazy.compactMap { decl -> (SymbolID, KIRFunction)? in
+                    guard case let .function(function) = decl else {
+                        return nil
+                    }
+                    return (function.symbol, function)
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+        } else {
+            functionBySymbol = [:]
+        }
+
         let producer: (original: SymbolID, lowered: LoweredSuspendFunction, entryPoint: SymbolID)?
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            let innerProducer = sequenceBuilderInnerProducer(
                from: loweredTarget.symbol,
+               functionBySymbol: functionBySymbol,
                symbolByExprRaw: symbolByExprRaw,
                using: rewrite
            ),
@@ -1209,62 +1228,54 @@ extension CoroutineLoweringPass {
         }
         let producerOriginalSymbol = producer?.original ?? referencedSymbol
         let producerLoweredTarget = producer?.lowered ?? loweredTarget
+        let producerFunction = functionBySymbol[producerLoweredTarget.symbol]
 
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsAnyCallee(
-               symbol: producerLoweredTarget.symbol,
-               callees: [
-                   rewrite.ctx.interner.intern("kk_coroutine_continuation_new"),
-               ],
-               module: rewrite.module
-           ),
-           !loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.directSuspendCallCallee,
-               module: rewrite.module
-           )
-        {
-            return nil
-        }
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsCalleeNamedLike(
-               symbol: producerLoweredTarget.symbol,
-               module: rewrite.module,
-               interner: rewrite.ctx.interner,
-               isMatch: { name in
-                   name.hasPrefix("kk_lambda_") || name.hasPrefix("kk_suspend_kk_lambda_")
-               }
-           )
-        {
-            return nil
-        }
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.sequenceBuilderYieldCallee,
-               module: rewrite.module
-           ),
-           loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.sequenceBuilderYieldAllCallee,
-               module: rewrite.module
-           )
-        {
-            return nil
-        }
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.sequenceBuilderYieldAllCallee,
-               module: rewrite.module
-           ),
-           !loweredFunctionContainsYieldAllOfSequence(
-               symbol: producerLoweredTarget.symbol,
-               module: rewrite.module,
-               using: rewrite
-           )
-        {
-            return nil
+        if let producerFunction {
+            if loweredFunctionContainsAnyCallee(
+                producerFunction,
+                callees: [
+                    rewrite.ctx.interner.intern("kk_coroutine_continuation_new"),
+                ]
+            ),
+               !loweredFunctionContainsCallee(
+                   producerFunction,
+                   callee: rewrite.directSuspendCallCallee
+               )
+            {
+                return nil
+            }
+            if loweredFunctionContainsCalleeNamedLike(
+                producerFunction,
+                interner: rewrite.ctx.interner,
+                isMatch: { name in
+                    name.hasPrefix("kk_lambda_") || name.hasPrefix("kk_suspend_kk_lambda_")
+                }
+            ) {
+                return nil
+            }
+            if loweredFunctionContainsCallee(
+                producerFunction,
+                callee: rewrite.sequenceBuilderYieldCallee
+            ),
+               loweredFunctionContainsCallee(
+                   producerFunction,
+                   callee: rewrite.sequenceBuilderYieldAllCallee
+               )
+            {
+                return nil
+            }
+            if loweredFunctionContainsCallee(
+                producerFunction,
+                callee: rewrite.sequenceBuilderYieldAllCallee
+            ),
+               !loweredFunctionContainsYieldAllOfSequence(
+                   producerFunction,
+                   functionBySymbol: functionBySymbol,
+                   using: rewrite
+               )
+            {
+                return nil
+            }
         }
 
         let chosenEntryPoint: SymbolID
@@ -1313,6 +1324,7 @@ extension CoroutineLoweringPass {
 
     private func sequenceBuilderInnerProducer(
         from loweredAdapterSymbol: SymbolID,
+        functionBySymbol: [SymbolID: KIRFunction],
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> (original: SymbolID, lowered: LoweredSuspendFunction)? {
@@ -1351,47 +1363,42 @@ extension CoroutineLoweringPass {
             }
         }
 
-        for decl in rewrite.module.arena.declarations {
-            guard case let .function(function) = decl,
-                  function.symbol == loweredAdapterSymbol
+        guard let adapterFunction = functionBySymbol[loweredAdapterSymbol] else {
+            return nil
+        }
+        for instruction in adapterFunction.body {
+            let callee: InternedString?
+            switch instruction {
+            case let .call(_, instructionCallee, _, _, _, _, _, _):
+                callee = instructionCallee
+            case let .virtualCall(_, instructionCallee, _, _, _, _, _, _):
+                callee = instructionCallee
+            default:
+                callee = nil
+            }
+
+            if callee == rewrite.directSuspendCallCallee,
+               case let .call(_, _, arguments, _, _, _, _, _) = instruction,
+               let entryPointExpr = arguments.first,
+               let entryPointSymbol = symbolReference(
+                   for: entryPointExpr,
+                   module: rewrite.module,
+                   propagatedSymbols: symbolByExprRaw
+               )
+            {
+                appendProducer(for: entryPointSymbol)
+                continue
+            }
+
+            guard let callee,
+                  let producer = rewrite.originalByLoweredName[callee],
+                  producer.lowered.symbol != loweredAdapterSymbol
             else {
                 continue
             }
-            for instruction in function.body {
-                let callee: InternedString?
-                switch instruction {
-                case let .call(_, instructionCallee, _, _, _, _, _, _):
-                    callee = instructionCallee
-                case let .virtualCall(_, instructionCallee, _, _, _, _, _, _):
-                    callee = instructionCallee
-                default:
-                    callee = nil
-                }
-
-                if callee == rewrite.directSuspendCallCallee,
-                   case let .call(_, _, arguments, _, _, _, _, _) = instruction,
-                   let entryPointExpr = arguments.first,
-                   let entryPointSymbol = symbolReference(
-                       for: entryPointExpr,
-                       module: rewrite.module,
-                       propagatedSymbols: symbolByExprRaw
-                   )
-                {
-                    appendProducer(for: entryPointSymbol)
-                    continue
-                }
-
-                guard let callee,
-                      let producer = rewrite.originalByLoweredName[callee],
-                      producer.lowered.symbol != loweredAdapterSymbol
-                else {
-                    continue
-                }
-                if !candidates.contains(where: { $0.original == producer.original }) {
-                    candidates.append(producer)
-                }
+            if !candidates.contains(where: { $0.original == producer.original }) {
+                candidates.append(producer)
             }
-            break
         }
         guard candidates.count == 1 else {
             return nil
@@ -1400,8 +1407,8 @@ extension CoroutineLoweringPass {
     }
 
     private func loweredFunctionContainsYieldAllOfSequence(
-        symbol: SymbolID,
-        module: KIRModule,
+        _ function: KIRFunction,
+        functionBySymbol: [SymbolID: KIRFunction],
         using rewrite: SuspendRewriteContext
     ) -> Bool {
         guard let sequenceClassSymbol = rewrite.sequenceClassSymbol,
@@ -1409,98 +1416,71 @@ extension CoroutineLoweringPass {
         else {
             return false
         }
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl,
-                  function.symbol == symbol
+        for instruction in function.body {
+            let callSymbol: SymbolID?
+            let instructionCallee: InternedString
+            switch instruction {
+            case let .call(sym, callee, _, _, _, _, _, _):
+                callSymbol = sym
+                instructionCallee = callee
+            case let .virtualCall(sym, callee, _, _, _, _, _, _):
+                callSymbol = sym
+                instructionCallee = callee
+            default:
+                continue
+            }
+            guard instructionCallee == rewrite.sequenceBuilderYieldAllCallee,
+                  let callSymbol,
+                  let calleeFunction = functionBySymbol[callSymbol],
+                  let firstParamType = calleeFunction.params.first?.type
             else {
                 continue
             }
-            for instruction in function.body {
-                let callSymbol: SymbolID?
-                let instructionCallee: InternedString
-                switch instruction {
-                case let .call(sym, callee, _, _, _, _, _, _):
-                    callSymbol = sym
-                    instructionCallee = callee
-                case let .virtualCall(sym, callee, _, _, _, _, _, _):
-                    callSymbol = sym
-                    instructionCallee = callee
-                default:
-                    continue
-                }
-                guard instructionCallee == rewrite.sequenceBuilderYieldAllCallee,
-                      let callSymbol,
-                      let calleeFunction = module.arena.function(for: callSymbol),
-                      let firstParamType = calleeFunction.params.first?.type
-                else {
-                    continue
-                }
-                let normalizedType = types.makeNonNullable(firstParamType)
-                if case let .classType(classType) = types.kind(of: normalizedType),
-                   classType.classSymbol == sequenceClassSymbol {
-                    return true
-                }
+            let normalizedType = types.makeNonNullable(firstParamType)
+            if case let .classType(classType) = types.kind(of: normalizedType),
+               classType.classSymbol == sequenceClassSymbol {
+                return true
             }
-            return false
         }
         return false
     }
 
     private func loweredFunctionContainsCallee(
-        symbol: SymbolID,
-        callee: InternedString,
-        module: KIRModule
+        _ function: KIRFunction,
+        callee: InternedString
     ) -> Bool {
-        loweredFunctionContainsAnyCallee(symbol: symbol, callees: [callee], module: module)
+        loweredFunctionContainsAnyCallee(function, callees: [callee])
     }
 
     private func loweredFunctionContainsAnyCallee(
-        symbol: SymbolID,
-        callees: Set<InternedString>,
-        module: KIRModule
+        _ function: KIRFunction,
+        callees: Set<InternedString>
     ) -> Bool {
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl,
-                  function.symbol == symbol
-            else {
-                continue
+        function.body.contains { instruction in
+            if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                return callees.contains(instructionCallee)
             }
-            return function.body.contains { instruction in
-                if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
-                    return callees.contains(instructionCallee)
-                }
-                if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
-                    return callees.contains(instructionCallee)
-                }
-                return false
+            if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                return callees.contains(instructionCallee)
             }
+            return false
         }
-        return false
     }
 
     private func loweredFunctionContainsCalleeNamedLike(
-        symbol: SymbolID,
-        module: KIRModule,
+        _ function: KIRFunction,
         interner: StringInterner,
         isMatch: (String) -> Bool
     ) -> Bool {
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl,
-                  function.symbol == symbol
-            else {
-                continue
+        function.body.contains { instruction in
+            if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                return isMatch(interner.resolve(instructionCallee))
             }
-            return function.body.contains { instruction in
-                if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
-                    return isMatch(interner.resolve(instructionCallee))
-                }
-                if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
-                    return isMatch(interner.resolve(instructionCallee))
-                }
-                return false
+            if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                return isMatch(interner.resolve(instructionCallee))
             }
+            return false
         }
-        return false
     }
 
     func rewriteCreateCoroutineUninterceptedCall(

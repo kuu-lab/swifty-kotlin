@@ -21,20 +21,32 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerFindAssociatedObjectFunction(
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1324: `findAssociatedObject` is bundled Kotlin source
+        // (Stdlib/kotlin/reflect/AssociatedObjects.kt) when the stdlib is
+        // included; register the synthetic fallback only when it is absent.
+        if !bundledIndex.contains(
+            ownerFQName: kotlinReflectPkg + [interner.intern("KClass")],
+            name: interner.intern("findAssociatedObject"),
+            arity: 0
+        ) {
+            registerFindAssociatedObjectFunction(
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
         let kPropertySymbol = ensureInterfaceSymbol(
             named: "KProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
+        let kCallableFQName = kotlinReflectPkg + [interner.intern("KCallable")]
+        let hasSourceBackedKCallable = bundledIndex.containsNominal(fqName: kCallableFQName)
+            || symbols.lookup(fqName: kCallableFQName).map(symbols.isSourceBackedSymbol) == true
 
         // STDLIB-REFLECT-066: Register kotlin.reflect.KType and typeOf<T>() stubs
         registerSyntheticKTypeStubs(
             symbols: symbols, types: types, interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg, kotlinPkg: kotlinPkg
+            kotlinReflectPkg: kotlinReflectPkg, bundledIndex: bundledIndex
         )
         registerSyntheticKParameterStub(
             symbols: symbols,
@@ -43,9 +55,10 @@ extension DataFlowSemaPhase {
             kotlinReflectPkg: kotlinReflectPkg
         )
 
-        // Register `name` property on KProperty (inherited from KCallable).
+        // Keep synthetic members only when no source-backed KCallable declaration
+        // can provide the properties through KProperty inheritance.
         let stringType = types.stringType
-        if let kPropertyInfo = symbols.symbol(kPropertySymbol) {
+        if !hasSourceBackedKCallable, let kPropertyInfo = symbols.symbol(kPropertySymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kPropertyInfo.fqName + [namePropName]
             if symbols.lookup(fqName: namePropFQ) == nil {
@@ -78,9 +91,8 @@ extension DataFlowSemaPhase {
         let kCallableSymbol = ensureInterfaceSymbol(
             named: "KCallable", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
-        // KCallable is source-backed when the bundled stdlib is present. Keep
-        // its generic shell and properties here so early synthetic declarations
-        // can refer to the same symbols before bundled headers are collected.
+        // Keep KCallable's generic shell so early synthetic declarations can
+        // refer to it before bundled headers are collected.
         let returnTypeParameterName = interner.intern("R")
         let returnTypeParameterFQ = (symbols.symbol(kCallableSymbol)?.fqName
             ?? kotlinReflectPkg + [interner.intern("KCallable")]) + [returnTypeParameterName]
@@ -104,7 +116,7 @@ extension DataFlowSemaPhase {
             [kCallableSymbol], to: kPropertySymbol,
             symbols: symbols, types: types
         )
-        if let kCallableInfo = symbols.symbol(kCallableSymbol) {
+        if !hasSourceBackedKCallable, let kCallableInfo = symbols.symbol(kCallableSymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kCallableInfo.fqName + [namePropName]
             if symbols.lookup(fqName: namePropFQ) == nil {
@@ -1081,7 +1093,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinReflectPkg: [InternedString],
-        kotlinPkg: [InternedString]
+        bundledIndex: BundledDeclarationIndex
     ) {
         let kTypeSymbol = ensureInterfaceSymbol(
             named: "KType", in: kotlinReflectPkg, symbols: symbols, interner: interner
@@ -1108,46 +1120,20 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticKTypeParameterStub(
             kClassifierSymbol: kClassifierSymbol,
-            kTypeSymbol: kTypeSymbol,
             symbols: symbols,
             types: types,
             interner: interner,
             kotlinReflectPkg: kotlinReflectPkg
         )
 
+        // KSP-1323: kotlin.reflect.typeOf<T>() is bundled Kotlin source
+        // (Stdlib/kotlin/reflect/typeOf.kt); the `kotlin.typeOf` alias is not
+        // part of the official surface, so only the reflect FQName keeps a
+        // synthetic fallback for compilations without the bundled stdlib.
         let typeOfName = interner.intern("typeOf")
-        let typeOfFQName = kotlinPkg + [typeOfName]
-        if symbols.lookupAll(fqName: typeOfFQName).isEmpty {
-            let tParamName = interner.intern("T")
-            let tParamFQName = typeOfFQName + [tParamName]
-            let tParamSymbol = symbols.define(
-                kind: .typeParameter, name: tParamName, fqName: tParamFQName,
-                declSite: nil, visibility: .private, flags: [.reifiedTypeParameter]
-            )
-
-            let funcSymbol = symbols.define(
-                kind: .function, name: typeOfName, fqName: typeOfFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic, .inlineFunction]
-            )
-            if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
-                symbols.setParentSymbol(pkg, for: funcSymbol)
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    parameterTypes: [],
-                    returnType: kTypeType,
-                    isSuspend: false,
-                    typeParameterSymbols: [tParamSymbol],
-                    reifiedTypeParameterIndices: [0],
-                    typeParameterUpperBoundsList: [[]],
-                    classTypeParameterCount: 0
-                ),
-                for: funcSymbol
-            )
-        }
-
         let typeOfReflectFQName = kotlinReflectPkg + [typeOfName]
-        if symbols.lookupAll(fqName: typeOfReflectFQName).isEmpty {
+        if !bundledIndex.contains(ownerFQName: kotlinReflectPkg, name: typeOfName, arity: 0),
+           symbols.lookupAll(fqName: typeOfReflectFQName).isEmpty {
             let tParamName2 = interner.intern("T")
             let tParamFQName2 = typeOfReflectFQName + [tParamName2]
             let tParamSymbol2 = symbols.define(
@@ -1177,10 +1163,10 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // STDLIB-REFLECT-072: Register KTypeParameter interface and scalar properties.
+    // STDLIB-REFLECT-072: Register the KTypeParameter interface anchor.
+    // Its abstract members are declared by the bundled KTypeParameter source.
     private func registerSyntheticKTypeParameterStub(
         kClassifierSymbol: SymbolID,
-        kTypeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
@@ -1195,82 +1181,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
-
-        guard let kTypeParameterInfo = symbols.symbol(kTypeParameterSymbol) else { return }
-        let stringType = types.stringType
-        let boolType = types.make(.primitive(.boolean, .nonNull))
-        let kVarianceType: TypeID = if let kVarianceSymbol = symbols.lookup(
-            fqName: kotlinReflectPkg + [interner.intern("KVariance")]
-        ) {
-            types.make(.classType(ClassType(
-                classSymbol: kVarianceSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
-        let kTypeType = types.make(.classType(ClassType(
-            classSymbol: kTypeSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        registerSyntheticKTypeParameterProperty(
-            named: "name",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticKTypeParameterProperty(
-            named: "isReified",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticKTypeParameterProperty(
-            named: "variance",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: kVarianceType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticKTypeParameterProperty(
-            named: "upperBounds",
-            ownerSymbol: kTypeParameterSymbol,
-            ownerFQName: kTypeParameterInfo.fqName,
-            propertyType: kTypeType,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func registerSyntheticKTypeParameterProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        propertyType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerFQName + [propertyName]
-        guard symbols.lookup(fqName: propertyFQName) == nil else { return }
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(propertyType, for: propertySymbol)
     }
 
     // STDLIB-REFLECT-TYPE-013: Register KParameter interface and scalar properties.
@@ -1432,7 +1342,8 @@ extension DataFlowSemaPhase {
         let annotationFQName = symbols.symbol(symbol)?.fqName
             ?? (kotlinReflectPkg + [interner.intern("AssociatedObjectKey")])
         let constructorFQName = annotationFQName + [constructorName]
-        if symbols.lookupAll(fqName: constructorFQName).isEmpty {
+        if symbols.lookupAll(fqName: constructorFQName).isEmpty,
+           !symbols.isSourceBackedSymbol(symbol) {
             let constructor = symbols.define(
                 kind: .constructor,
                 name: constructorName,

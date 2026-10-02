@@ -65,3 +65,35 @@ public suspend fun awaitAll(vararg deferreds: Deferred): List<Any> {
     }
     return result
 }
+
+// Collection-receiver forms of `awaitAll` / `joinAll`. Both use a `for` loop
+// over the receiver rather than `map { it.await() }` for the same reason as the
+// vararg `awaitAll` above: a suspend lambda handed to a non-`inline` collection
+// HOF goes through the callable-value adapter instead of staying in this
+// function's CPS frame.
+//
+// `Deferred` and `Job` are non-generic synthetic symbols here (see
+// HeaderHelpers+SyntheticCoroutineRegistry.swift), so the receivers are spelled
+// `Collection<Deferred>` / `Collection<Job>` and the result is `List<Any>`
+// rather than real kotlinx's `Collection<Deferred<T>>` / `List<T>`.
+//
+// Awaiting sequentially gives fail-fast on the first failure: the exception
+// escapes before the remaining elements are awaited. Cancelling the siblings is
+// left to structured concurrency (a failing `async` child cancels its parent
+// scope), which is also how real kotlinx's `awaitAll` behaves -- it does not
+// cancel the other deferreds itself.
+public suspend fun Collection<Deferred>.awaitAll(): List<Any> {
+    val deferreds = this
+    val result = mutableListOf<Any>()
+    for (deferred in deferreds) {
+        result.add(deferred.await())
+    }
+    return result
+}
+
+public suspend fun Collection<Job>.joinAll() {
+    val jobs = this
+    for (job in jobs) {
+        job.join()
+    }
+}

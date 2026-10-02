@@ -133,6 +133,90 @@ struct DeclarationBoundaryTests {
         #expect(blockChildCount(source, blockChildKind: .statement) == 2)
     }
 
+    @Test
+    func valueKeywordExpressionBodyDoesNotConsumeFollowingDeclaration() throws {
+        let source = """
+        class Holder(var value: Int)
+
+        fun Holder.read(): Int = value
+
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 2)
+        let read = try #require(functions.first)
+        let other = try #require(functions.last)
+        let readTokens = parsed.arena.children(of: NodeID(rawValue: Int32(read.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(readTokens.contains(.keyword(.value)))
+        #expect(otherTokens.contains(.symbol(.assign)))
+        #expect(!otherTokens.contains(.keyword(.value)))
+    }
+
+    @Test
+    func valueKeywordAfterAssignmentNewlineStaysInExpressionBody() throws {
+        let source = """
+        class Holder(var value: Int)
+        fun Holder.read(): Int =
+            value
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 2)
+        let read = try #require(functions.first)
+        let other = try #require(functions.last)
+        let readTokens = parsed.arena.children(of: NodeID(rawValue: Int32(read.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(readTokens.contains(.keyword(.value)))
+        #expect(otherTokens.contains(.symbol(.assign)))
+        #expect(!otherTokens.contains(.keyword(.value)))
+    }
+
+    @Test
+    func valueKeywordExtensionPropertyDoesNotConsumeFollowingDeclaration() throws {
+        let source = """
+        class Holder(val base: Int)
+        val Holder.value: Int get() = base
+
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let properties = parsed.arena.nodes.enumerated().filter { $0.element.kind == .propertyDecl }
+        #expect(properties.count == 1)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 1)
+        let other = try #require(functions.first)
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(otherTokens.contains(.symbol(.assign)))
+    }
+
+    @Test
+    func valueClassModifierStillIntroducesClassDeclaration() {
+        let source = """
+        @JvmInline value class Wrapped(val value: Int)
+        fun Wrapped.read(): Int = value
+        """
+        #expect(nodeCount(source, kind: .classDecl) == 1)
+        #expect(nodeCount(source, kind: .funDecl) == 1)
+    }
+
     // Found while investigating a `@file:Suppress` annotation that failed to
     // suppress a diagnostic raised deep inside a trailing function's block
     // body (PR #6562's KSP-1216 native concurrent top-level tests). The root
@@ -189,6 +273,37 @@ struct DeclarationBoundaryTests {
         }
         """
         #expect(nodeCount(source, kind: .enumEntry) == 2)
+    }
+
+    @Test
+    func longModifierPrefixLookaheadIsBoundedAndRecovers() {
+        let modifiers = Array(repeating: "suspend", count: 4_200).joined(separator: "\n")
+        let source = "val answer = 42\n\(modifiers)\nnotADeclaration"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.node(parsed.root).kind == .script)
+    }
+
+    @Test
+    func longContextParameterPrefixLookaheadIsBoundedAndRecovers() {
+        let parameters = (0..<2_100).map { "p\($0): Int" }.joined(separator: ",\n")
+        let source = "val answer = 42\ncontext(\n\(parameters)\n)\nfun next() {}"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
+    }
+
+    @Test
+    func alternatingModifierAndContextPrefixUsesTheSameLookaheadBudget() {
+        let prefixes = Array(repeating: "suspend\ncontext(x: Int)", count: 1_100)
+            .joined(separator: "\n")
+        let source = "val answer = 42\n\(prefixes)\nfun next() {}"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
     }
 }
 #endif

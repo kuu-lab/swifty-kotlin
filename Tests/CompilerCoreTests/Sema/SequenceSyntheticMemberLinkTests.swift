@@ -1291,6 +1291,7 @@ struct SequenceSyntheticMemberLinkTests {
                               let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
                         else { return false }
                         return receiverSymbol.fqName.map { interner.resolve($0) } == ["kotlin", "sequences", "Sequence"]
+                            && signature.typeParameterUpperBoundsList.count == 1
                     },
                     "Expected Sequence.minOrNull source extension to be registered"
                 )

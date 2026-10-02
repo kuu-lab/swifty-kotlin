@@ -53,6 +53,11 @@ extension BuildASTPhase.ExpressionParser {
             let suspendStart = token.range.start
             _ = consume()
             return parseLambdaLiteral(start: suspendStart)
+        case .keyword(.fun) where peek(1)?.kind == .symbol(.lParen):
+            // Anonymous function expression: `fun(params): RetType { body }`.
+            // Distinct from `fun` as a declaration modifier/keyword, which is
+            // never followed directly by `(` (a name always comes first).
+            return parseAnonymousFunctionLiteral()
         case let .keyword(keyword):
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))

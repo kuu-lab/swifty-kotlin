@@ -108,6 +108,67 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
     }
 
     @Test
+    func testCodegenObjectLiteralMemberFunctionCallsEnclosingPrivateMember() throws {
+        let source = """
+        class ConstGetter(val value: Int) {
+            private fun fetch(index: Int): Int = value + index
+            fun call(): Int {
+                val o = object : Any() {
+                    fun get(): Int = fetch(1)
+                }
+                return o.get()
+            }
+        }
+
+        fun main() {
+            println(ConstGetter(41).call())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralEnclosingPrivateMemberCallExecution",
+            expected: "42\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralIteratorMutatesOuterReceiverProperties() throws {
+        let source = """
+        class CountingSeq : Sequence<Int> {
+            var pulls = 0
+            var marker = 41
+
+            override fun iterator(): Iterator<Int> = object : Iterator<Int> {
+                private var cur = 0
+                override fun hasNext(): Boolean { pulls++; return cur < 5 }
+                override fun next(): Int { cur++; return cur }
+            }
+        }
+
+        fun main() {
+            val s = CountingSeq()
+            val it = s.iterator()
+            println(it.hasNext())
+            println(it.next())
+            println(it.next())
+            println("pulls=${s.pulls} marker=${s.marker}")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralIteratorMutatesOuterReceiverProperties",
+            expected: """
+            true
+            1
+            2
+            pulls=1 marker=41
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesAndMutatesVarAcrossCalls() throws {
         let source = """
         interface Counter {

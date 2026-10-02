@@ -1,0 +1,24 @@
+symbol fq=__local_0.l[kind=local] kind=local vis=private flags=_ type=__localdecl_0.Local
+symbol fq=__localdecl_0.Local.<init>.v[kind=vparam] kind=valueParameter vis=private flags=synthetic type=Int
+symbol fq=__localdecl_0.Local.<init>[kind=ctor;recv=__localdecl_0.Local;params=Int] kind=constructor vis=public flags=synthetic sig=recv=__localdecl_0.Local params=[Int] ret=__localdecl_0.Local
+symbol fq=__localdecl_0.Local.v[kind=prop] kind=property vis=public flags=synthetic type=Int
+symbol fq=__localdecl_0.Local[kind=class] kind=class vis=private flags=synthetic
+symbol fq=__localdecl_9.Local.v[kind=prop] kind=property vis=public flags=synthetic type=Int
+symbol fq=__localdecl_9.Local[kind=obj] kind=object vis=private flags=synthetic
+symbol fq=golden.sema.useLocalClass[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.useLocalObject[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+file flocal_named_nominal package=golden.sema
+  decl golden.sema.useLocalClass[kind=fun;params=] fun useLocalClass sym=golden.sema.useLocalClass[kind=fun;params=]
+  decl golden.sema.useLocalObject[kind=fun;params=] fun useLocalObject sym=golden.sema.useLocalObject[kind=fun;params=]
+expr e@4:5 localNominalDecl decl=1 type=Unit ref=__localdecl_0.Local[kind=class]
+expr e@5:19 int(5) type=Int
+expr e@5:13 call callee=e@5:13#1 args=[_:e@5:19] type=__localdecl_0.Local call=__localdecl_0.Local.<init>[kind=ctor;recv=__localdecl_0.Local;params=Int]
+expr e@5:5 localDecl l mutable=0 type=_ init=e@5:13 type=Unit ref=__local_0.l[kind=local]
+expr e@6:12 name(l) type=__localdecl_0.Local ref=__local_0.l[kind=local]
+expr e@6:12#1 memberCall recv=e@6:12 callee=v args=[] type=Int ref=__localdecl_0.Local.v[kind=prop]
+expr e@6:5 return value=e@6:12#1 type=Nothing
+expr e@11:17 int(5) type=Int
+expr e@10:5 localNominalDecl decl=4 type=__localdecl_9.Local ref=__localdecl_9.Local[kind=obj]
+expr e@13:12 name(Local) type=__localdecl_9.Local ref=__localdecl_9.Local[kind=obj]
+expr e@13:12#1 memberCall recv=e@13:12 callee=v args=[] type=Int ref=__localdecl_9.Local.v[kind=prop]
+expr e@13:5 return value=e@13:12#1 type=Nothing

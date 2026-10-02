@@ -97,11 +97,10 @@ package enum CommandRunner {
     }
 
     /// Resolves an executable by scanning `$PATH`, but only trusts directories
-    /// that cannot be tampered with by another local user. This prevents a
-    /// PATH-hijack where a malicious `name` planted in an attacker-controlled
-    /// directory earlier in `$PATH` would be executed with the victim's
-    /// privileges. Empty, relative, group/other-writable, or foreign-owned PATH
-    /// entries are skipped; if no trusted match is found, `fallback` is returned.
+    /// whose directory and final executable cannot be tampered with by another
+    /// local user. Empty, relative, group/other-writable, or foreign-owned PATH
+    /// entries and unsafe executable files are skipped; if no trusted match is
+    /// found, `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
         resolveExecutable(
             name,
@@ -122,58 +121,39 @@ package enum CommandRunner {
             // relative entry can be influenced by the process's CWD; neither
             // is trustworthy, so require an absolute path.
             guard directoryPath.hasPrefix("/") else { continue }
-            guard isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
+            guard TrustedFileSystem.isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
             let candidate = directoryPath + "/" + name
-            if fileManager.isExecutableFile(atPath: candidate) {
+            if isTrustedExecutable(candidate, fileManager: fileManager) {
                 return candidate
             }
         }
         return fallback
     }
 
-    /// A directory is trusted for executable resolution only when it exists, is
-    /// a directory, is not writable by group or others, and is owned by `root`
-    /// or the current user. This rejects directories another local user could
-    /// use to plant a malicious binary.
-    private static func isTrustedDirectory(_ path: String, fileManager: FileManager) -> Bool {
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return false
-        }
-        if isSymbolicLink(path, fileManager: fileManager) {
-            let parentPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
-            guard parentPath != path, isTrustedDirectory(parentPath, fileManager: fileManager) else {
-                return false
-            }
-        }
-        // Resolve symlinks so we inspect the target directory's attributes
-        // rather than the link's (symlinks always report 0o777 permissions,
-        // e.g. /bin -> /usr/bin on modern Debian/Ubuntu).
-        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        guard let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath) else {
-            return false
-        }
-        guard let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value else {
-            return false
-        }
-        let groupWrite: UInt16 = 0o020
-        let otherWrite: UInt16 = 0o002
-        if permissions & (groupWrite | otherWrite) != 0 {
-            return false
-        }
-        // Fail closed: if ownership can't be determined, treat the directory as
-        // untrusted rather than assuming it is safe.
-        guard let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value else {
-            return false
-        }
-        if owner != 0 && owner != getuid() {
-            return false
-        }
-        return true
-    }
+    /// Checks the opened final target rather than relying on attributes of the
+    /// candidate path (which may itself be a symlink). The target's immediate
+    /// containing directory must also be protected: otherwise another user
+    /// could replace a trusted, read-only executable between this check and
+    /// launch. Only the immediate parent is verified; deeper ancestors are not
+    /// required to be trusted because shared tool-install roots (e.g. the
+    /// runner toolcache) are commonly owned by a different provisioning user.
+    private static func isTrustedExecutable(_ path: String, fileManager: FileManager) -> Bool {
+        guard fileManager.isExecutableFile(atPath: path) else { return false }
 
-    private static func isSymbolicLink(_ path: String, fileManager: FileManager) -> Bool {
-        (try? fileManager.destinationOfSymbolicLink(atPath: path)) != nil
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+        let parentPath = URL(fileURLWithPath: resolvedPath).deletingLastPathComponent().path
+        guard TrustedFileSystem.isTrustedDirectory(parentPath, fileManager: fileManager) else { return false }
+
+        let descriptor = open(resolvedPath, O_RDONLY | O_CLOEXEC)
+        guard descriptor >= 0 else { return false }
+        defer { _ = close(descriptor) }
+
+        var status = stat()
+        guard fstat(descriptor, &status) == 0 else { return false }
+        guard status.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else { return false }
+        guard status.st_mode & mode_t(0o111) != 0 else { return false }
+        guard status.st_mode & mode_t(0o022) == 0 else { return false }
+        return status.st_uid == 0 || status.st_uid == getuid()
     }
 
     /// Runs a command and records its wall-clock time as a sub-phase in the

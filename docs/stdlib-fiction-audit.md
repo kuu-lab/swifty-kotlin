@@ -99,6 +99,15 @@ DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswift
   `kk_pin_object`/`kk_pinned_get`/`kk_unpin_object`, `kk_uByteArray_toCValues`/
   `kk_uIntArray_toCValues`/`kk_uLongArray_toCValues`, `kk_cpointer_toKStringFromUtf32`/
   `kk_cpointer_toKStringFromUtf16` のみ。
+- **追補（2026-09-23）**: この削除は関数登録だけを外し、各サーフェスの「シグネチャコメント +
+  孤児 `typeParameter` シンボル + 戻り値を捨てる `types.make`」を `HeaderHelpers+SyntheticCInteropStubs.swift`
+  に取り残していた（PR #6463 は生じた未使用変数警告を `_ =` で黙らせただけで削除を完了していない）。
+  残っていた 14 ブロック 480 行（`CValue.useContents` / `CPointer.get`・`set`・`reinterpret`・`plus` /
+  `Long`・`Float`・`Double`・`Short`・`UShortArray.toCValues` / `CPointer<ShortVar>.toKStringFromUtf16` /
+  `Array`・`List<CPointer<T>?>.toCValues` / `typeOf` / `zeroValue`）と、
+  最後の利用者を失った `syntheticListType` ヘルパーを削除し、上記 12 ブリッジのみが残る状態にした。
+  これらのブロックは関数・クラスシンボルを一切定義しておらず、削除による観測可能な差は
+  `SymbolID`/`TypeID` の採番のみ（`TypeSystem.make` は純粋なインターン）。
 
 ## 重要な判断: `java.*` / `kotlinx.*` は「架空」ではない
 

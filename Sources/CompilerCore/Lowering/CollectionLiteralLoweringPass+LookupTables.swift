@@ -19,6 +19,9 @@ struct CollectionLiteralLookupTables {
     // name-only match would erase that distinction. Their private bridge
     // results remain unknown until a later, explicit runtime fact is available.
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
+    /// Interned name/package tables for `trackedStaticTypeKind` — built once
+    /// here rather than per classified expression (LOWERING-001).
+    let staticTypeClassification: StaticTypeClassificationNames
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
     init(interner: StringInterner) {
@@ -38,6 +41,7 @@ struct CollectionLiteralLookupTables {
             arrayLookup.kkListAsSequenceName,
             arrayLookup.kkArrayAsSequenceName
         ]
+        staticTypeClassification = StaticTypeClassificationNames(interner: interner)
         collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
             (spec.arity.minimum ... spec.arity.maximum).map { arity in
                 (

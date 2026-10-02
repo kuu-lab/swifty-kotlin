@@ -40,18 +40,18 @@ struct CodegenRuntimeObjectDiscoveryTests {
     }
 
     @Test
-    func testRuntimeBuildConfigurationIsIncludedInArgumentsPathsAndCacheKeys() {
+    func testRuntimeBuildConfigurationIsIncludedInArgumentsPathsAndCacheKeys() throws {
         let target = TargetTriple(
             arch: "arm64",
             vendor: "apple",
             os: "macosx",
             osVersion: nil
         )
-        let debugDirectory = CodegenRuntimeSupport.runtimeBuildDirectory(
+        let debugDirectory = try CodegenRuntimeSupport.runtimeBuildDirectory(
             target: target,
             configuration: .debug
         )
-        let releaseDirectory = CodegenRuntimeSupport.runtimeBuildDirectory(
+        let releaseDirectory = try CodegenRuntimeSupport.runtimeBuildDirectory(
             target: target,
             configuration: .release
         )
@@ -59,11 +59,11 @@ struct CodegenRuntimeObjectDiscoveryTests {
         #expect(debugDirectory.path.contains("/debug/"))
         #expect(releaseDirectory.path.contains("/release/"))
 
-        let debugArguments = CodegenRuntimeSupport.swiftBuildArguments(
+        let debugArguments = try CodegenRuntimeSupport.swiftBuildArguments(
             target: target,
             configuration: .debug
         )
-        let releaseArguments = CodegenRuntimeSupport.swiftBuildArguments(
+        let releaseArguments = try CodegenRuntimeSupport.swiftBuildArguments(
             target: target,
             configuration: .release
         )
@@ -71,11 +71,11 @@ struct CodegenRuntimeObjectDiscoveryTests {
         #expect(releaseArguments.contains { $0 == "release" })
         #expect(debugArguments != releaseArguments)
 
-        let debugCacheKey = CodegenRuntimeSupport.runtimeBuildCacheKey(
+        let debugCacheKey = try CodegenRuntimeSupport.runtimeBuildCacheKey(
             target: target,
             configuration: .debug
         )
-        let releaseCacheKey = CodegenRuntimeSupport.runtimeBuildCacheKey(
+        let releaseCacheKey = try CodegenRuntimeSupport.runtimeBuildCacheKey(
             target: target,
             configuration: .release
         )
@@ -92,7 +92,7 @@ struct CodegenRuntimeObjectDiscoveryTests {
             )
             #expect(!paths.isEmpty)
             #expect(paths.allSatisfy { FileManager.default.fileExists(atPath: $0) })
-            let cacheKey = CodegenRuntimeSupport.runtimeBuildCacheKey(
+            let cacheKey = try CodegenRuntimeSupport.runtimeBuildCacheKey(
                 target: target,
                 configuration: configuration
             )
@@ -289,5 +289,172 @@ struct CodegenRuntimeObjectDiscoveryTests {
             environment: ["KSWIFTK_RUNTIME_BUILD_TIMEOUT": rawValue]
         )
         #expect(timeout == 600)
+    }
+
+    // MARK: KUU-788 — an untrusted Package.swift must never drive the Runtime build
+
+    // Builds a directory that looks like a KSwiftK checkout (manifest with the
+    // right package name plus the Runtime source directories) with correct
+    // ownership and permissions.
+    private func makeFakeRuntimePackageRoot(
+        manifest: String = """
+        // swift-tools-version: 6.2
+        import PackageDescription
+        let package = Package(name: "KSwiftK")
+        """
+    ) throws -> URL {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("kuu788-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        try manifest.write(
+            to: root.appendingPathComponent("Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics"] {
+            try fileManager.createDirectory(
+                at: root.appendingPathComponent(component, isDirectory: true),
+                withIntermediateDirectories: true
+            )
+        }
+        return root
+    }
+
+    // The implicit search anchors only in the compiler binary's own location
+    // and the build-time source path — never the process working directory,
+    // which belongs to the compiled project.
+    @Test
+    func testPackageRootSearchStartsAreCompilerOwned() {
+        let fakeExecutable = URL(fileURLWithPath: "/opt/kswiftk/bin/kswiftc")
+        let starts = CodegenRuntimeSupport.runtimePackageRootSearchStarts(
+            executableURL: fakeExecutable
+        )
+        #expect(starts == [
+            fakeExecutable.deletingLastPathComponent(),
+            CodegenRuntimeSupport.runtimeSourceCheckoutRootURL,
+        ])
+    }
+
+    @Test
+    func testPackageRootResolvesToVerifiedCompilerOwnedCheckout() throws {
+        let root = try CodegenRuntimeSupport.runtimePackageRootURL(environment: [:])
+        #expect(CodegenRuntimeSupport.runtimePackageRootRejection(root) == nil)
+        #expect(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("Sources/Runtime").path
+            )
+        )
+    }
+
+    @Test
+    func testOverridePackageRootIsAcceptedWhenVerified() throws {
+        let root = try makeFakeRuntimePackageRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // The override may point anywhere inside the checkout; the nearest
+        // ancestor manifest is what gets verified and used.
+        for overridePath in [root.path, root.appendingPathComponent("Sources/Runtime").path] {
+            let resolved = try CodegenRuntimeSupport.runtimePackageRootURL(
+                environment: ["KSWIFTK_PACKAGE_ROOT": overridePath]
+            )
+            #expect(resolved.standardizedFileURL == root.standardizedFileURL)
+        }
+    }
+
+    @Test
+    func testOverridePackageRootRejectsNonKSwiftKManifest() throws {
+        let root = try makeFakeRuntimePackageRoot(
+            manifest: """
+            // swift-tools-version: 6.2
+            import PackageDescription
+            let package = Package(name: "DefinitelyNotKSwiftK")
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(throws: CodegenRuntimeSupportError.self) {
+            try CodegenRuntimeSupport.runtimePackageRootURL(
+                environment: ["KSWIFTK_PACKAGE_ROOT": root.path]
+            )
+        }
+    }
+
+    @Test
+    func testOverridePackageRootRejectsWorldWritableTree() throws {
+        let root = try makeFakeRuntimePackageRoot()
+        defer {
+            // Restore permissions so the cleanup below is allowed everywhere.
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: root.path
+            )
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o777],
+            ofItemAtPath: root.path
+        )
+
+        #expect(throws: CodegenRuntimeSupportError.self) {
+            try CodegenRuntimeSupport.runtimePackageRootURL(
+                environment: ["KSWIFTK_PACKAGE_ROOT": root.path]
+            )
+        }
+    }
+
+    @Test
+    func testOverridePackageRootRejectsMissingRuntimeSources() throws {
+        let root = try makeFakeRuntimePackageRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.removeItem(
+            at: root.appendingPathComponent("Sources/Runtime", isDirectory: true)
+        )
+
+        #expect(throws: CodegenRuntimeSupportError.self) {
+            try CodegenRuntimeSupport.runtimePackageRootURL(
+                environment: ["KSWIFTK_PACKAGE_ROOT": root.path]
+            )
+        }
+    }
+
+    @Test
+    func testOverridePackageRootRejectsPathWithoutManifest() throws {
+        let empty = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kuu788-empty-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: empty) }
+
+        #expect(throws: CodegenRuntimeSupportError.self) {
+            try CodegenRuntimeSupport.runtimePackageRootURL(
+                environment: ["KSWIFTK_PACKAGE_ROOT": empty.path]
+            )
+        }
+    }
+
+    // A Package.swift sitting in the working directory — even one that would
+    // pass verification — must not be picked up: the working directory is not
+    // a search start at all.
+    @Test
+    func testWorkingDirectoryManifestIsNotEvaluated() throws {
+        let fileManager = FileManager.default
+        let fakeRoot = try makeFakeRuntimePackageRoot()
+        defer { try? fileManager.removeItem(at: fakeRoot) }
+
+        let original = fileManager.currentDirectoryPath
+        _ = fileManager.changeCurrentDirectoryPath(fakeRoot.path)
+        defer { _ = fileManager.changeCurrentDirectoryPath(original) }
+
+        let resolved = try CodegenRuntimeSupport.runtimePackageRootURL(environment: [:])
+        #expect(resolved.standardizedFileURL != fakeRoot.standardizedFileURL)
+    }
+
+    @Test
+    func testRuntimeBuildDoesNotDisableSandbox() throws {
+        let arguments = try CodegenRuntimeSupport.swiftBuildArguments(
+            target: .hostDefault(),
+            configuration: .release
+        )
+        #expect(!arguments.contains("--disable-sandbox"))
     }
 }

@@ -38,6 +38,7 @@ extension KIRLoweringDriver {
         ctx.resetScopeForFunction()
         ctx.beginCallableLoweringScope()
         ctx.setCurrentFunctionSymbol(symbol)
+        if function.isTailrec { ctx.markTailrecFunction(symbol) }
         let signature = sema.symbols.functionSignature(for: symbol)
         let params = buildFunDeclParams(function, symbol: symbol, signature: signature, shared: shared)
         let returnType = signature?.returnType ?? sema.types.unitType

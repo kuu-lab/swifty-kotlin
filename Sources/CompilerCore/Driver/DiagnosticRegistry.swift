@@ -1,7 +1,7 @@
 import Foundation
 
 /// A source edit that can be applied by a diagnostic code action.
-public struct DiagnosticTextEdit: Equatable, Sendable {
+public struct DiagnosticTextEdit: Hashable, Sendable {
     /// The source range to replace. An empty range represents insertion.
     public let range: SourceRange
     /// The replacement text, or an empty string for deletion.
@@ -14,7 +14,7 @@ public struct DiagnosticTextEdit: Equatable, Sendable {
 }
 
 /// Describes a single code action (quick-fix) that an LSP client can offer to the user.
-public struct DiagnosticCodeAction: Equatable, Sendable {
+public struct DiagnosticCodeAction: Hashable, Sendable {
     /// Human-readable title shown in the editor UI.
     public let title: String
     /// LSP code action kind (e.g. "quickfix", "refactor").
@@ -105,6 +105,8 @@ enum DiagnosticRegistry {
 
     private static let suppressionAliases: [String: [String]] = [
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
+        "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
+        "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "DEPRECATION": ["KSWIFTK-SEMA-DEPRECATED"],
         "DEPRECATION_ERROR": ["KSWIFTK-SEMA-DEPRECATED"],
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
@@ -147,6 +149,12 @@ enum DiagnosticRegistry {
             pass: "LEX",
             defaultSeverity: .error,
             summary: "Malformed number literal (overflow or bad format)."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LEX-0007",
+            pass: "LEX",
+            defaultSeverity: .error,
+            summary: "String template nesting exceeds the supported depth."
         ),
     ]
 
@@ -207,6 +215,12 @@ enum DiagnosticRegistry {
             pass: "PARSE",
             defaultSeverity: .error,
             summary: "Expression nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0013",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Structured syntax nesting exceeds the maximum supported depth."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
@@ -356,6 +370,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Invalid operator application."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0044",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot access internal member of the bundled stdlib."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0050",
@@ -549,6 +569,24 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .warning,
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-CYCLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cyclic supertype reference detected during nominal layout synthesis."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-DEPTH",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Inheritance chain exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-COUNT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Nominal type count exceeds the supported maximum."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0171",
@@ -784,6 +822,17 @@ enum DiagnosticRegistry {
         ),
     ]
 
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
+        ),
+    ]
+
     // MARK: - Backend pass (BACKEND)
 
     static let backendDescriptors: [DiagnosticDescriptor] = [
@@ -851,6 +900,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Codegen phase failed to emit requested artifacts."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PIPELINE-0005",
+            pass: "PIPELINE",
+            defaultSeverity: .error,
+            summary: "Per-file diagnostic limit reached; further diagnostics were suppressed."
+        ),
     ]
 
     // MARK: - Internal compiler error (ICE)
@@ -902,6 +957,7 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors

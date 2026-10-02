@@ -54,6 +54,31 @@ struct RuntimeBoxingTests {
         #expect(kk_map_get(map, 0) == 123)
     }
 
+    // MARK: - scalar/handle aliasing (KUU-857)
+
+    @Test
+    func testBoxIntScalarAliasingLiveBoxAddressBoxesNormally() {
+        // KUU-857: a raw scalar that numerically equals a live RuntimeIntBox's
+        // address must not satisfy the "already a registered object"
+        // pass-through — otherwise the scalar is returned unboxed and
+        // kk_unbox_int reads the *colliding* box's payload as the value
+        // (the intermittent wrong DeepRecursive sums on Linux CI).
+        let collider = kk_box_int(4242)
+        let colliderAddress = Int(
+            bitPattern: runtimePrimitiveBoxBasePointer(from: collider)
+                ?? UnsafeMutableRawPointer(bitPattern: collider)!
+        )
+        let boxed = kk_box_int(colliderAddress)
+        #expect(kk_unbox_int(boxed) == colliderAddress)
+    }
+
+    @Test
+    func testBoxIntAlreadyBoxedHandlePassesThrough() {
+        // A genuine primitive-box handle must still pass through unchanged.
+        let boxed = kk_box_int(4242)
+        #expect(kk_box_int(boxed) == boxed)
+    }
+
     // MARK: - kk_box_float / kk_unbox_float
 
     @Test

@@ -25,10 +25,11 @@ extension CallTypeChecker {
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   signature.receiverType == nil,
-                  // Only opt into the experimental path for functions that are
-                  // explicitly annotated. This avoids hijacking stdlib helpers
-                  // like `with` and the existing builder DSL stubs.
-                  hasExperimentalTypeInferenceAnnotation(candidate, sema: ctx.sema),
+                  // The experimental path handles annotated Kotlin builders, while
+                  // generic collection-receiver lambdas also need body-first
+                  // inference even when they are ordinary user declarations.
+                  (hasExperimentalTypeInferenceAnnotation(candidate, sema: ctx.sema)
+                    || hasGenericCollectionReceiverLambda(signature: signature, sema: ctx.sema, interner: ctx.interner)),
                   isEligibleExperimentalBuilderCandidate(
                     signature: signature,
                     args: args,
@@ -484,6 +485,39 @@ extension CallTypeChecker {
     private func hasExperimentalTypeInferenceAnnotation(_ symbol: SymbolID, sema: SemaModule) -> Bool {
         sema.symbols.annotations(for: symbol).contains {
             KnownCompilerAnnotation.experimentalTypeInference.matches($0.annotationFQName)
+        }
+    }
+
+    private func hasGenericCollectionReceiverLambda(
+        signature: FunctionSignature,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        signature.parameterTypes.contains { parameterType in
+            guard case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(parameterType)),
+                  let receiver = functionType.receiver,
+                  let (_, symbol) = resolveClassTypeSymbol(receiver, sema: sema),
+                  let name = symbol.fqName.last,
+                  let classType = resolveClassType(receiver, sema: sema)
+            else {
+                return false
+            }
+            let simpleName = interner.resolve(name)
+            let hasTypeParameter = classType.args.contains { argument in
+                let type: TypeID
+                switch argument {
+                case let .invariant(value), let .out(value), let .in(value):
+                    type = value
+                case .star:
+                    return false
+                }
+                if case .typeParam = sema.types.kind(of: type) {
+                    return true
+                }
+                return false
+            }
+            return ["MutableList", "MutableSet", "MutableMap"].contains(simpleName)
+                && hasTypeParameter
         }
     }
 
