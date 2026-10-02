@@ -1111,4 +1111,25 @@ struct BuildKIRCodegenRegressionTests {
             #expect(codes.contains("KSWIFTK-SEMA-0001"))
         }
     }
+
+    @Test
+    func testRepeatLabeledReturnJumpsToIterationEndInsteadOfReturningFromEnclosingFunction() throws {
+        for (label, source) in [
+            ("implicit", "fun main() { var s = 0; repeat(5) { if (it == 3) return@repeat; s += it }; println(s) }"),
+            ("explicit", "fun main() { var s = 0; repeat(5) lbl@{ if (it == 3) return@lbl; s += it }; println(s) }"),
+        ] {
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+                try runToKIR(ctx)
+                let module = try #require(ctx.kir)
+                let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+                let returnCount = body.filter { instruction in
+                    if case .returnUnit = instruction { return true }
+                    return false
+                }.count
+                // Only the implicit trailing return of `main` may remain (\(label)).
+                #expect(returnCount <= 1, "\(label): return@ must not return from the enclosing function")
+            }
+        }
+    }
 }

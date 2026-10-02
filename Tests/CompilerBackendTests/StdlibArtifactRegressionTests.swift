@@ -1047,6 +1047,55 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// Setter counterpart of `testResultMemberPropertyGetterSharedPath`:
+    /// `var` properties with custom setters — a bundled extension `var`
+    /// (`AtomicInt.value`) and a bundled member `var` (`AtomicLong.value`) —
+    /// must round-trip the precompiled setter link through the shared stdlib
+    /// artifact (`propertySetterExternalLinkName`). Without it the consumer
+    /// lowers `a.value = x` to a call to a bare `set`/`value` symbol and
+    /// fails to link.
+    @Test
+    func testBundledAtomicPropertySetterSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.native.concurrent.AtomicInt
+        import kotlin.native.concurrent.AtomicLong
+        fun main() {
+            val i = AtomicInt(1)
+            i.value = 42
+            println(i.value)
+            val l = AtomicLong(10)
+            l.value = 64
+            println(l.value)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "AtomicPropertySetterArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "42\n64\n")
+        }
+    }
+
     /// Imported runtime-backed interface getters retain a direct external link
     /// in the shared artifact. They must not be redirected to an itable property
     /// slot that the runtime collection boxes do not register.

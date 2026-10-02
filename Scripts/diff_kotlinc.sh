@@ -26,6 +26,8 @@ KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-corou
 KOTLINC_KOTLINX_IO_VERSION="${KOTLINC_KOTLINX_IO_VERSION:-${KOTLINX_IO_VERSION:-0.9.1}}"
 KOTLINC_KOTLINX_IO_SHA256="${KOTLINC_KOTLINX_IO_SHA256:-}"
 KOTLINC_KOTLINX_IO_JAR="${KOTLINC_KOTLINX_IO_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-core-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
+KOTLINC_KOTLINX_IO_BYTESTRING_SHA256="${KOTLINC_KOTLINX_IO_BYTESTRING_SHA256:-}"
+KOTLINC_KOTLINX_IO_BYTESTRING_JAR="${KOTLINC_KOTLINX_IO_BYTESTRING_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-bytestring-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
 # Reference jars are cached across runs by default. Set to empty
 # (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
 # explicitly empty value as "disabled" instead of re-applying the default.
@@ -338,6 +340,10 @@ requires_kotlinx_io() {
   target_matches_import "$1" 'import[[:space:]]+kotlinx\.io'
 }
 
+requires_kotlinx_io_bytestring() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.io\.bytestring'
+}
+
 # Known checksums per kotlinx-coroutines version. For other versions, set
 # KOTLINC_COROUTINES_SHA256 explicitly — otherwise the download is refused
 # rather than silently skipping verification.
@@ -354,6 +360,13 @@ known_coroutines_sha256() {
 known_kotlinx_io_sha256() {
   case "$1" in
     0.9.1) printf '765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370' ;;
+    *) printf '' ;;
+  esac
+}
+
+known_kotlinx_io_bytestring_sha256() {
+  case "$1" in
+    0.9.1) printf '8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4' ;;
     *) printf '' ;;
   esac
 }
@@ -491,6 +504,13 @@ ensure_kotlinx_io_jar() {
     "$KOTLINC_KOTLINX_IO_VERSION" "$KOTLINC_KOTLINX_IO_JAR" "$KOTLINC_KOTLINX_IO_SHA256" known_kotlinx_io_sha256
 }
 
+ensure_kotlinx_io_bytestring_jar() {
+  ensure_maven_jar \
+    "kotlinx-io-bytestring-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/${KOTLINC_KOTLINX_IO_VERSION}/kotlinx-io-bytestring-jvm-${KOTLINC_KOTLINX_IO_VERSION}.jar" \
+    "$KOTLINC_KOTLINX_IO_VERSION" "$KOTLINC_KOTLINX_IO_BYTESTRING_JAR" "$KOTLINC_KOTLINX_IO_BYTESTRING_SHA256" known_kotlinx_io_bytestring_sha256
+}
+
 ensure_kotlinc_classpath() {
   if [[ -n "$KOTLINC_CLASSPATH" ]]; then
     return 0
@@ -506,6 +526,11 @@ ensure_kotlinc_classpath() {
   if requires_kotlinx_io "$TARGET"; then
     ensure_kotlinx_io_jar || return 1
     jars+=("$KOTLINC_KOTLINX_IO_JAR")
+  fi
+
+  if requires_kotlinx_io_bytestring "$TARGET"; then
+    ensure_kotlinx_io_bytestring_jar || return 1
+    jars+=("$KOTLINC_KOTLINX_IO_BYTESTRING_JAR")
   fi
 
   if [[ ${#jars[@]} -eq 0 ]]; then

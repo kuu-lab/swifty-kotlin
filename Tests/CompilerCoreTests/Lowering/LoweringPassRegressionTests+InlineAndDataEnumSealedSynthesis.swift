@@ -364,6 +364,39 @@ extension LoweringPassRegressionTests {
         symbols.setParentSymbol(pointSymbol, for: ySymbol)
         symbols.setPropertyType(intType, for: ySymbol)
 
+        // Primary constructor: synthesized hashCode only covers constructor parameters.
+        let ctorSymbolpointSymbol = symbols.define(
+            kind: .constructor,
+            name: interner.intern("<init>"),
+            fqName: pointFQName + [interner.intern("<init>")],
+            declSite: nil,
+            visibility: .public
+        )
+        symbols.setParentSymbol(pointSymbol, for: ctorSymbolpointSymbol)
+        let ctorParamspointSymbol = ["x", "y"].map { paramName -> SymbolID in
+            let name = interner.intern(paramName)
+            return symbols.define(
+                kind: .valueParameter,
+                name: name,
+                fqName: pointFQName + [interner.intern("<init>"), name],
+                declSite: nil,
+                visibility: .private
+            )
+        }
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: ctorParamspointSymbol.map { _ in intType },
+                returnType: intType,
+                isSuspend: false,
+                valueParameterSymbols: ctorParamspointSymbol,
+                valueParameterHasDefaultValues: ctorParamspointSymbol.map { _ in false },
+                valueParameterIsVararg: ctorParamspointSymbol.map { _ in false },
+                typeParameterSymbols: []
+            ),
+            for: ctorSymbolpointSymbol
+        )
+
         // Register synthetic hashCode symbol (as Sema would)
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = pointFQName + [hashCodeName]
@@ -540,6 +573,39 @@ extension LoweringPassRegressionTests {
         )
         symbols.setParentSymbol(wrapperSymbol, for: valueSymbol)
         symbols.setPropertyType(intType, for: valueSymbol)
+
+        // Primary constructor: synthesized hashCode only covers constructor parameters.
+        let ctorSymbolwrapperSymbol = symbols.define(
+            kind: .constructor,
+            name: interner.intern("<init>"),
+            fqName: wrapperFQName + [interner.intern("<init>")],
+            declSite: nil,
+            visibility: .public
+        )
+        symbols.setParentSymbol(wrapperSymbol, for: ctorSymbolwrapperSymbol)
+        let ctorParamswrapperSymbol = ["value"].map { paramName -> SymbolID in
+            let name = interner.intern(paramName)
+            return symbols.define(
+                kind: .valueParameter,
+                name: name,
+                fqName: wrapperFQName + [interner.intern("<init>"), name],
+                declSite: nil,
+                visibility: .private
+            )
+        }
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: ctorParamswrapperSymbol.map { _ in intType },
+                returnType: intType,
+                isSuspend: false,
+                valueParameterSymbols: ctorParamswrapperSymbol,
+                valueParameterHasDefaultValues: ctorParamswrapperSymbol.map { _ in false },
+                valueParameterIsVararg: ctorParamswrapperSymbol.map { _ in false },
+                typeParameterSymbols: []
+            ),
+            for: ctorSymbolwrapperSymbol
+        )
 
         // Register synthetic hashCode symbol
         let hashCodeName = interner.intern("hashCode")

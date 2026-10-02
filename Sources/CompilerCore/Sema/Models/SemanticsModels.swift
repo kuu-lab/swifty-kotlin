@@ -1567,11 +1567,19 @@ public final class BindingTable {
     /// no symbol to bind either, so this records which raw binary operator
     /// KIR lowering should synthesize a wrapper function around in its place.
     public private(set) var primitiveOperatorCallableRefs: [ExprID: BinaryOp] = [:]
+    /// `Int::toString` used as a `(Int) -> String` function value: `toString()`
+    /// on a receiver has no member symbol (only the `toString(radix)` overload
+    /// is a real declaration), so KIR lowering synthesizes a wrapper that
+    /// stringifies its argument the way a literal `x.toString()` does.
+    public private(set) var anyToStringCallableRefs: Set<ExprID> = []
     /// KSP-CAP-001: outer local variables/parameters captured by an object
     /// literal's member function bodies, keyed by the object literal's
     /// synthesized class symbol. Populated during Sema so KIR lowering can
     /// materialize each captured symbol as an instance field.
     public private(set) var objectLiteralCaptureSymbolsByOwner: [SymbolID: [SymbolID]] = [:]
+    /// Mutable outer receiver properties are accessed through the enclosing
+    /// instance, so object literals that use them capture that receiver here.
+    public private(set) var objectLiteralCapturedReceiversByOwner: [SymbolID: (receiverSymbol: SymbolID, ownerSymbol: SymbolID)] = [:]
     /// Static type of a captured local/parameter symbol at the point it was
     /// captured, keyed by the captured symbol itself. `LocalBindings` (where
     /// this type normally lives) is a Sema-only, transient structure, so KIR
@@ -1766,6 +1774,18 @@ public final class BindingTable {
 
     public func objectLiteralCaptureSymbols(for owner: SymbolID) -> [SymbolID] {
         objectLiteralCaptureSymbolsByOwner[owner] ?? []
+    }
+
+    public func bindObjectLiteralCapturedReceiver(
+        _ owner: SymbolID,
+        receiverSymbol: SymbolID,
+        ownerSymbol: SymbolID
+    ) {
+        objectLiteralCapturedReceiversByOwner[owner] = (receiverSymbol, ownerSymbol)
+    }
+
+    public func objectLiteralCapturedReceiver(for owner: SymbolID) -> (receiverSymbol: SymbolID, ownerSymbol: SymbolID)? {
+        objectLiteralCapturedReceiversByOwner[owner]
     }
 
     public func bindCapturedLocalType(_ symbol: SymbolID, type: TypeID) {
@@ -2152,6 +2172,14 @@ public final class BindingTable {
     /// callable reference (REFL-PRIMOP).
     public func primitiveOperatorCallableRef(for expr: ExprID) -> BinaryOp? {
         primitiveOperatorCallableRefs[expr]
+    }
+
+    public func bindAnyToStringCallableRef(_ expr: ExprID) {
+        anyToStringCallableRefs.insert(expr)
+    }
+
+    public func isAnyToStringCallableRef(_ expr: ExprID) -> Bool {
+        anyToStringCallableRefs.contains(expr)
     }
 }
 

@@ -118,6 +118,7 @@ let package = Package(
             exclude: [
                 "GoldenCases",
                 "Integration/ClassDelegationSmokeTest.kt",
+                "Klib/Fixtures",
             ]
         ),
         .testTarget(

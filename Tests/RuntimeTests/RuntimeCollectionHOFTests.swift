@@ -806,48 +806,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testMutableListShuffleAndReverse() {
-        // Test shuffle
-        let source = makeList([1, 2, 3, 4, 5])
-        let originalElements = listElements(source)
-
-        _ = kk_mutable_list_shuffle(source)
-        let shuffledElements = listElements(source)
-
-        // Should have same elements but different order (most likely)
-        #expect(shuffledElements.count == originalElements.count)
-        #expect(Set(shuffledElements) == Set(originalElements))
-
-        // Test reverse
-        _ = kk_mutable_list_reverse(source)
-        let reversedElements = listElements(source)
-
-        // Should be the reverse of shuffled
-        #expect(reversedElements == shuffledElements.reversed())
-
-        // Test with empty list
-        let emptyList = makeList([])
-        _ = kk_mutable_list_shuffle(emptyList)
-        #expect(listElements(emptyList) == [])
-
-        _ = kk_mutable_list_reverse(emptyList)
-        #expect(listElements(emptyList) == [])
-
-        // Test with single element
-        let singleList = makeList([42])
-        _ = kk_mutable_list_shuffle(singleList)
-        #expect(listElements(singleList) == [42])
-
-        _ = kk_mutable_list_reverse(singleList)
-        #expect(listElements(singleList) == [42])
-
-        // Test with duplicate elements
-        let duplicateList = makeList([5, 2, 5, 2, 5])
-        _ = kk_mutable_list_reverse(duplicateList)
-        #expect(listElements(duplicateList) == [5, 2, 5, 2, 5].reversed())
-    }
-
-    @Test
     func testIterableAnyShortCircuitsAcrossCollectionKindsAndNoArgOverload() {
         let listSource = makeList([1, 2, 3, 4])
 

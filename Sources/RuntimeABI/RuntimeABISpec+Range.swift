@@ -240,10 +240,10 @@ public extension RuntimeABISpec {
             name: "__kk_range_endExclusive",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Range",
-            isThrowing: false
+            section: "Range"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_range_count",
