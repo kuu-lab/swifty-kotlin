@@ -181,6 +181,7 @@ extension CoroutineLoweringPass {
     ) -> KIRLoweringEmitContext {
         let symbolByExprRaw = propagatedSymbolReferences(
             for: function,
+            interner: rewrite.ctx.interner,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
         )
         // A callable value which is materialized by LambdaLowerer is normally
@@ -247,6 +248,25 @@ extension CoroutineLoweringPass {
                 thrownResult: thrownResult,
                 isSuperCall: isSuperCall
             )
+
+            if let createInstructions = rewriteSuspendFunctionValueCreation(
+                call: call, symbolByExprRaw: symbolByExprRaw, using: rewrite
+            ) {
+                loweredBody.append(contentsOf: createInstructions)
+                continue
+            }
+
+            if rewrite.ctx.interner.resolve(callee).hasPrefix("kk_suspend_function_invoke"),
+               callerContinuationSymbol == nil
+            {
+                let noContinuation = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+                loweredBody.append(.call(
+                    symbol: symbol, callee: callee, arguments: arguments + [noContinuation],
+                    result: result, canThrow: canThrow, thrownResult: thrownResult,
+                    isSuperCall: isSuperCall
+                ))
+                continue
+            }
 
             if let launcherInstructions = rewriteLauncherCall(
                 call: call,
@@ -379,6 +399,7 @@ extension CoroutineLoweringPass {
     ) -> KIRLoweringEmitContext {
         let symbolByExprRaw = propagatedSymbolReferences(
             for: function,
+            interner: rewrite.ctx.interner,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
         )
         var loweredBody = KIRLoweringEmitContext()
@@ -423,6 +444,7 @@ extension CoroutineLoweringPass {
 
     func propagatedSymbolReferences(
         for function: KIRFunction,
+        interner: StringInterner,
         callableRefTagFunctionCallee: InternedString
     ) -> [Int32: SymbolID] {
         var symbolByExprRaw: [Int32: SymbolID] = [:]
@@ -483,7 +505,11 @@ extension CoroutineLoweringPass {
                         propagated = true
                     }
                 case let .call(_, callee, arguments, result, _, _, _, _):
-                    guard callee == callableRefTagFunctionCallee,
+                    let name = interner.resolve(callee)
+                    guard callee == callableRefTagFunctionCallee
+                        || name.hasPrefix("kk_function_create_")
+                        || name == "kk_suspend_function_create"
+                        || name == "kk_function_value_fn_ptr",
                           let result,
                           let callableExpr = arguments.first
                     else {
@@ -929,6 +955,33 @@ extension CoroutineLoweringPass {
             thrownResult: call.thrownResult
         ))
         return rewritten
+    }
+
+    func rewriteSuspendFunctionValueCreation(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        let name = rewrite.ctx.interner.resolve(call.callee)
+        guard name.hasPrefix("kk_function_create_"),
+              let arity = Int(name.dropFirst("kk_function_create_".count)),
+              call.arguments.count == 2,
+              let original = symbolReference(
+                  for: call.arguments[0], module: rewrite.module, propagatedSymbols: symbolByExprRaw
+              ),
+              let thunk = rewrite.launcherThunkByOriginalSymbol[original]
+        else { return nil }
+
+        let entry = rewrite.module.arena.appendExpr(.symbolRef(thunk.symbol), type: rewrite.intType)
+        let arityExpr = rewrite.module.arena.appendExpr(.intLiteral(Int64(arity)), type: rewrite.intType)
+        return [
+            .constValue(result: entry, value: .symbolRef(thunk.symbol)),
+            .call(
+                symbol: nil, callee: rewrite.ctx.interner.intern("kk_suspend_function_create"),
+                arguments: call.arguments + [arityExpr, entry], result: call.result,
+                canThrow: false, thrownResult: nil
+            ),
+        ]
     }
 
     func rewriteDirectSuspendCall(

@@ -144,6 +144,165 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testRunBlockingResolvesMaterializedSuspendCallable() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun runCollect(source: Flow<Int>, collector: (Int) -> Unit) = runBlocking {
+            source.collect(collector)
+        }
+
+        fun main() {
+            runCollect(flowOf(1, 2, 3)) { println(it) }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendCallableLauncher",
+            expectedStdout: "1\n2\n3\n"
+        )
+    }
+
+    @Test
+    func testSuspendReceiverCallableAllowsLatestCancellation() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        class Sink {
+            val items = mutableListOf<Int>()
+            fun append(value: Int) { items.add(value) }
+        }
+
+        suspend fun latest(transform: suspend Sink.(Int) -> Unit): List<Int> {
+            val sink = Sink()
+            coroutineScope {
+                var previous: Job? = null
+                for (value in listOf(1, 2)) {
+                    previous?.cancel()
+                    previous?.join()
+                    previous = launch(start = CoroutineStart.UNDISPATCHED) {
+                        sink.transform(value)
+                    }
+                }
+                previous?.join()
+            }
+            return sink.items
+        }
+
+        fun main() {
+            runBlocking {
+                println(latest {
+                    append(it)
+                    delay(20)
+                    append(it * 10)
+                })
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendReceiverCancellation", emit: .kirDump)
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let functions = findAllKIRFunctions(in: module)
+            let allCallees = functions.flatMap {
+                extractCallees(from: $0.body, interner: ctx.interner)
+            }
+            #expect(allCallees.contains("kk_suspend_function_create"))
+            #expect(allCallees.contains("kk_suspend_function_invoke_2"))
+            #expect(!allCallees.contains("transform"))
+            for function in functions {
+                for instruction in function.body {
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_suspend_function_invoke_2"
+                    else { continue }
+                    #expect(arguments.count == 4)
+                }
+            }
+        }
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendReceiverCancellationExecutable",
+            expectedStdout: "[1, 2, 20]\n"
+        )
+    }
+
+    @Test
+    func testSuspendCallableValuesPreserveCapturesResultsAndExceptions() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        suspend fun zero(block: suspend () -> String): String = block()
+        suspend fun one(block: suspend (Int) -> Int): Int = block(4)
+        suspend fun two(block: suspend (Int, Int) -> Int): Int = block(4, 5)
+        suspend fun receiver(block: suspend String.(Int) -> String): String = "value".block(6)
+        suspend fun referenced(): String { delay(1); return "ref" }
+
+        fun makeReceiver(prefix: String, suffix: String): suspend String.(Int) -> String = {
+            delay(1)
+            "$prefix$this:$it$suffix"
+        }
+
+        fun main() {
+            runBlocking {
+                val prefix = "capture"
+                println(zero { delay(1); prefix })
+                println(one { delay(1); it + 3 })
+                println(two { a, b -> delay(1); a + b })
+                println(receiver(makeReceiver("[", "]")))
+                try { zero { delay(1); throw IllegalStateException("delayed") } }
+                catch (e: IllegalStateException) { println(e.message) }
+                try { zero { throw IllegalStateException("immediate") } }
+                catch (e: IllegalStateException) { println(e.message) }
+                println(zero(::referenced))
+            }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendCallableValuesExecutable",
+            expectedStdout: "capture\n7\n9\n[value:6]\ndelayed\nimmediate\nref\n"
+        )
+    }
+
+    @Test
+    func testSuspendReceiverCallableUnwindsBeforeJoin() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        suspend fun invokeReceiver(block: suspend String.(Int) -> Unit) {
+            "receiver".block(7)
+        }
+
+        fun main() {
+            runBlocking {
+                val job = launch(start = CoroutineStart.UNDISPATCHED) {
+                    invokeReceiver {
+                        try {
+                            println(this)
+                            delay(1000)
+                            println("not cancelled")
+                        } finally {
+                            println("finally $it")
+                        }
+                    }
+                }
+                println("cancel")
+                job.cancel()
+                job.join()
+                println("joined")
+            }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendReceiverUnwindExecutable",
+            expectedStdout: "receiver\ncancel\nfinally 7\njoined\n"
+        )
+    }
+
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {
