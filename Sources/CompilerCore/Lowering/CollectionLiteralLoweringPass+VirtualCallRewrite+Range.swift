@@ -79,7 +79,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             loweredBody.append(.call(
                 symbol: nil, callee: lookup.kkRangeEndExclusiveName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: true, thrownResult: origThrownResult
             ))
             return true
         }

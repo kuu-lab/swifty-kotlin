@@ -74,6 +74,9 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         let arena = module.arena
         let narrowCallee = interner.intern("kk_int_narrow")
         let unarrowCallee = interner.intern("kk_uint_narrow")
+        let charArithmeticAdd = interner.intern("kk_op_add")
+        let charArithmeticSub = interner.intern("kk_op_sub")
+        let charWrapCallee = interner.intern("kk_int_to_char")
         let narrowingIDs = Set(Self.narrowingCalleeNames.map { interner.intern($0) })
         let intShiftRenameIDs: [InternedString: InternedString] = Dictionary(
             uniqueKeysWithValues: Self.intShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
@@ -138,6 +141,21 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     ))
                     newBody.append(.call(
                         symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
+
+                // Char results (`Char + Int` / `Char - Int`): wrap to 16 bits.
+                if callee == charArithmeticAdd || callee == charArithmeticSub, let result, resultKind == .char {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? types.charType)
+                    newBody.append(.call(
+                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: charWrapCallee, arguments: [rawResult], result: result,
                         canThrow: false, thrownResult: nil
                     ))
                     continue

@@ -284,6 +284,59 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // A nominal member has no extension receiver in its function
+        // signature, but its leading type parameters still belong to the
+        // declaring class/interface. Constrain those parameters from the
+        // actual receiver before argument inference. Otherwise an inherited
+        // member such as OpenEndRange<T>.contains(T) can incorrectly infer T
+        // from a Byte/Long argument instead of Int from IntRange, making an
+        // inapplicable member steal the call from an exact user extension.
+        if !isConstructor,
+           signature.receiverType == nil,
+           signature.classTypeParameterCount > 0,
+           let implicitReceiverType,
+           isNominalMemberFunction(candidate, typeSystem: ctx.types),
+           let owner = ctx.symbols.parentSymbol(for: candidate)
+        {
+            let ownerArguments: [TypeArg] = signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .map { typeParameter in
+                    .invariant(ctx.types.make(.typeParam(TypeParamType(
+                        symbol: typeParameter,
+                        nullability: .nonNull
+                    ))))
+                }
+            let ownerType = ctx.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: ownerArguments,
+                nullability: .nonNull
+            )))
+            let receiverOwnerType: TypeID = {
+                let nonNullReceiverType = ctx.types.makeNonNullable(implicitReceiverType)
+                guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
+                      let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
+                          from: receiverClassType.classSymbol,
+                          childArgs: receiverClassType.args,
+                          to: owner
+                      )
+                else {
+                    return implicitReceiverType
+                }
+                return ctx.types.make(.classType(ClassType(
+                    classSymbol: owner,
+                    args: liftedArguments,
+                    nullability: .nonNull
+                )))
+            }()
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: receiverOwnerType,
+                supertype: ownerType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.types,
+                blameRange: call.range
+            ))
+        }
+
         guard let parameterMapping = buildParameterMapping(
             signature: signature,
             callArgs: call.args,
@@ -464,16 +517,25 @@ extension OverloadResolver {
         // the direct receiver constraint instead of inferring them as Any?.
         if case let .typeParam(typeParam) = typeSystem.kind(of: implicitReceiverType),
            typeVarBySymbol[typeParam.symbol] == nil,
+           containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
            let symbols = typeSystem.symbolTable
         {
             let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
-            if !upperBounds.isEmpty,
-               upperBounds.allSatisfy({
-                   !typeSystem.typeContainsTypeParam($0, symbol: typeParam.symbol)
-                       && !containsStarProjection($0, typeSystem: typeSystem)
-               })
-            {
-                return upperBounds.flatMap { upperBound in
+            let matchingBounds = upperBounds.filter { upperBound in
+                guard !typeSystem.typeContainsTypeParam(upperBound, symbol: typeParam.symbol),
+                      !containsStarProjection(upperBound, typeSystem: typeSystem)
+                else {
+                    return false
+                }
+                return receiverBoundMatches(
+                    bound: upperBound,
+                    receiverType: receiverType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem
+                )
+            }
+            if !matchingBounds.isEmpty {
+                return matchingBounds.flatMap { upperBound in
                     decomposeSubtypeConstraint(
                         subtype: upperBound,
                         supertype: receiverType,
@@ -491,6 +553,35 @@ extension OverloadResolver {
             typeSystem: typeSystem,
             blameRange: range
         )
+    }
+
+    private func receiverBoundMatches(
+        bound: TypeID,
+        receiverType: TypeID,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        typeSystem: TypeSystem
+    ) -> Bool {
+        let nonNullBound = typeSystem.makeNonNullable(bound)
+        let nonNullReceiver = typeSystem.makeNonNullable(receiverType)
+        if case let .classType(superClass) = typeSystem.kind(of: nonNullReceiver) {
+            if case let .classType(subClass) = typeSystem.kind(of: nonNullBound) {
+                return subClass.classSymbol == superClass.classSymbol
+                    || typeSystem.isNominalSubtypeSymbol(subClass.classSymbol, of: superClass.classSymbol)
+            }
+            return false
+        }
+        if case let .functionType(superFunc) = typeSystem.kind(of: nonNullReceiver) {
+            if case let .functionType(subFunc) = typeSystem.kind(of: nonNullBound) {
+                return subFunc.params.count == superFunc.params.count
+            }
+            return false
+        }
+        if case let .typeParam(superParam) = typeSystem.kind(of: nonNullReceiver),
+           typeVarBySymbol[superParam.symbol] != nil
+        {
+            return true
+        }
+        return typeSystem.isSubtype(nonNullBound, nonNullReceiver)
     }
 
     private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
@@ -644,8 +735,12 @@ extension OverloadResolver {
         }
         let knownNames = KnownCompilerNames(interner: interner)
         switch symbol.name {
-        case knownNames.intArray, knownNames.shortArray, knownNames.byteArray:
+        case knownNames.intArray:
             return sema.types.intType
+        case knownNames.shortArray:
+            return sema.types.shortType
+        case knownNames.byteArray:
+            return sema.types.byteType
         case knownNames.longArray:
             return sema.types.longType
         case knownNames.ubyteArray:
@@ -900,7 +995,57 @@ extension OverloadResolver {
         if winners.count == 1 {
             return winners[0]
         }
+        // Candidates that tied on every specificity criterion (empty `winners`
+        // means no candidate was more specific than all the others). When they
+        // are all member functions with pairwise-equivalent instantiated
+        // signatures, the same Kotlin member was reached through multiple
+        // supertype paths — e.g. `IntRange` inherits `ClosedRange.contains` and
+        // `OpenEndRange.contains` — so collapse them to one deterministic
+        // winner instead of reporting the call as ambiguous. Scope extensions
+        // and mismatched-signature members stay genuinely ambiguous.
+        let tied = winners.isEmpty ? candidates : winners
+        if tied.count > 1,
+           tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
+           tied.allSatisfy({ lhs in
+               tied.allSatisfy { rhs in
+                   lhs.symbol == rhs.symbol
+                       || (lhs.instantiatedParameterTypes.count == rhs.instantiatedParameterTypes.count
+                           && zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).allSatisfy {
+                               typeSystem.isSubtype($0, $1) && typeSystem.isSubtype($1, $0)
+                           })
+               }
+           })
+        {
+            return tied.min { lhs, rhs in
+                let lhsSynthetic = typeSystem.symbolTable?.symbol(lhs.symbol)?.flags.contains(.synthetic) ?? false
+                let rhsSynthetic = typeSystem.symbolTable?.symbol(rhs.symbol)?.flags.contains(.synthetic) ?? false
+                if lhsSynthetic != rhsSynthetic {
+                    return !lhsSynthetic
+                }
+                return lhs.symbol.rawValue < rhs.symbol.rawValue
+            }
+        }
         return nil
+    }
+
+    /// True when `symbol` is a function declared directly inside a nominal
+    /// (class/interface/object) — as opposed to a package-scope extension or a
+    /// local function — so multiple copies reached via supertypes denote the
+    /// same unified Kotlin member.
+    private func isNominalMemberFunction(
+        _ symbol: SymbolID,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard let parent = typeSystem.symbolTable?.parentSymbol(for: symbol),
+              let parentKind = typeSystem.symbolTable?.symbol(parent)?.kind
+        else {
+            return false
+        }
+        return parentKind == .class
+            || parentKind == .interface
+            || parentKind == .object
+            || parentKind == .enumClass
+            || parentKind == .annotationClass
     }
 
     /// Returns true if `lhs` is at least as specific as `rhs`.

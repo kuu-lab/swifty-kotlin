@@ -320,6 +320,24 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: true
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_byte_to_ubyte",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_short_to_ubyte",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
         // SPEC-NUM-0007: unsigned toByte / toShort conversions
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_byte",

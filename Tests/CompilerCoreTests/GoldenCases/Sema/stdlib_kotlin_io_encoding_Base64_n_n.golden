@@ -10,5 +10,5 @@ expr e@8:39#1 memberCall recv=e@8:39 callee=Default args=[] type=kotlin.io.encod
 expr e@11:28 name(Base64) type=kotlin.io.encoding.Base64 ref=kotlin.io.encoding.Base64[kind=class]
 expr e@11:28#1 memberCall recv=e@11:28 callee=Default args=[] type=kotlin.io.encoding.Base64.Default ref=kotlin.io.encoding.Base64.Default[kind=obj]
 expr e@14:59 name(Base64) type=kotlin.io.encoding.Base64 ref=kotlin.io.encoding.Base64[kind=class]
-expr e@14:59#1 memberCall recv=e@14:59 callee=PaddingOption args=[] type=kotlin.io.encoding.Base64.PaddingOption.Companion ref=kotlin.io.encoding.Base64.PaddingOption[kind=enum]
-expr e@14:59#2 memberCall recv=e@14:59#1 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.io.encoding.Base64.PaddingOption> ref=kotlin.io.encoding.Base64.PaddingOption.Companion.entries[kind=prop]
+expr e@14:59#1 memberCall recv=e@14:59 callee=PaddingOption args=[] type=kotlin.io.encoding.Base64.PaddingOption ref=kotlin.io.encoding.Base64.PaddingOption[kind=enum]
+expr e@14:59#2 memberCall recv=e@14:59#1 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.io.encoding.Base64.PaddingOption> call=kotlin.io.encoding.entries.$get[kind=fun;recv=kotlin.io.encoding.Base64.PaddingOption;params=]

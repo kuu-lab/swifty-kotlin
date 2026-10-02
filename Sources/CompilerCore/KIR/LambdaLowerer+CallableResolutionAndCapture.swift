@@ -1,5 +1,22 @@
 
 extension LambdaLowerer {
+    /// Binds the lambda's receiver value (the explicit receiver parameter, or the
+    /// active implicit receiver it was satisfied by) to
+    /// `SyntheticSymbolScheme.lambdaReceiverSymbol`, the symbol Sema gives the
+    /// lambda's `this@callee` references. Must run after the receiver parameter
+    /// and capture bindings have been installed as the implicit receiver.
+    func registerLambdaReceiverValue(lambdaExprID: ExprID, hasReceiverParam: Bool) {
+        guard hasReceiverParam,
+              let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        else {
+            return
+        }
+        driver.ctx.setLocalValue(
+            receiverExprID,
+            for: SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID)
+        )
+    }
+
     func syntheticLambdaName(for exprID: ExprID, interner: StringInterner) -> InternedString {
         interner.intern("kk_lambda_\(exprID.rawValue)")
     }

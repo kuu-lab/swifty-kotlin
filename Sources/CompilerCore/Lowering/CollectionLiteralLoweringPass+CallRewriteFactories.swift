@@ -233,6 +233,27 @@ extension CollectionLiteralConstructionLoweringPass {
                 return true
             }
 
+            if isHashSetConstructor, (arguments.count == 1 || arguments.count == 2) {
+                let loadFactor: KIRExprID
+                if arguments.count == 2 {
+                    loadFactor = arguments[1]
+                } else {
+                    let floatType = ctx.sema?.types.floatType
+                    loadFactor = module.arena.appendExpr(.floatLiteral(0.75), type: floatType)
+                    loweredBody.append(.constValue(result: loadFactor, value: .floatLiteral(0.75)))
+                }
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: ctx.interner.intern("__kk_hash_set_new_checked"),
+                    arguments: [arguments[0], loadFactor],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult
+                ))
+                if let result { state.setExprIDs.insert(result.rawValue) }
+                return true
+            }
+
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)

@@ -142,10 +142,35 @@ struct NativeEmitter {
             return []
         }
 
+        let notNullCallee = interner.intern("kk_op_notnull")
+        let lambdaSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration,
+                  interner.resolve(function.name).hasPrefix("kk_lambda_")
+            else { return nil }
+            return function.symbol
+        })
         var rawSymbols: Set<SymbolID> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration else {
                 continue
+            }
+            let aliasSources = Self.valueAliasSources(in: function.body, notNullCallee: notNullCallee)
+            // A callback value can reach its sink through `!!`, local aliases and
+            // if/when merge copies. Follow those back to the literal `symbolRef`
+            // so the lambda gets the flat callback ABI that `kk_function_invoke_*`
+            // expects.
+            func collectSymbolRefs(reaching root: KIRExprID, lambdaOnly: Bool) {
+                var visited: Set<KIRExprID> = []
+                var pending = [root]
+                while let exprID = pending.popLast() {
+                    guard visited.insert(exprID).inserted else { continue }
+                    if case let .symbolRef(symbol)? = module.arena.expr(exprID),
+                       !lambdaOnly || lambdaSymbols.contains(symbol)
+                    {
+                        rawSymbols.insert(symbol)
+                    }
+                    pending.append(contentsOf: aliasSources[exprID] ?? [])
+                }
             }
             for instruction in function.body {
                 switch instruction {
@@ -154,10 +179,13 @@ struct NativeEmitter {
                         continue
                     }
                     for position in callbackPositions where arguments.indices.contains(position) {
-                        if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
-                            rawSymbols.insert(symbol)
-                        }
+                        collectSymbolRefs(reaching: arguments[position], lambdaOnly: false)
                     }
+
+                case let .returnValue(value):
+                    // A lambda returned as a function value is invoked by the caller
+                    // through `kk_function_invoke_*`, so it must use the callback ABI.
+                    collectSymbolRefs(reaching: value, lambdaOnly: true)
 
                 default:
                     continue
@@ -210,6 +238,30 @@ struct NativeEmitter {
         }
 
         return rawSymbols
+    }
+
+    /// Maps each expression to the expressions whose value it may carry through
+    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`).
+    private static func valueAliasSources(
+        in body: [KIRInstruction],
+        notNullCallee: InternedString
+    ) -> [KIRExprID: [KIRExprID]] {
+        var sources: [KIRExprID: [KIRExprID]] = [:]
+        for instruction in body {
+            switch instruction {
+            case let .copy(from, to):
+                sources[to, default: []].append(from)
+            case let .nullAssert(operand, result):
+                sources[result, default: []].append(operand)
+            case let .call(_, callee, arguments, result, _, _, _, _):
+                if callee == notNullCallee, arguments.count == 1, let result {
+                    sources[result, default: []].append(arguments[0])
+                }
+            default:
+                continue
+            }
+        }
+        return sources
     }
 
     private static func isThrowableToStringFunction(

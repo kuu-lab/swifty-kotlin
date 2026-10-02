@@ -137,6 +137,19 @@ struct BundledStdlibOrderingTests {
         }
     }
 
+    @Test
+    func testKotlinxIoFoundationUsesUpstreamFilenames() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try LoadSourcesPhase().run(ctx)
+            let paths = Set(ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) })
+            for name in ["Annotations.kt", "-Util.kt", "-CommonPlatform.kt"] {
+                #expect(paths.contains("__bundled_kotlinx/io/\(name)"))
+            }
+            #expect(!paths.contains("__bundled_kotlinx/io/IOExceptions.kt"))
+        }
+    }
+
     /// KSP-1541: packages whose synthetic-stub migration is complete keep the
     /// upstream kotlin-stdlib / kotlin-native file layout. The artifact shapes
     /// this replaced — `<Type>/Stdlib.kt` and `<Type>/<Type>.kt` directories

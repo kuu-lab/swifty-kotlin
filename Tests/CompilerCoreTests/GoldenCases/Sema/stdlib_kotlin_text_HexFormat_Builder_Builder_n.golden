@@ -3,7 +3,7 @@ symbol fq=__local_1.numberBuilder[kind=local] kind=local vis=private flags=_ typ
 symbol fq=__local_2.upperCase[kind=local] kind=local vis=private flags=_ type=Boolean
 symbol fq=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.configureHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.Builder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.Builder] ret=kotlin.text.HexFormat
-file fstdlib_kotlin_text_HexFormat_Builder_Builder_n package=golden.sema
+file fstdlib_kotlin_text_HexFormat_Builder_Builder_n package=golden.sema annotations=[@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
   decl golden.sema.configureHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.Builder] fun configureHexFormatBuilder sym=golden.sema.configureHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.Builder]
 expr e@4:70 name(builder) type=kotlin.text.HexFormat.Builder ref=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam]
 expr e@4:70#1 memberCall recv=e@4:70 callee=bytes args=[] type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=kotlin.text.HexFormat.Builder.bytes[kind=prop]

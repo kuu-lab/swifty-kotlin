@@ -1,5 +1,5 @@
 package golden.sema
-
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 fun uintFromInt(): UInt {
     val zero = UInt(0)
     val one = UInt(1)
