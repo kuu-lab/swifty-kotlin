@@ -3148,7 +3148,7 @@ final class RuntimeKotlinOutputStreamSink: RuntimeOutputStreamSink {
     func write(_ data: Data) throws {
         let arrayBox = RuntimeArrayBox(length: data.count)
         for (index, byte) in data.enumerated() {
-            arrayBox[index] = Int(byte)
+            arrayBox[index] = Int(Int8(bitPattern: byte))
         }
         let arrayRaw = registerRuntimeObject(arrayBox)
         var thrown = 0
