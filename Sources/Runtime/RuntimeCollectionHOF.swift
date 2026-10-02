@@ -310,7 +310,7 @@ public func kk_list_bridge_zip_transform(
             outThrown: &thrown
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        results.append(maybeUnbox(transformed))
+        results.append(transformed)
     }
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
@@ -361,7 +361,7 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         var thrown = 0
         let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        result.append(maybeUnbox(transformed))
+        result.append(transformed)
         i = end
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
@@ -449,7 +449,7 @@ public func kk_list_bridge_windowed_transform(
             outThrown: &thrown
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        result.append(maybeUnbox(transformed))
+        result.append(transformed)
         let (nextStart, overflow) = i.addingReportingOverflow(step)
         if overflow { break }
         i = nextStart
@@ -483,7 +483,7 @@ public func kk_list_bridge_zipWithNextTransform(_ listRaw: Int, _ fnPtr: Int, _ 
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: elems[i], rhs: elems[i + 1], outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        results.append(maybeUnbox(result))
+        results.append(result)
     }
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }

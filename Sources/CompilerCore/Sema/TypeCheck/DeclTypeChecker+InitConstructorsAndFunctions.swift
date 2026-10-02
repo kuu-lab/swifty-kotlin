@@ -16,6 +16,13 @@ extension DeclTypeChecker {
         else {
             return parameterType
         }
+        if let arrayType = primitiveVarargArrayType(
+            elementType: parameterType,
+            sema: sema,
+            interner: interner
+        ) {
+            return arrayType
+        }
         let listFQName: [InternedString] = [
             interner.intern("kotlin"),
             interner.intern("collections"),
@@ -270,7 +277,12 @@ extension DeclTypeChecker {
                 sema.bindings.markRangeSymbol(paramSymbol)
             }
             if index < signature.valueParameterIsVararg.count,
-               signature.valueParameterIsVararg[index]
+               signature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: signature.parameterTypes[index],
+                   sema: sema,
+                   interner: ctx.interner
+               ) == nil
             {
                 sema.bindings.markCollectionSymbol(paramSymbol)
             }
@@ -327,7 +339,12 @@ extension DeclTypeChecker {
                             sema.bindings.markRangeSymbol(paramSymbol)
                         }
                         if index < signature.valueParameterIsVararg.count,
-                           signature.valueParameterIsVararg[index]
+                           signature.valueParameterIsVararg[index],
+                           primitiveVarargArrayType(
+                               elementType: signature.parameterTypes[index],
+                               sema: sema,
+                               interner: ctx.interner
+                           ) == nil
                         {
                             sema.bindings.markCollectionSymbol(paramSymbol)
                         }
@@ -408,7 +425,11 @@ extension DeclTypeChecker {
                     call: callExpr,
                     expectedType: delegation.kind == .this
                         ? constructorOwnerType(ownerSymbol, ctx: ctx)
-                        : nil,
+                        : constructorSuperclassType(
+                            ownerSymbol: ownerSymbol,
+                            superclassSymbol: explicitSuperclassSymbol,
+                            ctx: ctx
+                        ),
                     ctx: sema
                 )
                 if let diagnostic = resolved.diagnostic {
@@ -442,6 +463,25 @@ extension DeclTypeChecker {
         }
         return ctx.sema.types.make(.classType(ClassType(
             classSymbol: ownerSymbol,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
+    }
+
+    /// A secondary `super(...)` delegates to the instantiated superclass in
+    /// the class header. Its type arguments are known even when none of the
+    /// constructor arguments mention them.
+    private func constructorSuperclassType(
+        ownerSymbol: SymbolID?,
+        superclassSymbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard let ownerSymbol, let superclassSymbol else { return nil }
+        let typeArguments = ctx.sema.symbols.supertypeTypeArgs(
+            for: ownerSymbol, supertype: superclassSymbol
+        )
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: superclassSymbol,
             args: typeArguments,
             nullability: .nonNull
         )))
@@ -531,7 +571,12 @@ extension DeclTypeChecker {
                 sema.bindings.markRangeSymbol(paramSymbol)
             }
             if index < signature.valueParameterIsVararg.count,
-               signature.valueParameterIsVararg[index]
+               signature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: signature.parameterTypes[index],
+                   sema: sema,
+                   interner: ctx.interner
+               ) == nil
             {
                 sema.bindings.markCollectionSymbol(paramSymbol)
             }
@@ -568,6 +613,25 @@ extension DeclTypeChecker {
             enclosingFunctionReturnType: signature.returnType,
             currentDeclSymbol: symbol
         )
+        if !signature.contextReceiverTypes.isEmpty {
+            functionCtx = functionCtx.with(
+                contextReceiverTypes: ctx.contextReceiverTypes + signature.contextReceiverTypes
+            )
+            let syntheticContextSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            for (index, contextReceiver) in function.contextReceivers.enumerated() {
+                guard let name = contextReceiver.name,
+                      index < signature.contextReceiverTypes.count
+                else {
+                    continue
+                }
+                locals[name] = (
+                    signature.contextReceiverTypes[index],
+                    syntheticContextSymbol,
+                    false,
+                    true
+                )
+            }
+        }
         // An extension function's name doubles as the label of its receiver:
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
@@ -610,11 +674,19 @@ extension DeclTypeChecker {
             return
         }
 
+        // With an inferred return type, `signature.returnType` is only the header
+        // placeholder (`Any`, non-null). Using it as the expected type or as a subtype
+        // bound would reject legitimately nullable bodies such as `fun g() = f()` where
+        // `f(): Any?`, so the body is inferred without an expectation instead.
+        let hasInferredReturnType: Bool = {
+            guard function.returnType == nil, case .expr = function.body else { return false }
+            return true
+        }()
         let bodyType = inferFunctionBodyType(
             function.body,
             ctx: functionCtx,
             locals: &locals,
-            expectedType: signature.returnType
+            expectedType: hasInferredReturnType ? nil : signature.returnType
         )
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
@@ -631,7 +703,7 @@ extension DeclTypeChecker {
                 interner: ctx.interner
             )
         }()
-        if !bodyIsRangeExpr {
+        if !bodyIsRangeExpr, !hasInferredReturnType {
             driver.emitSubtypeConstraint(
                 left: bodyType,
                 right: signature.returnType,
@@ -659,6 +731,65 @@ extension DeclTypeChecker {
             ast: ctx.ast,
             interner: ctx.interner,
             sema: sema
+        )
+        recordDirectInlineLambdaInvocation(
+            function: function,
+            symbol: symbol,
+            signature: signature,
+            ast: ctx.ast,
+            sema: sema
+        )
+    }
+
+    /// An inline declaration only guarantees that its lambda does not escape;
+    /// it may still invoke the lambda zero or several times. Infer the stronger
+    /// EXACTLY_ONCE effect only for a body consisting solely of a direct call to
+    /// that parameter. Explicit contracts take precedence over this inference.
+    private func recordDirectInlineLambdaInvocation(
+        function: FunDecl,
+        symbol: SymbolID,
+        signature: FunctionSignature,
+        ast: ASTModule,
+        sema: SemaModule
+    ) {
+        guard function.isInline else { return }
+        let bodyExprID: ExprID
+        switch function.body {
+        case let .expr(expr, _):
+            bodyExprID = expr
+        case let .block(exprs, _) where exprs.count == 1:
+            bodyExprID = exprs[0]
+        default:
+            return
+        }
+        guard let bodyExpr = ast.arena.expr(bodyExprID) else { return }
+        let invocationExprID: ExprID
+        if case let .returnExpr(value?, _, _) = bodyExpr {
+            invocationExprID = value
+        } else {
+            invocationExprID = bodyExprID
+        }
+        guard let invocation = ast.arena.expr(invocationExprID),
+              case let .call(calleeID, _, args, _) = invocation,
+              args.isEmpty,
+              let callee = ast.arena.expr(calleeID),
+              case let .nameRef(calleeName, _) = callee,
+              let index = function.valueParams.firstIndex(where: {
+                  $0.name == calleeName && !$0.isNoinline
+              }),
+              signature.valueParameterSymbols.indices.contains(index),
+              !sema.symbols.contractCallsInPlaceEffects(for: symbol).contains(where: {
+                  $0.parameterSymbol == signature.valueParameterSymbols[index]
+              })
+        else {
+            return
+        }
+        sema.symbols.addContractCallsInPlaceEffect(
+            ContractCallsInPlaceEffect(
+                parameterSymbol: signature.valueParameterSymbols[index],
+                kind: .exactlyOnce
+            ),
+            for: symbol
         )
     }
 

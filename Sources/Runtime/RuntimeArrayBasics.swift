@@ -162,17 +162,25 @@ public func kk_triple_third(_ tripleRaw: Int) -> Int {
 
 // MARK: - Array conversion functions (STDLIB-087)
 
+/// Elements of a spread (`*x`) source. A `vararg` parameter is materialized as
+/// a list handle inside its declaring function, so forwarding it with `*parts`
+/// yields a list box, whereas `*arrayOf(...)` yields an array box.
+func runtimeSpreadSourceValues(from rawValue: Int) -> [RuntimeValue]? {
+    if let array = runtimeArrayBox(from: rawValue) {
+        return Array(array.values)
+    }
+    if let list = runtimeListBox(from: rawValue) {
+        return Array(list.values)
+    }
+    return nil
+}
+
 @_cdecl("__kk_array_toList")
 public func kk_array_toList(_ arrayRaw: Int) -> Int {
-    if let array = runtimeArrayBox(from: arrayRaw) {
-        return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
+    guard let values = runtimeSpreadSourceValues(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_toList")
     }
-    // A vararg parameter is a List inside its callee, so forwarding it with
-    // `*xs` hands an already-listified value to the caller-side packing code.
-    if let list = runtimeListBox(from: arrayRaw) {
-        return registerRuntimeObject(RuntimeListBox(values: Array(list.values)))
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_toList")
+    return registerRuntimeObject(RuntimeListBox(values: values))
 }
 
 @_cdecl("kk_array_toMutableList")

@@ -70,3 +70,6 @@ public enum class CharCategory {
 
     public operator fun contains(char: Char): Boolean = char.category == this
 }
+
+public val CharCategory.entries: kotlin.enums.EnumEntries<CharCategory>
+    get() = enumEntries<CharCategory>()
