@@ -424,6 +424,57 @@ extension DataFlowSemaPhase {
             // for runtime-created objects (e.g. CharSequence.length at slot 2).
             .filter { !$0.flags.contains(.extensionMemberAlias) }
 
+        let isList = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "List"
+        if isList {
+            // Runtime List bridges dispatch source implementations through
+            // the List itable. Keep get(index) and listIterator(index) at
+            // slots 0 and 1 independently of synthetic-symbol definition order.
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
+                    let name = interner.resolve(symbol.name)
+                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
+                    if name == "get" && arity == 1 { return 0 }
+                    if name == "listIterator" && arity == 1 { return 1 }
+                    return 2
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot {
+                    return lhsSlot < rhsSlot
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
+        let isMutableList = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableList"
+        if isMutableList {
+            // kk_list_subList falls back to this interface for Kotlin-defined
+            // mutable lists, where subList must return the implementation's
+            // live mutable view instead of a snapshot. The set bridge also
+            // dispatches through this itable when writing to that source view.
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
+                    let name = interner.resolve(symbol.name)
+                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
+                    if name == "subList" && arity == 2 { return 0 }
+                    if name == "set" && arity == 2 { return 1 }
+                    return 2
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot {
+                    return lhsSlot < rhsSlot
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
         let isSequence = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
             && interner.resolve(nominalSymbol.fqName[1]) == "sequences"

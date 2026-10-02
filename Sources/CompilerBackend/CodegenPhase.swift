@@ -189,6 +189,15 @@ public final class CodegenPhase: CompilerPhase {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
         }
+        if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
+            guard case let .function(function) = declaration,
+                  ctx.interner.resolve(function.name).hasPrefix("__kk_library_top_level_init_")
+            else { return nil }
+            return function
+        }).first,
+           let linkName = functionLinkInfo.functionLinkNamesBySymbol[topLevelInitializer.symbol] {
+            manifestDict["topLevelInitializerLinkName"] = linkName
+        }
         let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
         var manifestString = String(data: manifestData, encoding: .utf8) ?? ""
         manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")

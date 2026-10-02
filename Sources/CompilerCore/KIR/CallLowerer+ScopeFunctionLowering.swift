@@ -80,11 +80,6 @@ extension CallLowerer {
             let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: contentType)
             instructions.append(.copy(from: loweredReceiverID, to: receiverSymExpr))
 
-            let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
-            let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
-            driver.ctx.setLocalValue(receiverSymExpr, for: receiverSymbol)
-            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverSymExpr)
-
             let loweredLambdaID = driver.lowerExpr(
                 args[0].expr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
@@ -92,14 +87,14 @@ extension CallLowerer {
                 instructions: &instructions
             )
 
-            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
-
             let result = arena.appendTemporary(type: boundType)
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
                     symbol: info.symbol,
                     callee: info.callee,
-                    arguments: info.captureArguments,
+                    // The block is a lambda with receiver, so it takes the copied
+                    // C variable as its explicit receiver parameter.
+                    arguments: info.captureArguments + [receiverSymExpr],
                     result: result,
                     canThrow: false,
                     thrownResult: nil

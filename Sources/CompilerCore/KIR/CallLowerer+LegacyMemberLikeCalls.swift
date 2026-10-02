@@ -134,7 +134,7 @@ extension CallLowerer {
                 chosen: argumentCallBinding?.chosenCallee
             )
             defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance }
-            return driver.lowerExpr(
+            let rawArgID = driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -143,6 +143,20 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            // Freeze each bare mutable-local argument immediately after
+            // lowering it (e.g. `x` in `c.combine(x, x++)`) so it observes
+            // its value at the point it was evaluated, not any mutation a
+            // later argument performs on the same variable. Anything else
+            // (a literal, a lambda, a nested call, ...) is left untouched —
+            // see needsEvaluationOrderFreeze's doc comment for why an
+            // unconditional freeze here is unsafe for trailing-lambda
+            // arguments to inline functions (e.g. range `fold`/`reduce`).
+            // Only worth it when a later argument could actually mutate
+            // something (expressionMayMutateState).
+            return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
+                ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
+                : rawArgID
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
         let isSourceBackedMemberCall: Bool = {
@@ -777,6 +791,25 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+                return result
+            }
+        }
+
+        // Explicit `Char.plus/minus` and `Float`/`Double` arithmetic member calls
+        // (`'A'.plus(2)`, `2.0.times(4)`) behave exactly like the operator syntax, so
+        // emit the same `.binary` node and let the operator/narrowing passes type it.
+        // The integer-receiver fast path below only knows `kk_op_*` on integral slots.
+        if args.count == 1,
+           let binaryOp = explicitFloatingOrCharArithmeticOp(calleeNameStr),
+           isNumericPrimitiveOperand(args[0].expr, sema: sema),
+           !(sema.bindings.isRangeExpr(receiverExpr) || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
+        {
+            let receiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
+            if receiverType == sema.types.charType
+                || receiverType == sema.types.floatType
+                || receiverType == sema.types.doubleType
+            {
+                instructions.append(.binary(op: binaryOp, lhs: loweredReceiverID, rhs: loweredArgIDs[0], result: result))
                 return result
             }
         }
@@ -2423,5 +2456,20 @@ extension CallLowerer {
             sourceArgLabels: args.map(\.label)
         )
         return result
+    }
+}
+
+extension CallLowerer {
+    /// Arithmetic member names that share the operator syntax's `.binary` lowering
+    /// for Char / Float / Double receivers.
+    fileprivate func explicitFloatingOrCharArithmeticOp(_ name: String) -> KIRBinaryOp? {
+        switch name {
+        case "plus": .add
+        case "minus": .subtract
+        case "times": .multiply
+        case "div": .divide
+        case "rem": .modulo
+        default: nil
+        }
     }
 }

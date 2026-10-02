@@ -28,6 +28,27 @@ public func kk_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
+/// HashSet's capacity is a storage hint. Validate constructor arguments before
+/// allocating the same nominally tagged set used by the zero-argument form.
+@_cdecl("__kk_hash_set_new_checked")
+public func kk_hash_set_new_checked(
+    _ capacity: Int,
+    _ loadFactorBits: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    // The compiler's runtime ABI transports Float arguments as raw Int words.
+    let loadFactor = Float(bitPattern: UInt32(truncatingIfNeeded: loadFactorBits))
+    guard capacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(capacity)"))
+        return 0
+    }
+    guard loadFactor > 0, !loadFactor.isNaN else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Load: \(loadFactor)"))
+        return 0
+    }
+    return kk_hash_set_of(0, 0)
+}
+
 /// BUG-254: storage for the mutable set factories (`mutableSetOf`,
 /// `linkedSetOf`) and the `LinkedHashSet()` / `LinkedHashSet(capacity)`
 /// constructors. `__kk_set_of` stays on the read-only `Set` identity because it
@@ -173,6 +194,9 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     }
     if let set = runtimeSetBox(from: collRaw) {
         return set.isEmpty ? 1 : 0
+    }
+    if let sourceResult = runtimeSourceCollectionIsEmpty(collRaw) {
+        return sourceResult != 0 ? 1 : 0
     }
     if let sourceSize = runtimeSourceCollectionSize(collRaw) {
         return sourceSize == 0 ? 1 : 0
@@ -484,7 +508,8 @@ public func kk_mutable_map_put(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMutableMapPut(mapRaw, key: key, value: value, outThrown: outThrown)
+            ?? runtimeNullSentinelInt
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
@@ -504,7 +529,8 @@ public func kk_mutable_map_remove(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeNullSentinelInt
+        return runtimeSourceMutableMapRemove(mapRaw, key: key, outThrown: outThrown)
+            ?? runtimeNullSentinelInt
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
@@ -519,7 +545,7 @@ public func kk_mutable_map_clear(
 ) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return 0
+        return runtimeSourceMutableMapClear(mapRaw, outThrown: outThrown) ?? 0
     }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
@@ -535,8 +561,10 @@ public func kk_mutable_map_putAll(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw),
-          let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return runtimeSourceMutableMapPutAll(mapRaw, otherMapRaw: otherMapRaw, outThrown: outThrown) ?? 0
+    }
+    guard let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return 0
     }
@@ -723,7 +751,7 @@ public func kk_map_iterator(_ mapRaw: Int) -> Int {
     } else {
         ([], [])
     }
-    return registerRuntimeObject(RuntimeMapIteratorBox(keys: keys, values: values))
+    return registerRuntimeObject(RuntimeMapIteratorBox(mapRaw: mapRaw, keys: keys, values: values))
 }
 
 @_cdecl("__kk_map_iterator_hasNext")
@@ -745,6 +773,10 @@ public func kk_map_iterator_next(
           iter.index < iter.keys.count
     else {
         return runtimeThrowIteratorExhausted(outThrown)
+    }
+    guard iter.isInSyncWithBackingMap() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -775,6 +807,10 @@ public func kk_mutable_map_iterator_next(
           iter.index < iter.keys.count
     else {
         return runtimeThrowIteratorExhausted(outThrown)
+    }
+    guard iter.isInSyncWithBackingMap() else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     let key = iter.keys[iter.index]
     iter.index += 1
@@ -813,6 +849,10 @@ public func kk_mutable_map_iterator_remove(
         return runtimeExceptionCaughtSentinel
     }
     iter.lastKey = nil
+    // The removal above just bumped the backing map's modCount through this
+    // same iterator — resync so the next `next()` call does not see this
+    // iterator's own change as a concurrent modification.
+    iter.expectedModCount = runtimeMapBox(from: iter.mapRaw)?.modCount ?? iter.expectedModCount
     return 0
 }
 
