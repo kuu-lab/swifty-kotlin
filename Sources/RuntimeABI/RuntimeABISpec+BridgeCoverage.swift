@@ -181,6 +181,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_ulong_to_int", section: "NumericConversion", params: ["value"],
             isThrowing: false),
+            bridgeSpec("kk_ulong_to_long", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
         ]
         + [
             "kk_op_dadd",
