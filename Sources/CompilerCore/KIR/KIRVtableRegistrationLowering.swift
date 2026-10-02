@@ -746,9 +746,22 @@ func itableBridgeSymbolForMethod(
     if needsErasedPrimitiveReturnBoxing {
         needsBridge = true
     }
+    // Callers of the erased signature box `T`-typed arguments, but the
+    // implementation body expects the raw primitive (direct calls pass raw
+    // values), so the bridge must unbox them before forwarding.
+    func needsErasedPrimitiveParamUnboxing(implType: TypeID, ifaceType: TypeID) -> Bool {
+        guard case .typeParam = sema.types.kind(of: ifaceType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: implType)
+        else {
+            return false
+        }
+        return true
+    }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
-            if isStringAggregate(implType) != isStringAggregate(ifaceType) {
+            if isStringAggregate(implType) != isStringAggregate(ifaceType)
+                || needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: ifaceType)
+            {
                 needsBridge = true
                 break
             }
@@ -800,6 +813,25 @@ func itableBridgeSymbolForMethod(
         body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
         bridgeParamExprs.append(expr)
     }
+    let unboxingTable = BoxingCalleeTable(interner: interner)
+    var forwardedArgExprs = bridgeParamExprs
+    for (index, implType) in implementationParamTypes.enumerated() {
+        guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
+              let unboxCallee = unboxingTable.unboxCallee(
+                  for: implType, types: sema.types, requireNonNull: true, preferStaticPrimitive: true
+              ) ?? unboxingTable.unboxCallee(for: implType, types: sema.types, requireNonNull: true)
+        else { continue }
+        let unboxed = arena.appendTemporary(type: implType)
+        body.append(.call(
+            symbol: nil,
+            callee: unboxCallee,
+            arguments: [bridgeParamExprs[index]],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        forwardedArgExprs[index] = unboxed
+    }
 
     let callResult = arena.appendTemporary(type: implementationReturnType)
     let thrownResult: KIRExprID? = implSig.canThrow
@@ -811,7 +843,7 @@ func itableBridgeSymbolForMethod(
     body.append(.call(
         symbol: implementation,
         callee: implName,
-        arguments: bridgeParamExprs,
+        arguments: forwardedArgExprs,
         result: callResult,
         canThrow: implSig.canThrow,
         thrownResult: thrownResult

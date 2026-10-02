@@ -155,6 +155,16 @@ private let runtimeMutableSetInterfaceTypeID = runtimeStableNominalTypeID(
 )
 
 
+private let runtimeMutableMapInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableMap"
+)
+// MutableMap's own method slots are `put`/`putAll`/`remove`/`clear` in vtable
+// order. Inherited Map members dispatch through the Map itable instead.
+private let runtimeMutableMapPutMethodSlot = 0
+private let runtimeMutableMapPutAllMethodSlot = 1
+private let runtimeMutableMapRemoveMethodSlot = 2
+private let runtimeMutableMapClearMethodSlot = 3
+
 /// Source-defined Collection/Map implementations expose `size` through the
 /// same dynamic interface-property getter table used by ordinary Kotlin code.
 /// Built-in list/set/map boxes continue to use their direct fast paths.
@@ -384,6 +394,95 @@ func runtimeSourceMapKeys(_ rawValue: Int) -> Int? {
 @inline(__always)
 func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
     runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapValuesGetterSlot)
+}
+
+/// Calls a 2-argument interface method through the receiver's itable.
+@inline(__always)
+func runtimeSourceInterfaceCall2(
+    _ rawValue: Int,
+    _ argument1: Int,
+    _ argument2: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    context: String,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, argument1, argument2, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMutableMapPut(
+    _ rawValue: Int,
+    key: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall2(
+        rawValue,
+        key,
+        value,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapPutMethodSlot,
+        context: "MutableMap.put dispatch",
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapPutAll(
+    _ rawValue: Int,
+    otherMapRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        otherMapRaw,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapPutAllMethodSlot,
+        context: "MutableMap.putAll dispatch",
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapRemove(
+    _ rawValue: Int,
+    key: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        key,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapRemoveMethodSlot,
+        context: "MutableMap.remove dispatch",
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapClear(
+    _ rawValue: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall0(
+        rawValue,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapClearMethodSlot,
+        context: "MutableMap.clear dispatch",
+        outThrown: outThrown
+    )
 }
 
 @inline(__always)
