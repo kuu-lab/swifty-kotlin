@@ -808,6 +808,17 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        if let receiverType = ctx.implicitReceiverType {
+            candidates.removeAll { candidate in
+                guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                    return false
+                }
+                return !sema.types.isSubtype(
+                    sema.types.makeNonNullable(receiverType),
+                    sema.types.makeNonNullable(declaredReceiver)
+                )
+            }
+        }
         if candidates.isEmpty {
             if let receiverType = ctx.implicitReceiverType,
                let result = driver.helpers.lookupMemberProperty(
