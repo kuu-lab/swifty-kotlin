@@ -44,7 +44,7 @@ expr e@27:45 call callee=e@27:45#1 args=[_:e@27:59] type=kotlin.concurrent.atomi
 expr e@28:47 int(1) type=Int
 expr e@28:37 call callee=e@28:37#1 args=[_:e@28:47] type=kotlin.concurrent.atomics.AtomicInt call=kotlin.concurrent.atomics.AtomicInt[kind=fun;params=Int]
 expr e@29:50 long(1) type=Long
-expr e@29:39 call callee=e@29:39#1 args=[_:e@29:50] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong.<init>[kind=ctor;params=Long]
+expr e@29:39 call callee=e@29:39#1 args=[_:e@29:50] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long]
 expr e@30:62 int(2) type=Int
 expr e@30:67 name(it) type=Int ref=s-0
 expr e@30:65 lambda params=[] body=e@30:67 label=AtomicIntArray type=(Int) -> Int
