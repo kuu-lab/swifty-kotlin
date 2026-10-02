@@ -1089,6 +1089,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
     weak var continuationState: RuntimeContinuationState?
+    var producerChannel: Int?
     private var childJobHandles: [Int] = []
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
     /// `CoroutineScope(context)` (see `kk_coroutine_scope_new_with_context`) tell a plain
@@ -2939,6 +2940,7 @@ func runtimeKxMiniProduceWithCont(
 ) -> Int {
     let channelHandle = kk_channel_create(channelCapacity)
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))

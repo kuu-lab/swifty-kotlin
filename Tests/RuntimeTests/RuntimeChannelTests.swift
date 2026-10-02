@@ -140,6 +140,78 @@ func runtime_test_channel_pending_launch_send(
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeChannelTests {
+    @Test func awaitCloseWaitsWithoutConsumingBufferedValues() {
+        let handle = kk_channel_create(1)
+        let channel = runtimeChannelHandle(handle)
+        #expect(kk_channel_send(handle, 42, 0) == kChannelResultSuccess)
+        let job = RuntimeJobHandle()
+        job.producerChannel = handle
+        let done = ChannelTestSignal("awaitClose returns")
+        let thrown = ThreadSafeInt()
+        DispatchQueue.global().async {
+            RuntimeJobHandle.current = job
+            defer { RuntimeJobHandle.current = nil }
+            var exception = 0
+            _ = __kk_channel_await_close(handle, &exception)
+            thrown.set(exception)
+            done.fulfill()
+        }
+        let deadline = DispatchTime.now() + .seconds(2)
+        while !channel.hasAwaitCloseWaiter, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        #expect(channel.hasAwaitCloseWaiter)
+        #expect(kk_channel_close(handle) == 1)
+        done.wait(timeout: 2)
+        #expect(thrown.get() == 0)
+        #expect(channelReceivePair(handle).value == 42)
+        #expect(!channel.hasAwaitCloseWaiter)
+    }
+
+    @Test func awaitCloseCancellationWakesWaiter() {
+        let handle = kk_channel_create(0)
+        let channel = runtimeChannelHandle(handle)
+        let job = RuntimeJobHandle()
+        job.producerChannel = handle
+        let done = ChannelTestSignal("cancelled awaitClose returns")
+        let thrown = ThreadSafeInt()
+        DispatchQueue.global().async {
+            RuntimeJobHandle.current = job
+            defer { RuntimeJobHandle.current = nil }
+            var exception = 0
+            _ = __kk_channel_await_close(handle, &exception)
+            thrown.set(exception)
+            done.fulfill()
+        }
+        let deadline = DispatchTime.now() + .seconds(2)
+        while !channel.hasAwaitCloseWaiter, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        #expect(channel.hasAwaitCloseWaiter)
+        _ = job.cancel()
+        done.wait(timeout: 2)
+        #expect(kk_is_cancellation_exception(thrown.get()) == 1)
+        #expect(!channel.hasAwaitCloseWaiter)
+        _ = kk_channel_close(handle)
+    }
+
+    @Test func awaitCloseRejectsWrongContextAndRepeatedRegistration() {
+        let handle = kk_channel_create(0)
+        let job = RuntimeJobHandle()
+        let previous = RuntimeJobHandle.current
+        RuntimeJobHandle.current = job
+        defer { RuntimeJobHandle.current = previous }
+        var thrown = 0
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown != 0)
+        job.producerChannel = handle
+        _ = kk_channel_close(handle)
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown != 0)
+    }
+
     // MARK: - Rendezvous Channel (capacity == 0)
 
     @Test func rendezvousSendReceivePairing() {
