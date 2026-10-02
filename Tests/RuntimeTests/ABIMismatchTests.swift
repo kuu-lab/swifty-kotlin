@@ -972,6 +972,14 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func kkSuspendFunctionInvokeThreeAritySignature() throws {
+        let spec = try requireSpec("kk_suspend_function_invoke_3")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "arg3", "outThrown"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
+    }
+
+    @Test
     func kkMutableListAddAtSignature() throws {
         let spec = try requireSpec("__kk_mutable_list_add_at")
         #expect(spec.returnType == .intptr)

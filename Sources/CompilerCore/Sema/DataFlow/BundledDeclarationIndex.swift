@@ -35,6 +35,10 @@ struct BundledDeclarationIndex: Sendable {
         contains(owner: ownerFQName, name: name, arity: arity)
     }
 
+    func contains(ownerFQName: [InternedString], name: InternedString) -> Bool {
+        keys.contains { $0.ownerFQName == ownerFQName && $0.name == name }
+    }
+
     func containsNominal(fqName: [InternedString]) -> Bool {
         nominalFQNames.contains(fqName)
     }

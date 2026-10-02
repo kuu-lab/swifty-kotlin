@@ -216,94 +216,10 @@ public fun <T> Flow<T>.cancellable(): Flow<T> {
     }
 }
 
-// Stateful and error-handling operators are eager: they collect upstream at
-// suspend-function top level, where suspend-function-value calls are
-// well-formed, rather than inside a `flow { }` builder's collect callback
-// (nested suspend-lambda capture shapes miscompile — KUU-841).
-
-public suspend fun <T> Flow<T>.takeWhile(predicate: suspend (T) -> Boolean): Flow<T> {
-    val kept = mutableListOf<T>()
-    for (value in this.toList()) {
-        if (!predicate(value)) break
-        kept.add(value)
-    }
-    return kept.asFlow()
-}
-
-public suspend fun <T> Flow<T>.dropWhile(predicate: suspend (T) -> Boolean): Flow<T> {
-    val kept = mutableListOf<T>()
-    var dropping = true
-    for (value in this.toList()) {
-        if (dropping && predicate(value)) continue
-        dropping = false
-        kept.add(value)
-    }
-    return kept.asFlow()
-}
-
-public suspend fun <T> Flow<T>.onEach(action: suspend (T) -> Unit): Flow<T> {
-    val kept = mutableListOf<T>()
-    for (value in this.toList()) {
-        action(value)
-        kept.add(value)
-    }
-    return kept.asFlow()
-}
-
-public suspend fun <T> Flow<T>.catch(action: suspend (Throwable) -> Unit): Flow<T> {
-    return try {
-        this.toList().asFlow()
-    } catch (e: Throwable) {
-        action(e)
-        emptyFlow<T>()
-    }
-}
-
-public suspend fun <T> Flow<T>.onCompletion(action: suspend (cause: Throwable?) -> Unit): Flow<T> {
-    var failure: Throwable? = null
-    val items = try {
-        this.toList()
-    } catch (e: Throwable) {
-        failure = e
-        mutableListOf<T>()
-    }
-    action(failure)
-    val rethrow = failure
-    if (rethrow != null) throw rethrow
-    return items.asFlow()
-}
-
-public suspend fun <T> Flow<T>.retry(retries: Long): Flow<T> {
-    var remaining = retries
-    while (true) {
-        try {
-            return this.toList().asFlow()
-        } catch (e: Throwable) {
-            if (remaining <= 0L) throw e
-            remaining -= 1
-        }
-    }
-}
-
-public suspend fun <T> Flow<T>.retryWhen(
-    predicate: suspend (cause: Throwable, attempt: Long) -> Boolean
-): Flow<T> {
-    var attempt: Long = 0L
-    while (true) {
-        try {
-            return this.toList().asFlow()
-        } catch (e: Throwable) {
-            if (!predicate(e, attempt)) throw e
-            attempt += 1
-        }
-    }
-}
-
 // `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
-// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). There is no
-// FlowCollector type on this surface, so — like `catch`/`onCompletion` above —
-// the receiver is dropped and the action cannot emit fallback elements. The
-// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
+// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). This legacy
+// overload drops the receiver, so the action cannot emit fallback elements.
+// Its result is typed `Any` (as `coroutineScope`'s block is): a strict
 // `() -> Unit` parameter does not accept a plain zero-parameter lambda.
 public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
     val items = this.toList()

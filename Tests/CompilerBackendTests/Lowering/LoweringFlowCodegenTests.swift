@@ -99,6 +99,29 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testCapturedSuspendReceiverFunctionUsesThreeArgumentInvokeABI() throws {
+        let source = """
+        interface Collector
+
+        suspend fun callPredicate(
+            collector: Collector,
+            predicate: suspend Collector.(Throwable, Long) -> Boolean
+        ): Boolean = predicate(collector, IllegalStateException("retry"), 0L)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendReceiverPredicate", emit: .kirDump)
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let callees = findAllKIRFunctions(in: module).flatMap {
+                extractCallees(from: $0.body, interner: ctx.interner)
+            }
+            #expect(callees.contains("kk_suspend_function_invoke_3"))
+            #expect(!callees.contains("predicate"))
+        }
+    }
+
+    @Test
     func testSuspendFunctionValuesInFlowCallbacksPreserveClosureEnvironment() throws {
         let source = """
         import kotlinx.coroutines.flow.*
@@ -140,6 +163,83 @@ struct LoweringFlowCodegenTests {
             source: source,
             moduleName: "SuspendFunctionValueFlowEnvironment",
             expectedStdout: "predicate\nfilter done\n2\n1\ncompletion\n"
+        )
+    }
+
+    @Test
+    func testSuspendReceiverCallbackDispatchesImportedCollectorMember() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.flow.*
+
+            class Printer : FlowCollector<Int> {
+                override suspend fun emit(value: Int) { println(value) }
+            }
+
+            suspend fun send(collector: FlowCollector<Int>) { collector.emit(9) }
+
+            suspend fun action(collector: FlowCollector<Int>, block: suspend FlowCollector<Int>.() -> Unit) {
+                block(collector)
+            }
+
+            fun main() {
+                runBlocking {
+                    Printer().emit(8)
+                    send(Printer())
+                    val captured = 7
+                    action(Printer()) { emit(captured) }
+                }
+            }
+            """,
+            moduleName: "SuspendReceiverCollectorDispatch",
+            expectedStdout: "8\n9\n7\n"
+        )
+    }
+
+    @Test
+    func testDefaultFlowRetryUsesBundledSourceValidation() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.flow.*
+
+            fun main() {
+                try {
+                    flowOf(1).retry(0)
+                } catch (e: IllegalArgumentException) {
+                    println("zero retry")
+                }
+                try {
+                    flowOf(1).retry(-1)
+                } catch (e: IllegalArgumentException) {
+                    println("negative retry")
+                }
+            }
+            """,
+            moduleName: "DefaultFlowRetry",
+            expectedStdout: "zero retry\nnegative retry\n"
+        )
+    }
+
+    @Test
+    func testSharedFlowOnSubscriptionRunsBeforeReplay() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.flow.*
+
+            fun main() {
+                runBlocking {
+                    val shared = MutableSharedFlow<Int>(2)
+                    shared.tryEmit(1)
+                    shared.tryEmit(2)
+                    val subscribed = shared.onSubscription { emit(0) }
+                    println(subscribed.replayCache)
+                    subscribed.collect { println(it) }
+                    subscribed.collect { println(it) }
+                }
+            }
+            """,
+            moduleName: "SharedFlowOnSubscription",
+            expectedStdout: "[1, 2]\n0\n1\n2\n0\n1\n2\n"
         )
     }
 

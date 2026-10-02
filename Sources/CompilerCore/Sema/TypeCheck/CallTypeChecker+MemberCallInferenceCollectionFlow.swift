@@ -6159,12 +6159,12 @@ extension CallTypeChecker {
         let hasBundledFlowDeclaration = flowOwnerFQNameForPriorityCheck.map {
             sema.bundledIndex.contains(
                 ownerFQName: $0,
-                name: calleeName,
-                arity: args.count
+                name: calleeName
             )
         } ?? false
         if isFlowReceiver,
            hasBundledFlowDeclaration,
+           !["transform", "takeWhile", "dropWhile", "catch", "retry", "retryWhen"].contains(interner.resolve(calleeName)),
            let bundledFlowType = tryBuiltinFlowMemberCall(
                id,
                calleeName: calleeName,

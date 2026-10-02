@@ -16,6 +16,7 @@ enum ImportedInlineKIRMaterializer {
         "kk_suspend_function_invoke",
         "kk_suspend_function_invoke_0",
         "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke_3",
     ]
 
     static func materialize(

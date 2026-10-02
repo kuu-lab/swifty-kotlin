@@ -340,14 +340,6 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Receiver-bearing callables cannot cross the kk_function_create_N ABI
-        // (it has no receiver slot; see materializeEscapingCallableValue), and a
-        // suspend callable's leading param is the receiver rather than a
-        // closureRaw, so receiver-bearing suspend values always stay raw.
-        if functionType.isSuspend, functionType.receiver != nil {
-            return loweredArgID
-        }
-
         var loweredCallableID = loweredArgID
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if callableInfo == nil,
