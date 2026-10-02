@@ -7,6 +7,8 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.coroutines.ensureActive
+
 // MIGRATION-FLOW-004 (KSP-499)
 // Flow operators are bundled Kotlin source. The compiler/runtime keep only the
 // cold-flow core (`flow`, `emit`, and `collect`) as coroutine bridges; the
@@ -118,29 +120,26 @@ public suspend fun <T> Flow<T>.reduce(operation: suspend (T, T) -> T): T {
     return result as T
 }
 
-public fun <T, R> Flow<T>.flatMapConcat(transform: suspend (T) -> Flow<R>): Flow<R> {
-    val source = this
-    return flow {
-        source.collect { value ->
-            transform(value).collect { inner -> emit(inner) }
+// Eager like the operators at the bottom of this file: calling the suspend
+// transform from inside a nested collect callback miscompiles, so the inner
+// flows are collected at suspend-function top level instead.
+public suspend fun <T, R> Flow<T>.flatMapConcat(transform: suspend (T) -> Flow<R>): Flow<R> {
+    val kept = mutableListOf<R>()
+    for (value in this.toList()) {
+        for (inner in transform(value).toList()) {
+            kept.add(inner)
         }
     }
+    return kept.asFlow()
 }
 
-public fun <T, R> Flow<T>.flatMapMerge(transform: suspend (T) -> Flow<R>): Flow<R> =
+public suspend fun <T, R> Flow<T>.flatMapMerge(transform: suspend (T) -> Flow<R>): Flow<R> =
     flatMapConcat(transform)
 
-public fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> {
-    val source = this
-    return flow {
-        var latest: Flow<R>? = null
-        source.collect { value -> latest = transform(value) }
-        val selected = latest
-        if (selected != null) {
-            selected.collect { value -> emit(value) }
-        }
-    }
-}
+// Synchronous cold flows collect each inner flow to completion before the
+// next outer value arrives, so flatMapLatest reduces to flatMapConcat here.
+public suspend fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> =
+    flatMapConcat(transform)
 
 public fun <T, R, V> Flow<T>.zip(
     other: Flow<R>,
@@ -188,4 +187,128 @@ public fun <T> merge(vararg flows: Flow<T>): Flow<T> = flow {
 public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
     val source = this
     return flow { source.collect { value -> emit(value) } }
+}
+
+// The operators below share the sequential-collect model: cold flows emit
+// every value synchronously, so temporal/concurrent modifiers reduce to
+// pass-throughs while the filtering and error operators preserve their
+// value-stream semantics.
+
+public fun <T> Flow<T>.buffer(capacity: Int): Flow<T> = this
+
+public fun <T> Flow<T>.conflate(): Flow<T> = this
+
+public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
+
+public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> = this
+
+// `cancellable` is the exception to the pass-throughs above: it composes the
+// retained collect/emit core with `ensureActive`, so a collector running in a
+// cancelled coroutine stops between elements instead of draining the upstream
+// sequence (KSP-1577).
+public fun <T> Flow<T>.cancellable(): Flow<T> {
+    val source = this
+    return flow {
+        source.collect { value ->
+            ensureActive()
+            emit(value)
+        }
+    }
+}
+
+// Stateful and error-handling operators are eager: they collect upstream at
+// suspend-function top level, where suspend-function-value calls are
+// well-formed, rather than inside a `flow { }` builder's collect callback
+// (nested suspend-lambda capture shapes miscompile — KUU-841).
+
+public suspend fun <T> Flow<T>.takeWhile(predicate: suspend (T) -> Boolean): Flow<T> {
+    val kept = mutableListOf<T>()
+    for (value in this.toList()) {
+        if (!predicate(value)) break
+        kept.add(value)
+    }
+    return kept.asFlow()
+}
+
+public suspend fun <T> Flow<T>.dropWhile(predicate: suspend (T) -> Boolean): Flow<T> {
+    val kept = mutableListOf<T>()
+    var dropping = true
+    for (value in this.toList()) {
+        if (dropping && predicate(value)) continue
+        dropping = false
+        kept.add(value)
+    }
+    return kept.asFlow()
+}
+
+public suspend fun <T> Flow<T>.onEach(action: suspend (T) -> Unit): Flow<T> {
+    val kept = mutableListOf<T>()
+    for (value in this.toList()) {
+        action(value)
+        kept.add(value)
+    }
+    return kept.asFlow()
+}
+
+public suspend fun <T> Flow<T>.catch(action: suspend (Throwable) -> Unit): Flow<T> {
+    return try {
+        this.toList().asFlow()
+    } catch (e: Throwable) {
+        action(e)
+        emptyFlow<T>()
+    }
+}
+
+public suspend fun <T> Flow<T>.onCompletion(action: suspend (cause: Throwable?) -> Unit): Flow<T> {
+    var failure: Throwable? = null
+    val items = try {
+        this.toList()
+    } catch (e: Throwable) {
+        failure = e
+        mutableListOf<T>()
+    }
+    action(failure)
+    val rethrow = failure
+    if (rethrow != null) throw rethrow
+    return items.asFlow()
+}
+
+public suspend fun <T> Flow<T>.retry(retries: Long): Flow<T> {
+    var remaining = retries
+    while (true) {
+        try {
+            return this.toList().asFlow()
+        } catch (e: Throwable) {
+            if (remaining <= 0L) throw e
+            remaining -= 1
+        }
+    }
+}
+
+public suspend fun <T> Flow<T>.retryWhen(
+    predicate: suspend (cause: Throwable, attempt: Long) -> Boolean
+): Flow<T> {
+    var attempt: Long = 0L
+    while (true) {
+        try {
+            return this.toList().asFlow()
+        } catch (e: Throwable) {
+            if (!predicate(e, attempt)) throw e
+            attempt += 1
+        }
+    }
+}
+
+// `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
+// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). There is no
+// FlowCollector type on this surface, so — like `catch`/`onCompletion` above —
+// the receiver is dropped and the action cannot emit fallback elements. The
+// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
+// `() -> Unit` parameter does not accept a plain zero-parameter lambda.
+public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
+    val items = this.toList()
+    if (items.isEmpty()) {
+        action()
+    }
+    return items.asFlow()
 }

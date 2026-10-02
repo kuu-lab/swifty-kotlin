@@ -1,5 +1,22 @@
 
 extension LambdaLowerer {
+    /// Binds the lambda's receiver value (the explicit receiver parameter, or the
+    /// active implicit receiver it was satisfied by) to
+    /// `SyntheticSymbolScheme.lambdaReceiverSymbol`, the symbol Sema gives the
+    /// lambda's `this@callee` references. Must run after the receiver parameter
+    /// and capture bindings have been installed as the implicit receiver.
+    func registerLambdaReceiverValue(lambdaExprID: ExprID, hasReceiverParam: Bool) {
+        guard hasReceiverParam,
+              let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        else {
+            return
+        }
+        driver.ctx.setLocalValue(
+            receiverExprID,
+            for: SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID)
+        )
+    }
+
     func syntheticLambdaName(for exprID: ExprID, interner: StringInterner) -> InternedString {
         interner.intern("kk_lambda_\(exprID.rawValue)")
     }
@@ -623,6 +640,18 @@ extension LambdaLowerer {
         }
         if symbol == driver.ctx.activeImplicitReceiverSymbol(),
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        {
+            return receiverExprID
+        }
+        // An object literal captures its enclosing class receiver by the
+        // class symbol, while a member body may track `this` under a synthetic
+        // receiver symbol. Match by nominal type in that case so the captured
+        // field is initialized instead of left zeroed.
+        if sema.symbols.symbol(symbol)?.kind == .class,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = arena.exprType(receiverExprID),
+           case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+           sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
         {
             return receiverExprID
         }

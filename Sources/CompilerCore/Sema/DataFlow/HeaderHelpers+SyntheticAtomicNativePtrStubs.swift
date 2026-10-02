@@ -50,71 +50,13 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "load",
-            returnType: nativePtrType,
-            parameters: [],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "store",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: nativePtrType)],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "exchange",
-            returnType: nativePtrType,
-            parameters: [(name: "new", type: nativePtrType)],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "getAndSet",
-            returnType: nativePtrType,
-            parameters: [(name: "newValue", type: nativePtrType)],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "compareAndSet",
-            returnType: types.booleanType,
-            parameters: [
-                (name: "expect", type: nativePtrType),
-                (name: "update", type: nativePtrType),
-            ],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: classSymbol,
-            ownerType: ownerType,
-            name: "compareAndExchange",
-            returnType: nativePtrType,
-            parameters: [
-                (name: "expect", type: nativePtrType),
-                (name: "update", type: nativePtrType),
-            ],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1121: `load` / `store` / `exchange` / `getAndSet` /
+        // `compareAndSet` / `compareAndExchange` moved to the source-backed
+        // extensions in `Stdlib/kotlin/concurrent/atomics/AtomicNativePtr/`
+        // (there is no `__kk_atomic_native_ptr_*` runtime family, so member
+        // stubs would only emit unresolved bare-symbol calls). The bundled
+        // declarations win member resolution via the atomic-migration
+        // extension fallback; `value` stays a member because it is the
+        // field-backed storage those extensions delegate to.
     }
 }

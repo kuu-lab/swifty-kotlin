@@ -120,7 +120,7 @@ let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
 )
-private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
+private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
 // These slots are the generated interface property getter slots in the current
@@ -136,7 +136,34 @@ private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
 // own vtable method count (2 slots) is untouched by KSP-960, which only
 // changes Collection's synthetic member registration.
 private let runtimeCollectionSizeGetterSlot = 4
-private let runtimeMapSizeGetterSlot = 2
+// Map properties are ordered alphabetically after Map's two methods:
+// entries, keys, size, values.
+private let runtimeMapEntriesGetterSlot = 2
+private let runtimeMapKeysGetterSlot = 3
+private let runtimeMapSizeGetterSlot = 4
+private let runtimeMapValuesGetterSlot = 5
+private let runtimeMapIsEmptyMethodSlot = 0
+private let runtimeMapGetMethodSlot = 1
+private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.List"
+)
+private let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableCollection"
+)
+private let runtimeMutableSetInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableSet"
+)
+
+
+private let runtimeMutableMapInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableMap"
+)
+// MutableMap's own method slots are `put`/`putAll`/`remove`/`clear` in vtable
+// order. Inherited Map members dispatch through the Map itable instead.
+private let runtimeMutableMapPutMethodSlot = 0
+private let runtimeMutableMapPutAllMethodSlot = 1
+private let runtimeMutableMapRemoveMethodSlot = 2
+private let runtimeMutableMapClearMethodSlot = 3
 
 /// Source-defined Collection/Map implementations expose `size` through the
 /// same dynamic interface-property getter table used by ordinary Kotlin code.
@@ -161,12 +188,165 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     return result
 }
 
+/// Calls a source implementation of `List.get` when the receiver is a
+/// source-backed object rather than one of the runtime's native list boxes.
+/// `List.get` occupies the first method slot in List's own interface table.
 @inline(__always)
-func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+func runtimeSourceListGet(
+    _ rawValue: Int,
+    _ index: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeListGetInterfaceTypeID), 0)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, index, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "List.get dispatch"
+        )
+    }
+    return result
+}
+
+/// Calls the source `MutableCollection.add` implementation through its own
+/// interface table, whose methods start at slot zero.
+@inline(__always)
+func runtimeSourceMutableCollectionAdd(
+    _ rawValue: Int,
+    _ element: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(
         rawValue,
-        Int(runtimeMapSizeInterfaceTypeID),
-        runtimeMapSizeGetterSlot
+        Int(runtimeMutableCollectionInterfaceTypeID),
+        0
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, element, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "MutableCollection.add dispatch"
+        )
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMutableSetAdd(
+    _ rawValue: Int,
+    _ element: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeMutableSetInterfaceTypeID), 0)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, element, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "MutableSet.add dispatch"
+        )
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceInterfaceCall0(
+    _ rawValue: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    context: String,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceInterfaceCall1(
+    _ rawValue: Int,
+    _ argument: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    context: String,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, argument, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+    guard let result = runtimeSourceMapProperty(
+        rawValue,
+        methodSlot: runtimeMapSizeGetterSlot
+    ) else {
+        return nil
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapProperty(_ rawValue: Int, methodSlot: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeMapInterfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map property dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapIsEmpty(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapInterfaceTypeID),
+        runtimeMapIsEmptyMethodSlot
     )
     guard fnPtr != 0 else { return nil }
     let fn = unsafeBitCast(
@@ -176,15 +356,140 @@ func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
     var thrown = 0
     let result = fn(rawValue, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Map.size dispatch threw exception handle \(thrown)")
+        runtimeStructuredPanic("Map.isEmpty dispatch threw exception handle \(thrown)")
     }
     return result
+}
+
+@inline(__always)
+func runtimeSourceMapGet(_ rawValue: Int, key: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapInterfaceTypeID),
+        runtimeMapGetMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, key, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.get dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapEntries(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapEntriesGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapKeys(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapKeysGetterSlot)
+}
+
+@inline(__always)
+func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
+    runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapValuesGetterSlot)
+}
+
+/// Calls a 2-argument interface method through the receiver's itable.
+@inline(__always)
+func runtimeSourceInterfaceCall2(
+    _ rawValue: Int,
+    _ argument1: Int,
+    _ argument2: Int,
+    interfaceTypeID: Int64,
+    methodSlot: Int,
+    context: String,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(rawValue, Int(interfaceTypeID), methodSlot)
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, argument1, argument2, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMutableMapPut(
+    _ rawValue: Int,
+    key: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall2(
+        rawValue,
+        key,
+        value,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapPutMethodSlot,
+        context: "MutableMap.put dispatch",
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapPutAll(
+    _ rawValue: Int,
+    otherMapRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        otherMapRaw,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapPutAllMethodSlot,
+        context: "MutableMap.putAll dispatch",
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapRemove(
+    _ rawValue: Int,
+    key: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        key,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapRemoveMethodSlot,
+        context: "MutableMap.remove dispatch",
+        outThrown: outThrown
+    )
+}
+
+@inline(__always)
+func runtimeSourceMutableMapClear(
+    _ rawValue: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall0(
+        rawValue,
+        interfaceTypeID: runtimeMutableMapInterfaceTypeID,
+        methodSlot: runtimeMutableMapClearMethodSlot,
+        context: "MutableMap.clear dispatch",
+        outThrown: outThrown
+    )
 }
 
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -192,6 +497,7 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
     let raw = runtimePairNew(firstValue: key, secondValue: value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -204,6 +510,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
         pairBox.mutableMapKey = key
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
 }
 
@@ -216,7 +523,27 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
         pairBox.mutableMapKey = key.legacyRawValue
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterMapEntryGetters(raw)
     return raw
+}
+
+// Map.Entry has no methods; its source-declared key/value property getters
+// occupy slots 0/1. Runtime-backed entries participate in the same interface
+// dispatch as user implementations without changing Pair's public ABI.
+private let runtimeMapEntryKeyGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_pair_first(raw)
+}
+
+private let runtimeMapEntryValueGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_pair_second(raw)
+}
+
+private func runtimeRegisterMapEntryGetters(_ raw: Int) {
+    _ = kk_object_register_itable_iface(raw, Int(mapEntryRuntimeTypeID), 0)
+    _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(runtimeMapEntryKeyGetter, to: Int.self))
+    _ = kk_object_register_itable_method(raw, 0, 1, unsafeBitCast(runtimeMapEntryValueGetter, to: Int.self))
 }
 
 @inline(__always)
@@ -533,7 +860,23 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
 func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     let raw = registerRuntimeObject(box)
     runtimeRegisterObjectType(rawValue: raw, classID: typeID)
+    runtimeRegisterKCallableItableIfNeeded(rawValue: raw, typeID: typeID)
     return raw
+}
+
+/// Registers a primitive-domain box (`RuntimeIntBox` & friends) under its
+/// tagged handle — the same representation `kk_box_*` emits — so the object's
+/// raw address never enters `objectPointers`. A raw scalar that numerically
+/// equals such an address can then no longer satisfy the `kk_box_*`
+/// pass-through probe as an "already-registered object" (KUU-857). The
+/// `typeID` is keyed by the returned tagged handle — every
+/// `runtimeObjectTypeID` call site passes the stored handle verbatim.
+func registerTaggedRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
+    let handle = runtimeStorage.withGCLock { state in
+        registerTaggedPrimitiveBox(box, inLockedState: &state)
+    }
+    runtimeRegisterObjectType(rawValue: handle, classID: typeID)
+    return handle
 }
 
 func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
@@ -617,7 +960,7 @@ func registerMutableListIteratorItable(raw: Int) {
 
 private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorSet(raw, elem)
+    return runtimeListIteratorSet(raw, elem, outThrown)
 }
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
@@ -734,7 +1077,7 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorRemove(iterRaw)
+    return runtimeListIteratorRemove(iterRaw, outThrown)
 }
 
 func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
@@ -889,12 +1232,84 @@ func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
     return nil
 }
 
+private func runtimeKTypeDescriptor(_ box: RuntimeKTypeBox) -> String? {
+    guard box.typeNameRaw != 0,
+          box.typeNameRaw != runtimeNullSentinelInt,
+          let descriptor = extractString(from: UnsafeMutableRawPointer(bitPattern: box.typeNameRaw))
+    else {
+        return nil
+    }
+    return descriptor.hasSuffix("?") ? String(descriptor.dropLast()) : descriptor
+}
+
+private func runtimeKTypeClassifierEquals(_ lhs: RuntimeKTypeBox, _ rhs: RuntimeKTypeBox) -> Bool {
+    if let lhsDescriptor = runtimeKTypeDescriptor(lhs) {
+        return runtimeKTypeDescriptor(rhs) == lhsDescriptor
+    }
+    if runtimeKTypeDescriptor(rhs) != nil {
+        return false
+    }
+    if let lhsClass = runtimeKClassBox(from: lhs.classifierRaw),
+       let rhsClass = runtimeKClassBox(from: rhs.classifierRaw) {
+        return lhsClass.typeToken == rhsClass.typeToken
+    }
+    return lhs.classifierRaw == rhs.classifierRaw
+}
+
+private func runtimeKTypeProjectionEquals(_ lhs: RuntimeKTypeProjectionBox, _ rhs: RuntimeKTypeProjectionBox) -> Bool {
+    guard lhs.variance == rhs.variance else {
+        return false
+    }
+    guard lhs.variance != nil else {
+        return true
+    }
+    return runtimeValuesEqual(lhs.typeRaw, rhs.typeRaw)
+}
+
+private func runtimeKTypeEquals(_ lhs: RuntimeKTypeBox, _ rhs: RuntimeKTypeBox) -> Bool {
+    guard lhs.isMarkedNullable == rhs.isMarkedNullable,
+          runtimeKTypeClassifierEquals(lhs, rhs),
+          lhs.argumentRaws.count == rhs.argumentRaws.count
+    else {
+        return false
+    }
+    for index in lhs.argumentRaws.indices {
+        guard let lhsProjection = runtimeReflectionObject(
+                  from: lhs.argumentRaws[index], as: RuntimeKTypeProjectionBox.self
+              ),
+              let rhsProjection = runtimeReflectionObject(
+                  from: rhs.argumentRaws[index], as: RuntimeKTypeProjectionBox.self
+              ),
+              runtimeKTypeProjectionEquals(lhsProjection, rhsProjection)
+        else {
+            return false
+        }
+    }
+    return true
+}
+
 func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
     }
     if lhs == runtimeNullSentinelInt || rhs == runtimeNullSentinelInt {
         return lhs == rhs
+    }
+    return runtimeNonNullValuesEqual(lhs, rhs)
+}
+
+/// The comparison body of `runtimeValuesEqual`, minus its two callers-facing
+/// shortcuts (bit-identical fast path, and the sentinel-implies-null guess).
+/// Callers that have already established — via means other than guessing
+/// from the raw bits, e.g. `kk_nullable_primitive_eq`'s object-pointer-registry
+/// check — that neither operand is genuinely null should call this directly:
+/// `runtimeValuesEqual`'s sentinel shortcut cannot tell a real null from a
+/// raw (never-boxed) `Long`/`ULong` value that happens to equal the sentinel's
+/// bit pattern (`Long.MIN_VALUE`, `ULong` `2^63`), so routing through it would
+/// reintroduce exactly the ambiguity the caller already resolved.
+func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
+    if lhs == rhs {
+        return true
     }
     let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs)
@@ -932,6 +1347,14 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     }
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
+    }
+    if let lhsType = tryCast(lhsPtr, to: RuntimeKTypeBox.self),
+       let rhsType = tryCast(rhsPtr, to: RuntimeKTypeBox.self) {
+        return runtimeKTypeEquals(lhsType, rhsType)
+    }
+    if let lhsProjection = tryCast(lhsPtr, to: RuntimeKTypeProjectionBox.self),
+       let rhsProjection = tryCast(rhsPtr, to: RuntimeKTypeProjectionBox.self) {
+        return runtimeKTypeProjectionEquals(lhsProjection, rhsProjection)
     }
     if let lhsString = tryCast(lhsPtr, to: RuntimeStringBox.self),
        let rhsString = tryCast(rhsPtr, to: RuntimeStringBox.self)
@@ -1065,15 +1488,25 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             lhsLocale.country == rhsLocale.country &&
             lhsLocale.variant == rhsLocale.variant
     }
-    // Data class / user-defined object structural equality: compare classID and elements.
+    // Nominal objects follow Any.equals: a user `equals` override wins, data
+    // classes compare structurally, and plain classes compare by identity.
     if let lhsObj = tryCast(lhsPtr, to: RuntimeObjectBox.self),
        let rhsObj = tryCast(rhsPtr, to: RuntimeObjectBox.self)
     {
+        if lhsObj.backingSetBox == nil, rhsObj.backingSetBox == nil {
+            if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+                return overridden
+            }
+            guard lhsObj.classID == rhsObj.classID else { return false }
+            guard runtimeIsDataClass(classID: lhsObj.classID) else { return lhs == rhs }
+        }
         guard lhsObj.classID == rhsObj.classID else { return false }
         let lhsElems = lhsObj.elements
         let rhsElems = rhsObj.elements
         guard lhsElems.count == rhsElems.count else { return false }
+        let fieldMask = runtimeDataClassFieldMask(classID: lhsObj.classID)
         for i in lhsElems.indices {
+            if let fieldMask, i < 63, fieldMask & (1 << Int64(i)) == 0 { continue }
             // swiftlint:disable:next for_where
             if !runtimeValuesEqual(lhsElems[i], rhsElems[i]) {
                 return false
@@ -1088,6 +1521,38 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
 @_cdecl("__kk_values_equal")
 public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
     kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
+}
+
+/// Calls the user `Any.equals` override registered for `lhs`, if any.
+func runtimeObjectEqualsOverride(_ lhs: Int, _ rhs: Int) -> Bool? {
+    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs),
+          let functionRaw = runtimeStorage.withMetadataLock({ state in
+              state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
+          })
+    else {
+        return nil
+    }
+    let equals = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return equals(lhs, rhs, nil) != 0
+}
+
+/// Calls the user `Any.hashCode` override registered for `value`, if any.
+func runtimeObjectHashCodeOverride(_ value: Int) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
+          let functionRaw = runtimeStorage.withMetadataLock({ state in
+              state.objectHashCodeOverrides[UInt(bitPattern: ptr)]
+          })
+    else {
+        return nil
+    }
+    let hashCode = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return Int(Int32(truncatingIfNeeded: hashCode(value, nil)))
 }
 
 /// Applies Kotlin's reference-equality default to RuntimeObjectBox values while
@@ -1108,14 +1573,8 @@ func runtimeAnyObjectEquality(_ lhs: Int, _ rhs: Int) -> Bool? {
         return nil
     }
 
-    if let functionRaw = runtimeStorage.withMetadataLock({ state in
-        state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
-    }) {
-        let equals = unsafeBitCast(
-            functionRaw,
-            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
-        return equals(lhs, rhs, nil) != 0
+    if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+        return overridden
     }
 
     guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs),
@@ -1182,6 +1641,53 @@ public func kk_structural_ne(_ lhs: Int, _ rhs: Int) -> Int {
     (runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 0 : 1
 }
 
+/// Null-aware equality for `==`/`!=` where at least one operand is a
+/// nullable `Long`/`ULong`/`Double`/`Float`. Those are the only primitives
+/// whose full raw (unboxed) value range coincides with the runtime null
+/// sentinel (`Long.MIN_VALUE`, `ULong` `2^63`, `-0.0`'s bit pattern), so
+/// `kk_structural_eq`/`ne`'s "raw value equals the sentinel implies null"
+/// guess (in `runtimeValuesEqual`) cannot tell a genuine null apart from a
+/// genuine value that happens to share that bit pattern.
+///
+/// `nullableRaw` is the operand statically known to be nullable. Its slot
+/// holds the null sentinel, a registered box, or a raw value (external
+/// `Long?`-returning entries such as `__kk_long_range_randomOrNull_random`
+/// pass raw bits through unchanged), so only the sentinel itself marks
+/// null — a registry membership test would misclassify every raw non-null
+/// value as null. A raw value that equals the sentinel's bit pattern
+/// (e.g. a `Long?` slot holding `Long.MIN_VALUE` unboxed) stays
+/// indistinguishable from null at the bit level; preserving its non-null
+/// identity is the boxing side's job, not this comparison's.  `peerRaw` is
+/// the other operand — a provably non-null value if `peerIsNullable == 0`
+/// (its raw bits are never treated as a possible null, so a peer holding
+/// raw `Long.MIN_VALUE` still compares by value), otherwise checked for
+/// the sentinel the same way as `nullableRaw`. Once neither side is null,
+/// the comparison defers to `runtimeNonNullValuesEqual`, which already
+/// normalizes boxed-vs-raw pairs (e.g. a boxed `Long.MIN_VALUE` against
+/// the raw literal `Long.MIN_VALUE`).
+private func runtimeNullablePrimitiveEqualityCheck(
+    nullableRaw: Int,
+    peerRaw: Int,
+    peerIsNullable: Int
+) -> Bool {
+    let nullableIsNull = nullableRaw == runtimeNullSentinelInt
+    let peerIsNull = peerIsNullable != 0 && peerRaw == runtimeNullSentinelInt
+    if nullableIsNull || peerIsNull {
+        return nullableIsNull && peerIsNull
+    }
+    return runtimeNonNullValuesEqual(nullableRaw, peerRaw)
+}
+
+@_cdecl("kk_nullable_primitive_eq")
+public func kk_nullable_primitive_eq(_ nullableRaw: Int, _ peerRaw: Int, _ peerIsNullable: Int) -> Int {
+    runtimeNullablePrimitiveEqualityCheck(nullableRaw: nullableRaw, peerRaw: peerRaw, peerIsNullable: peerIsNullable) ? 1 : 0
+}
+
+@_cdecl("kk_nullable_primitive_ne")
+public func kk_nullable_primitive_ne(_ nullableRaw: Int, _ peerRaw: Int, _ peerIsNullable: Int) -> Int {
+    runtimeNullablePrimitiveEqualityCheck(nullableRaw: nullableRaw, peerRaw: peerRaw, peerIsNullable: peerIsNullable) ? 0 : 1
+}
+
 func runtimeElementToString(_ elem: Int) -> String {
     if elem == runtimeNullSentinelInt {
         return "null"
@@ -1194,6 +1700,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     guard isObjectPointer else {
         return "\(elem)"
+    }
+    if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
+        return runtimeRangeToString(range)
     }
     if let override = runtimeAnyToStringOverride(elem),
        let pointer = extractString(from: override)
@@ -1270,7 +1779,7 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let rangeBox = tryCast(ptr, to: RuntimeRangeBox.self) {
         let first = runtimeElementToString(rangeBox.first)
         let last = runtimeElementToString(rangeBox.last)
-        if rangeBox.step == 1 {
+        if !rangeBox.kind.isProgression {
             return "\(first)..\(last)"
         } else if rangeBox.step == -1 {
             return "\(first) downTo \(last) step 1"

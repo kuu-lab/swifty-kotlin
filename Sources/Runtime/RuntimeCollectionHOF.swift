@@ -310,7 +310,7 @@ public func kk_list_bridge_zip_transform(
             outThrown: &thrown
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        results.append(maybeUnbox(transformed))
+        results.append(transformed)
     }
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
@@ -330,7 +330,7 @@ public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int, _ outThrown: Uns
     var chunks: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + size, elements.count)
+        let end = i + min(size, elements.count - i)
         let chunk = Array(elements[i ..< end])
         chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
         i = end
@@ -350,18 +350,18 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         )
         return runtimeExceptionCaughtSentinel
     }
-    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + size - 1) / size
+    let estimatedChunks = elements.count / size + (elements.count % size == 0 ? 0 : 1)
     var result: [Int] = []
     result.reserveCapacity(estimatedChunks)
     var i = 0
     while i < elements.count {
-        let end = min(i + size, elements.count)
+        let end = i + min(size, elements.count - i)
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0
         let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        result.append(maybeUnbox(transformed))
+        result.append(transformed)
         i = end
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
@@ -406,11 +406,13 @@ public func kk_list_bridge_windowed(
     var windows: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + size, elements.count)
+        let end = i + min(size, elements.count - i)
         if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        i += step
+        let (nextStart, overflow) = i.addingReportingOverflow(step)
+        if overflow { break }
+        i = nextStart
     }
     return registerRuntimeObject(RuntimeListBox(elements: windows))
 }
@@ -435,7 +437,7 @@ public func kk_list_bridge_windowed_transform(
     var result: [Int] = []
     var i = 0
     while i < elements.count {
-        let end = min(i + size, elements.count)
+        let end = i + min(size, elements.count - i)
         if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
@@ -447,8 +449,10 @@ public func kk_list_bridge_windowed_transform(
             outThrown: &thrown
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        result.append(maybeUnbox(transformed))
-        i += step
+        result.append(transformed)
+        let (nextStart, overflow) = i.addingReportingOverflow(step)
+        if overflow { break }
+        i = nextStart
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
@@ -479,7 +483,7 @@ public func kk_list_bridge_zipWithNextTransform(_ listRaw: Int, _ fnPtr: Int, _ 
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: elems[i], rhs: elems[i + 1], outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        results.append(maybeUnbox(result))
+        results.append(result)
     }
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }

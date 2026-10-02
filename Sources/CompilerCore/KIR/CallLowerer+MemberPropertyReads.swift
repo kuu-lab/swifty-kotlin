@@ -28,6 +28,21 @@ extension CallLowerer {
         if case .superRef = ast.arena.expr(receiverExpr) {
             return nil
         }
+        return resolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            accessorKind: accessorKind,
+            sema: sema
+        )
+    }
+
+    /// AST-independent core of `tryResolvePropertyAccessorVirtualDispatch`,
+    /// shared with property-reference wrappers (`Base::prop`), which have no
+    /// receiver expression to inspect for `super`.
+    func resolvePropertyAccessorVirtualDispatch(
+        propertySymbol: SymbolID,
+        accessorKind: PropertyAccessorKind,
+        sema: SemaModule
+    ) -> (accessorSymbol: SymbolID, dispatch: KIRDispatchKind)? {
         guard let propInfo = sema.symbols.symbol(propertySymbol),
               let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerID),
@@ -67,6 +82,13 @@ extension CallLowerer {
         guard let valueSym,
               let info = sema.symbols.symbol(valueSym),
               info.kind == .property,
+              // KUU-555: a local `object`'s member properties keep
+              // `.object`-parented symbols too, but their storage lives in
+              // the materialized instance's field array — reading them must
+              // continue to `tryLowerObjectLiteralStoredPropertyRead`'s
+              // field-offset load, not the object-global slot this path
+              // emits for file-scope object members.
+              !sema.bindings.isObjectLiteralPropertySymbol(valueSym),
               let parent = sema.symbols.parentSymbol(for: valueSym),
               sema.symbols.symbol(parent)?.kind == .object
         else { return nil }
@@ -959,12 +981,21 @@ extension CallLowerer {
     ) -> Bool {
         guard let property = sema.symbols.symbol(propertySymbol),
               property.name == interner.intern("size"),
-              let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
-              sema.symbols.symbol(ownerID)?.fqName == [
-                  interner.intern("kotlin"),
-                  interner.intern("collections"),
-                  interner.intern("Collection"),
-              ],
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol)
+        else {
+            return false
+        }
+        // `Collection.size` (and, since KSP-1063, the `List.size` redeclaration
+        // that claims the `__kk_collection_size` link) must defer when the
+        // receiver is not a concrete list box: for a user interface extending
+        // List, the direct `__kk_*_size` call would read 0 on Kotlin-defined
+        // implementations instead of dispatching through the interface itable.
+        let ownerFQName = sema.symbols.symbol(ownerID)?.fqName
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let isListFamilySizeOwner = ownerFQName == [kotlin, collections, interner.intern("Collection")]
+            || ownerFQName == [kotlin, collections, interner.intern("List")]
+        guard isListFamilySizeOwner,
               let receiverType = sema.bindings.exprTypes[receiverExpr]
         else {
             return false

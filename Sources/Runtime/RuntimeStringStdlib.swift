@@ -93,7 +93,7 @@ public func __kk_string_intern(_ strRaw: Int) -> Int {
 @_cdecl("kk_string_lowercase")
 public func kk_string_lowercase(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(source.lowercased())
+    return runtimeMakeStringRaw(runtimeKotlinLowercased(source))
 }
 
 @_cdecl("kk_string_uppercase")
@@ -106,7 +106,7 @@ public func kk_string_uppercase(_ strRaw: Int) -> Int {
 public func __kk_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return runtimeMakeStringRaw(source.lowercased())
+        return runtimeMakeStringRaw(runtimeKotlinLowercased(source))
     }
     return runtimeMakeStringRaw(source.lowercased(with: box.locale))
 }

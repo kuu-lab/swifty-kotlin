@@ -1,0 +1,8 @@
+{
+  "name": "kswiftk-ci-tools",
+  "private": true,
+  "description": "Pinned CLI tools for GitHub Actions jobs in this repository. Install with `npm ci --ignore-scripts` only.",
+  "dependencies": {
+    "jscpd": "4.0.8"
+  }
+}

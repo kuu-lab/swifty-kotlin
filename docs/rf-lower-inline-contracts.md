@@ -117,7 +117,41 @@ symbol は自身の snapshot にのみ束縛され同名 fallback へは流れ�
 再走査、`maxInlineExpansionRounds`）だけが担い、既存の回数制御は維持
 する。ラウンド内で by-name 表を固定しつつ by-symbol 表は最新を参照する
 逐次意味、pending が現在本体・展開が凍結 original を見る規則も不変。
-固定回数の撤廃・循環検出・展開量制限は INLINE-010 以降の対象であり、
-本PRでは変更しない。
+固定回数の撤廃は INLINE-011 / 012 の対象である。
 
-全Swift・Golden・全Kotlin差分の結果はPRの検証欄に記録し、共通RFゲートが未完了ならTODOは `[~]` とする。
+RF-LOWER-INLINE-010 で、固定回数を撤廃する前に必要な契約を
+index と scheduler に追加した:
+
+- 必須展開の判定は `InlineExpansionIndex.isMandatoryExpansionCall`
+  （callSymbol:callee:inlineFunctionsByName:interner:externalLinkName:）
+  が担う。`inlineTarget` と同じ束縛規則で、残存 `.call` の callee が
+  `bodylessInlineSymbols`（`isInlineOnly` 宣言＋imported inline 全件）に
+  属するかだけを見る。通常 `inline` 関数・非展開対象への call は本体が
+  object に emit されるため残存は合法であり、診断対象にしない。
+  既知 symbol に加えて callee テキストがその symbol の emit 名
+  （宣言名か externalLinkName）を指すことを要求する: codegen は
+  callee テキストで束縛するため、CallLowerer の bridge 書き換え
+  （例: `Worker.execute` の呼び出しが `kk_worker_execute` になって
+  元の symbol を持ち続ける）で retarget された call は別の emit 済み
+  symbol にリンクし、残存しても正しい。retarget 後の callee が一意な
+  bodyless 候補を指すときだけ by-name 規則で報告する。
+- 循環検出は `recursiveBodylessCallees` が担う。bodyless callee 間の
+  現在本体の `.call` 辺グラフで自分自身へ戻れる symbol（自己呼び出し・
+  相互再帰）と、そこへ到達する symbol を backward closure で集める。
+  `bodylessCallees` と違い自己呼び出しも辺にする（bodyless 自己呼び出し
+  は1ノードの循環で、pending 集合からは外れるが残存は必ず残る）。
+- 残存診断は `InlineLoweringPass+Scheduling.swift` の
+  `diagnoseMandatoryInlineResidue` が両展開フェーズ完了後に module
+  宣言順で走査し、未展開の必須 call ごとに `KSWIFTK-INL-0001` を
+  決定的に発行する。callee が循環内／循環到達なら「再帰のため展開が
+  停止しない」、それ以外（予算枯渇や引数不一致など）は
+  「expansion limit」として区別する。通常 `inline` への残存 call や
+  ambiguous な by-name 呼び出しは報告しない。`KIRVerifier` の
+  全パス検査は再実装せず、link 段の欠損 symbol として黙殺しない
+  契約をここに置く。
+
+既存の固定回数（bodyless 4ラウンド / caller 再走査 8ラウンド）は
+変更しない。境界テストは `InlineTerminationContractTests`: 4ラウンド
+内で収束する bodyless チェーン、4ラウンドを使い切っても pending が
+残る相互再帰、caller 再走査ちょうど8段の収束と9段目の非必須残存、
+自己再帰・予算枯渇の各診断ケース。

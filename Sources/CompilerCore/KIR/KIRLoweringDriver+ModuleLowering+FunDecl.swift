@@ -38,6 +38,7 @@ extension KIRLoweringDriver {
         ctx.resetScopeForFunction()
         ctx.beginCallableLoweringScope()
         ctx.setCurrentFunctionSymbol(symbol)
+        if function.isTailrec { ctx.markTailrecFunction(symbol) }
         let signature = sema.symbols.functionSignature(for: symbol)
         let params = buildFunDeclParams(function, symbol: symbol, signature: signature, shared: shared)
         let returnType = signature?.returnType ?? sema.types.unitType
@@ -100,16 +101,17 @@ extension KIRLoweringDriver {
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
                 if index < isVararg.count, isVararg[index] {
-                    // Vararg parameters are passed as lists at the call site.
-                    // Use List<T> type so the lowering pass can correctly
-                    // classify the parameter as a collection expression.
                     let interner = shared.interner
                     let listFQName: [InternedString] = [
                         interner.intern("kotlin"),
                         interner.intern("collections"),
                         interner.intern("List"),
                     ]
-                    if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
+                    if let arrayType = primitiveVarargArrayType(
+                        elementType: paramType, sema: sema, interner: interner
+                    ) {
+                        effectiveType = arrayType
+                    } else if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
                         effectiveType = sema.types.make(.classType(ClassType(
                             classSymbol: listSymbol,
                             args: [.invariant(paramType)],

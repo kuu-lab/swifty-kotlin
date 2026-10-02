@@ -41,6 +41,7 @@ extension CallLowerer {
 
         let conditionLabel = driver.ctx.makeLoopLabel()
         let exitLabel = driver.ctx.makeLoopLabel()
+        let continueLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(conditionLabel))
 
         let conditionExpr = arena.appendTemporary(type: boolType)
@@ -55,7 +56,7 @@ extension CallLowerer {
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: exitLabel))
 
         if let actionExprNode = ast.arena.expr(args[1].expr),
-           case let .lambdaLiteral(_, bodyExpr, _, _) = actionExprNode
+           case let .lambdaLiteral(_, bodyExpr, lambdaLabel, _) = actionExprNode
         {
             // Inline repeat's lambda body so suspend calls inside the loop body
             // stay in the enclosing suspend function and can be coroutine-lowered.
@@ -65,6 +66,13 @@ extension CallLowerer {
             )
             let previousLocalValue = driver.ctx.localValue(for: lambdaParamSymbol)
             driver.ctx.setLocalValue(indexExpr, for: lambdaParamSymbol)
+            // `return@repeat` / `return@lbl` inside the inlined body only leaves the
+            // current iteration; register the iteration end as its jump target.
+            driver.ctx.pushLoopControl(
+                continueLabel: continueLabel,
+                breakLabel: exitLabel,
+                name: lambdaLabel ?? interner.intern("repeat")
+            )
             _ = driver.lowerExpr(
                 bodyExpr,
                 ast: ast,
@@ -74,6 +82,7 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            driver.ctx.popLoopControl()
             if let previousLocalValue {
                 driver.ctx.setLocalValue(previousLocalValue, for: lambdaParamSymbol)
             } else {
@@ -102,6 +111,7 @@ extension CallLowerer {
             }
         }
 
+        instructions.append(.label(continueLabel))
         let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,

@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 // MARK: - File I/O Runtime (STDLIB-320/321/322/323)
 
@@ -21,7 +26,7 @@ private func resourceRootDirectory() -> URL {
     return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
 }
 
-private func existingResourceURL(named name: String) -> URL? {
+private func resourcePath(named name: String) -> (root: URL, candidate: URL, components: [String])? {
     guard !name.isEmpty else { return nil }
     let root = resourceRootDirectory().standardizedFileURL
     let resolved = root.appendingPathComponent(name).standardizedFileURL
@@ -29,7 +34,82 @@ private func existingResourceURL(named name: String) -> URL? {
     guard resolved.path == root.path || resolved.path.hasPrefix(rootPath) else {
         return nil
     }
-    return FileManager.default.fileExists(atPath: resolved.path) ? resolved : nil
+    let relativePath = String(resolved.path.dropFirst(rootPath.count))
+    let components = relativePath.split(separator: "/").map(String.init)
+    return (root, resolved, components)
+}
+
+private func openResourceComponents(rootDescriptor: Int32, components: [String]) -> Int32? {
+    var directoryDescriptor = rootDescriptor
+    for (index, component) in components.enumerated() {
+        let isLast = index == components.count - 1
+        let flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | (isLast ? 0 : O_DIRECTORY)
+        let nextDescriptor = component.withCString {
+            openat(directoryDescriptor, $0, flags)
+        }
+        close(directoryDescriptor)
+        guard nextDescriptor >= 0 else { return nil }
+        directoryDescriptor = nextDescriptor
+    }
+    return directoryDescriptor
+}
+
+private func openResourceFileDescriptor(named name: String) -> (url: URL, descriptor: Int32)? {
+    guard let path = resourcePath(named: name) else { return nil }
+    let rootDescriptor = path.root.path.withCString {
+        open($0, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+    }
+    guard rootDescriptor >= 0 else { return nil }
+
+    guard !path.components.isEmpty else {
+        return (path.candidate, rootDescriptor)
+    }
+
+    #if canImport(Darwin)
+    // Let the kernel enforce both no-symlink traversal and beneath-root resolution.
+    let relativePath = path.components.joined(separator: "/")
+    let descriptor = relativePath.withCString {
+        openat(rootDescriptor, $0, O_RDONLY | O_CLOEXEC | O_NOFOLLOW_ANY | O_RESOLVE_BENEATH)
+    }
+    let openError = errno
+    guard descriptor >= 0 else {
+        if openError == EINVAL {
+            // Older Darwin kernels may not recognize the resolution flags.
+            guard let fallbackDescriptor = openResourceComponents(
+                rootDescriptor: rootDescriptor,
+                components: path.components
+            ) else { return nil }
+            return (path.candidate, fallbackDescriptor)
+        }
+        close(rootDescriptor)
+        return nil
+    }
+    close(rootDescriptor)
+    return (path.candidate, descriptor)
+    #else
+    guard let descriptor = openResourceComponents(
+        rootDescriptor: rootDescriptor,
+        components: path.components
+    ) else { return nil }
+    return (path.candidate, descriptor)
+    #endif
+}
+
+private func readResourceData(from descriptor: Int32) -> Data? {
+    var data = Data()
+    var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+    while true {
+        let count = read(descriptor, &buffer, buffer.count)
+        if count == 0 { return data }
+        guard count > 0 else { return nil }
+        data.append(contentsOf: buffer.prefix(count))
+    }
+}
+
+private func existingResourceURL(named name: String) -> URL? {
+    guard let opened = openResourceFileDescriptor(named: name) else { return nil }
+    close(opened.descriptor)
+    return opened.url
 }
 
 private func fileMakeStringRaw(_ value: String) -> Int {
@@ -275,9 +355,12 @@ public func __kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: In
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
           let name = extractString(from: ptr),
-          let url = existingResourceURL(named: name),
-          let data = try? Data(contentsOf: url)
+          let opened = openResourceFileDescriptor(named: name)
     else {
+        return runtimeNullSentinelInt
+    }
+    defer { close(opened.descriptor) }
+    guard let data = readResourceData(from: opened.descriptor) else {
         return runtimeNullSentinelInt
     }
     return registerRuntimeObject(RuntimeInputStreamBox(data: data))
@@ -301,12 +384,18 @@ public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePo
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
     }
-    guard let url = existingResourceURL(named: name) else {
+    guard let opened = openResourceFileDescriptor(named: name) else {
         outThrown?.pointee = runtimeAllocateIOException(message: "Resource not found: \(name)")
         return fileMakeStringRaw("")
     }
+    defer { close(opened.descriptor) }
     do {
-        return fileMakeStringRaw(try String(contentsOf: url, encoding: .utf8))
+        guard let data = readResourceData(from: opened.descriptor),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+        return fileMakeStringRaw(text)
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
         return fileMakeStringRaw("")
@@ -707,7 +796,7 @@ public func __kk_bytearray_inputStream_range(
     }
     let offset = offsetRaw
     let length = lengthRaw
-    guard offset >= 0, length >= 0, offset + length <= bytes.count else {
+    guard offset >= 0, offset <= bytes.count, length >= 0, length <= bytes.count - offset else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "offset=\(offset) length=\(length) size=\(bytes.count)"
         )
@@ -1011,6 +1100,8 @@ public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ o
     }
     do {
         try stream.writeByte(valueRaw)
+    } catch let kotlinThrown as RuntimeKotlinThrownError {
+        outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -1029,6 +1120,8 @@ public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ 
     }
     do {
         try stream.writeBytes(list.elements)
+    } catch let kotlinThrown as RuntimeKotlinThrownError {
+        outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -1043,6 +1136,8 @@ public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutabl
     }
     do {
         try stream.flush()
+    } catch let kotlinThrown as RuntimeKotlinThrownError {
+        outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -1122,6 +1217,36 @@ public func __kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: In
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_buffered_sized received invalid OutputStream handle")
     }
     return streamRaw
+}
+
+// MARK: - KSP-1553: kotlinx.io Sink.asOutputStream()
+
+/// `kotlinx.io.Sink.asOutputStream()` bridge. Receives the three Kotlin
+/// callbacks declared in `Stdlib/kotlinx/io/SinksJvm.kt` —
+/// `write: (ByteArray) -> Unit`, `flush: () -> Unit`, `close: () -> Unit` —
+/// each expanded by KIRLowering into a (fnPtr, closureRaw) pair, and wraps
+/// them in a `RuntimeKotlinOutputStreamSink` so the returned
+/// `java.io.OutputStream` forwards stream operations to the Kotlin `Sink`.
+/// This is currently the only way to construct an `OutputStream` handle from
+/// Kotlin source; no other producer exists in the runtime.
+@_cdecl("__kk_kotlin_sink_output_stream")
+public func __kk_kotlin_sink_output_stream(
+    _ writeFnPtr: Int,
+    _ writeClosureRaw: Int,
+    _ flushFnPtr: Int,
+    _ flushClosureRaw: Int,
+    _ closeFnPtr: Int,
+    _ closeClosureRaw: Int
+) -> Int {
+    let sink = RuntimeKotlinOutputStreamSink(
+        writeFnPtr: writeFnPtr,
+        writeClosureRaw: writeClosureRaw,
+        flushFnPtr: flushFnPtr,
+        flushClosureRaw: flushClosureRaw,
+        closeFnPtr: closeFnPtr,
+        closeClosureRaw: closeClosureRaw
+    )
+    return registerRuntimeObject(RuntimeOutputStreamBox(sink: sink))
 }
 
 // MARK: - STDLIB-IO-FN-014: Reader.copyTo(out: Writer, bufferSize) -> Long

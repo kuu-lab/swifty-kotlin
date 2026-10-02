@@ -150,10 +150,10 @@ final class ExprTypeChecker {
         case let .localAssign(name, value, range):
             return driver.localDeclChecker.inferLocalAssignExpr(id, name: name, value: value, range: range, ctx: ctx, locals: &locals)
 
-        case let .memberAssign(receiverExpr, calleeName, valueExpr, _):
+        case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
             // Type-check the receiver and value, bind as unit-typed expression.
             let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
-            _ = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+            let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
             // Bind the property symbol so KIR lowering can emit a direct field
             // store (kk_array_set) rather than falling back to a setter call.
             // This is required when the receiver is an explicit `this` reference.
@@ -164,6 +164,19 @@ final class ExprTypeChecker {
                 sema: sema
             ) {
                 sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+            } else {
+                // Extension `var` properties (e.g. the bundled
+                // kotlin.native.concurrent.AtomicInt.value) are not members —
+                // resolve them through the extension-property setter path so
+                // lowering can call the real setter accessor.
+                _ = driver.callChecker.resolveExtensionPropertySetter(
+                    id: id,
+                    calleeName: calleeName,
+                    range: range,
+                    receiverType: nonNullReceiver,
+                    valueType: valueType,
+                    ctx: ctx
+                )
             }
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
@@ -520,6 +533,9 @@ final class ExprTypeChecker {
 
         case let .localFunDecl(name, valueParams, returnTypeRef, body, isSuspend, range):
             return driver.localDeclChecker.inferLocalFunDeclExpr(id, name: name, valueParams: valueParams, returnTypeRef: returnTypeRef, body: body, isSuspend: isSuspend, range: range, ctx: ctx, locals: &locals)
+
+        case let .localNominalDecl(declID, range):
+            return inferLocalNominalDeclExpr(id, declID: declID, range: range, ctx: ctx, locals: &locals)
 
         case let .superRef(interfaceQualifier, range):
             return inferSuperRefExpr(id, interfaceQualifier: interfaceQualifier, range: range, ctx: ctx)

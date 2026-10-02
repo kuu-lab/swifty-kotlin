@@ -179,7 +179,7 @@ public final class CodegenPhase: CompilerPhase {
             "formatVersion": 1,
             "moduleName": ctx.options.moduleName,
             "kotlinLanguageVersion": "2.3.10",
-            "compilerVersion": "0.1.0",
+            "compilerVersion": CompilerBuildInfo.version,
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
@@ -188,6 +188,15 @@ public final class CodegenPhase: CompilerPhase {
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+        }
+        if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
+            guard case let .function(function) = declaration,
+                  ctx.interner.resolve(function.name).hasPrefix("__kk_library_top_level_init_")
+            else { return nil }
+            return function
+        }).first,
+           let linkName = functionLinkInfo.functionLinkNamesBySymbol[topLevelInitializer.symbol] {
+            manifestDict["topLevelInitializerLinkName"] = linkName
         }
         let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
         var manifestString = String(data: manifestData, encoding: .utf8) ?? ""

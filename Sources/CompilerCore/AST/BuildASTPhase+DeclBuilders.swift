@@ -263,13 +263,15 @@ extension BuildASTPhase {
         let functionName = declarationFunctionName(from: nodeID, in: arena, interner: interner)
         let valueParams = declarationValueParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let explicitReceiverType = declarationReceiverType(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let contextReceiverTypes = declarationContextReceiverTypes(
+        let contextReceivers = declarationContextReceivers(
             from: nodeID,
             in: arena,
             interner: interner,
             astArena: astArena
         )
-        let receiverType = explicitReceiverType ?? contextReceiverTypes.first
+        // Do not promote a context receiver to `receiverType`: that would
+        // overwrite a member function's class `this` with the context type.
+        let receiverType = explicitReceiverType
         let returnType = declarationReturnType(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let body = declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -283,6 +285,7 @@ extension BuildASTPhase {
             annotations: annotations,
             typeParams: typeParams,
             receiverType: receiverType,
+            contextReceivers: contextReceivers,
             valueParams: valueParams,
             returnType: returnType,
             body: body,
@@ -773,6 +776,7 @@ extension BuildASTPhase {
             isMutableProperty: isVarProperty,
             isOverrideProperty: isOverrideProperty,
             isOpenProperty: isOpenProperty,
+            propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
             isCrossinline: isCrossinline,
@@ -803,7 +807,7 @@ extension BuildASTPhase {
             } else {
                 param.type
             }
-            var propertyModifiers: Modifiers = []
+            var propertyModifiers: Modifiers = param.propertyVisibilityModifiers ?? []
             if param.isOverrideProperty {
                 propertyModifiers.insert(.override)
             }

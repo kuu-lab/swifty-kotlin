@@ -571,6 +571,24 @@ enum DiagnosticRegistry {
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-CYCLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cyclic supertype reference detected during nominal layout synthesis."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-DEPTH",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Inheritance chain exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-COUNT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Nominal type count exceeds the supported maximum."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0171",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -756,6 +774,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Library discovery: search path warning."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0025",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib container is unreadable."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0026",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib manifest is missing or invalid."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0027",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib version is unsupported."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0028",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib recognized; declaration import pending."
+        ),
     ]
 
     // MARK: - KIR generation pass (KIR)
@@ -801,6 +843,17 @@ enum DiagnosticRegistry {
             pass: "CORO",
             defaultSeverity: .error,
             summary: "Coroutine lowering failure."
+        ),
+    ]
+
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
         ),
     ]
 
@@ -871,6 +924,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Codegen phase failed to emit requested artifacts."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PIPELINE-0005",
+            pass: "PIPELINE",
+            defaultSeverity: .error,
+            summary: "Per-file diagnostic limit reached; further diagnostics were suppressed."
+        ),
     ]
 
     // MARK: - Internal compiler error (ICE)
@@ -922,6 +981,7 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors

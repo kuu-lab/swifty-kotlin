@@ -155,6 +155,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1323: make the source-backed kotlin.reflect nominal types
+        // available before reflection synthetic stubs attach their residual
+        // constructors, members, and marker-interface supertypes.
+        predeclareBundledReflectTopLevelHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1150: make the source-backed CancellationException nominal
         // available before coroutine residual stubs are registered. This lets
         // the residual pass retain its no-stdlib fallback without recreating
@@ -510,7 +518,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
         types: TypeSystem, ctx: CompilationContext
     ) {
-        bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        bindInheritanceEdges(
+            ast: ast, symbols: symbols, bindings: bindings, types: types,
+            diagnostics: ctx.diagnostics, interner: ctx.interner
+        )
         // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
         // kotlin.Annotation source, because its source declaration has no
         // explicit supertype clause and would otherwise erase the synthetic
@@ -537,6 +548,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
+        validateTypeAliasCycles(
+            symbols: symbols, types: types, diagnostics: ctx.diagnostics
         )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
@@ -605,7 +619,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
-        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
+        synthesizeNominalLayouts(
+            symbols: symbols, types: types,
+            interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

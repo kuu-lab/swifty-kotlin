@@ -13,7 +13,7 @@ import Testing
 // resolve through `resolveClassNameMemberValue`.
 //
 // Wider Regex API surface (constructors, members, properties) is covered by
-// `RegexAPISurfaceInventoryTests`. This file focuses purely on the enum
+// diff/golden cases. This file focuses purely on the enum
 // declaration shape and member resolution.
 
 @Suite

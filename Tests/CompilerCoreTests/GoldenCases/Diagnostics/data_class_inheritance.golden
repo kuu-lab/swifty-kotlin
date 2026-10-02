@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "data_class_inheritance.kt",
+      "range": {
+        "start": { "line": 5, "character": 0 },
+        "end": { "line": 5, "character": 78 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DATA-INHERIT",
+      "source": "kswiftk",
+      "message": "Cannot inherit from data class 'Person'. Data classes cannot be inherited from.",
+      "codeActions": [{ "title": "Remove inheritance from data class", "kind": "quickfix" }]
+    },
+    {
+      "file": "data_class_inheritance.kt",
+      "range": {
+        "start": { "line": 11, "character": 4 },
+        "end": { "line": 11, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DATA-INHERIT",
+      "source": "kswiftk",
+      "message": "Cannot inherit from data class 'Container.Inner'. Data classes cannot be inherited from.",
+      "codeActions": [{ "title": "Remove inheritance from data class", "kind": "quickfix" }]
+    },
+    {
+      "file": "data_class_inheritance.kt",
+      "range": {
+        "start": { "line": 20, "character": 0 },
+        "end": { "line": 20, "character": 80 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DATA-INHERIT",
+      "source": "kswiftk",
+      "message": "Cannot inherit from data class 'MultiBase'. Data classes cannot be inherited from.",
+      "codeActions": [{ "title": "Remove inheritance from data class", "kind": "quickfix" }]
+    }
+  ]
+}
