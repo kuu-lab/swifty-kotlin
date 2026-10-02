@@ -37,6 +37,32 @@ struct GenericSupertypeSmartCastNarrowingTests {
         #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
     }
 
+    /// Same gap, surfacing through a `when`-subject `is` check instead of a
+    /// plain `if`: `fun <T> Iterable<T>.single(): T { when (this) { is List
+    /// -> return this.single() ... } }` is the exact shape the bundled
+    /// stdlib uses, and it is handled by a separate code path
+    /// (narrowedStateForIsCheck/narrowedStateForConditionSymbol in
+    /// Analysis.swift) from the plain `if (x is List)` case above.
+    @Test func testWhenSubjectIsCheckPreservesSharedTypeParameter() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample2
+            fun <T> myFirst(iterable: Iterable<T>): T {
+                when (iterable) {
+                    is List -> return iterable[0]
+                    else -> throw NoSuchElementException()
+                }
+            }
+            fun main() {
+                println(myFirst(listOf(1, 2, 3)))
+            }
+            """
+        ])
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testOrdinaryUnrelatedIsCheckStillNarrowsWithoutTypeArgs() throws {
         // A non-generic `is` check (no shared type parameter to recover)
         // must keep behaving exactly as before: narrow to the plain target
