@@ -69,6 +69,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_object_register_hashcode_override",
+            parameters: [
+                RuntimeABIParameter(name: "objectRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_object_register_any_to_string",
             parameters: [
                 RuntimeABIParameter(name: "objectRaw", type: .intptr),
@@ -445,6 +455,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck",
             isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeprojection_star",
+            parameters: [],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_ktypeprojection_get_variance",

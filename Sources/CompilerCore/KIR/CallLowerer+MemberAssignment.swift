@@ -130,11 +130,12 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        // Extension `var` properties (`var Foo.tag: String { get() ... set(v) ... }`)
-        // have no owner class/interface and no backing storage: assignment is
-        // purely a call to the extension's setter accessor with the receiver as
-        // the first argument.
-        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+        // Extension `var` properties have no backing storage; assignment
+        // routes to the registered setter accessor with the receiver as its
+        // first argument. Prefer the identifier binding, with the selected
+        // callee as a fallback for call-bound property l-values.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
         {
             let result = arena.appendTemporary(type: sema.types.unitType)
@@ -597,7 +598,10 @@ extension CallLowerer {
             if !isStringCompound {
                 let result = arena.appendTemporary(type: propType)
                 instructions.append(.binary(op: kirOp, lhs: currentValue, rhs: valueID, result: result))
-                return result
+                return SmallIntegerWrap.append(
+                    result, type: propType, sema: sema, arena: arena, interner: interner,
+                    instructions: &instructions
+                ) ?? result
             }
             // Kotlin's `String += Any?` calls toString() on a non-String operand
             // (Kotlin's String.plus(other: Any?)); a non-String currentValue/valueID

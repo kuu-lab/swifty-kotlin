@@ -185,6 +185,13 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
+    private func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case let .primitive(primitive, .nonNull) = sema.types.kind(of: type) {
+            return primitive != .char && primitive != .boolean
+        }
+        return false
+    }
+
     private func isPrimitiveIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .primitive = sema.types.kind(of: type) {
             return true
@@ -219,7 +226,11 @@ extension ExprTypeChecker {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
             return nil
         }
-        if let resolvedType = bindIncrementDecrementOperatorCall(
+        // Numeric primitives (everything but Char) keep `++` / `--` on the builtin path even
+        // though explicit `x.inc()` calls now resolve to the bundled extensions.
+        let usesBuiltinIncrement = isBuiltinNumericIncrementDecrementTarget(receiverType, sema: ctx.sema)
+        if !usesBuiltinIncrement,
+           let resolvedType = bindIncrementDecrementOperatorCall(
             exprID: exprID,
             op: op,
             receiverType: receiverType,
@@ -1281,6 +1292,20 @@ extension ExprTypeChecker {
         // set the implicit receiver so that unqualified member calls resolve correctly.
         if let receiverType = expectedFunctionType?.receiver {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
+            // The lambda's own receiver is its `this`: shadow the enclosing
+            // function's receiver in `locals` (which `inferThisRefExpr` reads
+            // first) and address it through a per-lambda symbol so that
+            // `this@callee` from a nested lambda can capture it.
+            let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)
+            lambdaLocals[ctx.interner.intern("this")] = (
+                type: receiverType,
+                symbol: receiverSymbol,
+                isMutable: false,
+                isInitialized: true
+            )
+            if let label {
+                bodyCtx = bodyCtx.withOuterReceiver(label: label, type: receiverType, symbol: receiverSymbol)
+            }
         }
         if let expectedFunctionType, !expectedFunctionType.contextReceivers.isEmpty {
             bodyCtx = bodyCtx.with(
@@ -1814,10 +1839,59 @@ extension ExprTypeChecker {
             expectedSamInterfaceType = nil
         }
 
+        // `Type::toString` as a `(Type) -> String` value: the zero-argument
+        // `toString()` has no member symbol (only the `toString(radix)`
+        // overload is declared), so every candidate is an arity mismatch.
+        // kotlinc picks the overload matching the expected function type;
+        // synthesize the missing one.
+        if let unboundClassType,
+           interner.resolve(member) == "toString",
+           let expectedFunctionType,
+           case let .functionType(expectedFT) = sema.types.kind(of: expectedFunctionType),
+           expectedFT.params.count == 1,
+           !candidates.contains(where: { candidate in
+               guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+               return signature.parameterTypes.count == 0 && signature.receiverType != nil
+           })
+        {
+            let receiverParam = sema.types.makeNonNullable(unboundClassType)
+            let inferredType = sema.types.make(.functionType(FunctionType(
+                params: [receiverParam],
+                returnType: sema.types.stringType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let resultType: TypeID
+            if sema.types.typeContainsAnyTypeParam(expectedType ?? expectedFunctionType) {
+                resultType = inferredType
+            } else {
+                driver.emitSubtypeConstraint(
+                    left: inferredType,
+                    right: expectedFunctionType,
+                    range: range,
+                    solver: ConstraintSolver(),
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                resultType = expectedType ?? expectedFunctionType
+            }
+            sema.bindings.bindAnyToStringCallableRef(id)
+            sema.bindings.bindCallableRefKind(id, kind: .functionRef)
+            sema.bindings.markUnboundCallableRef(id)
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
+
+        // Only a bound `value::member` reference has a concrete receiver
+        // instantiation to substitute into the member's signature.
+        let boundReceiverType: TypeID? = (receiver != nil && unboundClassType == nil && !isConstructorReference)
+            ? effectiveReceiverType.map { sema.types.makeNonNullable($0) }
+            : nil
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
+            boundReceiverType: boundReceiverType,
             sema: sema
         )
 
@@ -1827,6 +1901,7 @@ extension ExprTypeChecker {
             let inferredType = driver.helpers.callableFunctionType(
                 for: signature,
                 bindReceiver: isBoundReceiver,
+                boundReceiver: boundReceiverType.map { (chosen, $0) },
                 sema: sema
             )
             let resultType: TypeID

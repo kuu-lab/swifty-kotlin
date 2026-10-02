@@ -511,6 +511,7 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     @Test
     func testUShortArrayConstructorsPreserveZeroAndSignedStorageSemantics() throws {
         let source = """
+        @file:Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
         fun main() {
             try {
                 UShortArray(-1)
