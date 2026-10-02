@@ -357,7 +357,7 @@ extension KotlinParser {
     /// operator exactly when the trailing run of operand / identifier tokens
     /// has even length and ends in an identifier: `x = a or` (2) is pending,
     /// `x = a or b` (3) is complete. Parenthesized / indexed groups count as
-    /// one operand together with a directly preceding call name; a group that
+    /// one operand together with their call target and qualified receiver; a group that
     /// is an `if (...)` / `when (...)` condition ends the run, so
     /// `if (c) foo` is a branch body rather than a pending `foo` operator.
     static func endsWithPendingInfixOperator<C: BidirectionalCollection>(_ tokens: C) -> Bool
@@ -377,29 +377,59 @@ extension KotlinParser {
                  .floatLiteral, .doubleLiteral, .charLiteral,
                  .keyword(.this), .keyword(.true), .keyword(.false), .keyword(.null):
                 runLength += 1
-                index = current
+                index = postfixOperandStart(in: tokens, endingAt: current)
             case .symbol(.rParen), .symbol(.rBracket):
                 let open: TokenKind = token.kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
-                guard let openIndex = matchingOpenIndex(in: tokens, closingAt: current, open: open, close: token.kind) else {
+                guard matchingOpenIndex(in: tokens, closingAt: current, open: open, close: token.kind) != nil else {
                     return false
                 }
                 if token.kind == .symbol(.rParen), endsWithControlFlowCondition(tokens[tokens.startIndex ... current]) {
                     return runLength >= 2 && runLength.isMultiple(of: 2)
                 }
                 runLength += 1
-                index = openIndex
-                // Deliberately does not also fold a directly preceding identifier
-                // into this run (as it would for a call target in `f(x)`): the
-                // token immediately before a parenthesized operand here is at
-                // least as likely to be a preceding infix name (`a or (b)`) as a
-                // call target, and those are indistinguishable by shape alone.
-                // Counting the group as its own run element keeps the
-                // alternating operand/operator parity correct either way.
+                index = postfixOperandStart(in: tokens, endingAt: current)
             default:
                 return runLength >= 2 && runLength.isMultiple(of: 2)
             }
         }
         return runLength >= 2 && runLength.isMultiple(of: 2)
+    }
+
+    private static func postfixOperandStart<C: BidirectionalCollection>(
+        in tokens: C, endingAt end: C.Index
+    ) -> C.Index where C.Element == Token {
+        var start = end
+        let kind = tokens[end].kind
+        if kind == .symbol(.rParen) || kind == .symbol(.rBracket) {
+            let open: TokenKind = kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
+            guard let openIndex = matchingOpenIndex(in: tokens, closingAt: end, open: open, close: kind) else {
+                return end
+            }
+            start = openIndex
+            if openIndex > tokens.startIndex {
+                let target = tokens.index(before: openIndex)
+                if kind == .symbol(.rBracket) {
+                    return postfixOperandStart(in: tokens, endingAt: target)
+                }
+                switch tokens[target].kind {
+                case .identifier, .backtickedIdentifier:
+                    if !endsWithPendingInfixOperator(tokens[tokens.startIndex ... target]) {
+                        return postfixOperandStart(in: tokens, endingAt: target)
+                    }
+                default:
+                    break
+                }
+            }
+        }
+        if start > tokens.startIndex {
+            let separator = tokens.index(before: start)
+            if (tokens[separator].kind == .symbol(.dot) || tokens[separator].kind == .symbol(.questionDot)),
+               separator > tokens.startIndex
+            {
+                return postfixOperandStart(in: tokens, endingAt: tokens.index(before: separator))
+            }
+        }
+        return start
     }
 
     private static func matchingOpenIndex<C: BidirectionalCollection>(

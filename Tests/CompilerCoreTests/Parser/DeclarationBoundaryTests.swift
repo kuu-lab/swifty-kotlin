@@ -38,6 +38,35 @@ struct DeclarationBoundaryTests {
         }
     }
 
+    @Test(arguments: [
+        "bytes[2].toInt()",
+        "bytes[0]",
+        "bytes.size",
+        "bytes.copy().size",
+        "copy(bytes).size",
+    ])
+    func pendingInfixAfterPostfixOperandContinuesDeclaration(operand: String) {
+        let source = """
+        fun main() {
+            val result = 1 or \(operand) or
+                4
+            println(result)
+        }
+        """
+        #expect(blockChildCount(source, blockChildKind: .statement) == 1)
+    }
+
+    @Test
+    func completeInfixWithCallOperandDoesNotAbsorbReturn() {
+        let source = """
+        fun code(): Int {
+            val result = read() xor Int.MIN_VALUE
+            return result
+        }
+        """
+        #expect(blockChildCount(source, blockChildKind: .statement) == 1)
+    }
+
     // BUG-208 (found while implementing KSP-614): a body-less top-level
     // declaration — such as the `external fun` bridges used by the bundled
     // Kotlin stdlib — used to absorb the following declaration when that
