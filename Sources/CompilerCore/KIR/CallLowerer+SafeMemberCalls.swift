@@ -955,6 +955,15 @@ extension CallLowerer {
                 instructions: &instructions.instructions
             )
             finalArguments.insert(allocatedObj, at: 0)
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions,
+                arguments: &finalArguments
+            )
         } else if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen),
            let declaredReceiverType = signature.receiverType

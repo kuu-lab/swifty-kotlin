@@ -400,10 +400,53 @@ extension CallLowerer {
         )
         var finalArguments = normalized.arguments
         finalArguments.insert(allocatedObj, at: 0)
+        // Constructors store function arguments just like ordinary source-backed
+        // calls. Preserve receiver-lambda captures before default-stub dispatch.
+        materializeSourceBackedFunctionValueArguments(
+            chosenCallee: chosenCtor,
+            sourceArgExprs: args.map(\.expr),
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: &finalArguments
+        )
+        appendReifiedTypeTokens(
+            chosenCallee: chosenCtor,
+            callBinding: sema.bindings.callBindings[exprID],
+            sema: sema,
+            interner: interner,
+            arena: arena,
+            instructions: &instructions,
+            arguments: &finalArguments
+        )
         let result = arena.appendTemporary(type: boundType)
+        let calleeName = sema.symbols.symbol(chosenCtor)?.name ?? interner.intern("<init>")
+        let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCtor, sema: sema)
+        if normalized.defaultMask != 0,
+           sema.symbols.externalLinkName(for: chosenCtor)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
+        {
+            appendDefaultMaskArgument(
+                normalized.defaultMask,
+                sema: sema,
+                arena: arena,
+                instructions: &instructions,
+                arguments: &finalArguments
+            )
+            instructions.append(.call(
+                symbol: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner),
+                callee: interner.intern(interner.resolve(calleeName) + "$default"),
+                arguments: finalArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         instructions.append(.call(
             symbol: chosenCtor,
-            callee: sema.symbols.symbol(chosenCtor)?.name ?? interner.intern("<init>"),
+            callee: calleeName,
             arguments: finalArguments,
             result: result,
             canThrow: true,

@@ -93,5 +93,55 @@ struct InnerClassOuterInstanceTests {
         let readCount = callees.filter { $0 == "kk_array_get_inbounds" }.count
         #expect(readCount == 3, "expected 3 kk_array_get_inbounds calls ($outer hop + x + y), got \(readCount): \(callees)")
     }
+
+    @Test(arguments: [false, true])
+    func testExplicitConstructorDispatchesDefaultArguments(safe: Bool) throws {
+        let receiver = safe ? "outer?.Inner()" : "outer.Inner()"
+        let ctx = makeContextFromSource("""
+        class Outer(val seed: Int) {
+            inner class Inner(val n: Int = seed + 7)
+        }
+        fun make(outer: Outer\(safe ? "?" : "")) {
+            val inner = \(receiver)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("Inner$default"), "Expected default stub dispatch, got: \(callees)")
+        #expect(!callees.contains("Inner"), "Defaulted construction must not call the real constructor directly")
+    }
+
+    @Test(arguments: [false, true])
+    func testExplicitConstructorMaterializesCapturedReceiverLambda(safe: Bool) throws {
+        let receiver = safe ? "outer?.Inner" : "outer.Inner"
+        let ctx = makeContextFromSource("""
+        class Outer {
+            inner class Inner(val block: String.() -> String)
+        }
+        fun make(outer: Outer\(safe ? "?" : ""), suffix: String) {
+            val inner = \(receiver) { this + suffix }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
+        let wrappedValues = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_function_create_1"
+            else { return nil }
+            return result
+        }
+        let wrappedValue = try #require(wrappedValues.first, "Expected a function value retaining the captured suffix")
+        #expect(body.contains { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "Inner"
+            else { return false }
+            return arguments.dropFirst().contains(wrappedValue)
+        }, "The constructor must receive the wrapped function value")
+    }
 }
 #endif
