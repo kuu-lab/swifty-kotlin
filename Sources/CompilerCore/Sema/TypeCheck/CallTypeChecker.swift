@@ -403,7 +403,7 @@ final class CallTypeChecker {
            args.count <= 2,
            locals[calleeName] == nil,
            let lastArgumentExprID = args.last?.expr,
-           isLambdaOrCallableRefArg(lastArgumentExprID, ast: ast)
+           isLambdaLiteralArg(lastArgumentExprID, ast: ast)
         {
             // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
             // when it is visible; it composes channel + kk_coroutine_scope_launch
@@ -420,26 +420,23 @@ final class CallTypeChecker {
                 return boundProduceResult
             }
         }
+        // Function *values* (named `suspend ProducerScope<E>.() -> Unit`
+        // bindings, callable references, members) fall through to generic
+        // overload resolution: the send-scan element inference is only needed
+        // for literals, and a declared value already pins E for the solver.
+        // The same holds for `actor`, which is generic-only here.
         if let calleeName,
            calleeName == knownNames.produce,
            args.count == 1,
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           let argumentExprID = args.first?.expr,
+           isValidBuilderLambdaArgument(argumentExprID, ast: ast)
         {
-            let argumentExprID = args[0].expr
             // See the coroutineLauncherLambdaExprIDs doc comment: produce{}'s
             // captures are forwarded via CoroutineLoweringPass+LauncherSupport's
             // launcher-continuation rewrite (BUG-049), not the generic
             // escaping-callable-value (kk_function_create_N) ABI.
             sema.bindings.markCoroutineLauncherLambdaExpr(argumentExprID)
-            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
-                ctx.semaCtx.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
-                    "No viable overload found for call.",
-                    range: range
-                )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
-            }
 
             let channelType = produceBuilderChannelType(
                 lambdaExprID: argumentExprID,
