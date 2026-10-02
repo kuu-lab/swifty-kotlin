@@ -133,6 +133,90 @@ struct DeclarationBoundaryTests {
         #expect(blockChildCount(source, blockChildKind: .statement) == 2)
     }
 
+    @Test
+    func valueKeywordExpressionBodyDoesNotConsumeFollowingDeclaration() throws {
+        let source = """
+        class Holder(var value: Int)
+
+        fun Holder.read(): Int = value
+
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 2)
+        let read = try #require(functions.first)
+        let other = try #require(functions.last)
+        let readTokens = parsed.arena.children(of: NodeID(rawValue: Int32(read.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(readTokens.contains(.keyword(.value)))
+        #expect(otherTokens.contains(.symbol(.assign)))
+        #expect(!otherTokens.contains(.keyword(.value)))
+    }
+
+    @Test
+    func valueKeywordAfterAssignmentNewlineStaysInExpressionBody() throws {
+        let source = """
+        class Holder(var value: Int)
+        fun Holder.read(): Int =
+            value
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 2)
+        let read = try #require(functions.first)
+        let other = try #require(functions.last)
+        let readTokens = parsed.arena.children(of: NodeID(rawValue: Int32(read.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(readTokens.contains(.keyword(.value)))
+        #expect(otherTokens.contains(.symbol(.assign)))
+        #expect(!otherTokens.contains(.keyword(.value)))
+    }
+
+    @Test
+    func valueKeywordExtensionPropertyDoesNotConsumeFollowingDeclaration() throws {
+        let source = """
+        class Holder(val base: Int)
+        val Holder.value: Int get() = base
+
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let properties = parsed.arena.nodes.enumerated().filter { $0.element.kind == .propertyDecl }
+        #expect(properties.count == 1)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 1)
+        let other = try #require(functions.first)
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(otherTokens.contains(.symbol(.assign)))
+    }
+
+    @Test
+    func valueClassModifierStillIntroducesClassDeclaration() {
+        let source = """
+        @JvmInline value class Wrapped(val value: Int)
+        fun Wrapped.read(): Int = value
+        """
+        #expect(nodeCount(source, kind: .classDecl) == 1)
+        #expect(nodeCount(source, kind: .funDecl) == 1)
+    }
+
     // Found while investigating a `@file:Suppress` annotation that failed to
     // suppress a diagnostic raised deep inside a trailing function's block
     // body (PR #6562's KSP-1216 native concurrent top-level tests). The root

@@ -186,7 +186,19 @@ extension KIRLoweringDriver {
             let fallbackMethodSymbol = classDelegationDefaultMethodSymbol(
                 interfaceMethodSymbol: info.interfaceMethodSymbol,
                 sema: sema
-            )
+            ) ?? {
+                // Runtime collection boxes such as `listOf(...)` carry the
+                // interface type ID but are not concrete Kotlin classes in
+                // `dispatchTargets`. Abstract collection members that have a
+                // runtime ABI link must use that bridge as the delegation
+                // fallback instead of reaching `kk_abort_unreachable`.
+                guard let linkName = sema.symbols.externalLinkName(for: info.interfaceMethodSymbol),
+                      !linkName.isEmpty
+                else {
+                    return nil
+                }
+                return info.interfaceMethodSymbol
+            }()
             ctx.resetScopeForFunction()
             ctx.beginCallableLoweringScope()
             ctx.setCurrentFunctionSymbol(forwardingSymbol)
@@ -726,7 +738,10 @@ extension KIRLoweringDriver {
         sema: SemaModule
     ) -> SymbolID? {
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
-              !interfaceProperty.flags.contains(.abstractType)
+              !interfaceProperty.flags.contains(.abstractType),
+              // A runtime-bridged property's synthetic accessor has no
+              // emitted body — resolve it through the bridge instead.
+              (sema.symbols.externalLinkName(for: interfacePropertySymbol) ?? "").isEmpty
         else {
             return nil
         }

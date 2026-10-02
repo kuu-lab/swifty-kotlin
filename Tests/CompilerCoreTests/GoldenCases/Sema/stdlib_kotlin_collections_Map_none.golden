@@ -30,11 +30,11 @@ expr e@4:12#1 memberCall recv=e@4:12 callee=none args=[] type=Boolean call=kotli
 expr e@4:5 return value=e@4:12#1 type=Nothing
 expr e@8:12 name(values) type=kotlin.collections.Map<String?, Int?> ref=predicate.$5.values[kind=vparam]
 expr e@8:35 name(entry) type=kotlin.collections.Map.Entry<out String?, out Int?> ref=s-0
-expr e@8:35#1 memberCall recv=e@8:35 callee=key args=[] type=String? call=kotlin.collections.Map.Entry.key[kind=fun;recv=kotlin.collections.Map.Entry<out T0,out T1>;params=;gen=2] targs=[String?,Int?]
+expr e@8:35#1 memberCall recv=e@8:35 callee=key args=[] type=String? ref=kotlin.collections.Map.Entry.key[kind=prop]
 expr e@8:48 name(null) type=Nothing?
 expr e@8:35#2 binary(equal) lhs=e@8:35#1 rhs=e@8:48 type=Boolean
 expr e@8:56 name(entry) type=kotlin.collections.Map.Entry<out String?, out Int?> ref=s-0
-expr e@8:56#1 memberCall recv=e@8:56 callee=value args=[] type=Int? call=kotlin.collections.Map.Entry.value[kind=fun;recv=kotlin.collections.Map.Entry<out T0,out T1>;params=;gen=2] targs=[String?,Int?]
+expr e@8:56#1 memberCall recv=e@8:56 callee=value args=[] type=Int? ref=kotlin.collections.Map.Entry.value[kind=prop]
 expr e@8:71 name(null) type=Nothing?
 expr e@8:56#2 binary(equal) lhs=e@8:56#1 rhs=e@8:71 type=Boolean
 expr e@8:35#3 binary(logicalAnd) lhs=e@8:35#2 rhs=e@8:56#2 type=Boolean

@@ -126,6 +126,69 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains("kk_array_set"), "Built-in IntArray compound assign should still use the raw array write, got: \(callees)")
     }
 
+    // KSWIFTK-BUG: the same dispatch-through-get()/set() fix above must also
+    // hold for a multi-argument indexed operator (`grid[i, j]`), not just the
+    // single-index case: both index expressions have to reach both the get()
+    // read and the set() write-back, for `+=`, postfix `++`, and statement-
+    // level prefix `++`/`--` alike.
+    @Test func testBuildKIRUsesCustomOperatorsForMultiIndexCompoundAssignAndIncrement() throws {
+        let source = """
+        class Grid(val w: Int, val h: Int) {
+            private val cells = IntArray(w * h)
+            operator fun get(i: Int, j: Int): Int = cells[j * w + i]
+            operator fun set(i: Int, j: Int, v: Int) { cells[j * w + i] = v }
+        }
+
+        fun use(grid: Grid): Int {
+            grid[0, 0] += 5
+            grid[1, 1]++
+            ++grid[0, 1]
+            return grid[0, 0] + grid[1, 1] + grid[0, 1]
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(!callees.contains("kk_array_get"), "Multi-index compound assign must not read via raw array access, got: \(callees)")
+        #expect(!callees.contains("kk_array_set"), "Multi-index compound assign must not write via raw array access, got: \(callees)")
+
+        let getArgCounts: [Int] = body.compactMap { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "get"
+            else { return nil }
+            return arguments.count
+        }
+        let setArgCounts: [Int] = body.compactMap { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "set"
+            else { return nil }
+            return arguments.count
+        }
+
+        // += , postfix ++, and prefix ++ each read once and write once (3
+        // get() calls), plus 3 more get() calls from the plain reads in the
+        // final `return` expression = 6 total; only the compound-assign
+        // statements write, so 3 set() calls.
+        #expect(getArgCounts.count == 6, "Expected 6 custom get() calls (3 compound-assign reads + 3 return-expression reads), got: \(getArgCounts.count)")
+        #expect(setArgCounts.count == 3, "Expected 3 custom set() calls (+=, postfix ++, prefix ++), got: \(setArgCounts.count)")
+        // set() must carry one more argument than its compound assign's own
+        // get() (the extra value parameter): if a fix regresses to only
+        // threading the first index through, both counts collapse by the
+        // same amount and this delta check still catches it without hard-
+        // coding the receiver-inclusion convention of the surrounding call
+        // ABI. The first 3 get() calls are the compound-assign reads, in
+        // program order, matching the 3 set() calls one-for-one.
+        for (getCount, setCount) in zip(getArgCounts.prefix(3), setArgCounts) {
+            #expect(setCount == getCount + 1, "set() should carry exactly one more argument than get() (the value), got get=\(getCount) set=\(setCount)")
+        }
+        #expect(getArgCounts.allSatisfy { $0 >= 2 }, "Expected both indices to reach get(), got argument counts: \(getArgCounts)")
+    }
+
     @Test func testBuildKIRUsesCustomIteratorOperatorsInForLoops() throws {
         let source = """
         class Entry(val first: Int, val second: Int) {
@@ -364,6 +427,22 @@ extension BuildKIRRegressionTests {
             #expect(hasSourceBackedRangeContains, "Expected source-backed range contains call, got: \(callees)")
             #expect(callees.contains("__kk_range_contains"), "Expected __kk_range_contains callee, got: \(callees)")
             #expect(!callees.contains("kk_op_contains"), "Range membership must not fall back to runtime kk_op_contains, got: \(callees)")
+        }
+    }
+
+    @Test func testClosedRangeInterfaceMembershipUsesRangeBridge() throws {
+        let source = """
+        fun check(range: ClosedRange<Int>): Boolean = 3 in range && range.contains(3)
+        fun checkNotIn(range: ClosedRange<Int>): Boolean = 7 !in range
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        for functionName in ["check", "checkNotIn"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains("__kk_range_contains"), "ClosedRange membership must link to the range bridge: \(callees)")
+            #expect(!callees.contains("contains"), "A bare contains symbol cannot link: \(callees)")
         }
     }
 

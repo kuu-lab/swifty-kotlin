@@ -530,7 +530,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     }
 
     /// Returns the primary-constructor data properties of a data class, sorted by constructor order.
-    private func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
+    func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
         let primaryConstructorParamNames: [InternedString] = primaryConstructorSymbol(owner: owner, symbols: symbols)
             .flatMap { constructor in
                 symbols.functionSignature(for: constructor.id)?.valueParameterSymbols.compactMap { paramSymbol in

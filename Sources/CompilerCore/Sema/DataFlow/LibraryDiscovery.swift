@@ -50,20 +50,39 @@ extension DataFlowSemaPhase {
         for rawPath in searchPaths {
             let path = URL(fileURLWithPath: rawPath).path
             var isDirectory: ObjCBool = false
-            guard fm.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else {
                 continue
             }
+            // `.kklib` is always a directory bundle; a `.klib` search path may
+            // point at a packed archive (file) or an unpacked klib directory.
             if path.hasSuffix(".kklib") {
+                guard isDirectory.boolValue else { continue }
                 if seen.insert(path).inserted {
                     ordered.append(path)
                 }
                 continue
             }
+            if path.hasSuffix(".klib") {
+                if seen.insert(path).inserted {
+                    ordered.append(path)
+                }
+                continue
+            }
+            guard isDirectory.boolValue else {
+                continue
+            }
             guard let entries = try? fm.contentsOfDirectory(atPath: path) else {
                 continue
             }
-            for entry in entries where entry.hasSuffix(".kklib") {
+            for entry in entries where entry.hasSuffix(".kklib") || entry.hasSuffix(".klib") {
                 let fullPath = URL(fileURLWithPath: path).appendingPathComponent(entry).path
+                var entryIsDirectory: ObjCBool = false
+                guard fm.fileExists(atPath: fullPath, isDirectory: &entryIsDirectory) else {
+                    continue
+                }
+                if entry.hasSuffix(".kklib"), !entryIsDirectory.boolValue {
+                    continue
+                }
                 if seen.insert(fullPath).inserted {
                     ordered.append(fullPath)
                 }
