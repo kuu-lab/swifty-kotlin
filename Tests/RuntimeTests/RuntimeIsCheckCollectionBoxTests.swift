@@ -123,6 +123,21 @@ struct RuntimeIsCheckCollectionBoxTests {
     }
 
     @Test
+    func erasedCollectionBoxesKeepCollectionIdentity() {
+        let list = registerRuntimeObject(RuntimeListBox(elements: [1]) as AnyObject)
+        let set = registerRuntimeObject(RuntimeSetBox(elements: [1]) as AnyObject)
+        let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [2]) as AnyObject)
+        #expect(kk_op_is(list, token("kotlin.collections.List")) == 1)
+        #expect(kk_op_is(set, token("kotlin.collections.Set")) == 1)
+        #expect(kk_op_is(map, token("kotlin.collections.Map")) == 1)
+        for raw in [list, set, map] {
+            #expect(kk_op_is(raw, token("kotlin.sequences.Sequence")) == 0)
+            #expect(kk_op_is(raw, token("kotlin.collections.Iterator")) == 0)
+        }
+        #expect(kk_op_is(map, token("kotlin.collections.Iterable")) == 0)
+    }
+
+    @Test
     func iteratorBuilderHasIdentityAndIteratorDispatch() throws {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
             _ = __kk_iterator_builder_yield(builderRaw, 8)

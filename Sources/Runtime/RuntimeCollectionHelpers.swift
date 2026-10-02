@@ -960,10 +960,6 @@ func registerTaggedRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     return handle
 }
 
-func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
-    registerRuntimeObject(box, typeID: mapRuntimeTypeID)
-}
-
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
 private let runtimeListIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.ListIterator")
 private let runtimeMutableIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterator")
@@ -1234,6 +1230,8 @@ private let runtimeGenericIteratorNextThunk: @convention(c) (Int, UnsafeMutableP
 private func registerRuntimeCollectionBoxIdentity(raw: Int, box: AnyObject) {
     let typeID: Int64
     switch box {
+    case is RuntimeMapBox:
+        typeID = mapRuntimeTypeID
     case let iterator as RuntimeListIteratorBox:
         typeID = iterator.removeAction == nil ? runtimeIteratorInterfaceTypeID : runtimeMutableIteratorInterfaceTypeID
         registerRuntimeListIteratorItables(raw: raw, box: iterator)
