@@ -46,14 +46,10 @@ struct DeclarationBoundaryTests {
         "copy(bytes).size",
     ])
     func pendingInfixAfterPostfixOperandContinuesDeclaration(operand: String) {
-        let source = """
-        fun main() {
-            val result = 1 or \(operand) or
-                4
-            println(result)
-        }
-        """
-        #expect(blockChildCount(source, blockChildKind: .statement) == 1)
+        let pending = lex("val result = 1 or \(operand) or").tokens.dropLast()
+        let complete = lex("val result = 1 or \(operand)").tokens.dropLast()
+        #expect(KotlinParser.endsWithPendingInfixOperator(pending))
+        #expect(!KotlinParser.endsWithPendingInfixOperator(complete))
     }
 
     @Test
