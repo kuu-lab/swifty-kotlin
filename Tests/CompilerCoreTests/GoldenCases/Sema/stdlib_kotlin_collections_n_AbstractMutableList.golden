@@ -12,7 +12,7 @@ symbol fq=golden.sema.Probe.storage[kind=prop] kind=property vis=private flags=_
 symbol fq=golden.sema.ProbeIterator.<init>.$4.storage[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.ProbeIterator.<init>[kind=ctor;recv=golden.sema.ProbeIterator;params=kotlin.collections.ArrayList<Int>] kind=constructor vis=public flags=_ sig=recv=golden.sema.ProbeIterator params=[kotlin.collections.ArrayList<Int>] ret=golden.sema.ProbeIterator
 symbol fq=golden.sema.ProbeIterator.index[kind=prop] kind=property vis=private flags=mutable type=Int
-symbol fq=golden.sema.ProbeIterator.storage[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.ArrayList<Int>
+symbol fq=golden.sema.ProbeIterator.storage[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.ArrayList<Int>
 symbol fq=golden.sema.ProbeIterator[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.Probe[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.acceptList.$5.values[kind=vparam] kind=valueParameter vis=private flags=_

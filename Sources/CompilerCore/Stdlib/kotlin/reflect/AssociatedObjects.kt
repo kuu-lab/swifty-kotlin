@@ -42,3 +42,12 @@ public annotation class AssociatedObjectKey
 @ExperimentalAssociatedObjects
 public inline fun <reified T : Annotation> KClass<*>.findAssociatedObject(): Any? =
     throw NotImplementedError()
+
+/**
+ * An annotation that designates a property or a function returning a key for
+ * associated object lookup.
+ */
+@kotlin.reflect.ExperimentalAssociatedObjects
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.Target(AnnotationTarget.ANNOTATION_CLASS)
+public annotation class AssociatedObjectKey

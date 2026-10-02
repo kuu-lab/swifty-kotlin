@@ -1,0 +1,17 @@
+symbol fq=golden.sema.atomicIntArrayUpdateAndFetchAt.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayUpdateAndFetchAt.$0.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,fn{p=Int;ret=Int}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray,(Int) -> Int] ret=Int
+symbol fq=golden.sema.atomicIntArrayUpdateAt.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayUpdateAt.$1.transform[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,fn{p=Int;ret=Int}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray,(Int) -> Int] ret=Unit
+file fstdlib_kotlin_concurrent_atomics_AtomicIntArray_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicIntArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,fn{p=Int;ret=Int}] fun atomicIntArrayUpdateAt sym=golden.sema.atomicIntArrayUpdateAt[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,fn{p=Int;ret=Int}]
+  decl golden.sema.atomicIntArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,fn{p=Int;ret=Int}] fun atomicIntArrayUpdateAndFetchAt sym=golden.sema.atomicIntArrayUpdateAndFetchAt[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,fn{p=Int;ret=Int}]
+expr e@10:11 name(atomic) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayUpdateAt.$1.atomic[kind=vparam]
+expr e@10:27 int(0) type=Int
+expr e@10:30 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntArrayUpdateAt.$1.transform[kind=vparam]
+expr e@10:11#1 memberCall recv=e@10:11 callee=updateAt args=[_:e@10:27,_:e@10:30] type=Unit call=kotlin.concurrent.atomics.updateAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,fn{p=Int;ret=Int}]
+expr e@15:10 name(atomic) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayUpdateAndFetchAt.$0.atomic[kind=vparam]
+expr e@15:34 int(0) type=Int
+expr e@15:37 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntArrayUpdateAndFetchAt.$0.transform[kind=vparam]
+expr e@15:10#1 memberCall recv=e@15:10 callee=updateAndFetchAt args=[_:e@15:34,_:e@15:37] type=Int call=kotlin.concurrent.atomics.updateAndFetchAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,fn{p=Int;ret=Int}]

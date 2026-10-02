@@ -774,6 +774,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Library discovery: search path warning."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0025",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib container is unreadable."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0026",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib manifest is missing or invalid."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0027",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib version is unsupported."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0028",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib recognized; declaration import pending."
+        ),
     ]
 
     // MARK: - KIR generation pass (KIR)
@@ -819,6 +843,17 @@ enum DiagnosticRegistry {
             pass: "CORO",
             defaultSeverity: .error,
             summary: "Coroutine lowering failure."
+        ),
+    ]
+
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
         ),
     ]
 
@@ -946,6 +981,7 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors

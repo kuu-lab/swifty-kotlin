@@ -19,3 +19,8 @@ package kotlin.native.concurrent
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.BINARY)
 public annotation class SharedImmutable
+
+/** Marks a top-level property or object as having thread-local state. */
+@Target(AnnotationTarget.PROPERTY, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.BINARY)
+public annotation class ThreadLocal

@@ -8,7 +8,7 @@ file fstdlib_kotlin_text_MatchResult_Destructured_Destructured_n package=_
 expr e@2:23 string((a)(b)?(c)(d)(e)(f)(g)(h)(i)(j)) type=String
 expr e@2:17 call callee=e@2:17#1 args=[_:e@2:23] type=kotlin.text.Regex call=kotlin.text.Regex.<init>[kind=ctor;recv=kotlin.text.Regex;params=String]
 expr e@2:63 name(input) type=String ref=probe.$0.input[kind=vparam]
-expr e@2:17#2 memberCall recv=e@2:17 callee=find args=[_:e@2:63] type=kotlin.text.MatchResult? call=kotlin.text.Regex.find[kind=fun;recv=kotlin.text.Regex;params=String]
+expr e@2:17#2 memberCall recv=e@2:17 callee=find args=[_:e@2:63] type=kotlin.text.MatchResult? call=kotlin.text.Regex.find[kind=fun;recv=kotlin.text.Regex;params=kotlin.CharSequence]
 expr e@2:80 name(null) type=Nothing?
 expr e@2:73 return value=e@2:80 type=Nothing
 expr e@2:17#3 binary(elvis) lhs=e@2:17#2 rhs=e@2:73 type=kotlin.text.MatchResult

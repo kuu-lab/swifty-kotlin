@@ -130,7 +130,7 @@ fun main() {
     println("to maps: $toMaps")
     
     val toBooleans = numbers.chunked(3) { chunk ->
-        if (chunk.all { it > 5 }) "true" else "false"
+        chunk.all { it > 5 }
     }
     println("to booleans: $toBooleans")
     

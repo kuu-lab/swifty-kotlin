@@ -273,11 +273,10 @@ extension DataFlowSemaPhase {
             overriddenKeys.insert(makeDiamondDispatchKey(for: memberSymbol, symbols: symbols))
         }
 
-        // `ULongRange.isEmpty` is already source-backed as the residual
-        // extension in RangeMembership.kt. The built-in declaration also
-        // implements both ClosedRange and OpenEndRange, so that extension is
-        // the compiler's existing concrete implementation for their shared
-        // member while the nominal owner moves to bundled source.
+        // `ULongRange.isEmpty` is source-backed on the bundled ULongRange
+        // declaration. The built-in declaration also implements both
+        // ClosedRange and OpenEndRange, so this concrete member resolves their
+        // shared interface override while the nominal owner moves to source.
         let ulongRangeFQName = [
             interner.intern("kotlin"),
             interner.intern("ranges"),

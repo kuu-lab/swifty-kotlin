@@ -37,6 +37,29 @@ struct TypeCheckDelegateCoverageTests {
             for: getSymbol
         )
 
+        // A matching set() must also resolve: real Kotlin requires both
+        // halves for `box[i] += v`, and inferIndexedCompoundAssignExpr now
+        // rejects a get()-only receiver (see
+        // testInferIndexedCompoundAssignMissingSetOperatorEmitsDiagnostic)
+        // instead of silently falling back to the raw array runtime.
+        let setSymbol = fixture.symbols.define(
+            kind: .function,
+            name: fixture.interner.intern("set"),
+            fqName: [fixture.interner.intern("Box"), fixture.interner.intern("set")],
+            declSite: nil,
+            visibility: .public
+        )
+        fixture.symbols.setParentSymbol(boxClass, for: setSymbol)
+        fixture.symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: boxType,
+                parameterTypes: [fixture.types.intType, fixture.types.intType],
+                returnType: fixture.types.unitType,
+                valueParameterSymbols: [SymbolID(rawValue: 101), SymbolID(rawValue: 102)]
+            ),
+            for: setSymbol
+        )
+
         let boxLocalSymbol = fixture.symbols.define(
             kind: .local,
             name: fixture.interner.intern("box"),
@@ -73,6 +96,89 @@ struct TypeCheckDelegateCoverageTests {
         #expect(inferred == fixture.types.unitType)
         #expect(fixture.bindings.exprType(for: targetExpr) == fixture.types.unitType)
         #expect(fixture.bindings.callBinding(for: targetExpr)?.chosenCallee == getSymbol)
+        #expect(fixture.bindings.indexedCompoundAssignOperatorBinding(for: targetExpr)?.setCall.chosenCallee == setSymbol)
+    }
+
+    // KSWIFTK-BUG: a receiver whose get() resolves but has no matching set()
+    // overload (missing entirely, wrong arity, mismatched parameter types...)
+    // must be rejected at Sema, matching real Kotlin's "no set method
+    // providing array access" error. Before this diagnostic, Sema silently
+    // left the expr bound to unitType with no IndexedCompoundAssignOperator-
+    // Binding, and KIR lowering then fell through to the built-in-array
+    // fallback path: kk_array_set on a receiver that isn't an array, using
+    // only the first index and silently discarding the rest.
+    @Test
+    func testInferIndexedCompoundAssignMissingSetOperatorEmitsDiagnostic() {
+        let fixture = makeTypeCheckFixture()
+        let ctx = fixture.makeInferenceContext()
+        var locals: LocalBindings = [:]
+        let range = makeRange()
+
+        let boxClass = fixture.symbols.define(
+            kind: .class,
+            name: fixture.interner.intern("GetOnlyBox"),
+            fqName: [fixture.interner.intern("GetOnlyBox")],
+            declSite: nil,
+            visibility: .public
+        )
+        let boxType = fixture.types.make(.classType(ClassType(classSymbol: boxClass, args: [], nullability: .nonNull)))
+
+        let getSymbol = fixture.symbols.define(
+            kind: .function,
+            name: fixture.interner.intern("get"),
+            fqName: [fixture.interner.intern("GetOnlyBox"), fixture.interner.intern("get")],
+            declSite: nil,
+            visibility: .public
+        )
+        fixture.symbols.setParentSymbol(boxClass, for: getSymbol)
+        fixture.symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: boxType,
+                parameterTypes: [fixture.types.intType],
+                returnType: fixture.types.intType,
+                valueParameterSymbols: [SymbolID(rawValue: 200)]
+            ),
+            for: getSymbol
+        )
+        // Deliberately no `set` symbol defined on GetOnlyBox.
+
+        let boxLocalSymbol = fixture.symbols.define(
+            kind: .local,
+            name: fixture.interner.intern("box"),
+            fqName: [fixture.interner.intern("box")],
+            declSite: nil,
+            visibility: .private
+        )
+        locals[fixture.interner.intern("box")] = (boxType, boxLocalSymbol, false, true)
+
+        let receiverExpr = fixture.astArena.appendExpr(.nameRef(fixture.interner.intern("box"), range))
+        let indexExpr = fixture.astArena.appendExpr(.intLiteral(0, range))
+        let valueExpr = fixture.astArena.appendExpr(.intLiteral(1, range))
+        let targetExpr = fixture.astArena.appendExpr(
+            .indexedCompoundAssign(
+                op: .plusAssign,
+                receiver: receiverExpr,
+                indices: [indexExpr],
+                value: valueExpr,
+                range: range
+            )
+        )
+
+        let inferred = fixture.driver.localDeclChecker.inferIndexedCompoundAssignExpr(
+            targetExpr,
+            op: .plusAssign,
+            receiverExpr: receiverExpr,
+            indices: [indexExpr],
+            valueExpr: valueExpr,
+            range: range,
+            ctx: ctx,
+            locals: &locals
+        )
+
+        #expect(inferred == fixture.types.errorType)
+        #expect(fixture.bindings.exprType(for: targetExpr) == fixture.types.errorType)
+        #expect(fixture.bindings.indexedCompoundAssignOperatorBinding(for: targetExpr) == nil)
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
     }
 
     @Test

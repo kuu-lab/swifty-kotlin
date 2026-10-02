@@ -1871,6 +1871,24 @@ final class CallTypeChecker {
                             // filter the duplicate becomes a second,
                             // indistinguishable overload candidate and every
                             // call to that name falsely resolves as ambiguous.
+                            // Hidden compatibility factories are present in
+                            // metadata but must not suppress an identically shaped
+                            // constructor. They are intentionally retained by
+                            // filterByVisibility when no other function overload
+                            // exists so a direct call to a removed function still
+                            // receives the deprecation diagnostic; constructors are
+                            // merged only here, so discard the hidden duplicate now.
+                            let constructorParameterTypes = ctorVis.compactMap {
+                                sema.symbols.functionSignature(for: $0)?.parameterTypes
+                            }
+                            candidates.removeAll { existingID in
+                                guard isHiddenByDeprecatedAnnotation(existingID, symbols: sema.symbols),
+                                      let signature = sema.symbols.functionSignature(for: existingID)
+                                else {
+                                    return false
+                                }
+                                return constructorParameterTypes.contains(signature.parameterTypes)
+                            }
                             let newCtorVis = ctorVis.filter { ctorID in
                                 guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
                                     return true
@@ -2655,6 +2673,23 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
             }
+            // Nested class member scopes are chained lexically, so a bare
+            // member call can arrive here with a candidate owned by an outer
+            // class. Resolve it against that enclosing receiver's type rather
+            // than the inner class's implicit receiver.
+            // Object-literal outer receivers carry a capture symbol; leave
+            // those to the later implicit-receiver tower so KIR can load
+            // `this@Outer` from the captured field (kuu_544).
+            let callImplicitReceiverType = ctx.outerReceiverTypes.reversed().first { outerReceiver in
+                guard outerReceiver.symbol == nil,
+                      let outerClass = resolveClassType(outerReceiver.type, sema: sema)?.classSymbol
+                else {
+                    return false
+                }
+                return candidates.contains { candidate in
+                    sema.symbols.parentSymbol(for: candidate) == outerClass
+                }
+            }?.type ?? ctx.implicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2903,7 +2938,8 @@ final class CallTypeChecker {
         if let callableCalleeType,
            let result = inferCallableValueInvocation(
                id, calleeType: callableCalleeType, callableTarget: callableTarget,
-               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType
+               args: args, argTypes: argTypes, range: range, ctx: ctx, expectedType: expectedType,
+               arityPolicy: .receiverOptionallyExplicit
            )
         {
             return result
