@@ -363,6 +363,8 @@ extension CallLowerer {
             guard let propertySymbol else { return false }
             return memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
                 || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
+                || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+                || sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
         }()
 
         // Direct field-offset storage for ordinary stored properties on

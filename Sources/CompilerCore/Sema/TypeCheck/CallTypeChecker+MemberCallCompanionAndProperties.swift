@@ -51,7 +51,8 @@ extension CallTypeChecker {
         receiverType: TypeID,
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
-        preferredSourcePackage: [InternedString]? = nil
+        preferredSourcePackage: [InternedString]? = nil,
+        bindAccessorCall: Bool = true
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -193,17 +194,19 @@ extension CallTypeChecker {
             return nil
         }
 
-        sema.bindings.bindCall(
-            id,
-            binding: CallBinding(
-                chosenCallee: chosen,
-                substitutedTypeArguments: resolved.substitutedTypeArguments
-                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map(\.value),
-                parameterMapping: resolved.parameterMapping
+        if bindAccessorCall {
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping
+                )
             )
-        )
-        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        }
         let deprecationCheckTarget: SymbolID
         if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen) {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)

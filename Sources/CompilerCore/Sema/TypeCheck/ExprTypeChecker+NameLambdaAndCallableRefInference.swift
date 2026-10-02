@@ -592,11 +592,26 @@ extension ExprTypeChecker {
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        guard let propResult = driver.helpers.lookupMemberProperty(
+        var property = driver.helpers.lookupMemberProperty(
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
-        ) else {
+        )
+        if property == nil,
+           let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
+               id: id,
+               calleeName: calleeName,
+               range: range,
+               receiverType: receiverType,
+               expectedType: nil,
+               ctx: ctx,
+               bindAccessorCall: false
+           ),
+           let propertySymbol = sema.bindings.identifierSymbol(for: id)
+        {
+            property = (symbol: propertySymbol, type: propertyType)
+        }
+        guard let propResult = property else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '\(interner.resolve(calleeName))'.",
