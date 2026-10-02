@@ -105,7 +105,7 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
-    ) -> [(name: InternedString?, ref: TypeRefID)] {
+    ) -> [ContextReceiverDecl] {
         let allTokens = collectTokens(from: nodeID, in: arena)
         // Context receivers are declaration modifiers, so they always precede `fun`.
         // Restricting the scan keeps a `context(...)` function type in the parameter
@@ -125,7 +125,7 @@ extension BuildASTPhase {
         var index = contextIndex + 2
         var depth = 1
         var current: [Token] = []
-        var items: [(name: InternedString?, ref: TypeRefID)] = []
+        var items: [ContextReceiverDecl] = []
         while index < tokens.count, depth > 0 {
             let token = tokens[index]
             if token.kind == .symbol(.lParen) {
@@ -135,14 +135,14 @@ extension BuildASTPhase {
                 depth -= 1
                 if depth == 0 {
                     if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                        items.append(item)
+                        items.append(ContextReceiverDecl(name: item.name, type: item.ref))
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
                 if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                    items.append(item)
+                    items.append(ContextReceiverDecl(name: item.name, type: item.ref))
                 }
                 current.removeAll(keepingCapacity: true)
             } else {
@@ -183,6 +183,29 @@ extension BuildASTPhase {
             return nil
         }
         return (name, ref)
+    }
+
+    private func contextReceiverDecl(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> ContextReceiverDecl? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            if depth.isAtTopLevel, token.kind == .symbol(.colon), index > 0, index + 1 < tokens.count {
+                let name = internedIdentifier(from: tokens[index - 1], interner: interner)
+                let typeTokens = Array(tokens[(index + 1)...])
+                guard let type = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+                    return nil
+                }
+                return ContextReceiverDecl(name: name, type: type)
+            }
+            depth.track(token.kind)
+        }
+        guard let type = parseTypeRef(from: tokens, interner: interner, astArena: astArena) else {
+            return nil
+        }
+        return ContextReceiverDecl(type: type)
     }
 
     func declarationReturnType(

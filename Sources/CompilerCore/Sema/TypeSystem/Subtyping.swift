@@ -741,7 +741,10 @@ extension TypeSystem {
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
-        return nearestCommonNominalSupertype(types)
+        // Prefer the strict result (unique most-specific ancestor with agreeing type
+        // arguments); fall back to the BFS approximation when several incomparable
+        // candidates remain.
+        return commonNominalSupertype(types) ?? nearestCommonNominalSupertype(types)
     }
 
     /// Finds the most specific nominal supertype (other than `Any`) shared by
@@ -811,6 +814,62 @@ extension TypeSystem {
             return symbolTable?.symbol(classType.classSymbol)?.kind == .interface
         }
         return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
+    }
+
+    /// Nominal hierarchy walk for inputs that are all nominal class types
+    /// where no input dominates the rest — e.g.
+    /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
+    /// input is a supertype of the other, but they share
+    /// `CoroutineContext` above them. Collects the ancestor symbols
+    /// reachable from every input, keeps those whose substituted type args
+    /// agree across all inputs, and returns the single most specific
+    /// candidate (a subtype of every other candidate). Returns `nil` for
+    /// non-class inputs, disagreeing args, or ambiguity — the caller then
+    /// falls back to `Any`, so this can only tighten results that would
+    /// otherwise widen to `Any`.
+    private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+        var ancestorSets: [Set<SymbolID>] = []
+        for input in types {
+            guard case let .classType(classType) = kind(of: input) else { return nil }
+            var ancestors: Set<SymbolID> = [classType.classSymbol]
+            var queue = directNominalSupertypes(for: classType.classSymbol)
+            while let symbol = queue.popLast() {
+                if ancestors.insert(symbol).inserted {
+                    queue.append(contentsOf: directNominalSupertypes(for: symbol))
+                }
+            }
+            ancestorSets.append(ancestors)
+        }
+        guard var common = ancestorSets.first else { return nil }
+        for rest in ancestorSets.dropFirst() {
+            common.formIntersection(rest)
+        }
+        var candidates: [TypeID] = []
+        for ancestor in common {
+            var args: [TypeArg]?
+            var agrees = true
+            for input in types {
+                guard case let .classType(classType) = kind(of: input),
+                      let lifted = liftedNominalSupertypeArgs(
+                          from: classType.classSymbol,
+                          childArgs: classType.args,
+                          to: ancestor
+                      )
+                else {
+                    agrees = false
+                    break
+                }
+                if let prev = args, prev != lifted {
+                    agrees = false
+                    break
+                }
+                args = args ?? lifted
+            }
+            guard agrees, let args else { continue }
+            candidates.append(make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull))))
+        }
+        let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
+        return best.count == 1 ? best.first : nil
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {

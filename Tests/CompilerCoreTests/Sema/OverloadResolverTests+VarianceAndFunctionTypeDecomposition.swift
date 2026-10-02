@@ -327,5 +327,43 @@ extension OverloadResolverTests {
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: stringType, ctx: ctx)
         #expect(resolved.chosenCallee == fn)
     }
+
+    @Test func testOverloadResolution_TypeParamReceiverWithMultipleBoundsResolvesExtension() {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+        types.symbolTable = symbols
+        let charSeqSym = defineSymbol(kind: .class, name: "CharSequence", suffix: "cs_mb", symbols: symbols, interner: interner)
+        let charSeqType = types.make(.classType(ClassType(classSymbol: charSeqSym, args: [])))
+        let rSym = defineSymbol(kind: .typeParameter, name: "R", suffix: "R_mb", symbols: symbols, interner: interner)
+        let rType = types.make(.typeParam(TypeParamType(symbol: rSym)))
+        let cSym = defineSymbol(kind: .typeParameter, name: "C", suffix: "C_mb", symbols: symbols, interner: interner)
+        symbols.setTypeParameterUpperBounds([charSeqType, rType], for: cSym)
+        let cType = types.make(.typeParam(TypeParamType(symbol: cSym)))
+
+        let isBlankFn = defineSymbol(kind: .function, name: "isBlank", suffix: "isBlank_mb", symbols: symbols, interner: interner)
+        let boolType = types.make(.primitive(.boolean, .nonNull))
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: charSeqType,
+                parameterTypes: [],
+                returnType: boolType
+            ),
+            for: isBlankFn
+        )
+
+        let call = CallExpr(
+            range: makeRange(start: 7000, end: 7010),
+            calleeName: interner.intern("isBlank"),
+            args: []
+        )
+        let resolved = resolver.resolveCall(
+            candidates: [isBlankFn],
+            call: call,
+            expectedType: nil,
+            implicitReceiverType: cType,
+            ctx: ctx
+        )
+        #expect(resolved.chosenCallee == isBlankFn)
+        #expect(resolved.diagnostic == nil)
+    }
 }
 #endif

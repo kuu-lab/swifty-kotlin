@@ -272,6 +272,26 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     guard isObjectPointer else {
         return runtimeUnboxedAnyHashCode(value, tag)
     }
+    if let kTypeBox = tryCast(pointer, to: RuntimeKTypeBox.self) {
+        var hash = Int32(truncatingIfNeeded: kk_any_hashCode(kTypeBox.classifierRaw, 0))
+        hash = 31 &* hash &+ 1
+        for projectionRaw in kTypeBox.argumentRaws {
+            let projectionHash: Int32
+            if let projection = runtimeReflectionObject(
+                from: projectionRaw, as: RuntimeKTypeProjectionBox.self
+            ) {
+                projectionHash = runtimeKTypeProjectionHashCode(projection)
+            } else {
+                projectionHash = 0
+            }
+            hash = 31 &* hash &+ projectionHash
+        }
+        hash = 31 &* hash &+ (kTypeBox.isMarkedNullable ? 1231 : 1237)
+        return Int(hash)
+    }
+    if let projection = tryCast(pointer, to: RuntimeKTypeProjectionBox.self) {
+        return Int(runtimeKTypeProjectionHashCode(projection))
+    }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         return runtimeRangeHashCode(range)
     }
@@ -403,7 +423,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             // constructor fields are the tagged slots that follow it; plain
             // inherited fields remain untagged and are not part of the
             // compiler-synthesized data-class hash contract.
-            let fields = objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            let fieldMask = runtimeDataClassFieldMask(classID: objBox.classID)
+            let fields: [RuntimeValue] = if let fieldMask {
+                objBox.values.enumerated().filter { index, _ in
+                    index < 63 && fieldMask & (1 << Int64(index)) != 0
+                }.map(\.element)
+            } else {
+                objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            }
             guard let firstField = fields.first else {
                 return 0
             }
@@ -421,6 +448,19 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(hash)
     }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
+}
+
+private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjectionBox) -> Int32 {
+    let varianceHash: Int32 = switch projection.variance {
+    case .in: 1
+    case .out: 2
+    case .invariant: 0
+    case nil: 0
+    }
+    let typeHash = projection.typeRaw == 0 || projection.typeRaw == runtimeNullSentinelInt
+        ? 0
+        : Int32(truncatingIfNeeded: kk_any_hashCode(projection.typeRaw, 0))
+    return 31 &* varianceHash &+ typeHash
 }
 
 private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
@@ -1673,7 +1713,5 @@ public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
 public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    let last = endChar &- 1
-    let step = endChar <= startChar ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: last, step: step, kind: .charRange))
+    return runtimeUntilRange(first: startChar, exclusiveEnd: endChar, kind: .charRange, endAtOrBelowMinimum: endChar <= 0)
 }

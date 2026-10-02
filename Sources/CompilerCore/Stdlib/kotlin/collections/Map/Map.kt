@@ -12,6 +12,11 @@ import kotlin.internal.KsSymbolName
 // runtime-backed property links remain residual symbols because built-in map
 // boxes bypass itable registration; see SyntheticMapRuntimeResiduals.swift.
 public interface Map<K, out V> {
+    public interface Entry<out K, out V> {
+        public val key: K
+        public val value: V
+    }
+
     public val size: Int
     public val keys: Set<K>
     public val values: Collection<V>

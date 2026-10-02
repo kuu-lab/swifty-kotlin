@@ -51,15 +51,15 @@ private external fun <E> __kkMutableSetRetainAll(
  * elements.
  */
 public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E> {
-    public fun add(element: E): Boolean = __kkMutableSetAdd(this, element)
+    public override fun add(element: E): Boolean = __kkMutableSetAdd(this, element)
 
-    public fun remove(element: E): Boolean = __kkMutableSetRemove(this, element)
+    public override fun remove(element: E): Boolean = __kkMutableSetRemove(this, element)
 
-    public fun clear() {
+    public override fun clear() {
         __kkMutableSetClear(this)
     }
 
-    public fun addAll(elements: Collection<out E>): Boolean =
+    public override fun addAll(elements: Collection<out E>): Boolean =
         __kkMutableSetAddAll(this, elements)
 
     public operator fun plusAssign(element: E) {
@@ -70,7 +70,7 @@ public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E
         __kkMutableSetAddAll(this, elements)
     }
 
-    public fun removeAll(elements: Collection<out E>): Boolean =
+    public override fun removeAll(elements: Collection<out E>): Boolean =
         __kkMutableSetRemoveAll(this, elements)
 
     public operator fun minusAssign(element: E) {
@@ -81,6 +81,6 @@ public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E
         __kkMutableSetRemoveAll(this, elements)
     }
 
-    public fun retainAll(elements: Collection<out E>): Boolean =
+    public override fun retainAll(elements: Collection<out E>): Boolean =
         __kkMutableSetRetainAll(this, elements)
 }

@@ -8,6 +8,32 @@ import Testing
 @Suite(.serialized)
 struct PrimitiveArrayConversionSourceMigrationTests {
     @Test
+    func primitiveArraySpreadIntoPrimitiveVarargResolves() throws {
+        let source = """
+        fun takesShorts(vararg s: Short): Int = s.size
+        fun takesBytes(vararg b: Byte): Int = b.size
+        fun takesInts(vararg i: Int): Int = i.size
+
+        fun probe() {
+            takesShorts(*shortArrayOf(1, 2))
+            takesBytes(*byteArrayOf(1, 2))
+            takesInts(*intArrayOf(1, 2))
+            takesShorts(*shortArrayOf())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected primitive-array spreads into primitive varargs to resolve, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
     func signedPrimitiveArraySizeAndToListResolveToBundledSource() throws {
         let source = """
         fun exercise(

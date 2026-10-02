@@ -102,9 +102,15 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
     }
 
     func resumeWith(_ result: UnsafeMutableRawPointer?) {
+        resumeWith(result, outThrown: nil)
+    }
+
+    func resumeWith(_ result: UnsafeMutableRawPointer?, outThrown: UnsafeMutablePointer<Int>?) {
         var thrown = 0
         _ = kk_function_invoke(resumeWithRaw, Int(bitPattern: result), &thrown)
-        if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else if thrown != 0 {
             _ = kk_native_processUnhandledException(thrown, nil)
         }
     }
@@ -1931,7 +1937,8 @@ public func kk_start_coroutine_unintercepted_or_return(
 private func startUninterceptedCoroutineFromResume(
     entryPointRaw: Int,
     continuation: Int,
-    completionContinuation: Int
+    completionContinuation: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
     var thrown = 0
     let result = startCoroutineUninterceptedOrReturn(
@@ -1944,11 +1951,15 @@ private func startUninterceptedCoroutineFromResume(
         return
     }
     if thrown != 0 {
-        kk_coroutine_continuation_resume_with_exception(completionContinuation, thrown)
+        __kk_coroutine_continuation_resume_with(
+            completionContinuation, runtimeResultFailure(thrown), outThrown
+        )
         return
     }
     if result != Int(bitPattern: kk_coroutine_suspended()) {
-        kk_coroutine_continuation_resume(completionContinuation, result)
+        __kk_coroutine_continuation_resume_with(
+            completionContinuation, runtimeResultSuccess(result), outThrown
+        )
     }
 }
 
@@ -2101,6 +2112,30 @@ public func kk_coroutine_state_get_thrown_exception(_ continuation: Int) -> Int 
 
 @_cdecl("kk_coroutine_continuation_context")
 public func kk_coroutine_continuation_context(_ continuation: Int) -> Int {
+    __kk_coroutine_continuation_context(continuation, nil)
+}
+
+@_cdecl("__kk_coroutine_continuation_context")
+public func __kk_coroutine_continuation_context(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    // Continuation has one function slot (resumeWith), followed by context's getter.
+    let sourceGetter = kk_itable_lookup_dynamic(
+        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 1
+    )
+    if sourceGetter != 0 {
+        let getter = unsafeBitCast(sourceGetter, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var thrown = 0
+        let result = getter(continuation, &thrown)
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else if thrown != 0 {
+            _ = kk_native_processUnhandledException(thrown, nil)
+        }
+        return result
+    }
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
     }
@@ -2127,11 +2162,35 @@ public func kk_coroutine_continuation_factory(_ contextRaw: Int, _ resumeWithRaw
 
 @_cdecl("kk_coroutine_continuation_resume_with")
 public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultRaw: Int) {
+    __kk_coroutine_continuation_resume_with(continuation, resultRaw, nil)
+}
+
+@_cdecl("__kk_coroutine_continuation_resume_with")
+public func __kk_coroutine_continuation_resume_with(
+    _ continuation: Int,
+    _ resultRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) {
+    outThrown?.pointee = 0
+    let sourceResume = kk_itable_lookup_dynamic(
+        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
+    )
+    if sourceResume != 0 {
+        let resume = unsafeBitCast(sourceResume, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Void).self)
+        var thrown = 0
+        resume(continuation, resultRaw, &thrown)
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else if thrown != 0 {
+            _ = kk_native_processUnhandledException(thrown, nil)
+        }
+        return
+    }
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with received invalid continuation handle")
     }
     if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
+        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
         return
     }
     guard let state = runtimeContinuationState(from: continuation) else {
@@ -2145,9 +2204,10 @@ public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultR
            !resultBox.isSuccess
         {
             if start.completionContinuation != 0 {
-                kk_coroutine_continuation_resume_with_exception(
+                __kk_coroutine_continuation_resume_with(
                     start.completionContinuation,
-                    resultBox.exception
+                    runtimeResultFailure(resultBox.exception),
+                    outThrown
                 )
             }
             return
@@ -2155,7 +2215,8 @@ public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultR
         startUninterceptedCoroutineFromResume(
             entryPointRaw: start.entryPointRaw,
             continuation: continuation,
-            completionContinuation: start.completionContinuation
+            completionContinuation: start.completionContinuation,
+            outThrown: outThrown
         )
         return
     }
@@ -2182,49 +2243,19 @@ public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultR
 }
 
 @_cdecl("kk_coroutine_continuation_resume")
-public func kk_coroutine_continuation_resume(_ continuation: Int, _ value: Int) {
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        let resultRaw = runtimeRegisterObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0))
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
-        return
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume received invalid continuation handle")
-    }
-    if let start = state.takeUninterceptedCoroutineStart() {
-        startUninterceptedCoroutineFromResume(
-            entryPointRaw: start.entryPointRaw,
-            continuation: continuation,
-            completionContinuation: start.completionContinuation
-        )
-        return
-    }
-    if let ise = state.resume(with: value) {
-        // STDLIB-CORO-BUG-01: double-resume detected — surface the ISE via thrownException.
-        state.deliverDoubleResumeException(ise)
-    }
+public func kk_coroutine_continuation_resume(
+    _ continuation: Int,
+    _ value: Int
+) {
+    __kk_coroutine_continuation_resume_with(continuation, runtimeResultSuccess(value), nil)
 }
 
 @_cdecl("kk_coroutine_continuation_resume_with_exception")
-public func kk_coroutine_continuation_resume_with_exception(_ continuation: Int, _ exception: Int) {
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with_exception received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        let resultRaw = runtimeRegisterObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception))
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
-        return
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with_exception received invalid continuation handle")
-    }
-    if let ise = state.resume(withException: exception) {
-        // STDLIB-CORO-BUG-01: double-resume detected — surface the ISE via thrownException.
-        state.deliverDoubleResumeException(ise)
-    }
+public func kk_coroutine_continuation_resume_with_exception(
+    _ continuation: Int,
+    _ exception: Int
+) {
+    __kk_coroutine_continuation_resume_with(continuation, runtimeResultFailure(exception), nil)
 }
 
 @_cdecl("kk_kxmini_run_blocking")

@@ -100,10 +100,10 @@ private fun containsUInt(value: UInt, first: UInt, last: UInt, step: Int): Boole
     return diff % step.toUInt() == 0u
 }
 
-private fun containsULong(value: ULong, first: ULong, last: ULong, step: Int): Boolean {
-    if (step > 0) {
+private fun containsULong(value: ULong, first: ULong, last: ULong, step: Long): Boolean {
+    if (step > 0L) {
         if (value < first || value > last) return false
-    } else if (step < 0) {
+    } else if (step < 0L) {
         if (value > first || value < last) return false
     } else {
         return false
@@ -111,7 +111,7 @@ private fun containsULong(value: ULong, first: ULong, last: ULong, step: Int): B
     val diff = if (value >= first) value - first else first - value
     // Negative steps sign-extend when widened to ULong, so take the
     // magnitude before the modulo or descending members never match.
-    val magnitude = if (step < 0) (-step).toULong() else step.toULong()
+    val magnitude = if (step < 0L) (-step).toULong() else step.toULong()
     return diff % magnitude == 0uL
 }
 
@@ -136,7 +136,6 @@ public operator fun CharProgression.contains(value: Char): Boolean = containsCha
 
 public fun UIntRange.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
 public fun UIntProgression.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
-public fun ULongRange.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 public fun ULongProgression.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
 
 @KsSymbolName("__kk_range_contains")
@@ -147,6 +146,6 @@ public operator fun UIntProgression.contains(value: UInt): Boolean = containsUIn
 
 // Keep ULong membership on the Kotlin body: the signed runtime bridge cannot
 // compare values whose high bit is set.
-public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step)
+public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step.toLong())
 
 public operator fun ULongProgression.contains(value: ULong): Boolean = containsULong(value, first, last, step)
