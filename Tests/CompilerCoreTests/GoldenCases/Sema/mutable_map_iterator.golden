@@ -18,7 +18,7 @@ expr e@7:21 name(iterator) type=kotlin.collections.MutableIterator<kotlin.collec
 expr e@7:21#1 memberCall recv=e@7:21 callee=next args=[] type=kotlin.collections.MutableMap.MutableEntry<String, Int?> call=kotlin.collections.Iterator.next[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[kotlin.collections.MutableMap.MutableEntry<String, Int?>]
 expr e@7:9 localDecl entry mutable=0 type=_ init=e@7:21#1 type=Unit ref=__local_2.entry[kind=local]
 expr e@8:19 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int?> ref=__local_2.entry[kind=local]
-expr e@8:19#1 memberCall recv=e@8:19 callee=key args=[] type=String call=kotlin.collections.Map.Entry.key[kind=fun;recv=kotlin.collections.Map.Entry<out T0,out T1>;params=;gen=2] targs=[String,Int?]
+expr e@8:19#1 memberCall recv=e@8:19 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop]
 expr e@8:9 localDecl key mutable=0 type=_ init=e@8:19#1 type=Unit ref=__local_3.key[kind=local]
 expr e@9:34 name(key) type=String ref=__local_3.key[kind=local]
 expr e@9:9 localDecl checkedKey mutable=0 type=String init=e@9:34 type=Unit ref=__local_4.checkedKey[kind=local]

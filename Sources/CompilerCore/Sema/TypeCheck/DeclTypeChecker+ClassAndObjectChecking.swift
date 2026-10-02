@@ -521,6 +521,14 @@ extension DeclTypeChecker {
             thisType: ownerType
         )
 
+        // Property initializers (and accessors) are checked directly in this
+        // scope rather than a function scope, so the class's own type
+        // parameters must be visible for explicit type arguments such as
+        // `val items = mutableListOf<T>()` to resolve.
+        for typeParameterSymbol in sema.types.nominalTypeParameterSymbols(for: ownerSymbol) {
+            classScope.insert(typeParameterSymbol)
+        }
+
         for declID in memberFunctions + memberProperties + nestedClasses + nestedObjects {
             if let symbol = sema.bindings.declSymbols[declID] {
                 classScope.insert(symbol)

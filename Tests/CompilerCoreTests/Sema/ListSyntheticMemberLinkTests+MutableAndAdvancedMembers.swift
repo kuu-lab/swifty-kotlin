@@ -760,13 +760,19 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableListSortMembersUseRuntimeExternalLinks() throws {
+    func testMutableListInPlaceSortingAndShuffleResolveToBundledSource() throws {
         let source = """
-        fun mutate(values: MutableList<Int>) {
+        import kotlin.random.Random
+
+        fun mutate(values: MutableList<Int>, random: Random) {
             values.sort()
             values.sortWith { a, b -> b - a }
             values.sortBy { it }
             values.sortByDescending { it }
+            values.sortDescending()
+            values.shuffle()
+            values.shuffle(random)
+            values.reverse()
         }
         """
 
@@ -776,24 +782,29 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
-            let expectedExternalLinks: [String: String?] = [
-                // KSP-426: MutableList sort methods are source-backed.
-                "sort": nil,
-                "sortWith": nil,
-                "sortBy": nil,
-                "sortByDescending": nil,
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "MutableList source extensions must resolve cleanly")
+            let expectedCalls: [(name: String, arity: Int)] = [
+                ("sort", 0),
+                ("sortWith", 1),
+                ("sortBy", 1),
+                ("sortByDescending", 1),
+                ("sortDescending", 0),
+                ("shuffle", 0),
+                ("shuffle", 1),
+                ("reverse", 0),
             ]
 
-            for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
+            for (memberName, arity) in expectedCalls {
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr,
+                          let range = ast.arena.exprRange(exprID),
+                          ctx.sourceManager.path(of: range.start.file) == path
+                    else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.count == arity
                 })
-                if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee {
-                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) externalLinkName to be \(String(describing: externalLinkName))")
-                }
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(memberName)/\(arity) to use a bundled Kotlin declaration")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             }
         }
     }

@@ -719,7 +719,7 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    private func resolveMemberPropertyType(
+    func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
         ownerSymbol: SymbolID,
