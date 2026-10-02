@@ -25,6 +25,7 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    var seededRandomPointers: Set<UInt> = []
     var globalRootSlots: Set<UInt> = []
     var frameMaps: [UInt32: [Int32]] = [:]
     var activeFrames: [ActiveFrameRecord] = []
@@ -310,6 +311,7 @@ func kk_runtime_reset_gc() {
         }
         state.heapObjects.removeAll(keepingCapacity: false)
         state.objectPointers.removeAll(keepingCapacity: false)
+        state.seededRandomPointers.removeAll(keepingCapacity: false)
         state.globalRootSlots.removeAll(keepingCapacity: false)
         state.frameMaps.removeAll(keepingCapacity: false)
         state.activeFrames.removeAll(keepingCapacity: false)

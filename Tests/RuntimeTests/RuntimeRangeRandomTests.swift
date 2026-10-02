@@ -101,5 +101,35 @@ struct RuntimeRangeRandomTests {
         #expect(thrown == 0)
     }
 
+    @Test
+    func testRandomUIntRangeBridgeIgnoresCompiledObjectReceiver() {
+        let receiver = kk_object_new(1, 0)
+        kk_object_set(receiver, 0, 42)
+        let range = kk_uint_rangeTo(10, 12)
+        var thrown = 0
+
+        let value = kk_random_nextUInt_uintRange(receiver, range, &thrown)
+
+        #expect(thrown == 0)
+        #expect(UInt(bitPattern: value) >= 10)
+        #expect(UInt(bitPattern: value) <= 12)
+        #expect(kk_object_get(receiver, 0) == 42)
+    }
+
+    @Test
+    func testRandomULongRangeBridgeIgnoresCompiledObjectReceiver() {
+        let receiver = kk_object_new(1, 0)
+        kk_object_set(receiver, 0, 84)
+        let range = kk_ulong_rangeTo(20, 22)
+        var thrown = 0
+
+        let value = kk_random_nextULong_ulongRange(receiver, range, &thrown)
+
+        #expect(thrown == 0)
+        #expect(UInt(bitPattern: value) >= 20)
+        #expect(UInt(bitPattern: value) <= 22)
+        #expect(kk_object_get(receiver, 0) == 84)
+    }
+
 }
 #endif
