@@ -13,11 +13,15 @@ struct LibraryMetadataImportIntegrationTests {
         interface Source<out E>
         interface Sink<in E>
         interface Cell<E>
+        typealias DoubleSink<E> = Sink<Sink<E>>
         """
         try withCompiledLibrary(source: librarySource, moduleName: "VarianceLib") { libraryPath in
             let appSource = """
             import varianceLib.*
             import varianceLib.Sink as Consumer
+            interface Task<in T> {
+                val delegate: kotlin.coroutines.Continuation<T>
+            }
             interface Input<in T> {
                 val delegate: Consumer<T>
                 val nested: Source<Sink<T>>
@@ -25,6 +29,7 @@ struct LibraryMetadataImportIntegrationTests {
             }
             interface Output<out T> {
                 val nested: varianceLib.Sink<Source<Sink<T>>>
+                val alias: DoubleSink<T>
                 fun accept(value: Consumer<T>)
             }
             interface Invalid<out T> {
@@ -36,16 +41,22 @@ struct LibraryMetadataImportIntegrationTests {
             try withTemporaryFile(contents: appSource) { appPath in
                 let appCtx = makeCompilationContext(
                     inputs: [appPath], moduleName: "VarianceApp",
-                    emit: .kirDump, searchPaths: [libraryPath]
+                    emit: .executable, searchPaths: [libraryPath]
                 )
                 try runSema(appCtx)
                 let errors = appCtx.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(errors.count == 3, "\(errors)")
                 #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
                 let sema = try #require(appCtx.sema)
-                for (name, variance) in [("Source", TypeVariance.out), ("Sink", .in), ("Cell", .invariant)] {
+                for (name, variance) in [
+                    ("varianceLib.Source", TypeVariance.out),
+                    ("varianceLib.Sink", .in),
+                    ("varianceLib.Cell", .invariant),
+                    ("kotlin.coroutines.Continuation", .in),
+                ] {
                     let symbol = try #require(sema.symbols.allSymbols().first {
-                        appCtx.interner.resolve($0.name) == name && $0.flags.contains(.importedLibrary)
+                        $0.fqName.map(appCtx.interner.resolve).joined(separator: ".") == name
+                            && $0.flags.contains(.importedLibrary)
                     })
                     #expect(sema.types.nominalTypeParameterVariances(for: symbol.id) == [variance])
                 }

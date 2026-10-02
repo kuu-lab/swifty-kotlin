@@ -18,6 +18,23 @@ struct VarianceCheckTests {
         }
     }
 
+    @Test
+    func resultCovarianceComposesInCoroutineMemberSignatures() throws {
+        let source = """
+        interface Producer<out T> {
+            val result: Result<T>
+        }
+        interface Consumer<in T> {
+            fun resumeWith(result: Result<T>)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test(arguments: [
         ("in", "val value: Sink<T>", 0),
         ("out", "val value: Source<T>", 0),
@@ -96,6 +113,40 @@ struct VarianceCheckTests {
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test(arguments: [
+        ("in", "Sink<Source<E>>", 0),
+        ("out", "Sink<Sink<E>>", 0),
+        ("in", "(E) -> Int", 0),
+        ("out", "() -> E", 0),
+        ("out", "Cell<out E>", 0),
+        ("in", "Cell<in E>", 0),
+        ("out", "Source<Int>", 0),
+        ("in", "Source<Int>", 0),
+        ("in", "Sink<Sink<E>>", 1),
+        ("out", "Sink<Source<E>>", 1),
+        ("out", "Cell<E>", 1),
+        ("in", "Cell<E>", 1),
+        ("out", "(E) -> E", 1),
+    ])
+    func typeAliasVariance(variance: String, underlying: String, expectedViolations: Int) throws {
+        let source = """
+        interface Source<out E>
+        interface Sink<in E>
+        interface Cell<E>
+        typealias Alias<E> = \(underlying)
+        interface Subject<\(variance) T> {
+            val value: Alias<T>
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == expectedViolations, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
         }
     }
 

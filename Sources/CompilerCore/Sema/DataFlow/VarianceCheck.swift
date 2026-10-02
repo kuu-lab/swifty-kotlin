@@ -23,7 +23,7 @@ extension DataFlowSemaPhase {
     }
 
     /// Represents the expected position for variance checking.
-    private enum VariancePosition {
+    private enum VariancePosition: Hashable {
         /// Covariant position: return types, val property types, out type args
         case out
         /// Contravariant position: function parameters, in type args
@@ -263,24 +263,83 @@ extension DataFlowSemaPhase {
         let resolvedType = resolveTypeRef(
             typeRefID, ast: env.ast, symbols: env.symbols, types: env.types,
             interner: env.interner, relativeOwnerFQName: env.ownerFQName,
-            currentPackageFQName: file?.packageFQName, imports: file?.imports ?? []
+            currentPackageFQName: file?.packageFQName, imports: file?.imports ?? [],
+            expandTypeAlias: false
         )
-        let declaredVariances: [TypeVariance]
+        let declaredVariances: [TypeVariance?]
         if let resolvedType, case let .classType(nominal) = env.types.kind(of: resolvedType) {
-            declaredVariances = env.types.nominalTypeParameterVariances(for: nominal.classSymbol)
+            if let underlying = env.symbols.typeAliasUnderlyingType(for: nominal.classSymbol) {
+                declaredVariances = env.symbols.typeAliasTypeParameters(for: nominal.classSymbol).map { parameter in
+                    let positions = aliasParameterPositions(parameter, in: underlying, position: .out, env: env)
+                    if positions.isEmpty { return nil }
+                    if positions == [.out] { return .out }
+                    if positions == [.contravariant] { return .in }
+                    return .invariant
+                }
+            } else {
+                declaredVariances = env.types.nominalTypeParameterVariances(for: nominal.classSymbol).map { $0 }
+            }
         } else if let resolvedType, case .kClassType = env.types.kind(of: resolvedType) {
             declaredVariances = [.out]
         } else {
             declaredVariances = []
         }
         for (index, typeArg) in typeArgs.enumerated() {
-            let declaredVariance = index < declaredVariances.count ? declaredVariances[index] : .invariant
+            guard let declaredVariance = index < declaredVariances.count ? declaredVariances[index] : .invariant else { continue }
             let (innerRefID, innerPosition) = typeArgProjection(
                 typeArg, declaredVariance: declaredVariance, position: position
             )
             guard let refID = innerRefID else { continue }
             checkTypeRefVariance(refID, position: innerPosition,
                                  varianceMap: varianceMap, env: env, memberRange: memberRange)
+        }
+    }
+
+    private func aliasParameterPositions(
+        _ parameter: SymbolID, in type: TypeID, position: VariancePosition,
+        env: VarianceCheckEnv, depth: Int = 0
+    ) -> Set<VariancePosition> {
+        guard depth <= Self.maxStructuralRecursionDepth else { return [.invariant] }
+        switch env.types.kind(of: type) {
+        case let .typeParam(typeParam):
+            return typeParam.symbol == parameter ? [position] : []
+        case let .classType(nominal):
+            let variances = env.types.nominalTypeParameterVariances(for: nominal.classSymbol)
+            var positions: Set<VariancePosition> = []
+            for (index, argument) in nominal.args.enumerated() {
+                let innerType: TypeID
+                let innerPosition: VariancePosition
+                switch argument {
+                case let .invariant(type):
+                    innerType = type
+                    innerPosition = position.composed(with: index < variances.count ? variances[index] : .invariant)
+                case let .out(type):
+                    innerType = type
+                    innerPosition = position
+                case let .in(type):
+                    innerType = type
+                    innerPosition = position.flipped
+                case .star:
+                    continue
+                }
+                positions.formUnion(aliasParameterPositions(parameter, in: innerType, position: innerPosition, env: env, depth: depth + 1))
+            }
+            return positions
+        case let .functionType(function):
+            var positions = aliasParameterPositions(parameter, in: function.returnType, position: position, env: env, depth: depth + 1)
+            let inputs = function.contextReceivers + (function.receiver.map { [$0] } ?? []) + function.params
+            for input in inputs {
+                positions.formUnion(aliasParameterPositions(parameter, in: input, position: position.flipped, env: env, depth: depth + 1))
+            }
+            return positions
+        case let .kClassType(kClass):
+            return aliasParameterPositions(parameter, in: kClass.argument, position: position, env: env, depth: depth + 1)
+        case let .intersection(parts):
+            return parts.reduce(into: []) { positions, part in
+                positions.formUnion(aliasParameterPositions(parameter, in: part, position: position, env: env, depth: depth + 1))
+            }
+        default:
+            return []
         }
     }
 
