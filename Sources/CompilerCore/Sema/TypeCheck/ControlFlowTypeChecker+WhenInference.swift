@@ -466,7 +466,9 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            let type = sema.types.lub(branchTypes)
+            // A non-exhaustive `when` can fall through with no value (Unit); do not let
+            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -593,7 +595,9 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            let type = sema.types.lub(branchTypes)
+            // A non-exhaustive `when` can fall through with no value (Unit); do not let
+            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         }

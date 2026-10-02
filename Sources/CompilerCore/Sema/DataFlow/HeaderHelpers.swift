@@ -631,7 +631,8 @@ extension DataFlowSemaPhase {
         receiverType: TypeID,
         parameterTypes: [TypeID],
         returnType: TypeID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        types: TypeSystem
     ) -> Bool {
         symbols.lookupAll(fqName: fqName).contains { id in
             guard let symbol = symbols.symbol(id),
@@ -641,9 +642,14 @@ extension DataFlowSemaPhase {
             else {
                 return false
             }
+            // Expression-bodied members without an explicit return type carry a provisional
+            // `Any` here (the real type is inferred later), so the return type is only compared
+            // when the user declared one that is not that placeholder.
+            let returnTypeMatches = signature.returnType == returnType
+                || signature.returnType == types.anyType
             return signature.receiverType == receiverType
                 && signature.parameterTypes == parameterTypes
-                && signature.returnType == returnType
+                && returnTypeMatches
         }
     }
 
@@ -675,7 +681,8 @@ extension DataFlowSemaPhase {
             receiverType: ownerType,
             parameterTypes: [],
             returnType: stringType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -734,7 +741,8 @@ extension DataFlowSemaPhase {
             receiverType: ownerType,
             parameterTypes: [nullableAnyType],
             returnType: boolType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -801,7 +809,8 @@ extension DataFlowSemaPhase {
             receiverType: ownerType,
             parameterTypes: [],
             returnType: intType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -1015,6 +1024,8 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 localTypeParameters: localTypeParameters
             )
+        case .afterMemberHeaders:
+            // Must run after member headers so a user-declared hashCode() suppresses the synthetic one.
             collectSyntheticHashCode(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,
@@ -1025,7 +1036,6 @@ extension DataFlowSemaPhase {
                 scope: scope,
                 interner: interner
             )
-        case .afterMemberHeaders:
             collectSyntheticToString(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,

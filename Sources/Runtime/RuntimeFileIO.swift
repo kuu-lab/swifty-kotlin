@@ -1100,6 +1100,8 @@ public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ o
     }
     do {
         try stream.writeByte(valueRaw)
+    } catch let kotlinThrown as RuntimeKotlinThrownError {
+        outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -1118,6 +1120,8 @@ public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ 
     }
     do {
         try stream.writeBytes(list.elements)
+    } catch let kotlinThrown as RuntimeKotlinThrownError {
+        outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -1132,6 +1136,8 @@ public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutabl
     }
     do {
         try stream.flush()
+    } catch let kotlinThrown as RuntimeKotlinThrownError {
+        outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -1211,6 +1217,36 @@ public func __kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: In
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_buffered_sized received invalid OutputStream handle")
     }
     return streamRaw
+}
+
+// MARK: - KSP-1553: kotlinx.io Sink.asOutputStream()
+
+/// `kotlinx.io.Sink.asOutputStream()` bridge. Receives the three Kotlin
+/// callbacks declared in `Stdlib/kotlinx/io/SinksJvm.kt` —
+/// `write: (ByteArray) -> Unit`, `flush: () -> Unit`, `close: () -> Unit` —
+/// each expanded by KIRLowering into a (fnPtr, closureRaw) pair, and wraps
+/// them in a `RuntimeKotlinOutputStreamSink` so the returned
+/// `java.io.OutputStream` forwards stream operations to the Kotlin `Sink`.
+/// This is currently the only way to construct an `OutputStream` handle from
+/// Kotlin source; no other producer exists in the runtime.
+@_cdecl("__kk_kotlin_sink_output_stream")
+public func __kk_kotlin_sink_output_stream(
+    _ writeFnPtr: Int,
+    _ writeClosureRaw: Int,
+    _ flushFnPtr: Int,
+    _ flushClosureRaw: Int,
+    _ closeFnPtr: Int,
+    _ closeClosureRaw: Int
+) -> Int {
+    let sink = RuntimeKotlinOutputStreamSink(
+        writeFnPtr: writeFnPtr,
+        writeClosureRaw: writeClosureRaw,
+        flushFnPtr: flushFnPtr,
+        flushClosureRaw: flushClosureRaw,
+        closeFnPtr: closeFnPtr,
+        closeClosureRaw: closeClosureRaw
+    )
+    return registerRuntimeObject(RuntimeOutputStreamBox(sink: sink))
 }
 
 // MARK: - STDLIB-IO-FN-014: Reader.copyTo(out: Writer, bufferSize) -> Long

@@ -218,6 +218,21 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 fallbackType: anyType
             )
+            let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: mergedLocalTypeParameters,
+                    relativeOwnerFQName: ownerFQName,
+                    currentPackageFQName: sourcePackageFQName,
+                    imports: sourceImports,
+                    diagnostics: diagnostics,
+                    usageRange: funDecl.range
+                )
+            }
 
             let returnType: TypeID = if let explicit = resolveTypeRef(
                 funDecl.returnType,
@@ -257,9 +272,30 @@ extension DataFlowSemaPhase {
             let offsetReifiedIndices: Set<Int> = classTPCount == 0
                 ? typeParamResult.reifiedIndices
                 : Set(typeParamResult.reifiedIndices.map { $0 + classTPCount })
+            // A companion's member extension has two receivers in Kotlin: the
+            // companion singleton (dispatch) and the declared extension type.
+            // The singleton needs no runtime argument, so represent the latter
+            // as the function's receiver for call resolution and lowering.
+            let isCompanionMember = symbols.parentSymbol(for: ownerSymbol).map { parent in
+                symbols.companionObjectSymbol(for: parent) == ownerSymbol
+            } ?? false
+            let extensionReceiverType = isCompanionMember ? resolveTypeRef(
+                funDecl.receiverType,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: mergedLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
+            ) : nil
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: ownerType,
+                    receiverType: extensionReceiverType ?? ownerType,
+                    contextReceiverTypes: contextReceiverTypes,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,

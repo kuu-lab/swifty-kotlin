@@ -216,7 +216,7 @@ extension DataFlowSemaPhase {
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
-            stepType: types.intType,
+            stepType: types.longType,
             externalLinkName: "__kk_ulong_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
@@ -242,11 +242,16 @@ extension DataFlowSemaPhase {
     }
 
     /// KSP-652: the `OpenEndRange<T>` declaration is source-backed by
-    /// `Stdlib/kotlin/ranges/Ranges.kt`, which reuses this shell on bundle load (the
+    /// `Stdlib/kotlin/ranges/OpenEndRange/OpenEndRange.kt` (moved out of
+    /// `Ranges.kt` by KSP-1311), which reuses this shell on bundle load (the
     /// `.synthetic` flag is cleared then). The shell has to stay because `rangeUntil` and the
     /// concrete range conformances are registered before bundled headers are collected and need
-    /// the symbol to already exist; its members stay compiler-side residuals for the same
-    /// reason as the `ClosedRange` ones. See `HeaderHelpers+SyntheticRangeInterfaceStubs.swift`.
+    /// the symbol to already exist. The member registrations below are the
+    /// residual runtime links the bundled declarations reuse: `start`/
+    /// `endExclusive` keep `__kk_range_*` external links because runtime range
+    /// boxes carry no interface itable (the `Map.size` pattern), and the
+    /// `contains`/`isEmpty` residuals act as the `--no-stdlib` fallback plus the
+    /// reuse target for the `@KsSymbolName` source members.
     private func registerSyntheticOpenEndRangeStub(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
@@ -306,6 +311,7 @@ extension DataFlowSemaPhase {
             named: "start",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
+            externalLinkName: "__kk_range_first",
             symbols: symbols,
             interner: interner
         )
@@ -313,6 +319,7 @@ extension DataFlowSemaPhase {
             named: "endExclusive",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
+            externalLinkName: "__kk_range_endExclusive",
             symbols: symbols,
             interner: interner
         )
@@ -324,8 +331,9 @@ extension DataFlowSemaPhase {
             returnType: types.booleanType,
             flags: [.synthetic, .operatorFunction],
             classTypeParameterCount: 1,
-            // KSP-1288 adds source-backed cross-type overloads with the same
-            // arity. Keep this generic interface residual alongside them.
+            // KSP-1288 adds source-backed cross-type overloads and KSP-1311 the
+            // source-backed member itself. Keep this generic residual for
+            // `--no-stdlib` compilations; bundled loads reuse the symbol.
             allowBundledSourceOverlap: true,
             symbols: symbols,
             interner: interner
