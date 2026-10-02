@@ -418,7 +418,9 @@ public func __kk_string_toLongOrNull(_ strRaw: Int) -> Int {
     guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int64.self) else {
         return runtimeNullSentinelInt
     }
-    return Int(truncatingIfNeeded: value)
+    // Long? slots hold box-or-sentinel: Long.MIN_VALUE bit-equals the
+    // sentinel (KUU-854).
+    return kk_box_long_nonnull(Int(truncatingIfNeeded: value))
 }
 
 @_cdecl("__kk_string_toLong_radix")
