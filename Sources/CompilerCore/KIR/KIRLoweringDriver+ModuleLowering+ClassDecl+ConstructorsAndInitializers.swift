@@ -43,11 +43,17 @@ extension KIRLoweringDriver {
         ).enumerated() {
             var storageType = parameterType
             if varargFlags[index],
-               let listSymbol = sema.symbols.lookup(fqName: [
-                   shared.interner.intern("kotlin"),
-                   shared.interner.intern("collections"),
-                   shared.interner.intern("List"),
-               ])
+               let arrayType = primitiveVarargArrayType(
+                   elementType: parameterType, sema: sema, interner: shared.interner
+               )
+            {
+                storageType = arrayType
+            } else if varargFlags[index],
+                      let listSymbol = sema.symbols.lookup(fqName: [
+                          shared.interner.intern("kotlin"),
+                          shared.interner.intern("collections"),
+                          shared.interner.intern("List"),
+                      ])
             {
                 // CallSupportLowerer packs varargs as lists, including
                 // constructor arguments. A String element type must not turn

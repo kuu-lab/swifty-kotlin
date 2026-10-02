@@ -242,6 +242,26 @@ public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Ne
 
 // MARK: - Native ByteArray accessors
 
+/// ImmutableBlob has the same element layout as ByteArray. The source-backed
+/// factory receives the raw Short vararg array; each element is truncated to
+/// one byte just as Kotlin/Native's ImmutableBlob constructor does.
+@_cdecl("__kk_immutable_blob_of")
+public func kk_immutable_blob_of(_ elementsRaw: Int, _: Int) -> Int {
+    guard let elements = runtimeArrayBox(from: elementsRaw) else {
+        return 0
+    }
+    let blob = RuntimeArrayBox(length: elements.count)
+    for index in 0..<elements.count {
+        blob[index] = Int(Int8(truncatingIfNeeded: elements[index]))
+    }
+    let raw = registerRuntimeObject(blob)
+    runtimeRegisterObjectType(
+        rawValue: raw,
+        classID: runtimeStableNominalTypeID(fqName: "kotlin.native.ImmutableBlob")
+    )
+    return raw
+}
+
 @inline(__always)
 private func runtimeNativeByteArrayLoadUnsigned(
     _ arrayRaw: Int,

@@ -1,6 +1,42 @@
 import RuntimeABI
 
 final class CallLowerer {
+    /// Bitmask of object slot indices holding a data class's primary-constructor properties.
+    /// Returns nil when the layout is unknown or a slot does not fit in the mask, in which case
+    /// the runtime keeps comparing every stored slot.
+    func dataClassFieldSlotMask(owner ownerSymbol: SymbolID, sema: SemaModule) -> Int64? {
+        guard let owner = sema.symbols.symbol(ownerSymbol),
+              let fieldOffsets = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets
+        else {
+            return nil
+        }
+        let children = sema.symbols.children(ofFQName: owner.fqName).compactMap { sema.symbols.symbol($0) }
+        guard let primaryConstructor = children.filter({ $0.kind == .constructor }).min(by: { lhs, rhs in
+            let lhsOffset = lhs.declSite?.start.offset ?? Int.max
+            let rhsOffset = rhs.declSite?.start.offset ?? Int.max
+            return lhsOffset != rhsOffset ? lhsOffset < rhsOffset : lhs.id.rawValue < rhs.id.rawValue
+        }) else {
+            return nil
+        }
+        let parameterNames = sema.symbols.functionSignature(for: primaryConstructor.id)?
+            .valueParameterSymbols.compactMap { sema.symbols.symbol($0)?.name } ?? []
+        let properties = Dictionary(
+            children.filter { $0.kind == .property && !$0.flags.contains(.synthetic) }.map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var mask: Int64 = 0
+        for name in parameterNames {
+            guard let property = properties[name],
+                  let offset = fieldOffsets[property.id],
+                  offset >= 0, offset < 62
+            else {
+                return nil
+            }
+            mask |= Int64(1) << Int64(offset)
+        }
+        return mask
+    }
+
     unowned let driver: KIRLoweringDriver
 
     init(driver: KIRLoweringDriver) {
@@ -659,7 +695,7 @@ final class CallLowerer {
             defer {
                 driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance
             }
-            return driver.lowerExpr(
+            let rawArgID = driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -668,6 +704,19 @@ final class CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            // Freeze each bare mutable-local argument immediately after
+            // lowering it (e.g. `x` in `f(x, x++)`) so it observes its
+            // value at the point it was evaluated, not any mutation a later
+            // argument performs on the same variable. Anything else (a
+            // literal, a lambda, a nested call, ...) is left untouched —
+            // see needsEvaluationOrderFreeze's doc comment for why an
+            // unconditional freeze here is unsafe for trailing-lambda
+            // arguments to inline functions. Only worth it when a later
+            // argument could actually mutate something (expressionMayMutateState).
+            return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
+                ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
+                : rawArgID
         }
         let knownNames = KnownCompilerNames(interner: interner)
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
@@ -962,6 +1011,19 @@ final class CallLowerer {
                         result: registerDataClassResult,
                         into: &instructions
                     )
+                    if let fieldMask = dataClassFieldSlotMask(owner: ownerNominalSymbol, sema: sema) {
+                        let maskExpr = arena.appendExpr(.intLiteral(fieldMask), type: intType)
+                        instructions.append(.constValue(result: maskExpr, value: .intLiteral(fieldMask)))
+                        let registerFieldsResult = arena.appendTemporary(type: intType)
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_runtime_register_data_class_fields"),
+                            arguments: [classIDExpr, maskExpr],
+                            result: registerFieldsResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
                 }
                 let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                     symbol: ownerNominalSymbol,
@@ -1239,6 +1301,17 @@ final class CallLowerer {
            !callableInfo.captureArguments.isEmpty
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
+        }
+        // KUU-938: this synthetic conversion has no runtime symbol. The
+        // receiver has already been inserted above, including for an outer
+        // implicit receiver; preserve its raw primitive representation.
+        if let chosen,
+           sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
+           sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
+           finalArgIDs.count == 1
+        {
+            instructions.append(.copy(from: finalArgIDs[0], to: result))
+            return result
         }
         // KUU-655: an override that inherits its defaults never has its own
         // stub; resolve to the base declaration's stub instead (see

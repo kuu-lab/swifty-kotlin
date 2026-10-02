@@ -1,26 +1,23 @@
 package kotlin.text
 
+import kotlin.internal.KsSymbolName
 import kswiftk.internal.*
 
 // String case conversion and locale functions migrated from Swift Runtime.
 // MIGRATION-TEXT-005
 
+// The runtime lowercases the whole string so that the context-sensitive Final_Sigma
+// rule (capital sigma at the end of a word becomes final sigma) can see its neighbours.
+@KsSymbolName("kk_string_lowercase")
+private external fun String.__kkStringLowercase(): String
+
 /**
  * Returns a copy of this string converted to lower case using Unicode case mapping.
  *
- * Each character is converted through [Char.lowercase], so multi-character mappings
- * such as Latin capital I with dot are preserved.
+ * Multi-character mappings such as Latin capital I with dot are preserved, and a
+ * capital sigma at the end of a word maps to final sigma.
  */
-public fun String.lowercase(): String {
-    if (this.length == 0) return this
-    val sb = StringBuilder()
-    var i = 0
-    while (i < length) {
-        sb.append(this[i].lowercase())
-        i += 1
-    }
-    return sb.toString()
-}
+public fun String.lowercase(): String = this.__kkStringLowercase()
 
 /**
  * Returns a copy of this string converted to upper case using Unicode case mapping.
