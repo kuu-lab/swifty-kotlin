@@ -17,6 +17,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_Triple_Triple_n.kt",
         "Sema/stdlib_kotlin_collections_Map_Entry_n.kt",
         "Sema/stdlib_kotlin_collections_Iterable_collection.kt",
+        "Sema/stdlib_kotlin_collections_HashSet_n_n.kt",
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
@@ -28,6 +29,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_Triple_Triple_n.kt",
         "Sema/stdlib_kotlin_collections_Map_Entry_n.kt",
         "Sema/stdlib_kotlin_collections_Iterable_collection.kt",
+        "Sema/stdlib_kotlin_collections_HashSet_n_n.kt",
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
     ]
@@ -40,6 +42,8 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlin.Triple[kind=class;gen=3]",
         "artifact|kotlin.Triple.<init>[kind=ctor;recv=kotlin.Triple<T0,T1,T2>;params=T0,T1,T2;gen=3]",
         "artifact|kotlin.collections.Iterable[kind=iface;gen=1]",
+        "artifact|kotlin.collections.HashSet[kind=class;gen=1]",
+        "artifact|kotlin.collections.HashSet.<init>[kind=ctor;recv=kotlin.collections.HashSet<T0>;params=Int,Float;gen=1]",
         // Keep the nested interface and its property accessors in the artifact contract.
         "artifact|kotlin.collections.Map.Entry[kind=iface;gen=2]",
         "artifact|kotlin.collections.Map.Entry.key[kind=prop]",
