@@ -1,6 +1,12 @@
 package kotlinx.coroutines
 
+import kotlin.coroutines.CoroutineContext
+
 import kotlin.internal.KsSymbolName
+
+public interface CoroutineScope {
+    public val coroutineContext: CoroutineContext
+}
 
 @KsSymbolName("kk_coroutine_scope_new")
 internal external fun kkCoroutineScopeNew(): Any

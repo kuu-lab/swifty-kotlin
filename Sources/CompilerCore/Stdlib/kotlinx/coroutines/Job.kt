@@ -3,6 +3,52 @@ package kotlinx.coroutines
 import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
 
+public interface Job : CoroutineContext.Element {
+    public companion object Key : CoroutineContext.Key<Job>
+
+    public override val key: CoroutineContext.Key<*> get() = Key
+
+    @KsSymbolName("kk_job_is_active")
+    public val isActive: Boolean
+
+    @KsSymbolName("kk_job_is_completed")
+    public val isCompleted: Boolean
+
+    @KsSymbolName("kk_job_is_cancelled")
+    public val isCancelled: Boolean
+
+    @KsSymbolName("kk_job_cancel")
+    public fun cancel()
+
+    @KsSymbolName("kk_job_cancel_with_cause")
+    public fun cancel(cause: Any?)
+
+    @KsSymbolName("kk_job_join")
+    public suspend fun join()
+
+    @KsSymbolName("kk_job_await_completion")
+    public fun awaitCompletion()
+
+    @KsSymbolName("kk_job_complete")
+    public fun complete(value: Any): Boolean
+
+    @KsSymbolName("kk_job_complete_exceptionally")
+    public fun completeExceptionally(exception: Any?): Boolean
+}
+
+public interface ChildJob : Job {
+    public fun parentCancelled(parentJob: ParentJob)
+}
+
+public interface ParentJob : Job {
+    public fun getChildJobCancellationCause(): CancellationException
+}
+
+public interface ChildHandle : DisposableHandle {
+    public val parent: Job?
+    public fun childCancelled(cause: Throwable): Boolean
+}
+
 // KUU-CORO-101: Job/CoroutineContext members that were unresolved wherever
 // real-world coroutine code reads its own job (`this.coroutineContext.job`),
 // checks why it stopped (`job.getCancellationException()`), or reacts to
