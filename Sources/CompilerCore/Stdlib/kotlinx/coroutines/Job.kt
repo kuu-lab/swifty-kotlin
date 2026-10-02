@@ -27,7 +27,7 @@ public interface Job : CoroutineContext.Element {
     public suspend fun join()
 
     @KsSymbolName("kk_job_await_completion")
-    public fun awaitCompletion()
+    public suspend fun awaitCompletion()
 
     @KsSymbolName("kk_job_complete")
     public fun complete(value: Any): Boolean

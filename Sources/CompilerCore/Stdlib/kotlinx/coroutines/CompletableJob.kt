@@ -1,6 +1,11 @@
 package kotlinx.coroutines
 
+import kotlin.internal.KsSymbolName
+
 public interface CompletableJob : Job {
-    public fun complete(): Boolean = complete(Unit)
-    public fun completeExceptionally(exception: Throwable): Boolean = completeExceptionally(exception as Any?)
+    @KsSymbolName("kk_job_complete_unit")
+    public fun complete(): Boolean
+
+    @KsSymbolName("kk_job_complete_exceptionally")
+    public fun completeExceptionally(exception: Throwable): Boolean
 }

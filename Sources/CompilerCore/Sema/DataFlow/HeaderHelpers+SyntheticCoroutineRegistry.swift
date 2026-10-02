@@ -301,7 +301,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         let jobFQName = coroutinesPkg + [interner.intern("Job")]
-        let jobSymbol = bundledIndex.containsNominal(fqName: jobFQName) ? ensureInterfaceSymbol(
+        let importedJobSymbol = symbols.lookupAll(fqName: jobFQName).first {
+            symbols.symbol($0)?.kind == .interface
+        }
+        let jobSymbol = importedJobSymbol ?? (bundledIndex.containsNominal(fqName: jobFQName) ? ensureInterfaceSymbol(
             named: "Job",
             in: coroutinesPkg,
             symbols: symbols,
@@ -311,7 +314,7 @@ extension DataFlowSemaPhase {
             in: coroutinesPkg,
             symbols: symbols,
             interner: interner
-        )
+        ))
         let deferredSymbol = ensureClassSymbol(
             named: "Deferred",
             in: coroutinesPkg,
@@ -2199,7 +2202,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: dispatchersSymbol,
             ownerType: dispatchersType,
             name: "Main",
-            propertyType: bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("MainCoroutineDispatcher")])
+            propertyType: (bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("MainCoroutineDispatcher")])
+                || symbols.lookup(fqName: coroutinesPkg + [interner.intern("MainCoroutineDispatcher")]) != nil)
                 ? types.make(.classType(ClassType(
                     classSymbol: ensureClassSymbol(named: "MainCoroutineDispatcher", in: coroutinesPkg, symbols: symbols, interner: interner),
                     args: [], nullability: .nonNull
@@ -2309,7 +2313,8 @@ extension DataFlowSemaPhase {
         // `kotlinx.coroutines.Job()` / `SupervisorJob()`: bare factory functions sharing
         // their name with the `Job` interface (the same "nominal type + eponymous
         // factory-style function" pattern already used for e.g. `Channel(...)`).
-        let completableJobType = bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("CompletableJob")])
+        let completableJobType = (bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("CompletableJob")])
+            || symbols.lookup(fqName: coroutinesPkg + [interner.intern("CompletableJob")]) != nil)
             ? types.make(.classType(ClassType(
                 classSymbol: ensureInterfaceSymbol(named: "CompletableJob", in: coroutinesPkg, symbols: symbols, interner: interner),
                 args: [], nullability: .nonNull

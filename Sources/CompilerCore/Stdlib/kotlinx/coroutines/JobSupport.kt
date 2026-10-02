@@ -42,7 +42,7 @@ public abstract class JobSupport(active: Boolean) : Job, ChildJob, ParentJob {
     }
 
     public override suspend fun join() {}
-    public override fun awaitCompletion() {}
+    public override suspend fun awaitCompletion() {}
 
     public override fun complete(value: Any): Boolean {
         if (completedState) return false
