@@ -79,51 +79,6 @@ import Testing
         try Self._sharedCtx.get()
     }
 
-    @Test func testError_abstractClassInstantiation() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_abstractFunctionWithBody() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_abstractPropertyWithInitializer() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_abstractPrivateMember() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_abstractFinalConflict() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_sealedFinalConflict() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_missingAbstractOverride() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_abstractPropertyWithBackingField() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testError_abstractPropertyWithDelegate() throws {
-        let ctx = try sharedCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
     @Test func testWarning_emptyAbstractClass() throws {
         let ctx = try sharedCtx()
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
