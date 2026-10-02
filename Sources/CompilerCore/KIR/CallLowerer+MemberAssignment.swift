@@ -130,13 +130,10 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        // An extension `var` property (e.g. the bundled
-        // `kotlin.native.concurrent.AtomicInt.value`) has no backing storage —
-        // its owner is the package, so the member-property branches above
-        // never fire for it. Route the write through its registered setter
-        // accessor, mirroring the getter-side read lowering; without this the
-        // generic call-binding fallback below emits a call to the property
-        // name and fails to link.
+        // Extension `var` properties have no backing storage; assignment
+        // routes to the registered setter accessor with the receiver as its
+        // first argument. Prefer the identifier binding, with the selected
+        // callee as a fallback for call-bound property l-values.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
             ?? sema.bindings.callBindings[exprID]?.chosenCallee,
            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
