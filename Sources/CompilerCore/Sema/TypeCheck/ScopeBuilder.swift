@@ -88,7 +88,7 @@ struct TypeCheckScopeBuilder {
                 guard let imported = sema.symbols.symbol(importedID) else {
                     return false
                 }
-                return imported.kind == .class
+                return (imported.kind == .class || imported.kind == .typeAlias)
                     && imported.fqName.count > 1
                     && importedID != symbolID
             }

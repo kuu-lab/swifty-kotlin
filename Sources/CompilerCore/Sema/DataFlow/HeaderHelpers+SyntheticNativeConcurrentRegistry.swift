@@ -77,12 +77,16 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        registerNativeThreadLocalAnnotationConstructor(
-            packageFQName: nativeConcurrentPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: nativeConcurrentPkg + [interner.intern("ThreadLocal")]
+        ) {
+            registerNativeThreadLocalAnnotationConstructor(
+                packageFQName: nativeConcurrentPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
     }
 }
 
@@ -159,8 +163,8 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers only the package-level class identity required by KSP-1216.
-    /// Constructors and receiver members remain owned by KSP-1219 onward.
+    /// Registers only the package-level class identities that still lack
+    /// bundled Kotlin declarations.
     private func registerNativeConcurrentTopLevelNominalAnchors(
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
@@ -168,25 +172,12 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // AtomicLong is intentionally excluded: it is already source-backed
-        // by KSP-1222 (Stdlib/kotlin/native/concurrent/Atomics.kt).
+        // AtomicInt now owns its source-backed constructor (KSP-1220) and
+        // AtomicLong is source-backed by KSP-1222 in Atomics.kt.
+        // AtomicInt receiver members reuse the source-backed class through
+        // KSP-1221 extensions.
         // AtomicNativePtr is intentionally excluded: it is already
         // source-backed by KSP-1224 (same file).
-        registerNativeConcurrentNominalAnchor(
-            named: "AtomicInt",
-            packageFQName: packageFQName,
-            pkgSymbol: pkgSymbol,
-            annotations: [
-                nativeConcurrentDeprecatedErrorAnnotation(
-                    message: "Use kotlin.concurrent.atomics.AtomicInt instead.",
-                    replaceWith: "kotlin.concurrent.atomics.AtomicInt"
-                ),
-            ],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         // FreezableAtomicReference is intentionally excluded: it is already
         // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
         // Atomics.kt). AtomicReference is intentionally excluded: it is
@@ -361,21 +352,27 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        let threadLocalNativeAnnotationSymbol = ensureAnnotationClassSymbol(
-            named: "ThreadLocal",
-            in: packageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
+        // The bundled declaration owns @ThreadLocal in regular compilation.
+        // The synthetic annotation remains available without the stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: packageFQName + [interner.intern("ThreadLocal")]
+        ) {
+            let threadLocalNativeAnnotationSymbol = ensureAnnotationClassSymbol(
+                named: "ThreadLocal",
+                in: packageFQName,
+                symbols: symbols,
+                interner: interner
+            )
+            if let pkgSymbol {
+                symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
+            }
+            appendNativeConcurrentAnnotationMetadata(
+                to: threadLocalNativeAnnotationSymbol,
+                targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
+                retention: "AnnotationRetention.BINARY",
+                symbols: symbols
+            )
         }
-        appendNativeConcurrentAnnotationMetadata(
-            to: threadLocalNativeAnnotationSymbol,
-            targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
-            retention: "AnnotationRetention.BINARY",
-            symbols: symbols
-        )
     }
 }
 
@@ -679,20 +676,25 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        registerNativeConcurrentConstructor(
-            ownerSymbol: exceptionSymbol,
-            ownerType: exceptionType,
-            externalLinkName: "__kk_invalid_mutability_exception_new_message",
-            parameters: [(name: "message", type: types.stringType)],
-            defaultValues: [false],
-            symbols: symbols,
-            interner: interner
-        )
+        // The bundled class owns its bridged constructor. Retain this residual
+        // constructor only when compiling without the bundled stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: exceptionFQName) {
+            registerNativeConcurrentConstructor(
+                ownerSymbol: exceptionSymbol,
+                ownerType: exceptionType,
+                externalLinkName: "__kk_invalid_mutability_exception_new_message",
+                parameters: [(name: "message", type: types.stringType)],
+                defaultValues: [false],
+                symbols: symbols,
+                interner: interner
+            )
+        }
     }
 }
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: Worker nominal shell
-/// with Companion.start and the retained isTerminated compatibility property.
+/// with the Companion object anchor and the retained isTerminated compatibility
+/// property.
 ///
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
@@ -747,7 +749,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Worker companion: start(name: String? = null): Worker
+        // Worker companion object: anchors the source-backed Worker.Companion
+        // extensions (KSP-1251, Stdlib/kotlin/native/concurrent/Worker.kt).
         let companionName = interner.intern("Companion")
         let companionFQName = workerFQName + [companionName]
         let companionSymbol: SymbolID
@@ -771,19 +774,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(companionType, for: companionSymbol)
-
-        // Worker.Companion.start(name: String? = null): Worker
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: companionSymbol,
-            ownerType: companionType,
-            name: "start",
-            externalLinkName: "kk_worker_new",
-            returnType: workerType,
-            parameters: [(name: "name", type: types.makeNullable(types.stringType))],
-            defaultValues: [true],
-            symbols: symbols,
-            interner: interner
-        )
 
         // Worker.isTerminated: Boolean (property)
         registerNativeConcurrentReadOnlyProperty(

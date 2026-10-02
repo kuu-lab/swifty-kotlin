@@ -1,0 +1,35 @@
+symbol fq=golden.sema.companionContravariant.$0.type[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.companionContravariant[kind=fun;params=kotlin.reflect.KType] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KType] ret=kotlin.reflect.KTypeProjection
+symbol fq=golden.sema.companionCovariant.$1.type[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.companionCovariant[kind=fun;params=kotlin.reflect.KType] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KType] ret=kotlin.reflect.KTypeProjection
+symbol fq=golden.sema.companionExplicitInvariant.$2.type[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.companionExplicitInvariant[kind=fun;params=kotlin.reflect.KType] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KType] ret=kotlin.reflect.KTypeProjection
+symbol fq=golden.sema.companionExplicitStar[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.reflect.KTypeProjection
+symbol fq=golden.sema.companionInvariant.$3.type[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.companionInvariant[kind=fun;params=kotlin.reflect.KType] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KType] ret=kotlin.reflect.KTypeProjection
+symbol fq=golden.sema.companionStar[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.reflect.KTypeProjection
+file fstdlib_kotlin_reflect_KTypeProjection_Companion_Companion_n package=golden.sema
+  decl golden.sema.companionStar[kind=fun;params=] fun companionStar sym=golden.sema.companionStar[kind=fun;params=]
+  decl golden.sema.companionExplicitStar[kind=fun;params=] fun companionExplicitStar sym=golden.sema.companionExplicitStar[kind=fun;params=]
+  decl golden.sema.companionInvariant[kind=fun;params=kotlin.reflect.KType] fun companionInvariant sym=golden.sema.companionInvariant[kind=fun;params=kotlin.reflect.KType]
+  decl golden.sema.companionContravariant[kind=fun;params=kotlin.reflect.KType] fun companionContravariant sym=golden.sema.companionContravariant[kind=fun;params=kotlin.reflect.KType]
+  decl golden.sema.companionCovariant[kind=fun;params=kotlin.reflect.KType] fun companionCovariant sym=golden.sema.companionCovariant[kind=fun;params=kotlin.reflect.KType]
+  decl golden.sema.companionExplicitInvariant[kind=fun;params=kotlin.reflect.KType] fun companionExplicitInvariant sym=golden.sema.companionExplicitInvariant[kind=fun;params=kotlin.reflect.KType]
+expr e@6:40 name(KTypeProjection) type=kotlin.reflect.KTypeProjection.Companion ref=kotlin.reflect.KTypeProjection[kind=class]
+expr e@6:40#1 memberCall recv=e@6:40 callee=STAR args=[] type=kotlin.reflect.KTypeProjection ref=kotlin.reflect.KTypeProjection.Companion.STAR[kind=prop]
+expr e@8:48 name(KTypeProjection) type=kotlin.reflect.KTypeProjection ref=kotlin.reflect.KTypeProjection[kind=class]
+expr e@8:48#1 memberCall recv=e@8:48 callee=Companion args=[] type=kotlin.reflect.KTypeProjection.Companion ref=kotlin.reflect.KTypeProjection.Companion[kind=obj]
+expr e@8:48#2 memberCall recv=e@8:48#1 callee=STAR args=[] type=kotlin.reflect.KTypeProjection ref=kotlin.reflect.KTypeProjection.Companion.STAR[kind=prop]
+expr e@10:56 name(KTypeProjection) type=kotlin.reflect.KTypeProjection.Companion ref=kotlin.reflect.KTypeProjection[kind=class]
+expr e@10:82 name(type) type=kotlin.reflect.KType ref=golden.sema.companionInvariant.$3.type[kind=vparam]
+expr e@10:56#1 memberCall recv=e@10:56 callee=invariant args=[_:e@10:82] type=kotlin.reflect.KTypeProjection call=kotlin.reflect.KTypeProjection.Companion.invariant[kind=fun;recv=kotlin.reflect.KTypeProjection.Companion;params=kotlin.reflect.KType]
+expr e@12:60 name(KTypeProjection) type=kotlin.reflect.KTypeProjection.Companion ref=kotlin.reflect.KTypeProjection[kind=class]
+expr e@12:90 name(type) type=kotlin.reflect.KType ref=golden.sema.companionContravariant.$0.type[kind=vparam]
+expr e@12:60#1 memberCall recv=e@12:60 callee=contravariant args=[_:e@12:90] type=kotlin.reflect.KTypeProjection call=kotlin.reflect.KTypeProjection.Companion.contravariant[kind=fun;recv=kotlin.reflect.KTypeProjection.Companion;params=kotlin.reflect.KType]
+expr e@14:56 name(KTypeProjection) type=kotlin.reflect.KTypeProjection.Companion ref=kotlin.reflect.KTypeProjection[kind=class]
+expr e@14:82 name(type) type=kotlin.reflect.KType ref=golden.sema.companionCovariant.$1.type[kind=vparam]
+expr e@14:56#1 memberCall recv=e@14:56 callee=covariant args=[_:e@14:82] type=kotlin.reflect.KTypeProjection call=kotlin.reflect.KTypeProjection.Companion.covariant[kind=fun;recv=kotlin.reflect.KTypeProjection.Companion;params=kotlin.reflect.KType]
+expr e@17:5 name(KTypeProjection) type=kotlin.reflect.KTypeProjection ref=kotlin.reflect.KTypeProjection[kind=class]
+expr e@17:5#1 memberCall recv=e@17:5 callee=Companion args=[] type=kotlin.reflect.KTypeProjection.Companion ref=kotlin.reflect.KTypeProjection.Companion[kind=obj]
+expr e@17:41 name(type) type=kotlin.reflect.KType ref=golden.sema.companionExplicitInvariant.$2.type[kind=vparam]
+expr e@17:5#2 memberCall recv=e@17:5#1 callee=invariant args=[_:e@17:41] type=kotlin.reflect.KTypeProjection call=kotlin.reflect.KTypeProjection.Companion.invariant[kind=fun;recv=kotlin.reflect.KTypeProjection.Companion;params=kotlin.reflect.KType]

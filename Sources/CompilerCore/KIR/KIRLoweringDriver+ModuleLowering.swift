@@ -92,6 +92,33 @@ extension KIRLoweringDriver {
             contentsOf: allTopLevelInitInstructions
         )
 
+        // A library has no `main` to receive its stored top-level property
+        // initializers. Keep them as a callable entry point in the artifact;
+        // importing modules call it before their own property initializers.
+        // Object/companion initializers are imported separately, so this
+        // entry point contains only the library's own property writes.
+        if case .library = compilationCtx.options.emit,
+           !allTopLevelInitInstructions.isEmpty {
+            let symbol = ctx.allocateSyntheticGeneratedSymbol()
+            let name = compilationCtx.interner.intern(
+                "__kk_library_top_level_init_\(compilationCtx.options.moduleName)"
+            )
+            var body: KIRLoweringEmitContext = [.beginBlock]
+            body.appendRelocatingLabels(contentsOf: allTopLevelInitInstructions)
+            body.append(.returnUnit)
+            body.append(.endBlock)
+            _ = arena.appendDecl(.function(KIRFunction(
+                symbol: symbol,
+                name: name,
+                params: [],
+                returnType: sema.types.unitType,
+                body: body.instructions,
+                isSuspend: false,
+                isInline: false,
+                instructionLocations: body.instructionLocations
+            )))
+        }
+
         emitSyntheticTopLevelExternalPropertyInitializers(
             arena: arena,
             sema: sema,
@@ -438,6 +465,11 @@ extension KIRLoweringDriver {
         }
 
         for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            if symbol.kind == .function,
+               interner.resolve(symbol.name).hasPrefix("__kk_library_top_level_init_") {
+                appendInitializer(symbol.id)
+                continue
+            }
             switch symbol.kind {
             case .object:
                 appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))

@@ -195,6 +195,13 @@ extension BuildASTPhase {
                 return nil
             }
 
+            if let prefixMutation = parsePrefixIndexedMutation(
+                from: statementTokens,
+                context: context
+            ) {
+                return prefixMutation
+            }
+
             if let postfixMutation = parsePostfixMutation(
                 from: statementTokens,
                 context: context,
@@ -311,8 +318,41 @@ extension BuildASTPhase {
             }
 
             let lhsTokens = Array(strippedTokens.dropLast())
-            guard !lhsTokens.isEmpty,
-                  let lhsExpr = context.parseExpression(lhsTokens[...]),
+            guard !lhsTokens.isEmpty else {
+                return nil
+            }
+
+            // A statement like `arr[c++] = c++` or `total = total + n++` also
+            // ends in `++`/`--`, but the trailing increment belongs to the
+            // assignment's right-hand side, not to a standalone `<expr>++`
+            // mutation. `parseExpression` silently stops at the first
+            // unconsumed token instead of failing, so without this guard the
+            // scan below would parse only a prefix of `lhsTokens` (e.g. just
+            // `arr[c++]`, dropping `= c`) and misinterpret the whole
+            // statement as `arr[c++] += 1` — discarding the real assignment.
+            // A legitimate `<expr>++` statement can never contain a top-level
+            // `=`/compound-assign token, so reject whenever one is present
+            // and let `parseCompoundAssignment` / plain assignment parsing
+            // (which parse the real right-hand side) handle the statement.
+            var assignScanDepth = BuildASTPhase.BracketDepth()
+            for token in lhsTokens {
+                if assignScanDepth.isAtTopLevel {
+                    switch token.kind {
+                    case .symbol(.assign),
+                         .symbol(.plusAssign),
+                         .symbol(.minusAssign),
+                         .symbol(.starAssign),
+                         .symbol(.slashAssign),
+                         .symbol(.percentAssign):
+                        return nil
+                    default:
+                        break
+                    }
+                }
+                assignScanDepth.track(token.kind)
+            }
+
+            guard let lhsExpr = context.parseExpression(lhsTokens[...]),
                   let lhs = context.astArena.expr(lhsExpr),
                   let lhsRange = context.astArena.exprRange(lhsExpr)
             else {
@@ -368,6 +408,61 @@ extension BuildASTPhase {
             default:
                 return nil
             }
+        }
+
+        /// Statement-level `++a[i]` / `--a[i, j]` (leading operator). The
+        /// generic expression parser's `tryParsePrefixIncrementDecrement`
+        /// (BuildASTPhase+ExpressionParserIncDec.swift) deliberately rejects
+        /// an `.indexedAccess` operand: its desugaring re-reads the operand
+        /// as a second AST node to produce the post-mutation value, which
+        /// would re-evaluate the receiver/index expressions and double any
+        /// side effects they have. `.indexedCompoundAssign` doesn't have
+        /// that problem — KIR lowering already evaluates the receiver and
+        /// indices exactly once and reuses them for both the get() and
+        /// set() halves — so a bare `++a[i]` statement (whose value is
+        /// discarded, unlike `val x = ++a[i]`) can go straight through it.
+        /// nameRef (`++i`) and no-arg member (`++counter.value`) targets
+        /// aren't handled here: they already work via the expression-parser
+        /// fallback below, which is safe for them since re-reading a local
+        /// or a bare receiver has no side effect to double.
+        private static func parsePrefixIndexedMutation(
+            from statementTokens: ArraySlice<Token>,
+            context: LocalStatementCoreContext
+        ) -> ExprID? {
+            let strippedTokens = stripSemicolons(statementTokens)
+            guard let firstToken = strippedTokens.first else {
+                return nil
+            }
+
+            let op: CompoundAssignOp
+            switch firstToken.kind {
+            case .symbol(.plusPlus):
+                op = .plusAssign
+            case .symbol(.minusMinus):
+                op = .minusAssign
+            default:
+                return nil
+            }
+
+            let targetTokens = Array(strippedTokens.dropFirst())
+            guard !targetTokens.isEmpty,
+                  let targetExpr = context.parseExpression(targetTokens[...]),
+                  let target = context.astArena.expr(targetExpr),
+                  let targetRange = context.astArena.exprRange(targetExpr),
+                  case let .indexedAccess(receiver, indices, _) = target
+            else {
+                return nil
+            }
+
+            let oneExpr = context.astArena.appendExpr(.intLiteral(1, firstToken.range))
+            let range = SourceRange(start: firstToken.range.start, end: targetRange.end)
+            return context.astArena.appendExpr(.indexedCompoundAssign(
+                op: op,
+                receiver: receiver,
+                indices: indices,
+                value: oneExpr,
+                range: range
+            ))
         }
 
         private static func parseCompoundAssignment(

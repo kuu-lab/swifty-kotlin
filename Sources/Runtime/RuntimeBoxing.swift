@@ -25,6 +25,17 @@ public func kk_box_unit(_ value: Int) -> Int {
 /// `registeredPassThrough` refines the pass-through condition once the value
 /// is known to be a registered object pointer (e.g. Float only passes through
 /// a RuntimeFloatBox, not an unrelated registered handle).
+///
+/// Fresh boxes are registered under a tagged primitive-box handle (the same
+/// representation `runtimeStaticBox` emits), not their raw object pointer.
+/// The pass-through probe cannot distinguish "an already-boxed handle" from
+/// "a raw scalar that happens to equal a live object's address": if a scalar
+/// ever collided with a registered box's raw address, the raw scalar would be
+/// passed through and the paired unbox would then read the *other* box's
+/// payload as the value (KUU-857 — intermittent wrong sums in DeepRecursive
+/// on Linux, where a sum of 41582640 equalled a live RuntimeIntBox address).
+/// Tagged handles live in a reserved high-bit domain that real scalar values
+/// and raw object addresses cannot reach, so the collision class is closed.
 @inline(__always)
 private func runtimeBoxPrimitive<T: AnyObject>(
     _ value: Int,
@@ -42,10 +53,7 @@ private func runtimeBoxPrimitive<T: AnyObject>(
         {
             return value
         }
-        let box = makeBox()
-        let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-        return Int(bitPattern: opaque)
+        return registerTaggedPrimitiveBox(makeBox(), inLockedState: &state)
     }
 }
 
@@ -367,12 +375,9 @@ public func kk_box_double(_ value: Int) -> Int {
 @_cdecl("kk_box_double_nonnull")
 public func kk_box_double_nonnull(_ value: Int) -> Int {
     let doubleBits = Double(bitPattern: UInt64(bitPattern: Int64(value)))
-    let box = RuntimeDoubleBox(doubleBits)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+    return runtimeBoxPrimitive(value, preservesNullSentinel: false) {
+        RuntimeDoubleBox(doubleBits)
     }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_unbox_double")

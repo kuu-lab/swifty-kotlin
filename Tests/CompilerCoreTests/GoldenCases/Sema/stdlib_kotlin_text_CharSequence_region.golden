@@ -8,7 +8,7 @@ symbol fq=golden.sema.RegionSequence.<init>[kind=ctor;recv=golden.sema.RegionSeq
 symbol fq=golden.sema.RegionSequence.get.$1.index[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.RegionSequence.subSequence.$2.endIndex[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.RegionSequence.subSequence.$2.startIndex[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.RegionSequence.value[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.RegionSequence.value[kind=prop] kind=property vis=private flags=_ type=String
 symbol fq=golden.sema.RegionSequence[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.regionMatchesBuilder[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol fq=golden.sema.regionMatchesCustom[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean

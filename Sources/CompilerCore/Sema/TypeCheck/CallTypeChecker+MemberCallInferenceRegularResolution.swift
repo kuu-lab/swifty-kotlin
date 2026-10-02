@@ -117,6 +117,41 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        // `f.invoke(...)` where `f`'s own type is a function type
+        // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
+        // all -- `allNominalSymbolsImpl` (Helpers+TypeArgsAndMemberLookup.swift)
+        // has no `.functionType` case, so ordinary member-candidate lookup
+        // would always end in "Unresolved member function 'invoke'"
+        // (KSWIFTK-SEMA-0024). Intercept here, before any nominal lookup
+        // runs, and delegate to the same invocation logic used for a bare
+        // call (`f(3)`) or extension-receiver call sugar (`1.ef(2)`). Unlike
+        // those two forms, an explicit `.invoke(...)` call has no
+        // implicit-receiver shape: a receiver-typed callee must always
+        // supply it positionally as argument 0 (`ef.invoke(5, 6)`, never
+        // `ef.invoke(6)`).
+        // A non-safe `x.invoke` on a nullable function value is left for
+        // the existing fallback (KUU-644): `h?.f.invoke(3)` must stay
+        // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
+        if calleeName == knownNames.invoke,
+           explicitTypeArgs.isEmpty,
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: lookupReceiverType),
+           invokeFunctionType.nullability != .nullable,
+           let result = inferCallableValueInvocation(
+               id,
+               calleeType: lookupReceiverType,
+               callableTarget: driver.helpers.callableTargetForCalleeExpr(receiverID, sema: sema),
+               args: args,
+               argTypes: argTypes,
+               range: range,
+               ctx: ctx,
+               expectedType: expectedType,
+               arityPolicy: .receiverRequiredExplicit
+           )
+        {
+            let finalType = safeCall ? sema.types.makeNullable(result) : result
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
         let isSyntacticRangeCollectionMember = calleeName == knownNames.plus || calleeName == knownNames.minus
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
@@ -1136,9 +1171,9 @@ extension CallTypeChecker {
                 // Any.equals/hashCode/toString win before extension fallback.
                 standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
-                // Source-backed bundled extensions are the live implementation
-                // for migrated atomic APIs, including overrides of inherited
-                // synthetic Any members such as AtomicInt.toString().
+                // Source-backed bundled declarations are the live implementation
+                // for migrated atomic APIs and should win over residual synthetic
+                // candidates such as inherited Any members.
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1156,8 +1191,18 @@ extension CallTypeChecker {
             // call would stop at the zero-argument member and never reach the
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
-                guard calleeName == knownNames.toString, !args.isEmpty else {
+                let memberName = interner.resolve(calleeName)
+                guard memberName == "toString" || memberName == "replace" else {
                     return []
+                }
+                if memberName == "toString" {
+                    guard !args.isEmpty else { return [] }
+                } else {
+                    guard args.count == 2,
+                          ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
+                    else {
+                        return []
+                    }
                 }
                 let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
                 return sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -1170,11 +1215,44 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    return extensionSyntheticFallbackReceiverMatches(
+                    guard extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
                         sema: sema
-                    )
+                    ) else {
+                        return false
+                    }
+                    if memberName == "toString" {
+                        return true
+                    }
+
+                    // String has a legacy member-shaped `replace(Regex, String)`
+                    // candidate. Keep the bundled CharSequence transform overload
+                    // beside it so its function parameter supplies the lambda's
+                    // implicit `it` type before overload resolution rejects the
+                    // String replacement candidate.
+                    func isNominalType(_ type: TypeID, fqName: [String]) -> Bool {
+                        guard let nominal = driver.helpers.nominalSymbol(of: type, types: sema.types),
+                              let symbol = sema.symbols.symbol(nominal)
+                        else {
+                            return false
+                        }
+                        return symbol.fqName.map(interner.resolve) == fqName
+                    }
+                    guard args.count == 2,
+                          signature.parameterTypes.count == 2,
+                          isNominalType(declaredReceiver, fqName: ["kotlin", "CharSequence"]),
+                          isNominalType(signature.parameterTypes[0], fqName: ["kotlin", "text", "Regex"]),
+                          case let .functionType(transformType) = sema.types.kind(
+                              of: sema.types.makeNonNullable(signature.parameterTypes[1])
+                          ),
+                          transformType.params.count == 1,
+                          isNominalType(transformType.params[0], fqName: ["kotlin", "text", "MatchResult"]),
+                          isNominalType(transformType.returnType, fqName: ["kotlin", "CharSequence"])
+                    else {
+                        return false
+                    }
+                    return true
                 }
             }()
             let memberCandidates = sourceBackedOverloads + standardMemberCandidates
@@ -1271,6 +1349,24 @@ extension CallTypeChecker {
                             }()
                             let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
                             guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                                return false
+                            }
+                            // A member extension declared in a companion is
+                            // callable only when that companion is in lexical
+                            // scope or explicitly imported. Scope lookup above
+                            // already covers both; the global short-name
+                            // fallback must not expose it to every file.
+                            // Extensions declared *on* the companion type
+                            // (e.g. `fun Worker.Companion.start`) are also
+                            // parented under the companion symbol (KSP-443);
+                            // they remain visible through normal imports, so
+                            // only member extensions whose declared receiver
+                            // is a different type are excluded here.
+                            if let parent = sema.symbols.parentSymbol(for: candidate),
+                               let owner = sema.symbols.parentSymbol(for: parent),
+                               sema.symbols.companionObjectSymbol(for: owner) == parent,
+                               resolveClassType(recvType, sema: sema)?.classSymbol != parent
+                            {
                                 return false
                             }
                             // kotlin.math is not a Kotlin default import. Do not let this
@@ -1566,7 +1662,24 @@ extension CallTypeChecker {
             }
         }
 
-        let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        // Direct member lookup and short-name extension recovery can bypass
+        // cachedScopeLookup, which normally removes an expect declaration once
+        // its matching actual is linked. Apply the same rule before resolving
+        // member-style calls, or the identical expect/actual signatures become
+        // two viable overloads and produce a false ambiguity.
+        let candidateSet = Set(allCandidates)
+        let resolvedCandidates = allCandidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.flags.contains(.expectDeclaration)
+            else {
+                return true
+            }
+            guard let actual = sema.symbols.actualSymbol(for: candidate) else {
+                return true
+            }
+            return !candidateSet.contains(actual)
+        }
+        let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
         let memberName = interner.resolve(calleeName)
         if !isClassNameReceiver,
            !safeCall,
@@ -1925,20 +2038,18 @@ extension CallTypeChecker {
                 }
                 return [:]
             }(),
+            contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
             locals: &locals
         )
-        // Regex keeps a String-specific runtime bridge for the historical
-        // `(MatchResult) -> String` overload alongside the source-backed
-        // CharSequence overload whose transform returns CharSequence. Lambda
+        // Older imported stdlib artifacts may still expose a String callback
+        // bridge alongside the bundled CharSequence declaration. Lambda
         // preparation intentionally erases return types while finding a shared
-        // input shape, which would otherwise leave these two overloads
-        // ambiguous even after the lambda body has produced a String. Once the
-        // body type is known, prefer the bridge only when its String callback is
-        // actually applicable; custom CharSequence callbacks continue through
-        // the source declaration.
+        // input shape, so prefer that compatibility bridge only when it is
+        // actually present and applicable; bundled source continues through
+        // the CharSequence declaration.
         if memberNameText == "replace",
            args.count == 2,
            sema.types.makeNonNullable(argTypes[0]) == sema.types.stringType,

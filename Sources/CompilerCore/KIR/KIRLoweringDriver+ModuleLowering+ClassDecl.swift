@@ -186,7 +186,19 @@ extension KIRLoweringDriver {
             let fallbackMethodSymbol = classDelegationDefaultMethodSymbol(
                 interfaceMethodSymbol: info.interfaceMethodSymbol,
                 sema: sema
-            )
+            ) ?? {
+                // Runtime collection boxes such as `listOf(...)` carry the
+                // interface type ID but are not concrete Kotlin classes in
+                // `dispatchTargets`. Abstract collection members that have a
+                // runtime ABI link must use that bridge as the delegation
+                // fallback instead of reaching `kk_abort_unreachable`.
+                guard let linkName = sema.symbols.externalLinkName(for: info.interfaceMethodSymbol),
+                      !linkName.isEmpty
+                else {
+                    return nil
+                }
+                return info.interfaceMethodSymbol
+            }()
             ctx.resetScopeForFunction()
             ctx.beginCallableLoweringScope()
             ctx.setCurrentFunctionSymbol(forwardingSymbol)
@@ -509,7 +521,53 @@ extension KIRLoweringDriver {
         }
 
         body.append(.label(fallbackLabel))
-        if let fallbackAccessorSymbol {
+        if accessorKind == .getter,
+           let externalLinkName = sema.symbols.externalLinkName(for: info.interfacePropertySymbol),
+           !externalLinkName.isEmpty
+        {
+            // BUG-240: runtime-bridged interface properties (e.g. Map's
+            // keys/values/entries → kk_map_*) have no concrete accessor to
+            // dispatch to; call the runtime bridge on the delegate directly.
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(externalLinkName),
+                arguments: callArgs,
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+        } else if accessorKind == .getter,
+                  let methodSlot = kirInterfacePropertyGetterSlot(
+                      interfaceProperty: info.interfacePropertySymbol,
+                      interfaceSymbol: info.interfaceSymbol,
+                      sema: sema,
+                      interner: interner
+                  )
+        {
+            // A delegate whose runtime type is not among the compile-time
+            // known subtypes (imported or externally-provided implementations)
+            // still reaches its getter through the itable slot registered on
+            // the interface.
+            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: info.interfaceSymbol,
+                sema: sema,
+                interner: interner
+            )
+            body.append(.virtualCall(
+                symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: info.interfacePropertySymbol),
+                callee: accessorName,
+                receiver: delegateResultID,
+                arguments: [],
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .itableDynamic(
+                    interfaceTypeID: interfaceTypeID,
+                    methodSlot: methodSlot
+                )
+            ))
+        } else if let fallbackAccessorSymbol {
             body.append(.call(
                 symbol: fallbackAccessorSymbol,
                 callee: accessorName,
@@ -680,7 +738,10 @@ extension KIRLoweringDriver {
         sema: SemaModule
     ) -> SymbolID? {
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
-              !interfaceProperty.flags.contains(.abstractType)
+              !interfaceProperty.flags.contains(.abstractType),
+              // A runtime-bridged property's synthetic accessor has no
+              // emitted body — resolve it through the bridge instead.
+              (sema.symbols.externalLinkName(for: interfacePropertySymbol) ?? "").isEmpty
         else {
             return nil
         }

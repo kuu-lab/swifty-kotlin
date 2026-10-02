@@ -3,8 +3,8 @@ symbol fq=__local_1.values[kind=local] kind=local vis=private flags=_ type=kotli
 symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_LazyThreadSafetyMode_LazyThreadSafetyMode_n package=golden.sema
   decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
-expr e@4:19 name(LazyThreadSafetyMode) type=kotlin.LazyThreadSafetyMode.Companion ref=kotlin.LazyThreadSafetyMode[kind=enum]
-expr e@4:19#1 memberCall recv=e@4:19 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.LazyThreadSafetyMode> ref=kotlin.LazyThreadSafetyMode.Companion.entries[kind=prop]
+expr e@4:19 name(LazyThreadSafetyMode) type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode[kind=enum]
+expr e@4:19#1 memberCall recv=e@4:19 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.LazyThreadSafetyMode> call=kotlin.entries.$get[kind=fun;recv=kotlin.LazyThreadSafetyMode;params=]
 expr e@4:5 localDecl entries mutable=0 type=_ init=e@4:19#1 type=Unit ref=__local_0.entries[kind=local]
 expr e@5:18 name(LazyThreadSafetyMode) type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode[kind=enum]
 expr e@5:18#1 memberCall recv=e@5:18 callee=values args=[] type=kotlin.Array<kotlin.LazyThreadSafetyMode> ref=kotlin.LazyThreadSafetyMode.values[kind=fun;params=] call=kotlin.LazyThreadSafetyMode.values[kind=fun;params=]

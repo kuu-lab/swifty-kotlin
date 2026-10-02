@@ -659,6 +659,8 @@ extension CallLowerer {
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
             case ("toUByte", ubyteType, ubyteType): nil // identity
             case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
+            case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
+            case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
@@ -719,12 +721,32 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        // Explicit `.invoke(...)` on a receiver whose own type is a function
+        // type (e.g. `fs["dbl"]?.invoke(4)`). Mirrors the non-safe-call arm
+        // in `lowerMemberCallExpr` and goes through `lowerResolvedCallBody`
+        // so positional-receiver / default-arg shapes stay consistent.
+        if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            loweredReceiverID: loweredReceiverID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // Callable-value invocation through a safe call (KUU-644):
-        // `h?.f(args)` on a function-typed member property, and
-        // `x?.invoke(args)` on a function value. The receiver is already
-        // known non-null here; emit the property read / invoke on the
+        // `h?.f(args)` on a function-typed member property. The receiver is
+        // already known non-null here; emit the property read / invoke on the
         // non-null path and copy into the nullable result like the other
-        // safe-call arms.
+        // safe-call arms. Explicit `x?.invoke(args)` is handled above.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            let invokeCallee = runtimeCallableInvokeCallee(

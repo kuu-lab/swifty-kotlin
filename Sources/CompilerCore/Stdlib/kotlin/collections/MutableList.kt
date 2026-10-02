@@ -42,6 +42,8 @@ private external fun <E> __kkMutableListRetainAll(
 // externals above are the demoted runtime bridges; keeping the bridge calls in
 // default interface bodies preserves the runtime-backed behavior for erased
 // MutableList receivers without synthetic member declarations.
+// KSP-705: the addAll members stay `external` declarations bound directly to
+// their demoted bridges, matching the MutableCollection.addAll migration.
 // KSP-700: list-iterator overrides are source-backed to keep the covariant
 // return type visible to inherited abstract-member checks.
 public interface MutableList<E> : List<E>, MutableCollection<E> {
@@ -50,27 +52,45 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
         __kkMutableListSet(this, index, element)
 
     @IgnorableReturnValue
-    public fun add(element: E): Boolean =
+    public override fun add(element: E): Boolean =
         __kkMutableListAdd(this, element)
 
     public fun add(index: Int, element: E) {
         __kkMutableListAddAt(this, index, element)
     }
 
+    /**
+     * Adds all elements of [elements] to the end of this mutable list.
+     */
+    @KsSymbolName("__kk_mutable_list_addAll")
+    @IgnorableReturnValue
+    public override external fun addAll(elements: Collection<out E>): Boolean
+
+    /**
+     * Inserts all elements of [elements] starting at [index].
+     */
+    @KsSymbolName("__kk_mutable_list_addAll_at")
+    @IgnorableReturnValue
+    public external fun addAll(index: Int, elements: Collection<out E>): Boolean
+
     @IgnorableReturnValue
     public fun removeAt(index: Int): E =
         __kkMutableListRemoveAt(this, index)
 
-    public fun clear() {
+    @IgnorableReturnValue
+    public override fun remove(element: E): Boolean =
+        __kkMutableListRemove(this, element)
+
+    public override fun clear() {
         __kkMutableListClear(this)
     }
 
     @IgnorableReturnValue
-    public fun removeAll(elements: Collection<out E>): Boolean =
+    public override fun removeAll(elements: Collection<out E>): Boolean =
         __kkMutableListRemoveAll(this, elements)
 
     @IgnorableReturnValue
-    public fun retainAll(elements: Collection<out E>): Boolean =
+    public override fun retainAll(elements: Collection<out E>): Boolean =
         __kkMutableListRetainAll(this, elements)
 
     public operator fun plusAssign(element: E) {
@@ -94,6 +114,9 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
 
     @KsSymbolName("kk_list_iterator_at")
     public override fun listIterator(index: Int): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_subList")
+    public override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
 }
 
 /**

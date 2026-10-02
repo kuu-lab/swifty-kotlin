@@ -242,6 +242,26 @@ public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Ne
 
 // MARK: - Native ByteArray accessors
 
+/// ImmutableBlob has the same element layout as ByteArray. The source-backed
+/// factory receives the raw Short vararg array; each element is truncated to
+/// one byte just as Kotlin/Native's ImmutableBlob constructor does.
+@_cdecl("__kk_immutable_blob_of")
+public func kk_immutable_blob_of(_ elementsRaw: Int, _: Int) -> Int {
+    guard let elements = runtimeArrayBox(from: elementsRaw) else {
+        return 0
+    }
+    let blob = RuntimeArrayBox(length: elements.count)
+    for index in 0..<elements.count {
+        blob[index] = Int(Int8(truncatingIfNeeded: elements[index]))
+    }
+    let raw = registerRuntimeObject(blob)
+    runtimeRegisterObjectType(
+        rawValue: raw,
+        classID: runtimeStableNominalTypeID(fqName: "kotlin.native.ImmutableBlob")
+    )
+    return raw
+}
+
 @inline(__always)
 private func runtimeNativeByteArrayLoadUnsigned(
     _ arrayRaw: Int,
@@ -252,7 +272,7 @@ private func runtimeNativeByteArrayLoadUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.count else {
+    guard index >= 0, index <= array.count, byteCount >= 0, byteCount <= array.count - index else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
@@ -275,7 +295,7 @@ private func runtimeNativeByteArrayStoreUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.count else {
+    guard index >= 0, index <= array.count, byteCount >= 0, byteCount <= array.count - index else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
@@ -607,6 +627,36 @@ public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uByteArray_toCValues")
     }
     return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
+}
+
+// MARK: - ImmutableBlob
+
+/// Returns a stable native address for `ImmutableBlob.asCPointer(offset)` /
+/// `asUCPointer(offset)` (upstream `Kotlin_ImmutableBlob_asCPointerImpl`).
+///
+/// RuntimeArrayBox storage is `[RuntimeValue]`, which is not byte-addressable
+/// C storage, so the blob's bytes are copied into a `RuntimeCValuesBox`'s
+/// unmanaged heap buffer and `baseAddress + offset` is returned. The box is
+/// pinned permanently: the escaped address has no release path in this API,
+/// and upstream ImmutableBlobs are effectively immortal once exposed as a C
+/// pointer.
+@_cdecl("__kk_immutable_blob_as_cpointer")
+public func __kk_immutable_blob_as_cpointer(_ blobRaw: Int, _ offset: Int) -> Int {
+    guard let array = runtimeArrayBox(from: blobRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid ImmutableBlob handle in __kk_immutable_blob_as_cpointer")
+    }
+    guard offset >= 0 && offset <= array.count else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_immutable_blob_as_cpointer offset \(offset) out of bounds for blob of size \(array.count)")
+    }
+    let box = RuntimeCValuesBox(bytes: array.elements)
+    let boxRaw = registerRuntimeObject(box)
+    runtimeStorage.withGCLock { state in
+        state.pinnedObjectCounts[UInt(bitPattern: boxRaw), default: 0] += 1
+    }
+    guard let baseAddress = box.storage.baseAddress else {
+        return 0
+    }
+    return Int(bitPattern: baseAddress) + offset
 }
 
 // MARK: - Pinned<T>
@@ -1012,7 +1062,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
                 state.objectPointers.contains(UInt(bitPattern: ptr))
             }
             guard isRegistered else { continue }
-            let anyObject = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+            // Primitive box handles are tagged (kk_box_*); ARC reads need the
+            // base object pointer.
+            let basePtr = runtimePrimitiveBoxBasePointer(from: raw) ?? ptr
+            let anyObject = Unmanaged<AnyObject>.fromOpaque(basePtr).takeUnretainedValue()
             if let provider = anyObject as? RuntimeChildReferenceProviding {
                 for child in provider.childRefs where child != 0 {
                     let childKey = UInt(bitPattern: child)
@@ -1254,7 +1307,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
 @_cdecl("kk_worker_new")
 public func kk_worker_new(_ nameRaw: Int) -> Int {
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
-    return registerRuntimeObject(RuntimeWorkerBox(name: name))
+    let handle = registerRuntimeObject(RuntimeWorkerBox(name: name))
+    registerActiveWorker(handle: handle)
+    return handle
 }
 
 /// Lazily-created stand-in for the implicit worker that owns the main thread
@@ -1271,6 +1326,7 @@ private final class MainWorkerHandleBox: @unchecked Sendable {
         defer { lock.unlock() }
         if handle == 0 {
             handle = registerRuntimeObject(RuntimeWorkerBox(name: nil))
+            registerActiveWorker(handle: handle)
         }
         return handle
     }
@@ -1356,6 +1412,7 @@ public func kk_worker_request_termination(_ workerHandle: Int, _ processSchedule
         return 0
     }
     worker.requestTermination(processScheduled: processScheduledRaw != 0)
+    unregisterActiveWorker(handle: workerHandle)
     let futureHandle = kk_future_new()
     guard futureHandle != 0 else {
         return 0
@@ -1454,7 +1511,8 @@ public func kk_cinterop_writeBits(_ ptr: Int, _ offset: Int, _ size: Int, _ valu
     guard offset >= 0, size >= 0, size <= Int.bitWidth else { return }
     for i in 0..<size {
         let bit = (value >> i) & 1
-        let bitIndex = offset + i
+        let (bitIndex, overflow) = offset.addingReportingOverflow(i)
+        guard !overflow else { return }
         let bytePtr = rawPtr.advanced(by: bitIndex >> 3).bindMemory(to: UInt8.self, capacity: 1)
         let mask: UInt8 = 1 << UInt8(bitIndex & 7)
         if bit != 0 {

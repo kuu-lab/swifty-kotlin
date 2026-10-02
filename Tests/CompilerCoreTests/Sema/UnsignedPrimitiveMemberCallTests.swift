@@ -331,4 +331,33 @@ struct UnsignedPrimitiveMemberCallTests {
 
         }
     }
+
+    /// KUU-919: a bare conversion call such as `toShort()` inside an unsigned
+    /// extension body resolves through the implicit `this` receiver. The
+    /// unsigned `toX` overloads are registered as synthetic `kotlin.toX`
+    /// extension stubs so overload resolution can bind them.
+    @Test
+    func testUnsignedConversionCallsResolveOnImplicitReceiver() throws {
+        let source = """
+            package sample_implicit
+
+            fun UByte.toShortViaImplicit(): Short = toShort()
+            fun UShort.toShortViaImplicit(): Short = toShort()
+            fun UShort.toIntViaImplicit(): Int = toInt()
+            fun UInt.toLongViaImplicit(): Long = toLong()
+            fun ULong.toUIntViaImplicit(): UInt = toUInt()
+            fun ULong.toShortViaImplicit(): Short = toShort()
+
+            """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(
+                diagnostics.isEmpty,
+                "Expected implicit-receiver unsigned conversions to compile cleanly, got: \(diagnostics)"
+            )
+        }
+    }
 }

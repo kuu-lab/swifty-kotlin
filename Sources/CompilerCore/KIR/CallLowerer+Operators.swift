@@ -60,7 +60,7 @@ extension CallLowerer {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        let lhsID = driver.lowerExpr(
+        let rawLhsID = driver.lowerExpr(
             lhs,
             ast: ast,
             sema: sema,
@@ -69,6 +69,18 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
+        // in `x + x++`) must observe its value at the point it was
+        // evaluated, not any mutation rhs performs on the same variable.
+        // Only worth doing when rhs could actually perform a mutation
+        // (e.g. `result + 22` cannot touch `result`, so freezing here
+        // would only add a dead copy some optimization levels don't fold
+        // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
+        // / expressionMayMutateState.
+        let lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+            && expressionMayMutateState(rhs, ast: ast)
+            ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+            : rawLhsID
         let rhsID = driver.lowerExpr(
             rhs,
             ast: ast,
@@ -158,6 +170,40 @@ extension CallLowerer {
             guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
             return true
         }()
+        if (op == .identityEqual || op == .notIdentityEqual), lhsIsString || rhsIsString {
+            // Compare canonical object handles, including String/Any mixed
+            // operands. Normalize both runtime null representations before
+            // the raw comparison; flat String boxing returns zero for null.
+            var handles: [KIRExprID] = []
+            for (id, isString) in [(lhsID, lhsIsString), (rhsID, rhsIsString)] {
+                var handle = id
+                if isString {
+                    handle = arena.appendTemporary(type: sema.types.nullableAnyType)
+                    instructions.append(.call(
+                        symbol: nil, callee: interner.intern("kk_string_from_flat"),
+                        arguments: [id], result: handle,
+                        canThrow: false, thrownResult: nil
+                    ))
+                }
+                let normalized = arena.appendTemporary(type: sema.types.nullableAnyType)
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: handle, target: nonNullLabel))
+                instructions.append(.constValue(result: normalized, value: .null))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                instructions.append(.copy(from: handle, to: normalized))
+                instructions.append(.label(endLabel))
+                handles.append(normalized)
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
+                arguments: handles, result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
         let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
             || (rhsIsString && lhsIsNullLiteral)
         let isStringComparison: Bool = if isStringOperand {
@@ -453,12 +499,7 @@ extension CallLowerer {
                 return nullStringID
             }
             switch op {
-            // `===`/`!==` fold into the same content-equality codegen as `==`/`!=`
-            // here: String is a "flat" by-value aggregate (data/length/byteCount/hash)
-            // in this runtime, not a heap reference, so there is no separate pointer
-            // identity to compare — `kk_op_eq`/`kk_op_ne` also cannot accept it
-            // (their ABI takes one word per operand, not a 4-word aggregate).
-            case .equal, .identityEqual:
+            case .equal:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
@@ -470,7 +511,7 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
                 return result
-            case .notEqual, .notIdentityEqual:
+            case .notEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 let eqResult = arena.appendTemporary(type: boolType)
@@ -526,7 +567,17 @@ extension CallLowerer {
             let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
             let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
-            if lhsIsFloatingPoint || rhsIsFloatingPoint {
+            // `!=` on a *nullable* Double?/Float? must stay null-aware: a
+            // null operand can never be IEEE-compared, and the runtime null
+            // sentinel's bit pattern equals -0.0, so kk_op_dne/fne's fixed
+            // IEEE comparison would treat a genuine null as -0.0. Defer to
+            // the generic `.binary` path below (op == .notEqual falls through
+            // this switch unchanged), which OperatorLoweringPass routes
+            // through the null-aware kk_nullable_primitive_ne instead.
+            let isNullableFloatingPointNotEqual = op == .notEqual
+                && ((lhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false)
+                    || (rhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false))
+            if (lhsIsFloatingPoint || rhsIsFloatingPoint), !isNullableFloatingPointNotEqual {
                 // BUG-258: a mixed comparison (e.g. `aDouble <= 1`) must widen
                 // the non-floating-point side to the same floating-point type
                 // before comparing -- kk_op_d*/kk_op_f* interpret both
@@ -692,7 +743,7 @@ extension CallLowerer {
             kirOp = .notEqual
         case .identityEqual, .notIdentityEqual:
             // Always resolved earlier: builtinBinaryRuntimeCallee (kk_op_eq/kk_op_ne)
-            // for ordinary operands, or the string content-equality path above for
+            // for ordinary operands, or the canonical string-handle path above for
             // String operands. Neither falls through to this raw KIRBinaryOp path.
             preconditionFailure("=== / !== must be lowered before reaching the raw KIRBinaryOp path")
         case .lessThan:
@@ -1000,6 +1051,13 @@ extension CallLowerer {
         }
     }
 
+    private func isNullableFloatingPointType(_ typeID: TypeID, types: TypeSystem) -> Bool {
+        switch types.kind(of: typeID) {
+        case .primitive(.double, .nullable), .primitive(.float, .nullable): return true
+        default: return false
+        }
+    }
+
     /// BUG-258: widens an integer-typed comparison operand to the raw
     /// IEEE-754 bit pattern of `toDouble: true ? Double : Float` so it can be
     /// compared against a genuine floating-point operand by `kk_op_d*`/
@@ -1249,6 +1307,111 @@ extension CallLowerer {
         return result
     }
 
+    /// Snapshots an already-lowered operand into a fresh temporary.
+    ///
+    /// A bare reference to a mutable local (`nameRef`) returns that local's
+    /// persistent storage register by identity rather than a value snapshot
+    /// (see the `.nameRef` case in `ExprLowerer+ControlFlowAndBlocks.swift`,
+    /// via `localValue(for:)`). KIR instructions execute strictly in the
+    /// order they are appended, so if a later-evaluated sibling operand
+    /// (e.g. an indexed assignment's value expression, or the right operand
+    /// of a binary expression, when it contains `i++`/`++i` on the same
+    /// variable this operand already read) mutates that register in place
+    /// before the instruction that consumes this operand actually runs, that
+    /// instruction observes the mutated value instead of the value at the
+    /// point this operand was evaluated. Copying into a fresh temporary
+    /// immediately after evaluation freezes the evaluate-once value that
+    /// Kotlin's specified left-to-right evaluation order requires. Call this
+    /// on every operand of a multi-operand construct as soon as it is
+    /// lowered, before lowering the next sibling operand.
+    func freezeEvaluationOrderOperand(
+        _ id: KIRExprID,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let temp = arena.appendTemporary(type: arena.exprType(id))
+        instructions.append(.copy(from: id, to: temp))
+        return temp
+    }
+
+    /// True when `exprID` is a bare reference to a mutable (`var`) local —
+    /// the only shape whose lowered `KIRExprID` aliases a register that a
+    /// later-evaluated sibling operand could still mutate in place (see
+    /// `freezeEvaluationOrderOperand`). Anything else — a `val`, a literal,
+    /// a lambda, a nested call, a property, a value parameter, ... — either
+    /// cannot be mutated by a sibling, or is already lowered into its own
+    /// fresh value, so freezing it would only add a needless extra copy.
+    /// That matters beyond cost: a call argument that is a trailing lambda
+    /// passed to an `inline` stdlib function (e.g. `fold`/`reduce` on a
+    /// range) is later consumed by the separate inline-lowering pass, which
+    /// expects to find the closure construction directly feeding the call;
+    /// splicing an unconditional copy in between broke that pattern match
+    /// and crashed under `-O2`.
+    func needsEvaluationOrderFreeze(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        guard case .nameRef = ast.arena.expr(exprID),
+              let symbol = sema.bindings.identifierSymbols[exprID],
+              let symbolInfo = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return symbolInfo.kind == .local && symbolInfo.flags.contains(.mutable)
+    }
+
+    /// Conservatively true when `exprID` could possibly perform a write
+    /// (an assignment, an increment/decrement, or a call that might do
+    /// either indirectly) while it is evaluated. False only for an
+    /// expression built purely from literals, bare reads, and arithmetic/
+    /// comparison/logical operators over such expressions — a shape that
+    /// can never mutate anything, however deep it nests.
+    ///
+    /// This exists to avoid freezing a sibling operand needlessly: e.g. in
+    /// `result = result + 22`, the rhs `22` cannot mutate `result`, so
+    /// there is no aliasing hazard and freezing the lhs would only add a
+    /// dead `.copy` that some optimization levels don't fold away (this
+    /// was caught by `LLVMOptimizationPipelineTests`'s stack-slot-
+    /// elimination probe). `needsEvaluationOrderFreeze` should only cause
+    /// a freeze when *this* also returns true for the later-evaluated
+    /// sibling(s).
+    ///
+    /// Bounded by the same depth the expression parser itself enforces
+    /// (`ExpressionParser.maxRecursionDepth`), so hitting the bound
+    /// conservatively returns true rather than recursing unboundedly.
+    func expressionMayMutateState(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        depth: Int = 0
+    ) -> Bool {
+        guard depth < 64, let expr = ast.arena.expr(exprID) else {
+            return true
+        }
+        switch expr {
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
+             .stringLiteral, .nameRef:
+            return false
+        case let .binary(_, lhs, rhs, _):
+            return expressionMayMutateState(lhs, ast: ast, depth: depth + 1)
+                || expressionMayMutateState(rhs, ast: ast, depth: depth + 1)
+        case let .unaryExpr(_, operand, _):
+            return expressionMayMutateState(operand, ast: ast, depth: depth + 1)
+        default:
+            return true
+        }
+    }
+
+    /// True when any of `exprIDs` might mutate state per
+    /// `expressionMayMutateState`.
+    func anyExpressionMayMutateState<S: Sequence>(
+        _ exprIDs: S,
+        ast: ASTModule
+    ) -> Bool where S.Element == ExprID {
+        exprIDs.contains { expressionMayMutateState($0, ast: ast) }
+    }
+
     func lowerIndexedAssignExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -1272,7 +1435,7 @@ extension CallLowerer {
         )
         // Built-in array set only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed assign")
-        let indexID = driver.lowerExpr(
+        let rawIndexID = driver.lowerExpr(
             indices[0],
             ast: ast,
             sema: sema,
@@ -1281,6 +1444,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
+            && expressionMayMutateState(valueExpr, ast: ast)
+            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+            : rawIndexID
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1454,7 +1621,7 @@ extension CallLowerer {
 
         // Built-in array compound assign only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed compound assign")
-        let indexID = driver.lowerExpr(
+        let rawIndexID = driver.lowerExpr(
             indices[0],
             ast: ast,
             sema: sema,
@@ -1463,6 +1630,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
+            && expressionMayMutateState(valueExpr, ast: ast)
+            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+            : rawIndexID
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1621,7 +1792,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let loweredIndices = indices.map { indexExpr in
-            driver.lowerExpr(
+            let rawIndex = driver.lowerExpr(
                 indexExpr,
                 ast: ast,
                 sema: sema,
@@ -1630,6 +1801,10 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            return needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
+                && expressionMayMutateState(valueExpr, ast: ast)
+                ? freezeEvaluationOrderOperand(rawIndex, arena: arena, instructions: &instructions)
+                : rawIndex
         }
         let valueID = driver.lowerExpr(
             valueExpr,

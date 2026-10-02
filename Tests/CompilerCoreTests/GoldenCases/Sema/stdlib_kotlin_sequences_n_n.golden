@@ -1,7 +1,7 @@
 symbol fq=UserIterator.<init>.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=UserIterator.<init>[kind=ctor;recv=UserIterator;params=kotlin.collections.List<Int>] kind=constructor vis=public flags=_ sig=recv=UserIterator params=[kotlin.collections.List<Int>] ret=UserIterator
 symbol fq=UserIterator.index[kind=prop] kind=property vis=private flags=mutable type=Int
-symbol fq=UserIterator.values[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.List<Int>
+symbol fq=UserIterator.values[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=UserIterator[kind=class] kind=class vis=public flags=_
 symbol fq=__local_0.value[kind=local] kind=local vis=private flags=_ type=Int
 symbol fq=__local_1.fromIterator[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>
@@ -24,7 +24,7 @@ file fstdlib_kotlin_sequences_n_n package=_
 expr e@2:25 int(0) type=Int
 expr e@3:39 name(index) type=Int ref=UserIterator.index[kind=prop]
 expr e@3:47 name(values) type=kotlin.collections.List<Int> ref=UserIterator.values[kind=prop]
-expr e@3:47#1 memberCall recv=e@3:47 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@3:47#1 memberCall recv=e@3:47 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@3:39#1 binary(lessThan) lhs=e@3:39 rhs=e@3:47#1 type=Boolean
 expr e@5:21 name(values) type=kotlin.collections.List<Int> ref=UserIterator.values[kind=prop]
 expr e@5:28 name(index) type=Int ref=UserIterator.index[kind=prop]

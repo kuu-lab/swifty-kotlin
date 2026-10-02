@@ -219,6 +219,17 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_hash_set_new_checked",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "loadFactorBits", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: true
+        ),
         // BUG-254: nominal-tag bridge for the mutable set factories and the
         // LinkedHashSet constructors, mirroring `__kk_hash_set_of`.
         RuntimeABIFunctionSpec(
@@ -1511,7 +1522,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "elementsRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Collection"
+            section: "Collection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_list_addAll",
@@ -1527,25 +1539,6 @@ public extension RuntimeABISpec {
             name: "__kk_mutable_collection_addAll_iterable",
             parameters: [
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_addAll_sequence",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_addAll_iterable",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
             ],
             returnType: .intptr,
@@ -1655,41 +1648,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "element", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_shuffle",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_reverse",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_sortDescending",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_sortDescending_primitive",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "kindRaw", type: .int32),
             ],
             returnType: .intptr,
             section: "Collection"

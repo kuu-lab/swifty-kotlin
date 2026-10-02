@@ -6,6 +6,7 @@ extension DataFlowSemaPhase {
         let inlineKIRDir: String?
         let moduleName: String?
         let isValid: Bool
+        var topLevelInitializerLinkName: String? = nil
     }
 
     struct LibraryImportDeferredWork {
@@ -19,6 +20,10 @@ extension DataFlowSemaPhase {
         /// second independent read has no diagnostic on failure and is
         /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
+        /// Kotlin `.klib` modules discovered on the search path: manifest
+        /// parsed and version-gated, container kept open for the IR import
+        /// stages that follow.
+        let klibModules: [KlibModule]
     }
 
     func loadImportedLibrarySymbols(
@@ -39,6 +44,7 @@ extension DataFlowSemaPhase {
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        var klibModules: [KlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
 
@@ -49,6 +55,12 @@ extension DataFlowSemaPhase {
         }
 
         for libraryDir in libraryDirs {
+            if libraryDir.hasSuffix(".klib") {
+                if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
+                    klibModules.append(module)
+                }
+                continue
+            }
             let stdlibArtifact = isStdlibArtifact(libraryDir)
             let manifestInfo: LibraryManifestInfo
             if let cached = cache?.cachedManifestInfo(libraryDir: libraryDir, target: options.target) {
@@ -67,6 +79,24 @@ extension DataFlowSemaPhase {
             }
             guard manifestInfo.isValid else {
                 continue
+            }
+            if let linkName = manifestInfo.topLevelInitializerLinkName,
+               !linkName.isEmpty,
+               let moduleName = manifestInfo.moduleName {
+                let name = interner.intern("__kk_library_top_level_init_\(moduleName)")
+                let symbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: [interner.intern(moduleName), name],
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(parameterTypes: [], returnType: types.unitType),
+                    for: symbol
+                )
+                symbols.setExternalLinkName(linkName, for: symbol)
             }
             let metadataPath = manifestInfo.metadataPath
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
@@ -151,7 +181,7 @@ extension DataFlowSemaPhase {
                     name: name,
                     fqName: record.fqName,
                     declSite: nil,
-                    visibility: .public,
+                    visibility: record.visibility,
                     flags: flags
                 )
                 if let libraryModuleFQN {
@@ -173,7 +203,7 @@ extension DataFlowSemaPhase {
                 "Stdlib library artifact '\(options.stdlibLibraryPath!)' could not be loaded",
                 range: nil
             )
-            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [], stdlibModuleName: nil)
+            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [], stdlibModuleName: nil, klibModules: [])
         }
 
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
@@ -352,7 +382,8 @@ extension DataFlowSemaPhase {
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
             importedBindings: importedBindings,
-            stdlibModuleName: stdlibModuleName
+            stdlibModuleName: stdlibModuleName,
+            klibModules: klibModules
         )
     }
 
@@ -932,6 +963,7 @@ extension DataFlowSemaPhase {
 
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
+        let visibility: Visibility
         let mangledName: String
         let fqName: [InternedString]
         let arity: Int
@@ -985,6 +1017,7 @@ extension DataFlowSemaPhase {
         let sealedSubclassFQNames: [[InternedString]]
         let propertyReceiverTypeSignature: String?
         let propertyGetterExternalLinkName: String?
+        let propertySetterExternalLinkName: String?
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
@@ -1001,6 +1034,7 @@ extension DataFlowSemaPhase {
 
         init(
             kind: SymbolKind,
+            visibility: Visibility = .public,
             mangledName: String = "",
             fqName: [InternedString] = [],
             arity: Int = 0,
@@ -1047,6 +1081,7 @@ extension DataFlowSemaPhase {
             sealedSubclassFQNames: [[InternedString]] = [],
             propertyReceiverTypeSignature: String? = nil,
             propertyGetterExternalLinkName: String? = nil,
+            propertySetterExternalLinkName: String? = nil,
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
@@ -1057,6 +1092,7 @@ extension DataFlowSemaPhase {
             nominalTypeParameters: String? = nil
         ) {
             self.kind = kind
+            self.visibility = visibility
             self.mangledName = mangledName
             self.fqName = fqName
             self.arity = arity
@@ -1103,6 +1139,7 @@ extension DataFlowSemaPhase {
             self.sealedSubclassFQNames = sealedSubclassFQNames
             self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
             self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+            self.propertySetterExternalLinkName = propertySetterExternalLinkName
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
@@ -1485,6 +1522,9 @@ extension DataFlowSemaPhase {
                     for: setterSymbol
                 )
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+                if let setterLink = record.propertySetterExternalLinkName, !setterLink.isEmpty {
+                    symbols.setExternalLinkName(setterLink, for: setterSymbol)
+                }
             }
         }
         // Member and top-level properties with custom getters also carry a
@@ -1547,6 +1587,47 @@ extension DataFlowSemaPhase {
             {
                 symbols.setFunctionABIReturnType(getterAbiReturnType, for: getterSymbol)
             }
+        }
+        // `var` properties with a custom setter carry the precompiled setter
+        // link for the same reason as the getter: without it a consumer's
+        // `a.prop = x` lowers to a call named `set` and fails to link.
+        let setterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
+        if record.isMutable,
+           let setterLink = record.propertySetterExternalLinkName,
+           !setterLink.isEmpty,
+           record.propertyReceiverTypeSignature == nil,
+           setterOwnerInfo == nil || setterOwnerInfo?.kind == .package
+               || setterOwnerInfo?.kind == .class || setterOwnerInfo?.kind == .enumClass
+               || setterOwnerInfo?.kind == .interface
+               || setterOwnerInfo?.kind == .object
+        {
+            let ownerType: TypeID? = setterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
+            let setName = interner.intern("set")
+            let setterFQName = record.fqName + [interner.intern("$set")]
+            let setterSymbol = symbols.define(
+                kind: .function,
+                name: setName,
+                fqName: setterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: setterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: setterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: ownerType,
+                    parameterTypes: [propertyType],
+                    returnType: types.unitType
+                ),
+                for: setterSymbol
+            )
+            symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+            symbols.setExternalLinkName(setterLink, for: setterSymbol)
         }
     }
 

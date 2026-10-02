@@ -1216,6 +1216,32 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // Range handles carry no object type ID either: they are allocated by
+        // `__kk_*_rangeTo`/`downTo`/`until` factories, not kk_object_new.
+        // Recover the nominal identity from the range kind, mirroring the
+        // primitive-box recovery above.
+        if let rangeBox = runtimeRangeBox(from: value) {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeRangeBoxNominalTypeID(rangeBox.kind),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        let isFloatingRangeBox = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+                ? tryCast(ptr, to: RuntimeDoubleRangeBox.self) != nil
+                    || tryCast(ptr, to: RuntimeFloatRangeBox.self) != nil
+                : false
+        }
+        if isFloatingRangeBox {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.ranges.ClosedFloatingPointRange"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)
@@ -2070,9 +2096,44 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
     } else {
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
+    if variance == nil {
+        return runtimeKTypeProjectionStar()
+    }
+    return runtimeKTypeProjectionCreate(typeRaw: typeRaw, variance: variance)
+}
+
+private func runtimeKTypeProjectionCreate(typeRaw: Int, variance: RuntimeKVariance?) -> Int {
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
+}
+
+private func runtimeKTypeProjectionStar() -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.kTypeProjectionStarRaw }) {
+        return cached
+    }
+    registerReflectionRuntimeTypeMetadata()
+    let candidate = registerRuntimeObject(
+        RuntimeKTypeProjectionBox(typeRaw: 0, variance: nil),
+        typeID: kTypeProjectionRuntimeTypeID
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.kTypeProjectionStarRaw {
+            return cached
+        }
+        state.kTypeProjectionStarRaw = candidate
+        return candidate
+    }
+    if winner != candidate {
+        _ = runtimeReleaseObject(candidate)
+    }
+    return winner
+}
+
+/// Returns the canonical star projection used by the companion and `typeOf`.
+@_cdecl("__kk_ktypeprojection_star")
+public func __kk_ktypeprojection_star() -> Int {
+    runtimeKTypeProjectionStar()
 }
 
 /// Creates a KTypeProjection through its public constructor.
@@ -2116,7 +2177,13 @@ public func __kk_ktypeprojection_create_checked(
         return 0
     }
 
-    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, decodedVarianceOrdinal)
+    if varianceIsNull {
+        return runtimeKTypeProjectionCreate(typeRaw: 0, variance: nil)
+    }
+    return runtimeKTypeProjectionCreate(
+        typeRaw: typeRaw,
+        variance: RuntimeKVariance(rawValue: decodedVarianceOrdinal) ?? .invariant
+    )
 }
 
 /// Returns the Kotlin declaration ordinal for a projection's variance, or null.
@@ -2277,6 +2344,22 @@ public func kk_object_register_equals_override(_ objectRaw: Int, _ functionRaw: 
     return 0
 }
 
+/// Registers the most-specific user implementation of `Any.hashCode` so that
+/// hashed collections, which only see an erased handle, honor it.
+@_cdecl("kk_object_register_hashcode_override")
+public func kk_object_register_hashcode_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
+    guard functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        state.objectHashCodeOverrides[objectKey] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_object_register_any_to_string")
 public func kk_object_register_any_to_string(
     _ objectRaw: Int,
@@ -2392,8 +2475,8 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
         let marker = pairs[i * 2]
         let value = pairs[i * 2 + 1]
         if marker == -1 {
-            if let array = runtimeArrayBox(from: value) {
-                totalCount += array.count
+            if let values = runtimeSpreadSourceValues(from: value) {
+                totalCount += values.count
             }
         } else {
             totalCount += 1
@@ -2406,8 +2489,8 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
             let marker = pairs[i * 2]
             let sourceValue = pairs.values[i * 2 + 1]
             if marker == -1 {
-                if let array = runtimeArrayBox(from: sourceValue.legacyRawValue) {
-                    for element in array.values {
+                if let values = runtimeSpreadSourceValues(from: sourceValue.legacyRawValue) {
+                    for element in values {
                         box.setValue(
                             element.legacyRawValue,
                             at: writeIndex,

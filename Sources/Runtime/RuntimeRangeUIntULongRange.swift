@@ -15,11 +15,7 @@ public func __kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_uint_rangeUntil")
 public func __kk_uint_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
-    let lhsUnsigned = UInt(bitPattern: lhs)
-    let rhsUnsigned = UInt(bitPattern: rhs)
-    let last = rhs &- 1
-    let step = rhsUnsigned <= lhsUnsigned ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: last, step: step, kind: .uintRange))
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .uintRange, endAtOrBelowMinimum: rhs == 0)
 }
 
 @_cdecl("__kk_uint_downTo")
@@ -429,9 +425,12 @@ private func runtimeUnsignedStep(_ rangeRaw: Int, _ stepValue: Int) -> Int {
                 kind: range.kind.progressionKind
             ))
         }
-        let diff = range.last &- range.first
-        let remainder = diff % nextStep
-        alignedLast = range.last &- remainder
+        // Unsigned distance stays exact even when the span exceeds Int64
+        // range (e.g. 0u..ULong.max): a signed subtraction would wrap and
+        // misalign `last` away from the boundary.
+        let distance = lastUnsigned &- firstUnsigned
+        let remainder = distance % UInt(bitPattern: nextStep)
+        alignedLast = Int(bitPattern: lastUnsigned &- remainder)
     } else {
         guard firstUnsigned >= lastUnsigned else {
             return registerRuntimeObject(RuntimeRangeBox(
@@ -441,9 +440,10 @@ private func runtimeUnsignedStep(_ rangeRaw: Int, _ stepValue: Int) -> Int {
                 kind: range.kind.progressionKind
             ))
         }
-        let diff = range.first &- range.last
-        let remainder = diff % (0 &- nextStep)
-        alignedLast = range.last &+ remainder
+        let distance = firstUnsigned &- lastUnsigned
+        let magnitude = UInt(bitPattern: 0 &- nextStep)
+        let remainder = distance % magnitude
+        alignedLast = Int(bitPattern: lastUnsigned &+ remainder)
     }
     return registerRuntimeObject(RuntimeRangeBox(
         first: range.first,
