@@ -653,5 +653,66 @@ extension CompilerCoreTests {
             #expect(functionType.returnType == intType)
         }
     }
+
+    /// A bound reference to a method of a generic interface instantiation
+    /// (`t::apply` with `t: Transformer<Int, Int>`) substitutes the receiver's
+    /// type arguments into the member's signature instead of leaving the
+    /// declared type parameters (`(A) -> B`) in the function type.
+    @Test func testBoundGenericInterfaceMethodReferenceSubstitutesReceiverTypeArguments() throws {
+        let source = """
+        interface Transformer<A, B> { fun apply(a: A): B }
+        fun use(t: Transformer<Int, Int>): (Int) -> Int = t::apply
+        fun infer(t: Transformer<Int, String>) = t::apply
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            return exprID
+        }
+        #expect(callableRefExprIDs.count == 2)
+        let inferredRef = try #require(callableRefExprIDs.last)
+        let refType = try #require(sema.bindings.exprTypes[inferredRef])
+        guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+            Issue.record("Bound generic interface method reference should infer a function type.")
+            return
+        }
+        #expect(functionType.params == [intType])
+        #expect(functionType.returnType == sema.types.stringType)
+    }
+
+    /// `Int::toString` has no zero-argument member symbol (only
+    /// `toString(radix)` is declared); with a one-parameter expected function
+    /// type it resolves to a synthesized `(Int) -> String`, while a two-parameter
+    /// expected type still picks the real `toString(radix)` overload.
+    @Test func testOverloadedToStringReferenceIsChosenByExpectedFunctionArity() throws {
+        let source = """
+        fun one(): (Int) -> String = Int::toString
+        fun two(): (Int, Int) -> String = Int::toString
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            return exprID
+        }
+        #expect(callableRefExprIDs.count == 2)
+        #expect(sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[0]))
+        #expect(!sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[1]))
+        #expect(sema.bindings.callableTarget(for: callableRefExprIDs[1]) != nil)
+    }
 }
 #endif

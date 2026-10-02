@@ -1,7 +1,7 @@
 symbol fq=UserIterator.<init>.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=UserIterator.<init>[kind=ctor;recv=UserIterator;params=kotlin.collections.List<Int>] kind=constructor vis=public flags=_ sig=recv=UserIterator params=[kotlin.collections.List<Int>] ret=UserIterator
 symbol fq=UserIterator.index[kind=prop] kind=property vis=private flags=mutable type=Int
-symbol fq=UserIterator.values[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.List<Int>
+symbol fq=UserIterator.values[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=UserIterator[kind=class] kind=class vis=public flags=_
 symbol fq=__local_0.value[kind=local] kind=local vis=private flags=_ type=Int
 symbol fq=__local_1.fromIterator[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>

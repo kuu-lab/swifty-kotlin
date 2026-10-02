@@ -85,6 +85,75 @@ struct IntegerNarrowingPassTests {
         #expect(addResult == result)
     }
 
+    // MARK: - Char / small-width arithmetic
+
+    @Test(arguments: ["kk_op_add", "kk_op_sub"])
+    func testCharPlusMinusIntResultIsWrappedToSixteenBits(calleeName: String) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+
+        let lhs = arena.appendExpr(.temporary(0), type: sema.types.charType)
+        let rhs = arena.appendExpr(.temporary(1), type: sema.types.intType)
+        let result = arena.appendExpr(.temporary(2), type: sema.types.charType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern(calleeName), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, arithCallee, _, rawResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the Char arithmetic call to be preserved"); return
+        }
+        #expect(interner.resolve(arithCallee) == calleeName)
+        #expect(rawResult != result)
+        guard case let .call(_, wrapCallee, wrapArgs, wrapResult, _, _, _, _) = lowered[1] else {
+            Issue.record("Expected kk_int_to_char after Char arithmetic"); return
+        }
+        #expect(interner.resolve(wrapCallee) == "kk_int_to_char")
+        #expect(wrapArgs == [rawResult])
+        #expect(wrapResult == result)
+    }
+
+    @Test
+    func testUByteAdditionResultIsNotWrappedByThePass() throws {
+        // Sema types `UByte + UByte` as UByte although Kotlin yields UInt, so the pass must
+        // leave small unsigned arithmetic alone; `++` / `--` wrap at their own lowering site.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
+
+        let lhs = arena.appendExpr(.temporary(0), type: ubyteType)
+        let rhs = arena.appendExpr(.temporary(1), type: ubyteType)
+        let result = arena.appendExpr(.temporary(2), type: ubyteType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        #expect(lowered.count == 2)
+        guard case let .call(_, _, _, addResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the UByte add call to be preserved"); return
+        }
+        #expect(addResult == result)
+    }
+
     // MARK: - Shift rewriting
 
     @Test

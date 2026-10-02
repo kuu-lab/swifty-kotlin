@@ -135,7 +135,7 @@ extension DataFlowSemaPhase {
             }
             symbols.setTypeAliasTypeParameters(typeParamSymbols, for: aliasSymbol)
             underlyingArgs = typeParamSymbols.map { typeParamSymbol in
-                .invariant(types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: .nullable))))
+                .invariant(types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: .nonNull))))
             }
         }
         let underlyingType = types.make(.classType(ClassType(

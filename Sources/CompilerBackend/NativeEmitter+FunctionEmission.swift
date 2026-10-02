@@ -140,6 +140,8 @@ extension NativeEmitter {
             // no flat emission spec.
             // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
             // source (StringHOF.kt); no flat emission spec.
+            // Source-backed declarations retain flat compatibility lowering
+            // for aggregate String receivers.
             "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
                 flatName: "kk_string_ifBlank_flat",
                 stringArgumentCount: 1,

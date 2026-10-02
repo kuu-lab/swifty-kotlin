@@ -15,11 +15,7 @@ public func __kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_uint_rangeUntil")
 public func __kk_uint_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
-    let lhsUnsigned = UInt(bitPattern: lhs)
-    let rhsUnsigned = UInt(bitPattern: rhs)
-    let last = rhs &- 1
-    let step = rhsUnsigned <= lhsUnsigned ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: last, step: step, kind: .uintRange))
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .uintRange, endAtOrBelowMinimum: rhs == 0)
 }
 
 @_cdecl("__kk_uint_downTo")
