@@ -13,9 +13,7 @@ public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_long_rangeUntil")
 public func __kk_long_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
-    let last = rhs &- 1
-    let step = rhs <= lhs ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: last, step: step, kind: .longRange))
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .longRange, endAtOrBelowMinimum: rhs == Int.min)
 }
 
 @_cdecl("__kk_long_range_step")

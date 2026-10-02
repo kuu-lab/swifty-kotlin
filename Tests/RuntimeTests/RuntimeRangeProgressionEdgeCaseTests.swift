@@ -279,8 +279,32 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     @Test func intProgressionFromClosedRange_stepIntMinThrows() {
         var thrown = 0
-        _ = __kk_int_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
-        #expect(thrown != 0, "step=Int.min must throw")
+        _ = __kk_int_progression_fromClosedRange(0, 1, 10, Int(Int32.min), &thrown)
+        #expect(thrown != 0, "step=Int.MIN_VALUE (Int32) must throw")
+    }
+
+    // MARK: - until: empty ranges keep step 1; minimum bound yields EMPTY
+
+    @Test func intUntil_emptyKeepsStepOne() {
+        let r = runtimeRangeBox(from: __kk_op_rangeUntil(5, 3))!
+        #expect(r.first == 5 && r.last == 2 && r.step == 1)
+        #expect(runtimeRangeIsEmpty(r))
+    }
+
+    @Test func untilAtMinimumBoundIsCanonicalEmpty() {
+        let i = runtimeRangeBox(from: __kk_op_rangeUntil(7, Int(Int32.min)))!
+        #expect(i.first == 1 && i.last == 0 && runtimeRangeIsEmpty(i))
+        let l = runtimeRangeBox(from: __kk_long_rangeUntil(7, Int.min))!
+        #expect(l.first == 1 && l.last == 0)
+        let u = runtimeRangeBox(from: __kk_uint_rangeUntil(7, 0))!
+        #expect(u.first == Int(UInt32.max) && u.last == 0 && runtimeRangeIsEmpty(u))
+    }
+
+    @Test func progressionEqualsAcceptsRangeButNotViceVersa() {
+        let range = runtimeRangeBox(from: kk_op_rangeTo(1, 3))!
+        let prog = runtimeRangeBox(from: __kk_op_step(kk_op_rangeTo(1, 3), 1, nil))!
+        #expect(runtimeRangesEqual(prog, range))
+        #expect(!runtimeRangesEqual(range, prog))
     }
 
     // MARK: - LongRange edge cases
@@ -625,10 +649,22 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     @Test func openEndRangeContract_endExclusiveMatchesUpperBound() {
         let closed = kk_op_rangeTo(3, 7)
-        #expect(kk_range_endExclusive(closed) == 8, "ClosedRange endExclusive should be last + 1")
+        var thrown = -1
+        #expect(kk_range_endExclusive(closed, &thrown) == 8, "ClosedRange endExclusive should be last + 1")
+        #expect(thrown == 0)
 
         let open = __kk_op_rangeUntil(3, 7)
-        #expect(kk_range_endExclusive(open) == 7, "OpenEndRange endExclusive should match the exclusive upper bound")
+        thrown = -1
+        #expect(kk_range_endExclusive(open, &thrown) == 7, "OpenEndRange endExclusive should match the exclusive upper bound")
+        #expect(thrown == 0)
+    }
+
+    @Test func closedRangeContract_maximumEndExclusiveThrows() throws {
+        let range = kk_op_rangeTo(Int(Int32.max) - 1, Int(Int32.max))
+        var thrown = 0
+        #expect(kk_range_endExclusive(range, &thrown) == runtimeExceptionCaughtSentinel)
+        let box = try #require(runtimeThrowableBox(from: thrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self))
     }
 
     // MARK: - Iterator protocol correctness

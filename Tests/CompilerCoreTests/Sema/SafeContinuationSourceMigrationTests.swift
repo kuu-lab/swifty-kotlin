@@ -42,6 +42,7 @@ struct SafeContinuationSourceMigrationTests {
             let constructor = try #require(
                 sema.symbols.lookupAll(fqName: constructorFQName).first { symbolID in
                     sema.symbols.symbol(symbolID)?.kind == .constructor
+                        && sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == 1
                 }
             )
             #expect(sema.symbols.symbol(constructor)?.visibility == .internal)

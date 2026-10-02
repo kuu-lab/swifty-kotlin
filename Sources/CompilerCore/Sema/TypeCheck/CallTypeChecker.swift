@@ -1871,6 +1871,24 @@ final class CallTypeChecker {
                             // filter the duplicate becomes a second,
                             // indistinguishable overload candidate and every
                             // call to that name falsely resolves as ambiguous.
+                            // Hidden compatibility factories are present in
+                            // metadata but must not suppress an identically shaped
+                            // constructor. They are intentionally retained by
+                            // filterByVisibility when no other function overload
+                            // exists so a direct call to a removed function still
+                            // receives the deprecation diagnostic; constructors are
+                            // merged only here, so discard the hidden duplicate now.
+                            let constructorParameterTypes = ctorVis.compactMap {
+                                sema.symbols.functionSignature(for: $0)?.parameterTypes
+                            }
+                            candidates.removeAll { existingID in
+                                guard isHiddenByDeprecatedAnnotation(existingID, symbols: sema.symbols),
+                                      let signature = sema.symbols.functionSignature(for: existingID)
+                                else {
+                                    return false
+                                }
+                                return constructorParameterTypes.contains(signature.parameterTypes)
+                            }
                             let newCtorVis = ctorVis.filter { ctorID in
                                 guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
                                     return true

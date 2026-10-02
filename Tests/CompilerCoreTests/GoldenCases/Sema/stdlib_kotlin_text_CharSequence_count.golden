@@ -2,7 +2,7 @@ symbol fq=golden.sema.CountingCharSequence.get.$0.index[kind=vparam] kind=valueP
 symbol fq=golden.sema.CountingCharSequence.lengthReads[kind=prop] kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.CountingCharSequence.subSequence.$1.endIndex[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.CountingCharSequence.subSequence.$1.startIndex[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.CountingCharSequence.value[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.CountingCharSequence.value[kind=prop] kind=property vis=private flags=_ type=String
 symbol fq=golden.sema.CountingCharSequence[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.charSequenceCount.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.charSequenceCount[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Int

@@ -5,6 +5,11 @@ final class StableRenderContext {
     let sema: SemaModule
     let interner: StringInterner
     let arena: ASTArena
+    /// The contract the ordinary `symbol`/`expr`/`decl` body is rendered
+    /// under (RF-GOLDEN-007). `.current` keeps the committed format;
+    /// `.fixtureOwned` limits `symbol` rows to fixture-owned declarations and
+    /// spells every reference with the RF-GOLDEN-006 public key.
+    let contract: GoldenSemaRenderingContract
 
     private let sourceManager: SourceManager
     private let symbolFQ: [Int32: String]
@@ -17,6 +22,9 @@ final class StableRenderContext {
     /// Golden rendering deliberately continues to use `symbolKeys` until
     /// RF-GOLDEN-008 wires this projection into the default output.
     private let publicReferenceKeys: [Int32: String]
+    /// Maps `SymbolID.rawValue` to the RF-GOLDEN-002 origin — the ownership
+    /// evidence the fixture-owned contract filters `symbol` rows by.
+    private let symbolOrigins: [Int32: GoldenSymbolOrigin]
     /// Maps `SymbolID.rawValue` to a stable key derived from the declaration's
     /// meaning (`<fq>[kind=…;recv=…;params=…]`), not from its position in the
     /// candidate set. Adding or removing *unreferenced* same-FQName symbols
@@ -42,11 +50,18 @@ final class StableRenderContext {
     // swiftlint:disable:next force_try
     private static let typeRefRegex = try! NSRegularExpression(pattern: "(Class#|T#)(-?\\d+)")
 
-    init(sema: SemaModule, interner: StringInterner, ast: ASTModule, sourceManager: SourceManager) {
+    init(
+        sema: SemaModule,
+        interner: StringInterner,
+        ast: ASTModule,
+        sourceManager: SourceManager,
+        contract: GoldenSemaRenderingContract = .current
+    ) {
         self.sema = sema
         self.interner = interner
         self.arena = ast.arena
         self.sourceManager = sourceManager
+        self.contract = contract
         self.exprKeys = Self.buildExprKeys(arena: ast.arena, sourceManager: sourceManager)
         self.fileKeys = Self.buildFileKeys(sourceManager: sourceManager)
 
@@ -86,6 +101,7 @@ final class StableRenderContext {
         for symbol in sema.symbols.allSymbols() {
             publicOrigins[symbol.id.rawValue] = originClassifier.origin(of: symbol.id)
         }
+        self.symbolOrigins = publicOrigins
         let publicKeyComputer = StableSemanticKeyComputer(
             sema: sema,
             interner: interner,
@@ -188,18 +204,103 @@ final class StableRenderContext {
     /// This keeps the usual human-readable type spelling while replacing
     /// implementation-specific `Class#` references with the projected public
     /// FQName. Unlike `renderType`, this method does not add symbols to the
-    /// ordinary transitive metadata set.
-    func renderPublicType(_ typeID: TypeID) -> String {
+    /// ordinary transitive metadata set unless `collectRequiredSymbols` is
+    /// passed — the fixture-owned contract does so for ordinary-body renders
+    /// so a fixture type nested inside an external signature or `targs=`
+    /// still earns its `symbol` row.
+    func renderPublicType(_ typeID: TypeID, collectRequiredSymbols: Bool = false) -> String {
         let raw = sema.types.renderType(typeID)
-        return stabilizeTypeRefs(in: raw, symbolFQ: publicSymbolFQ, collectRequiredSymbols: false)
+        return stabilizeTypeRefs(
+            in: raw,
+            symbolFQ: publicSymbolFQ,
+            collectRequiredSymbols: collectRequiredSymbols
+        )
     }
 
     /// Renders a function signature through the public type projection. The
     /// formatter retains return type, nullability, variance, bounds, suspend,
     /// default and vararg masks; parameter names remain available in the
     /// public reference key when named-argument resolution depends on them.
-    func renderPublicSignature(_ signature: FunctionSignature) -> String {
-        GoldenHarnessSemaFormat.renderFunctionSignature(signature, renderType: renderPublicType)
+    func renderPublicSignature(
+        _ signature: FunctionSignature,
+        collectRequiredSymbols: Bool = false
+    ) -> String {
+        GoldenHarnessSemaFormat.renderFunctionSignature(signature) {
+            renderPublicType($0, collectRequiredSymbols: collectRequiredSymbols)
+        }
+    }
+
+    /// The RF-GOLDEN-002 origin of a registered symbol — the ownership
+    /// evidence the fixture-owned contract filters `symbol` rows by.
+    /// `.unknown` is a real answer: callers must surface it, never silently
+    /// treat it as external.
+    func symbolOrigin(_ symbolID: SymbolID) -> GoldenSymbolOrigin {
+        symbolOrigins[symbolID.rawValue] ?? .unknown
+    }
+
+    /// Spelling of a symbol reference inside the ordinary
+    /// `decl`/`expr`/`symbol` body under this context's contract: the
+    /// RF-GOLDEN-010 implementation-topology key under `.current`, the
+    /// RF-GOLDEN-006 public declaration key under `.fixtureOwned`.
+    func ordinarySymbolKey(for symbolID: SymbolID) -> String {
+        switch contract {
+        case .current:
+            stableKey(for: symbolID)
+        case .fixtureOwned:
+            publicReferenceKey(for: symbolID)
+        }
+    }
+
+    /// Renders a resolved type as the ordinary body spells it under this
+    /// contract — `renderType` under `.current`, the public projection under
+    /// `.fixtureOwned`. Either way the class symbols inside the rendered type
+    /// join `requiredSymbols`, so collection through `type=`/`targs=` fields
+    /// is identical between contracts.
+    func ordinaryType(_ typeID: TypeID) -> String {
+        switch contract {
+        case .current:
+            renderType(typeID)
+        case .fixtureOwned:
+            renderPublicType(typeID, collectRequiredSymbols: true)
+        }
+    }
+
+    /// Renders a function signature as the ordinary body spells it under this
+    /// contract (`sig=` fields on `symbol` rows).
+    func ordinarySignature(_ signature: FunctionSignature) -> String {
+        switch contract {
+        case .current:
+            renderSignature(signature)
+        case .fixtureOwned:
+            renderPublicSignature(signature, collectRequiredSymbols: true)
+        }
+    }
+
+    /// Whether `symbol` earns an ordinary `symbol` row under this contract.
+    /// `.current` keeps the historical rule: only declarations whose
+    /// `declSite` sits inside the case file list `flags`/`sig`/`type` —
+    /// library-owned symbols (bundled-stdlib decls, imported `.kklib` decls,
+    /// synthetic stdlib stubs and compiler-internal helpers) have no
+    /// case-file `declSite`, and the expr-level `ref=`/`call=`/`type=` output
+    /// already pins how they resolved, so listing them adds only noise.
+    /// `.fixtureOwned` decides by RF-GOLDEN-002 origin instead of declSite
+    /// presence: `.fixture` rows keep every fixture-owned declaration
+    /// including synthesized members, and `.unknown` stays surfaced rather
+    /// than being silently folded into external coverage. External-owned
+    /// rows are left to the dedicated `section stdlib-targets`.
+    func rendersOrdinarySymbolRow(_ symbol: SemanticSymbol, sourceFileID: FileID) -> Bool {
+        switch contract {
+        case .current:
+            guard let declSite = symbol.declSite else { return false }
+            return declSite.start.file == sourceFileID
+        case .fixtureOwned:
+            switch symbolOrigin(symbol.id) {
+            case .fixture, .unknown:
+                return true
+            case .bundledSource, .stdlibStub, .sourceBackedAlias, .importedLibrary:
+                return false
+            }
+        }
     }
 
     func expandRequiredSymbols() {
