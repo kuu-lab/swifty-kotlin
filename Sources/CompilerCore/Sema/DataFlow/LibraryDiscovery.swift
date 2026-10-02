@@ -19,12 +19,13 @@ package struct LibraryManifest: Decodable {
     let compilerVersion: String?
     let metadata: String?
     let inlineKIRDir: String?
+    let topLevelInitializerLinkName: String?
     package let objects: [String]?
 
     private enum CodingKeys: String, CodingKey {
         case formatVersion, moduleName, libraryKind, stdlibManifestHash
         case kotlinLanguageVersion, target
-        case compilerVersion, metadata, inlineKIRDir, objects
+        case compilerVersion, metadata, inlineKIRDir, topLevelInitializerLinkName, objects
     }
 
     package init(from decoder: Decoder) throws {
@@ -38,6 +39,7 @@ package struct LibraryManifest: Decodable {
         compilerVersion = try? container.decodeIfPresent(String.self, forKey: .compilerVersion)
         metadata = try? container.decodeIfPresent(String.self, forKey: .metadata)
         inlineKIRDir = try? container.decodeIfPresent(String.self, forKey: .inlineKIRDir)
+        topLevelInitializerLinkName = try? container.decodeIfPresent(String.self, forKey: .topLevelInitializerLinkName)
         objects = try? container.decodeIfPresent([String].self, forKey: .objects)
     }
 }
@@ -50,20 +52,39 @@ extension DataFlowSemaPhase {
         for rawPath in searchPaths {
             let path = URL(fileURLWithPath: rawPath).path
             var isDirectory: ObjCBool = false
-            guard fm.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else {
                 continue
             }
+            // `.kklib` is always a directory bundle; a `.klib` search path may
+            // point at a packed archive (file) or an unpacked klib directory.
             if path.hasSuffix(".kklib") {
+                guard isDirectory.boolValue else { continue }
                 if seen.insert(path).inserted {
                     ordered.append(path)
                 }
                 continue
             }
+            if path.hasSuffix(".klib") {
+                if seen.insert(path).inserted {
+                    ordered.append(path)
+                }
+                continue
+            }
+            guard isDirectory.boolValue else {
+                continue
+            }
             guard let entries = try? fm.contentsOfDirectory(atPath: path) else {
                 continue
             }
-            for entry in entries where entry.hasSuffix(".kklib") {
+            for entry in entries where entry.hasSuffix(".kklib") || entry.hasSuffix(".klib") {
                 let fullPath = URL(fileURLWithPath: path).appendingPathComponent(entry).path
+                var entryIsDirectory: ObjCBool = false
+                guard fm.fileExists(atPath: fullPath, isDirectory: &entryIsDirectory) else {
+                    continue
+                }
+                if entry.hasSuffix(".kklib"), !entryIsDirectory.boolValue {
+                    continue
+                }
                 if seen.insert(fullPath).inserted {
                     ordered.append(fullPath)
                 }
@@ -189,7 +210,8 @@ extension DataFlowSemaPhase {
             metadataPath: canonicalMetadataPath,
             inlineKIRDir: canonicalInlineKIRDir,
             moduleName: manifest.moduleName,
-            isValid: isValid
+            isValid: isValid,
+            topLevelInitializerLinkName: manifest.topLevelInitializerLinkName
         )
     }
 

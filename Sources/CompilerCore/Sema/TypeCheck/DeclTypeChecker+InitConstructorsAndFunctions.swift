@@ -16,6 +16,13 @@ extension DeclTypeChecker {
         else {
             return parameterType
         }
+        if let arrayType = primitiveVarargArrayType(
+            elementType: parameterType,
+            sema: sema,
+            interner: interner
+        ) {
+            return arrayType
+        }
         let listFQName: [InternedString] = [
             interner.intern("kotlin"),
             interner.intern("collections"),
@@ -261,7 +268,12 @@ extension DeclTypeChecker {
                 sema.bindings.markRangeSymbol(paramSymbol)
             }
             if index < signature.valueParameterIsVararg.count,
-               signature.valueParameterIsVararg[index]
+               signature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: signature.parameterTypes[index],
+                   sema: sema,
+                   interner: ctx.interner
+               ) == nil
             {
                 sema.bindings.markCollectionSymbol(paramSymbol)
             }
@@ -318,7 +330,12 @@ extension DeclTypeChecker {
                             sema.bindings.markRangeSymbol(paramSymbol)
                         }
                         if index < signature.valueParameterIsVararg.count,
-                           signature.valueParameterIsVararg[index]
+                           signature.valueParameterIsVararg[index],
+                           primitiveVarargArrayType(
+                               elementType: signature.parameterTypes[index],
+                               sema: sema,
+                               interner: ctx.interner
+                           ) == nil
                         {
                             sema.bindings.markCollectionSymbol(paramSymbol)
                         }
@@ -536,7 +553,12 @@ extension DeclTypeChecker {
                 sema.bindings.markRangeSymbol(paramSymbol)
             }
             if index < signature.valueParameterIsVararg.count,
-               signature.valueParameterIsVararg[index]
+               signature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: signature.parameterTypes[index],
+                   sema: sema,
+                   interner: ctx.interner
+               ) == nil
             {
                 sema.bindings.markCollectionSymbol(paramSymbol)
             }
@@ -573,6 +595,25 @@ extension DeclTypeChecker {
             enclosingFunctionReturnType: signature.returnType,
             currentDeclSymbol: symbol
         )
+        if !signature.contextReceiverTypes.isEmpty {
+            functionCtx = functionCtx.with(
+                contextReceiverTypes: ctx.contextReceiverTypes + signature.contextReceiverTypes
+            )
+            let syntheticContextSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            for (index, contextReceiver) in function.contextReceivers.enumerated() {
+                guard let name = contextReceiver.name,
+                      index < signature.contextReceiverTypes.count
+                else {
+                    continue
+                }
+                locals[name] = (
+                    signature.contextReceiverTypes[index],
+                    syntheticContextSymbol,
+                    false,
+                    true
+                )
+            }
+        }
         // An extension function's name doubles as the label of its receiver:
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
@@ -615,11 +656,19 @@ extension DeclTypeChecker {
             return
         }
 
+        // With an inferred return type, `signature.returnType` is only the header
+        // placeholder (`Any`, non-null). Using it as the expected type or as a subtype
+        // bound would reject legitimately nullable bodies such as `fun g() = f()` where
+        // `f(): Any?`, so the body is inferred without an expectation instead.
+        let hasInferredReturnType: Bool = {
+            guard function.returnType == nil, case .expr = function.body else { return false }
+            return true
+        }()
         let bodyType = inferFunctionBodyType(
             function.body,
             ctx: functionCtx,
             locals: &locals,
-            expectedType: signature.returnType
+            expectedType: hasInferredReturnType ? nil : signature.returnType
         )
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
@@ -636,7 +685,7 @@ extension DeclTypeChecker {
                 interner: ctx.interner
             )
         }()
-        if !bodyIsRangeExpr {
+        if !bodyIsRangeExpr, !hasInferredReturnType {
             driver.emitSubtypeConstraint(
                 left: bodyType,
                 right: signature.returnType,

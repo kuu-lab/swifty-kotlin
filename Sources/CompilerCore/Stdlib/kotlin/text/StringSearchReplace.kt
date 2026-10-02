@@ -61,7 +61,7 @@ public fun String.replace(oldChar: Char, newChar: Char, ignoreCase: Boolean = fa
     var i = 0
     while (i < length) {
         val c = this[i]
-        if (c == oldChar || (ignoreCase && c.lowercaseChar() == oldChar.lowercaseChar())) {
+        if (__kkCharsEqual(c, oldChar, ignoreCase)) {
             sb.append(newChar)
         } else {
             sb.append(c)

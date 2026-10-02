@@ -42,11 +42,11 @@ struct RuntimeAtomicRefArrayTests {
     // MARK: - loadAt / storeAt
 
     @Test
-    func testInitialElementsAreZero() {
+    func testInitialElementsAreNullSentinel() {
         let handle = kk_atomic_ref_array_new(3)
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 0)
-        #expect(kk_atomic_ref_array_loadAt(handle, 1) == 0)
-        #expect(kk_atomic_ref_array_loadAt(handle, 2) == 0)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 1) == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 2) == runtimeNullSentinelInt)
     }
 
     @Test
@@ -79,9 +79,9 @@ struct RuntimeAtomicRefArrayTests {
         let handle = kk_atomic_ref_array_new(2)
         let ref = kk_atomic_int_create(99)
         kk_atomic_ref_array_storeAt(handle, 10, ref)
-        // No crash and indices within bounds remain zero
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 0)
-        #expect(kk_atomic_ref_array_loadAt(handle, 1) == 0)
+        // No crash and indices within bounds remain null.
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 1) == runtimeNullSentinelInt)
     }
 
     @Test
@@ -254,12 +254,30 @@ struct RuntimeAtomicRefArrayTests {
     }
 
     @Test
-    func testCompareAndSetAtZeroAndNullSentinelCrossMatches() {
+    func testCompareAndSetAtFreshNullSentinel() {
         let handle = kk_atomic_ref_array_new(2)
-        // Initial slot 0 is 0 (null)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
         let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
         let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
-        #expect(result == 1, "CAS must succeed when slot is 0 and expect is null sentinel")
+        #expect(result == 1, "CAS must succeed when the fresh slot is null")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndSetAtLegacyZeroAndNullSentinelCrossMatches() {
+        let handle = kk_atomic_ref_array_new(1)
+        kk_atomic_ref_array_storeAt(handle, 0, 0)
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        #expect(kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef) == 1)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndExchangeAtFreshNullReturnsSentinel() {
+        let handle = kk_atomic_ref_array_new(1)
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(old == runtimeNullSentinelInt)
         #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
     }
 
@@ -297,7 +315,7 @@ struct RuntimeAtomicRefArrayTests {
     }
 
     @Test
-    func testCompareAndSetAtStringBoxesWithSameContentSucceeds() {
+    func testCompareAndSetAtStringBoxesRequiresSameReference() {
         let handle = kk_atomic_ref_array_new(2)
         let stringA = registerRuntimeObject(RuntimeStringBox("same_content"))
         let stringB = registerRuntimeObject(RuntimeStringBox("same_content"))
@@ -307,7 +325,13 @@ struct RuntimeAtomicRefArrayTests {
 
         kk_atomic_ref_array_storeAt(handle, 0, stringA)
         let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringB, updateRef)
-        #expect(result == 1, "CAS must succeed for distinct string boxes with identical contents")
+        #expect(result == 0, "Equal string contents must not satisfy a distinct reference expectation")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringA)
+        let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, stringB, updateRef)
+        #expect(old == stringA)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringA)
+        let witness = kk_atomic_ref_array_loadAt(handle, 0)
+        #expect(kk_atomic_ref_array_compareAndSetAt(handle, 0, witness, updateRef) == 1)
         #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
     }
 

@@ -720,9 +720,9 @@ extension NativeEmitter {
                 return raw
             }
             guard let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
-                  let lengthSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_length_\(suffix)"),
-                  let byteCountSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_bytes_\(suffix)"),
-                  let hashSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_hash_\(suffix)")
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
             else {
                 return nil
             }
@@ -800,26 +800,6 @@ extension NativeEmitter {
             ) else {
                 return state.zeroValue
             }
-            if let expectedType,
-               let typeLowering = state.typeLowering,
-               let typeSystem,
-               case .stringStruct = typeSystem.kind(of: expectedType)
-            {
-                // KSP-817: Kotlin String/CharSequence length is measured in UTF-16 code
-                // units; `byteCount` remains the UTF-8 byte count used by the flat ABI.
-                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf16.count)) ?? state.zeroValue
-                let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
-                let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
-                return buildStringAggregate(
-                    builder: state.builder,
-                    lowering: typeLowering,
-                    data: globalStringPointer,
-                    length: lengthValue,
-                    byteCount: byteCountValue,
-                    hash: hashValue,
-                    name: nameCounter.nextName("str_agg_")
-                ) ?? state.zeroValue
-            }
             guard let pointerAsInt = bindings.buildPtrToInt(
                 state.builder,
                 value: globalStringPointer,
@@ -830,19 +810,22 @@ extension NativeEmitter {
             }
             let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
             guard let stringFromUTF8 = declareExternalFunction(
-                "kk_string_from_utf8",
+                "__kk_string_literal_from_utf8",
                 2,
                 false
             ) else {
                 return state.zeroValue
             }
-            return bindings.buildCall(
+            let raw = bindings.buildCall(
                 state.builder,
                 functionType: stringFromUTF8.type,
                 callee: stringFromUTF8.value,
                 arguments: [pointerAsInt, lengthValue],
-                name: nameCounter.nextName("str_from_utf8_")
+                name: nameCounter.nextName("str_literal_")
             ) ?? state.zeroValue
+            return bridgeRuntimeRawToStringAggregateIfNeeded(
+                raw, suffix: nameCounter.nextName("literal_")
+            ) ?? raw
         case let .externSymbolAddress(symbolName):
             let symbolStr = interner.resolve(symbolName)
             if let externFn = declareExternalFunction(symbolStr, 4, false) {

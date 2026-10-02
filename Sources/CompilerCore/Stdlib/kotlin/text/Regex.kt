@@ -19,6 +19,9 @@ public enum class RegexOption {
     CANON_EQ
 }
 
+public val RegexOption.entries: kotlin.enums.EnumEntries<RegexOption>
+    get() = enumEntries<RegexOption>()
+
 public class Regex {
     @KsSymbolName("__kk_regex_create_flat")
     public constructor(pattern: String)

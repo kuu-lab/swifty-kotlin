@@ -33,10 +33,77 @@ upstream の `Buffer` は、コピーを避けるためプールされた `Segme
 既存の bundled stdlib プリミティブ（配列インデクシング、`toInt()`/`toLong()`/`toByte()`変換）だけで
 書けたため、`docs/spec.md` の Runtime ABI spec 登録（Doc J16 節）は今回は不要だった。
 
+## JVM 相互運用（KSP-1553）
+
+`kotlinx.io` ↔ `java.io` の相互運用拡張を upstream `core/jvm` sourceset のファイル名規約に
+合わせて追加した（KUU-889）。
+
+- `JvmCore.kt`: `InputStream.asSource()` / `OutputStream.asSink()`（upstream の
+  `InputStreamSource`/`OutputStreamSink` 相当の private `RawSource`/`RawSink` 実装。
+  合成 `java.io` stream stub は単バイト `read()`/`write(Int)` と `List<Int>` バルク入出力しか
+  持たず `ByteArray`（= `RuntimeArrayBox`）と型が合わないため、upstream の
+  `UnsafeBufferOperations` セグメントコピーの代わりに per-byte ループにしている。
+  `OutputStreamSink.write` は upstream と同じく `checkOffsetAndCount(source.size, 0, byteCount)`
+  で事前にバウンドチェックする）
+- `SourcesJvm.kt`: `Source.asInputStream()`
+- `SinksJvm.kt`: `Sink.asOutputStream()` + `@KsSymbolName("__kk_kotlin_sink_output_stream")`
+  external 宣言（upstream の `anonymous object : OutputStream()` を、write/flush/close の
+  3 コールバックをランタイムに渡す形に置き換え）
+
+### upstream との差分（意図的）
+
+- **`asInputStream()` は eager drain。** upstream は `InputStream` サブクラスが source を遅延
+  pull するが、このコンパイラでは `java.io.InputStream` を Kotlin ソースからサブクラス化できず、
+  `RuntimeInputStreamBox` の既存メソッドは全て非 throws で Kotlin 例外を伝搬する経路がない。
+  `transferTo(Buffer)` → `ByteArray.inputStream()` で全量を取り込む。結果として「遅延読み取り
+  しない」「`close()` が source に伝播しない」「読み取り失敗が read() ではなく adapt 時に
+  出る」点で upstream と異なる。
+- **`asOutputStream()` の closed 意味論は upstream と同じく sink 側に委譲**（`is RealSink` →
+  `sink.closed`、`is Buffer` / その他 → `false`）。`RealSink.closed` は upstream の
+  `@JvmField var closed` に合わせて `private` → `internal` に変更。close 後の `write()` は
+  `java.io.IOException("Underlying sink is closed.")` を投げる。upstream の
+  `kotlinx.io.IOException` は `java.io.IOException` への typealias なので java.io 側を投げるのが
+  意味論として正確（かつ、このコンパイラでは catch 節の `IOException` が `java.io.IOException`
+  に解決されるため、catch 可能なのはこちら。後述の KUU-950 参照）。
+- **`asOutputStream()` の write コールバックは `sink.write(bytes, 0, bytes.size)` を呼ぶ。**
+  upstream は `writeToInternalBuffer`（`@DelicateIoApi`）で RealSink の内部バッファへ直接
+  書き込むが、closed チェックは callback 側の `isClosed()` で先行して行うため観測差はない。
+
+### 新規 Runtime ABI: `__kk_kotlin_sink_output_stream`
+
+`java.io.OutputStream` を Kotlin ソースから生成する経路がランタイムに一切なかった
+（`HeaderHelpers+SyntheticJavaIOStreamStubs.swift` に "unconstructible from Kotlin source" と
+明記）ため、`__kk_cdecl_count` +1 で `(writeFnPtr, writeClosureRaw, flushFnPtr, flushClosureRaw,
+closeFnPtr, closeClosureRaw) -> streamRaw` を追加した。呼び出し側は
+`CallLowerer+ClosureAdapters.swift` の `appendClosureArgumentsIfNeeded` で
+`makeCollectionHOFExpandedArguments`（`(ByteArray) -> Unit`）と
+`makeClosureThunkExpandedArguments`（`() -> Unit` × 2）を連結する既存 ABI 規約そのまま。
+
+ランタイム側は既存プロトコル `RuntimeOutputStreamSink` の実装 `RuntimeKotlinOutputStreamSink`
+を追加し、3 つの `(fnPtr, closureRaw)` ペアを `runtimeInvokeCollectionLambda1` /
+`runtimeInvokeClosureThunk` で呼び返す。コールバック内で投げられた Kotlin throwable は
+`RuntimeKotlinThrownError` で包み直し、`__kk_output_stream_write_byte` /
+`__kk_output_stream_write_bytes` / `__kk_output_stream_flush` の `outThrown` チャネルから
+呼び出し元へ返す（`close()` は outThrown を持たないため close コールバックの例外は握り潰す。
+`RuntimeFileHandleOutputStreamSink.close` の `try?` と同じ扱い）。
+
+### diff_cases（kotlinc 実機比較）
+
+`Scripts/diff_cases/kotlinx_io_jvm_interop_{as_source,as_sink,as_input_stream,as_output_stream}.kt`
+を追加し、`kotlinc` + `kotlinx-io-core-jvm` 0.9.1 と出力完全一致を確認。`as_output_stream`
+ケースは upstream の closed 意味論（Buffer-backed は close 後も書き込みが流れる、
+RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を検証する。
+
 ## 未対応（次PR以降）
 
 - `Segment` / `SegmentPool` / `kotlinx.io.unsafe.UnsafeBufferOperations`（低レベルなセグメント直接
   操作。Ktor の `ktor-io` が一部使用しているため、`ktor_io` モジュールの残存エラーの一因）
+- `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
+  `SinksJvm.kt` の残り（`readString`, `writeString`, `readAtMostTo`/`write` ByteBuffer,
+  `asByteChannel`）は ByteBuffer/NIO 依存のため未対応
+- `Sink.asOutputStream()` の `close()` で `sink.close()` が投げる例外はランタイム側で
+  握り潰される（upstream の OutputStream.close() は例外を伝播するが、
+  `__kk_output_stream_close` に outThrown チャネルがない）
 - `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`, `readString`, `writeString`,
   `readUByte`/`writeUShort`等の unsigned 変換, `readFloat`/`writeDouble`, `readDecimalLong`,
   `readHexadecimalUnsignedLong`, `writeToInternalBuffer` 等）
@@ -90,8 +157,14 @@ SHA-256 で pin）と出力が完全一致することを確認した。`Scripts
 
 ## 見つけたコンパイラバグ（kotlinx.io 実装とは別件、このセッションでは修正せず）
 
-Linear への起票手段がこのセッションに無かったため（`docs/ktor-build-status.md` と同じ制約）、
-ここに記録する。team `Kuu` / project「バグバックログ (BUG)」/ label `Bug` への起票が必要。
+**KUU-950（起票済み、KSP-1553 作業中に発見）**: catch 節の例外型解決が同名クラスで
+`java.io.IOException` を優先し、bundled `kotlinx.io.IOException` が catch できない
+（qualified name / alias も catch 節では `KSWIFTK-SEMA-0085` で受理されない）。
+KSP-1553 では adapter が `java.io.IOException` を投げることで回避済み。
+
+以下 3 件は前セッション時点で Linear への起票手段が無かったため（`docs/ktor-build-status.md`
+と同じ制約）ここに記録する。team `Kuu` / project「バグバックログ (BUG)」/ label `Bug` への
+起票が必要。
 
 1. **`operator fun get(position: Long)` のブラケット記法 (`x[i]`) が壊れている。** `get(Long): Byte`
    を bracket 経由で呼ぶと、`i=0,1` は `0` を返し、`i=2` では `Byte` ではなく内部の `ByteArray`

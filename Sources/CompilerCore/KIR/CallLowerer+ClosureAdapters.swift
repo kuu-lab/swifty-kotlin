@@ -1021,6 +1021,40 @@ extension CallLowerer {
             return finalArgs
         }
 
+        // KSP-1553: kotlinx.io Sink.asOutputStream() — the three callbacks in
+        // Stdlib/kotlinx/io/SinksJvm.kt each arrive as (fnPtr, closureRaw):
+        // write is a (ByteArray) -> Unit lambda lowered with the collection-HOF
+        // entry convention, flush/close are () -> Unit closure thunks.
+        if externalLinkName == "__kk_kotlin_sink_output_stream",
+           loweredArguments.count == 3
+        {
+            let writeArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: loweredArguments[0],
+                argExprID: originalArgs[0].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let flushArgs = makeClosureThunkExpandedArguments(
+                loweredArgID: loweredArguments[1],
+                argExprID: originalArgs[1].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let closeArgs = makeClosureThunkExpandedArguments(
+                loweredArgID: loweredArguments[2],
+                argExprID: originalArgs[2].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return writeArgs + flushArgs + closeArgs
+        }
+
         // STDLIB-590 / STDLIB-KOTLIN-ROOT-CLOSE-001: Function0 runtime entry
         // points receive lambda arguments as (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [

@@ -6,7 +6,7 @@ symbol fq=golden.sema.SingleSequence.<init>[kind=ctor;recv=golden.sema.SingleSeq
 symbol fq=golden.sema.SingleSequence.get.$1.index[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.SingleSequence.subSequence.$2.endIndex[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.SingleSequence.subSequence.$2.startIndex[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.SingleSequence.value[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.SingleSequence.value[kind=prop] kind=property vis=private flags=_ type=String
 symbol fq=golden.sema.SingleSequence[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.capturedNonLocal.$3.captured[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.capturedNonLocal.$3.source[kind=vparam] kind=valueParameter vis=private flags=_

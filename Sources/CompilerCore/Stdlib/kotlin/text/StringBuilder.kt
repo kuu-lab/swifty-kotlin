@@ -25,7 +25,7 @@ public class StringBuilder : Appendable, CharSequence {
         toString().substring(startIndex, endIndex)
 
     override fun append(value: Char): StringBuilder =
-        __kk_string_builder_append_obj(value.toString())
+        __kk_string_builder_append_char(value)
 
     override fun append(value: CharSequence?): StringBuilder {
         if (value == null) return append("null")
@@ -476,6 +476,9 @@ public class StringBuilder : Appendable, CharSequence {
 
     @KsSymbolName("__kk_string_builder_append_obj")
     private external fun __kk_string_builder_append_obj(value: Any?): StringBuilder
+
+    @KsSymbolName("__kk_string_builder_append_char")
+    private external fun __kk_string_builder_append_char(value: Char): StringBuilder
 
     @KsSymbolName("__kk_string_builder_append_char_array")
     private external fun __kk_string_builder_append_char_array(value: CharArray, startIndex: Int, endIndex: Int): StringBuilder
