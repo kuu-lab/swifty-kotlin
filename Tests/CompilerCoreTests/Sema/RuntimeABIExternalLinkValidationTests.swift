@@ -5,6 +5,24 @@ import Testing
 
 @Suite
 struct RuntimeABIExternalLinkValidationTests {
+    @Test func testPropertyBridgeAnnotationDoesNotLeakToFollowingFunction() throws {
+        let declarations = bundledKsSymbolNameDeclarations(in: """
+        interface Contract {
+            @KsSymbolName("get_context")
+
+            val context: Context
+            @KsSymbolName("resume_with")
+            fun resumeWith(result: Result<Int>)
+        }
+        @KsSymbolName("get_length") val String.length: Int
+        """, relativePath: "contract.kt")
+        #expect(declarations.map(\.linkName) == ["get_context", "resume_with", "get_length"])
+        #expect(declarations.map(\.arity) == [0, 1, 0])
+        #expect(declarations.allSatisfy { $0.hasReceiver })
+        #expect(declarations.first?.returnType == "Context")
+        #expect(declarations.last?.receiverType == "String")
+    }
+
     @Test func testRegisteredSemaExternalLinkNamesExistInRuntimeABI() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
@@ -141,7 +159,7 @@ struct RuntimeABIExternalLinkValidationTests {
             let sema = try #require(context.sema)
 
             let annotatedSymbols = sema.symbols.allSymbols().filter { symbol in
-                guard symbol.kind == .function || symbol.kind == .constructor,
+                guard symbol.kind == .function || symbol.kind == .constructor || symbol.kind == .property,
                       let fileID = sema.symbols.sourceFileID(for: symbol.id),
                       context.sourceManager.origin(of: fileID)?.isBundledStdlib == true
                 else {
@@ -220,6 +238,9 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
+            // A Sema-only conversion sentinel: CallLowerer turns the bound
+            // primitive call into .copy before an external call is emitted.
+            "kk_primitive_identity",
             "__kk_string_struct_get_length",
         ]
     }
@@ -372,7 +393,7 @@ struct RuntimeABIExternalLinkValidationTests {
                     pendingLinkNames.removeAll()
                     pendingScope = nil
                 }
-                continue
+                if propertyFunctionHeader(in: line) == nil { continue }
             }
 
             // Constructors carry their own lowering (the runtime allocates the
@@ -385,7 +406,8 @@ struct RuntimeABIExternalLinkValidationTests {
             }
 
             guard !pendingLinkNames.isEmpty,
-                  let functionHeader = functionHeader(startingAt: index, in: lines),
+                  let functionHeader = propertyFunctionHeader(in: line)
+                    ?? functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
                 continue
@@ -450,6 +472,10 @@ struct RuntimeABIExternalLinkValidationTests {
         var parameterParenDepth = 0
         var sawParameterParen = false
         for line in lines[index...] {
+            // A property consumes its own annotation in the outer scanner.
+            // Do not scan across it from a blank/comment line and accidentally
+            // attach that annotation to a later function declaration.
+            if propertyFunctionHeader(in: line) != nil { return nil }
             header += " " + line.trimmingCharacters(in: .whitespacesAndNewlines)
             for character in line {
                 if character == "(" {
@@ -479,6 +505,19 @@ struct RuntimeABIExternalLinkValidationTests {
     private func headerIsConstructor(_ header: String) -> Bool {
         let trimmed = header.trimmingCharacters(in: .whitespaces)
         return header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
+    }
+
+    private func propertyFunctionHeader(in line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("//"), !trimmed.hasPrefix("*"),
+              let regex = try? NSRegularExpression(pattern: #"\b(?:val|var)\s+([^:]+):\s*([^={]+)"#),
+              let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+              let nameRange = Range(match.range(at: 1), in: trimmed),
+              let typeRange = Range(match.range(at: 2), in: trimmed)
+        else { return nil }
+        let name = trimmed[nameRange].trimmingCharacters(in: .whitespaces)
+        let type = trimmed[typeRange].trimmingCharacters(in: .whitespaces)
+        return "fun \(name)(): \(type)"
     }
 
     private struct FunctionSignatureInfo {

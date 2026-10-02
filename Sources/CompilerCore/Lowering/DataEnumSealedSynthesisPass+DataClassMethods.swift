@@ -550,10 +550,8 @@ extension DataEnumSealedSynthesisPass {
         )
         let receiverParam = KIRParameter(symbol: receiverParamSymbol, type: receiverType)
 
-        let propertySymbols = sema.symbols.children(ofFQName: owner.fqName)
-            .compactMap { sema.symbols.symbol($0) }
-            .filter { $0.kind == .property }
-            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        // Kotlin's synthesized hashCode uses only primary-constructor properties, in declaration order.
+        let propertySymbols = dataClassPropertySymbols(owner: owner, symbols: sema.symbols)
 
         var body: [KIRInstruction] = []
 

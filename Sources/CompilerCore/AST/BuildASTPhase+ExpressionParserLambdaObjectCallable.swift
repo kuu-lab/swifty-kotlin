@@ -151,6 +151,37 @@ extension BuildASTPhase.ExpressionParser {
         return (Array(tokens[bodyStart..<bodyEnd]), end, depth == 0)
     }
 
+    /// Kotlin parses a control-structure body `{ params -> ... }` as a function
+    /// literal rather than a block. Looks ahead (without consuming) at the brace
+    /// group starting at the current `{` and reports whether it opens with a
+    /// lambda parameter list followed by `->`.
+    func braceGroupStartsLambdaLiteral() -> Bool {
+        guard matches(.symbol(.lBrace)) else {
+            return false
+        }
+        var depth = 0
+        var offset = index
+        while offset < tokens.endIndex {
+            switch tokens[offset].kind {
+            case .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rBrace):
+                depth -= 1
+            default:
+                break
+            }
+            if depth == 0 {
+                break
+            }
+            offset += 1
+        }
+        guard depth == 0 else {
+            return false
+        }
+        let bodyTokens = Array(tokens[(index + 1) ..< offset])
+        return lambdaArrowIndex(in: bodyTokens) != nil
+    }
+
     private func lambdaArrowIndex(in tokens: [Token]) -> Int? {
         var depth = BuildASTPhase.BracketDepth()
         var candidate: Int?

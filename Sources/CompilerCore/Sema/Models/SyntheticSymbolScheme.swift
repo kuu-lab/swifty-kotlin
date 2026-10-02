@@ -123,6 +123,26 @@ enum SyntheticSymbolScheme {
         makeSymbol(kind: .receiver, original: functionSymbol)
     }
 
+    /// Base of the band holding one symbol per receiver-bearing lambda literal.
+    /// It sits far below every other synthetic family (the lambda parameter /
+    /// capture bands around -1_000_000 / -2_000_000, the `.kklib` invoke band at
+    /// -42_000_000) and above the mirror band, so it can never alias them.
+    private static let lambdaReceiverBandBase: Int64 = 300_000_000
+
+    /// Symbol naming the receiver of a lambda-with-receiver literal
+    /// (`StringBuilder.() -> Unit`), keyed by the lambda expression. Sema binds
+    /// the lambda's `this` / `this@callee` references to it and KIR registers
+    /// the lambda's receiver value under it, so a nested lambda can capture an
+    /// *outer* lambda's receiver instead of reading its own.
+    ///
+    /// Distinct from `LambdaLowerer.syntheticLambdaParamSymbol`, whose offset 0
+    /// means "first lowered parameter" (the receiver only when the lambda takes
+    /// an explicit receiver parameter).
+    static func lambdaReceiverSymbol(for lambdaExprID: ExprID) -> SymbolID {
+        let raw = -(lambdaReceiverBandBase + Int64(lambdaExprID.rawValue))
+        return SymbolID(rawValue: Int32(clamping: raw))
+    }
+
     /// Symbol for the `index`-th synthetic parameter of a stdlib delegate
     /// factory's trailing lambda (`property`/`old`/`new` for
     /// `Delegates.observable`/`vetoable`; unused for `lazy`, which has none).

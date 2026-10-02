@@ -1,6 +1,6 @@
-// KSP-703: Map.Entry and MutableMap.MutableEntry remain nominal residuals.
-// The current bundled-header pass cannot resolve nested source interfaces while
-// collecting the enclosing Map declarations, so only these shells stay here.
+// Map.Entry is owned by bundled Map.kt. Bootstrap shells remain available
+// before source headers are collected and for no-stdlib compilation.
+// MutableMap.MutableEntry still uses its residual shell.
 
 extension DataFlowSemaPhase {
     func registerSyntheticMapEntryResiduals(
@@ -156,6 +156,11 @@ extension DataFlowSemaPhase {
         typeParameterSymbols: [SymbolID]
     ) {
         let nameID = interner.intern(name)
+        if BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: entryFQName, name: nameID, arity: 0
+        ) {
+            return
+        }
         let fqName = entryFQName + [nameID]
         guard symbols.lookup(fqName: fqName) == nil else { return }
         let memberSymbol = symbols.define(

@@ -480,6 +480,18 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         if classSymbol.fqName == knownNames.kotlinCollectionsHashSetFQName {
             return nil
         }
+        if ["ULongRange", "ULongProgression"].contains(where: { name in
+            classSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern(name),
+            ]
+        }) {
+            // These source-backed range classes are represented by
+            // RuntimeRangeBox values without Kotlin vtables. Use the generic
+            // Any.toString path, whose runtime formatter handles the box.
+            return nil
+        }
 
         // Objects without an own toString() keep the simple-name fallback. An
         // explicitly declared (or synthesized) object toString() must still

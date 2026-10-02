@@ -3,7 +3,7 @@ symbol fq=CustomCharSequence.<init>[kind=ctor;recv=CustomCharSequence;params=Str
 symbol fq=CustomCharSequence.get.$1.index[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=CustomCharSequence.subSequence.$2.endIndex[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=CustomCharSequence.subSequence.$2.startIndex[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=CustomCharSequence.value[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=CustomCharSequence.value[kind=prop] kind=property vis=private flags=_ type=String
 symbol fq=CustomCharSequence[kind=class] kind=class vis=private flags=_
 symbol fq=__local_0.value[kind=local] kind=local vis=private flags=_ type=kotlin.CharSequence
 symbol fq=__local_1.value[kind=local] kind=local vis=private flags=_ type=kotlin.CharSequence
