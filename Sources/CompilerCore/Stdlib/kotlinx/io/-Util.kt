@@ -42,9 +42,7 @@ internal fun checkByteCount(byteCount: Long) {
 }
 
 internal fun Short.reverseBytes(): Short {
-    // Bare `toX()` calls do not resolve on the implicit primitive receiver
-    // inside extension bodies in this compiler, so use explicit `this`.
-    val i = this.toInt() and 0xffff
+    val i = toInt() and 0xffff
     return ((i and 0xff00 ushr 8) or (i and 0x00ff shl 8)).toShort()
 }
 
