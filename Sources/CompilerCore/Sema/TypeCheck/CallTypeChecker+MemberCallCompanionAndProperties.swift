@@ -207,10 +207,13 @@ extension CallTypeChecker {
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         }
         let deprecationCheckTarget: SymbolID
-        if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
-            ?? sema.symbols.parentSymbol(for: chosen),
-            sema.symbols.symbol(ownerProperty)?.kind == .property
-        {
+        // Compound assignment (`bindCall == false`) reads the selected property
+        // directly, so its l-value needs the parent-property identifier binding.
+        // Plain reads keep the accessor-owner-only behaviour so lowering still
+        // dispatches through the getter call binding.
+        let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
+            ?? (bindCall ? nil : sema.symbols.parentSymbol(for: chosen))
+        if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
         } else {
