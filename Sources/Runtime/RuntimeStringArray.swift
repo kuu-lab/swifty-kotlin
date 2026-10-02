@@ -2301,6 +2301,22 @@ public func kk_object_register_equals_override(_ objectRaw: Int, _ functionRaw: 
     return 0
 }
 
+/// Registers the most-specific user implementation of `Any.hashCode` so that
+/// hashed collections, which only see an erased handle, honor it.
+@_cdecl("kk_object_register_hashcode_override")
+public func kk_object_register_hashcode_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
+    guard functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        state.objectHashCodeOverrides[objectKey] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_object_register_any_to_string")
 public func kk_object_register_any_to_string(
     _ objectRaw: Int,

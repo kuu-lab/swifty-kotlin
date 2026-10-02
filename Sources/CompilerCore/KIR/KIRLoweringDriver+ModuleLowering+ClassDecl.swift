@@ -738,7 +738,10 @@ extension KIRLoweringDriver {
         sema: SemaModule
     ) -> SymbolID? {
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
-              !interfaceProperty.flags.contains(.abstractType)
+              !interfaceProperty.flags.contains(.abstractType),
+              // A runtime-bridged property's synthetic accessor has no
+              // emitted body — resolve it through the bridge instead.
+              (sema.symbols.externalLinkName(for: interfacePropertySymbol) ?? "").isEmpty
         else {
             return nil
         }

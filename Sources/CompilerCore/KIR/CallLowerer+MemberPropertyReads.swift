@@ -40,6 +40,21 @@ extension CallLowerer {
             // their direct ABI bridge path, just like range member calls.
             return nil
         }
+        return resolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            accessorKind: accessorKind,
+            sema: sema
+        )
+    }
+
+    /// AST-independent core of `tryResolvePropertyAccessorVirtualDispatch`,
+    /// shared with property-reference wrappers (`Base::prop`), which have no
+    /// receiver expression to inspect for `super`.
+    func resolvePropertyAccessorVirtualDispatch(
+        propertySymbol: SymbolID,
+        accessorKind: PropertyAccessorKind,
+        sema: SemaModule
+    ) -> (accessorSymbol: SymbolID, dispatch: KIRDispatchKind)? {
         guard let propInfo = sema.symbols.symbol(propertySymbol),
               let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerID),
