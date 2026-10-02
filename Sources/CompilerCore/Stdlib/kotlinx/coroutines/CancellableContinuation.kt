@@ -10,9 +10,9 @@ public interface CancellableContinuation<in T> : Continuation<T> {
     public val isCompleted: Boolean
     public val isCancelled: Boolean
     public fun cancel(cause: Throwable? = null): Boolean
-    public fun invokeOnCancellation(handler: (cause: Throwable) -> Unit)
-    public fun resume(value: T, onCancellation: ((cause: Throwable) -> Unit)?)
-    public fun resume(value: T, onCancellation: (cause: Throwable, value: T, context: CoroutineContext) -> Unit)
+    public fun invokeOnCancellation(handler: (cause: Throwable?) -> Unit)
+    public fun resume(value: T, onCancellation: ((cause: Throwable) -> Unit)? = null)
+    public fun <R : T> resume(value: R, onCancellation: (cause: Throwable, value: R, context: CoroutineContext) -> Unit)
     public fun tryResume(value: T, idempotent: Any? = null): Any?
     public fun tryResumeWithException(exception: Throwable): Any?
     public fun completeResume(token: Any)
@@ -25,13 +25,13 @@ internal external fun <T> cancellableContinuationNew(delegate: Continuation<T>):
 internal external fun cancellableContinuationState(handle: Any): Int
 
 @KsSymbolName("__kk_cancellable_continuation_resume")
-internal external fun <T> cancellableContinuationResume(handle: Any, result: Result<T>, onCancellation: (Throwable) -> Unit)
+internal external fun <T> cancellableContinuationResume(handle: Any, result: Result<T>, onCancellation: Any)
 
 @KsSymbolName("__kk_cancellable_continuation_cancel")
 internal external fun cancellableContinuationCancel(handle: Any, cause: Throwable?): Boolean
 
 @KsSymbolName("__kk_cancellable_continuation_invoke_on_cancellation")
-internal external fun cancellableContinuationInvokeOnCancellation(handle: Any, handler: (Throwable) -> Unit)
+internal external fun cancellableContinuationInvokeOnCancellation(handle: Any, handler: Any)
 
 @KsSymbolName("__kk_cancellable_continuation_try_resume")
 internal external fun <T> cancellableContinuationTryResume(handle: Any, result: Result<T>, idempotent: Any?): Any?
@@ -56,24 +56,27 @@ internal class CancellableContinuationImpl<T>(private val delegate: Continuation
         get() = cancellableContinuationState(handle) == 2
 
     override fun resumeWith(result: Result<T>) {
-        cancellableContinuationResume(handle, result) { }
+        val callback: (Throwable) -> Unit = { }
+        cancellableContinuationResume(handle, result, callback)
     }
 
     override fun resume(value: T, onCancellation: ((Throwable) -> Unit)?) {
-        cancellableContinuationResume(handle, Result.success(value)) { cause ->
+        val callback: (Throwable) -> Unit = { cause ->
             if (onCancellation != null) onCancellation(cause)
         }
+        cancellableContinuationResume(handle, Result.success(value), callback)
     }
 
-    override fun resume(value: T, onCancellation: (Throwable, T, CoroutineContext) -> Unit) {
-        cancellableContinuationResume(handle, Result.success(value)) { cause ->
+    override fun <R : T> resume(value: R, onCancellation: (Throwable, R, CoroutineContext) -> Unit) {
+        val callback: (Throwable) -> Unit = { cause ->
             onCancellation(cause, value, context)
         }
+        cancellableContinuationResume(handle, Result.success(value), callback)
     }
 
     override fun cancel(cause: Throwable?): Boolean = cancellableContinuationCancel(handle, cause)
 
-    override fun invokeOnCancellation(handler: (Throwable) -> Unit) {
+    override fun invokeOnCancellation(handler: (Throwable?) -> Unit) {
         cancellableContinuationInvokeOnCancellation(handle, handler)
     }
 

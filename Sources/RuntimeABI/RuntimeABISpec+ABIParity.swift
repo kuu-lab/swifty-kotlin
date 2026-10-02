@@ -114,12 +114,12 @@ public extension RuntimeABISpec {
         abiParitySpec("__kk_cancellable_continuation_new", parameters: [p("delegate", .intptr)]),
         abiParitySpec("__kk_cancellable_continuation_state", parameters: [p("handle", .intptr)]),
         abiParitySpec("__kk_cancellable_continuation_resume", parameters: [
-            p("handle", .intptr), p("result", .intptr), p("fnPtr", .intptr),
-            p("closureRaw", .intptr), p("outThrown", .nullableIntptrPointer),
+            p("handle", .intptr), p("result", .intptr), p("callback", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ], returnType: .void),
         abiParitySpec("__kk_cancellable_continuation_cancel", parameters: [p("handle", .intptr), p("cause", .intptr)]),
         abiParitySpec("__kk_cancellable_continuation_invoke_on_cancellation", parameters: [
-            p("handle", .intptr), p("fnPtr", .intptr), p("closureRaw", .intptr), p("outThrown", .nullableIntptrPointer),
+            p("handle", .intptr), p("handler", .intptr), p("outThrown", .nullableIntptrPointer),
         ], returnType: .void),
         abiParitySpec("__kk_cancellable_continuation_try_resume", parameters: [
             p("handle", .intptr), p("result", .intptr), p("idempotent", .intptr),
