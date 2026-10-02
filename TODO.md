@@ -1257,13 +1257,14 @@
     - `kotlin.collections.MutableCollection.removeAll` — fun MutableCollection.removeAll(Collection): Boolean  -- `abstract fun removeAll(kotlin.collections/Collection<#A>): kotlin/Boolean`
     - `kotlin.collections.MutableCollection.retainAll` — fun MutableCollection.retainAll(Collection): Boolean  -- `abstract fun retainAll(kotlin.collections/Collection<#A>): kotlin/Boolean`
 
-- [ ] KSP-1072: kotlin.collections.MutableList.MutableList の未実装 stdlib API を実装する（13 件）
+- [~] KSP-1072: kotlin.collections.MutableList.MutableList の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.collections.MutableList` / receiver `MutableList`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableList/MutableList.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableList_MutableList_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableList_MutableList_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableList_MutableList_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装状況（2026-09-28）: 13 件のうち 12 件は KSP-1503 / KSP-700 / KSP-705 で source-backed。残る `MutableList.remove(E)` を既存 source owner に追加し、MutableList 専用の demoted runtime bridge を維持。KUU-677 の MutableCollection owner 移行とは別。Sema で全 13 件の owner と新規 remove の source-backed 性を確認する回帰、既存 Sema golden の binding 更新、および単独 diff ケースを追加。Swift toolchain のない環境のため実行テスト・共通ゲートは CI 待ち。
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableList.add` — fun MutableList.add(): Boolean  -- `abstract fun add(#A): kotlin/Boolean`
     - `kotlin.collections.MutableList.add` — fun MutableList.add(Int, ): Unit  -- `abstract fun add(kotlin/Int, #A)`

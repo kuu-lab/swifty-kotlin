@@ -20,6 +20,7 @@ struct MutableListInterfaceSourceMigrationTests {
                 values.add(1)
                 values.add(0, 2)
                 values.removeAt(0)
+                values.remove(1)
                 values.clear()
                 values.removeAll(listOf(1))
                 values.retainAll(listOf(1))
@@ -74,6 +75,7 @@ struct MutableListInterfaceSourceMigrationTests {
             ("set", 1),
             ("add", 2),
             ("removeAt", 1),
+            ("remove", 1),
             ("clear", 1),
             ("removeAll", 1),
             ("retainAll", 1),
@@ -89,6 +91,14 @@ struct MutableListInterfaceSourceMigrationTests {
                 sema.symbols.isSourceBackedSymbol(symbolID)
                     && sema.symbols.externalLinkName(for: symbolID) == nil
             })
+        }
+
+        for (memberName, expectedCount) in [("addAll", 2), ("listIterator", 2), ("subList", 1)] {
+            let members = sema.symbols.lookupAll(
+                fqName: collections + [interner.intern("MutableList"), interner.intern(memberName)]
+            )
+            #expect(members.count == expectedCount, "Expected MutableList.\(memberName) overloads")
+            #expect(members.allSatisfy(sema.symbols.isSourceBackedSymbol))
         }
     }
 }
