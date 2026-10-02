@@ -1,6 +1,63 @@
 package kotlinx.coroutines
 
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.internal.KsSymbolName
+
+public interface CoroutineScope {
+    public val coroutineContext: CoroutineContext
+}
+
+private class ContextScope(
+    override val coroutineContext: CoroutineContext,
+    val handle: Any
+) : CoroutineScope
+
+@KsSymbolName("kk_coroutine_scope_new_with_context")
+internal external fun __kkCoroutineScopeNewWithContext(context: CoroutineContext): Any
+
+@KsSymbolName("kk_coroutine_current_context")
+internal external fun __kkCurrentCoroutineContext(): CoroutineContext
+
+public object GlobalScope : CoroutineScope {
+    override val coroutineContext: CoroutineContext
+        get() = EmptyCoroutineContext
+}
+
+public fun CoroutineScope(context: CoroutineContext): CoroutineScope {
+    val scopeContext = if (__kkContextGetJob(context) == null) context + Job() else context
+    return ContextScope(scopeContext, __kkNewScopeHandle(scopeContext))
+}
+
+public fun MainScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+public val CoroutineScope.isActive: Boolean
+    get() = coroutineContext.isActive
+
+public fun CoroutineScope.cancel(cause: CancellationException? = null) {
+    val job = __kkContextGetJob(coroutineContext)
+        ?: error("Scope cannot be cancelled because it does not have a job")
+    __kkJobCancel(job, cause)
+}
+
+public fun CoroutineScope.ensureActive() {
+    coroutineContext.ensureActive()
+}
+
+public suspend fun currentCoroutineContext(): CoroutineContext = __kkCurrentCoroutineContext()
+
+internal fun CoroutineScope.__kkScopeHandle(): Any {
+    if (this is ContextScope) return this.handle
+    return __kkNewScopeHandle(coroutineContext)
+}
+
+private fun __kkNewScopeHandle(context: CoroutineContext): Any {
+    val handle = __kkCoroutineScopeNewWithContext(context)
+    __kkContextGetJob(context)?.invokeOnCompletion(onCancelling = true) {
+        kkCoroutineScopeCancel(handle)
+    }
+    return handle
+}
 
 @KsSymbolName("kk_coroutine_scope_new")
 internal external fun kkCoroutineScopeNew(): Any
