@@ -274,11 +274,13 @@ extension CallTypeChecker {
     /// Scope lookup for an unqualified call also returns package-scope extension
     /// functions that merely share the simple name but declare a receiver the
     /// enclosing implicit receiver cannot satisfy (e.g. `AtomicInt.compareAndSet`
-    /// seen from an `AtomicBoolean` extension body).  Such candidates are not
-    /// callable without an explicit receiver, so the call has to resolve against
-    /// the implicit receiver's own members instead of failing overload
-    /// resolution.  Only recovers calls that would otherwise be reported as
-    /// errors, and only when every scope candidate was inapplicable.
+    /// seen from an `AtomicBoolean` extension body), or whose arguments cannot
+    /// be satisfied even though the receiver matches (e.g. the kotlin.text
+    /// `T.append(vararg CharSequence?)` extension seen from an `Appendable`
+    /// extension body calling `append('\n')`).  Scope-candidate resolution has
+    /// already failed when this runs, so the call has to resolve against the
+    /// implicit receiver's own members instead of failing overload resolution.
+    /// Only recovers calls that would otherwise be reported as errors.
     func tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
         _ id: ExprID,
         calleeName: InternedString,
@@ -296,53 +298,66 @@ extension CallTypeChecker {
               args.count == argTypes.count
         else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
-        let everyCandidateInapplicable = scopeCandidates.allSatisfy { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let declaredReceiver = signature.receiverType
-            else { return false }
-            return !extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullReceiver,
-                declaredReceiver: declaredReceiver,
-                sema: sema
+
+        // Kotlin's implicit-receiver tower: the innermost receiver first, then
+        // enclosing receivers whose `this` value is reachable through capture.
+        // Only entries carrying a receiver symbol participate — the symbol is
+        // what capture analysis stores into an object literal's fields so KIR
+        // lowering can materialize the receiver value from it.
+        var receiverChain: [(type: TypeID, symbol: SymbolID?)] = [
+            (type: nonNullReceiver, symbol: nil)
+        ]
+        for outerReceiver in ctx.outerReceiverTypes.reversed() {
+            let outerNonNullReceiver = sema.types.makeNonNullable(outerReceiver.type)
+            guard let outerReceiverSymbol = outerReceiver.symbol,
+                  outerNonNullReceiver != nonNullReceiver
+            else {
+                continue
+            }
+            receiverChain.append((type: outerNonNullReceiver, symbol: outerReceiverSymbol))
+        }
+
+        for receiver in receiverChain {
+            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: receiver.type,
+                sema: sema,
+                interner: ctx.interner
             )
-        }
-        guard everyCandidateInapplicable else { return nil }
+            guard !memberCandidates.isEmpty else { continue }
+            let resolvedArgs = zip(args, argTypes).map { argument, type in
+                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            }
+            let resolved = ctx.resolver.resolveCall(
+                candidates: memberCandidates,
+                call: CallExpr(
+                    range: range,
+                    calleeName: calleeName,
+                    args: resolvedArgs,
+                    explicitTypeArgs: explicitTypeArgs
+                ),
+                expectedType: expectedType,
+                implicitReceiverType: receiver.type,
+                ctx: ctx.semaCtx
+            )
+            guard resolved.diagnostic == nil,
+                  let chosen = resolved.chosenCallee
+            else { continue }
 
-        let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
-            named: calleeName,
-            receiverType: nonNullReceiver,
-            sema: sema,
-            interner: ctx.interner
-        )
-        guard !memberCandidates.isEmpty else { return nil }
-        let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+            sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+            if let receiverSymbol = receiver.symbol {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+            }
+            markCoroutineScopeImplicitReceiverCallIfNeeded(
+                id,
+                chosenCallee: chosen,
+                receiverType: receiver.type,
+                ctx: ctx
+            )
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
         }
-        let resolved = ctx.resolver.resolveCall(
-            candidates: memberCandidates,
-            call: CallExpr(
-                range: range,
-                calleeName: calleeName,
-                args: resolvedArgs,
-                explicitTypeArgs: explicitTypeArgs
-            ),
-            expectedType: expectedType,
-            implicitReceiverType: nonNullReceiver,
-            ctx: ctx.semaCtx
-        )
-        guard resolved.diagnostic == nil,
-              let chosen = resolved.chosenCallee
-        else { return nil }
-
-        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-        markCoroutineScopeImplicitReceiverCallIfNeeded(
-            id,
-            chosenCallee: chosen,
-            receiverType: implicitReceiverType,
-            ctx: ctx
-        )
-        sema.bindings.bindExprType(id, type: resultType)
-        return resultType
+        return nil
     }
 }

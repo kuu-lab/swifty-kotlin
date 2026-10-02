@@ -22,7 +22,8 @@ func makeTestOptions(
     moduleName: String,
     inputs: [String],
     outputPath: String,
-    emit: EmitMode
+    emit: EmitMode,
+    allowDefaultStdlibLibrary: Bool = true
 ) -> CompilerOptions {
     CompilerOptions(
         moduleName: moduleName,
@@ -34,7 +35,7 @@ func makeTestOptions(
         // tests link the precompiled stdlib artifact rather than compiling
         // bundled Kotlin sources. Stated explicitly rather than left to
         // CompilerOptions' own default so the choice isn't silently implicit.
-        allowDefaultStdlibLibrary: true
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
 }
 
@@ -124,7 +125,8 @@ func assertKotlinCompilesToObject(
 func compileAndRunKotlin(
     _ source: String,
     expectedOutput: String,
-    moduleName: String = "ExecTest"
+    moduleName: String = "ExecTest",
+    allowDefaultStdlibLibrary: Bool = true
 ) throws {
     try withTemporaryFile(contents: source) { path in
         let fm = FileManager.default
@@ -136,7 +138,8 @@ func compileAndRunKotlin(
             moduleName: moduleName,
             inputs: [path],
             outputPath: outputBase,
-            emit: .executable
+            emit: .executable,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
         let result = makeTestDriver().runForTesting(options: options)
         try assertCompilationSucceeded(result)

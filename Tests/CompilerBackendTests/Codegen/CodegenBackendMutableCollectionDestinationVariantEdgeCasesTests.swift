@@ -75,6 +75,80 @@ struct CodegenBackendMutableCollectionDestinationVariantEdgeCasesTests {
     }
 
     @Test
+    func testMapToInfersEmptyMutableListWithoutTargetType() throws {
+        let source = """
+        fun main() {
+            val dest = listOf(1, 2).mapTo(mutableListOf()) { it * 2 }
+            println(dest)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_MAP_TO_EMPTY_MUTABLE_LIST_UNDECLARED", expected: "[2, 4]\n")
+    }
+
+    @Test
+    func testFilterToInfersEmptyMutableListWithoutTargetType() throws {
+        let source = """
+        fun main() {
+            val dest = listOf(1, 2, 3).filterTo(mutableListOf()) { it > 1 }
+            println(dest)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_FILTER_TO_EMPTY_MUTABLE_LIST", expected: "[2, 3]\n")
+    }
+
+    @Test
+    func testAssociateToInfersEmptyMutableMap() throws {
+        let source = """
+        fun main() {
+            val dest = listOf(1, 2).associateTo(mutableMapOf()) { it to it * 3 }
+            println(dest)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_ASSOCIATE_TO_EMPTY_MUTABLE_MAP", expected: "{1=3, 2=6}\n")
+    }
+
+    @Test
+    func testGenericDestinationParameterInfersMutableListOf() throws {
+        let source = """
+        fun <T, C : MutableCollection<in T>> collectInto(dest: C, value: T): C {
+            dest.add(value)
+            return dest
+        }
+        fun main() {
+            val result = collectInto(mutableListOf(), 1)
+            println(result)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_GENERIC_DESTINATION", expected: "[1]\n")
+    }
+
+    @Test
+    func testGenericDestinationExtensionInfersMutableListOf() throws {
+        let source = """
+        fun <T, C : MutableCollection<in T>> List<T>.drainInto(dest: C): C {
+            for (item in this) dest.add(item)
+            return dest
+        }
+        fun main() {
+            val result = listOf(1, 2).drainInto(mutableListOf())
+            println(result)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_DESTINATION_EXTENSION", expected: "[1, 2]\n")
+    }
+
+    @Test
+    func testMapToInfersEmptyMutableSetDestination() throws {
+        let source = """
+        fun main() {
+            val dest = listOf(1, 2).mapTo(mutableSetOf()) { it * 2 }
+            println(dest)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "KUU539_MAP_TO_EMPTY_MUTABLE_SET", expected: "[2, 4]\n")
+    }
+
+    @Test
     func testFlatMapToAppendsToDestination() throws {
         let source = """
         fun main() {

@@ -159,7 +159,7 @@ enum GoldenHarnessDump {
         // 1. Render body lines (files, decls, exprs) first to track referenced symbols
         var bodyLines: [String] = []
 
-        for file in ast.sortedFiles where file.fileID == sourceFileID {
+        if let file = ast.file(for: sourceFileID) {
             bodyLines.append(renderFile(file, ast: ast, ctx: ctx))
         }
 

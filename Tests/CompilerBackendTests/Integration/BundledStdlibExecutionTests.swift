@@ -3,12 +3,6 @@
 import Foundation
 import Testing
 
-#if os(Linux)
-private let isLinux = true
-#else
-private let isLinux = false
-#endif
-
 /// KSP-INF-006: bundled `.kt` 自己完結実行テストハーネス。
 /// Kotlin ソースを executable までコンパイルし、実行後の stdout を期待値と比較する。
 /// kotlinc を使わない第二 oracle として機能する。
@@ -331,7 +325,7 @@ struct BundledStdlibExecutionTests {
     // KUU-642: block exceptions must propagate to the invoke caller instead
     // of fatalError, and callRecursive must route through the runtime
     // trampoline. The deep sumTo(20_000) assertion lives in
-    // testDeepRecursiveFunctionTrampolineDeepSum (disabled on Linux — #7143).
+    // testDeepRecursiveFunctionTrampolineDeepSum.
     @Test
     func testDeepRecursiveFunctionTrampolineAndExceptionPropagation() throws {
         try compileAndRunKotlin(
@@ -365,11 +359,12 @@ struct BundledStdlibExecutionTests {
     }
 
     // KUU-642: the trampoline must keep native stack usage O(1) at depth
-    // 20_000. Flaky on Linux CI — the trampoline intermittently returns a
-    // heap-pointer-looking value instead of the sum (observed 74626487 /
-    // 32832033); not reproducible on macOS. Tracked by
-    // https://github.com/kuu-lab/swifty-kotlin/issues/7143
-    @Test(.disabled(if: isLinux, "DeepRecursive deep trampoline intermittently returns a wrong sum on Linux CI (#7143)"))
+    // 20_000. The intermittent wrong sums on Linux CI (#7143, KUU-857) were
+    // a kk_box_int pass-through collision — a raw scalar equal to a live
+    // RuntimeIntBox address was passed through unboxed and unboxed as the
+    // other box's value; primitive boxing now registers tagged handles so
+    // the collision class is closed.
+    @Test
     func testDeepRecursiveFunctionTrampolineDeepSum() throws {
         try compileAndRunKotlin(
             """
@@ -1011,6 +1006,30 @@ struct BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "6\n"
+        )
+    }
+
+    /// REFL-CTOR / REFL-EXTPROP / REFL-PRIMOP: `::Foo` (constructor
+    /// reference), `String::length` (package-level extension property
+    /// reference), and `Int::plus` / `Int::times` (primitive operators with
+    /// no backing member symbol) all resolved as "Unresolved reference"
+    /// before this fix -- none of them go through ordinary symbol-based
+    /// candidate lookup the way a bound/unbound function reference does.
+    @Test
+    func testConstructorPropertyAndPrimitiveOperatorCallableReferencesRun() throws {
+        try compileAndRunKotlin(
+            """
+            class Foo(val n: Int) { override fun toString() = "Foo($n)" }
+            fun main() {
+                val ctor = ::Foo
+                println(ctor(3))
+                println(listOf(1, 2).map(::Foo))
+                println(listOf("a", "bb").map(String::length))
+                println(listOf(1, 2, 3).fold(0, Int::plus))
+                println(listOf(1, 2, 3).reduce(Int::times))
+            }
+            """,
+            expectedOutput: "Foo(3)\n[Foo(1), Foo(2)]\n[1, 2]\n6\n6\n"
         )
     }
 

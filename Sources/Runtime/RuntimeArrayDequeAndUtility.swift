@@ -260,11 +260,15 @@ private func runtimeArrayBoxDeepHash(
     }
     defer { visited.remove(raw) }
 
-    var result = 1
+    // Kotlin's Arrays.deepHashCode folds 31*acc + elementHash in 32-bit
+    // wrapping Int arithmetic at every step; accumulating in the host's
+    // 64-bit Int only agrees while the running total stays inside Int32
+    // range and diverges on deep or long arrays.
+    var result: Int32 = 1
     for element in box.elements {
-        result = 31 &* result &+ runtimeValueDeepHash(element, visited: &visited)
+        result = 31 &* result &+ Int32(truncatingIfNeeded: runtimeValueDeepHash(element, visited: &visited))
     }
-    return result
+    return Int(result)
 }
 
 private func runtimeValueDeepHash(_ raw: Int, visited: inout Set<Int>) -> Int {

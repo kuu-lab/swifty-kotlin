@@ -555,7 +555,8 @@ extension MemberLowerer {
                     }
                 },
                 parameterTypes: accessorKind == .setter ? [propertyType] : [],
-                returnType: returnType
+                returnType: returnType,
+                canThrow: true
             ),
             for: syntheticAccessorSymbol
         )
@@ -607,6 +608,10 @@ extension MemberLowerer {
         let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: ownerType, parameterTypes: [], returnType: propType),
+            for: getterSymbol
+        )
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
@@ -739,6 +744,10 @@ extension MemberLowerer {
         body.append(.endBlock)
 
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: ownerType, parameterTypes: [], returnType: propType),
+            for: getterSymbol
+        )
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(
@@ -746,6 +755,56 @@ extension MemberLowerer {
                     name: interner.intern("get"),
                     params: params,
                     returnType: propType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        allDecls.append(kirID)
+        allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
+    }
+
+    /// Emits a setter accessor stub (`(receiver, value) -> Unit`) for an
+    /// abstract interface `var`. The `var` counterpart of
+    /// `synthesizeInterfacePropertyGetterStub` above — without it, an
+    /// abstract interface property's setter has no registered symbol at all
+    /// (its getter always gets the stub above), so anything that resolves to
+    /// it — for example a `by`-delegation forwarder whose dispatch falls back
+    /// to the interface's own declaration — links against an undefined name.
+    func synthesizeInterfacePropertySetterStub(
+        propertySymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        allDecls: inout [KIRDeclID]
+    ) {
+        guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
+        let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+
+        let ownerType = sema.types.make(
+            .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+        let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: propertySymbol)
+        let params = [
+            KIRParameter(symbol: receiverSymbol, type: ownerType),
+            KIRParameter(symbol: valueParamSymbol, type: propType),
+        ]
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        let kirID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: setterSymbol,
+                    name: interner.intern("set"),
+                    params: params,
+                    returnType: sema.types.unitType,
                     body: body,
                     isSuspend: false,
                     isInline: false

@@ -424,48 +424,29 @@ public final class TypeSystem {
         childArgs: [TypeArg],
         to parent: SymbolID
     ) -> [TypeArg]? {
+        // KUU-809: the direct-supertype graph is attacker-controlled when it
+        // comes from `.kklib` metadata, so this walk must not consume native
+        // call-stack frames per level. The explicit stack below performs the
+        // same DFS the recursive version did: `target` is checked before the
+        // visited mark, and children are explored left-to-right depth-first
+        // (reversed pushes keep the leftmost child on top of the stack).
         var visited: Set<SymbolID> = []
-        return liftedNominalSupertypeArgs(
-            from: child,
-            currentArgs: childArgs,
-            to: parent,
-            visited: &visited
-        )
-    }
-
-    private func liftedNominalSupertypeArgs(
-        from current: SymbolID,
-        currentArgs: [TypeArg],
-        to target: SymbolID,
-        visited: inout Set<SymbolID>
-    ) -> [TypeArg]? {
-        if current == target {
-            return currentArgs
-        }
-        guard visited.insert(current).inserted else {
-            return nil
-        }
-
-        for directSupertype in directNominalSupertypes(for: current) {
-            let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
-            let substitutedDirectArgs = directArgsTemplate.map {
-                substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+        var stack: [(symbol: SymbolID, args: [TypeArg])] = [(child, childArgs)]
+        while let (current, currentArgs) = stack.popLast() {
+            if current == parent {
+                return currentArgs
             }
-
-            if directSupertype == target {
-                return substitutedDirectArgs
+            guard visited.insert(current).inserted else {
+                continue
             }
-
-            if let transitiveArgs = liftedNominalSupertypeArgs(
-                from: directSupertype,
-                currentArgs: substitutedDirectArgs,
-                to: target,
-                visited: &visited
-            ) {
-                return transitiveArgs
+            for directSupertype in directNominalSupertypes(for: current).reversed() {
+                let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
+                let substitutedDirectArgs = directArgsTemplate.map {
+                    substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+                }
+                stack.append((directSupertype, substitutedDirectArgs))
             }
         }
-
         return nil
     }
 

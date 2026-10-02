@@ -99,6 +99,51 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testSuspendFunctionValuesInFlowCallbacksPreserveClosureEnvironment() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+
+        suspend fun runFilter(pred: suspend (Int) -> Boolean) {
+            flow { emit(1) }.collect { v ->
+                try { pred(v) } catch (e: Throwable) { }
+            }
+            println("filter done")
+        }
+
+        suspend fun runMultiStatementCollector() {
+            val scale = 2
+            val op = { value: Int -> println(value * scale) }
+            var n = 0
+            flow { emit(1) }.collect { v -> op(v); n += 1 }
+            println(n)
+        }
+
+        suspend fun <T> Flow<T>.onCompletionX(action: suspend (Throwable?) -> Unit): Flow<T> {
+            return flow {
+                this@onCompletionX.collect { emit(it) }
+                action(null)
+            }
+        }
+
+        fun main() {
+            runBlocking {
+                runFilter { println("predicate"); true }
+                runMultiStatementCollector()
+                flow { emit(1) }.onCompletionX { cause ->
+                    if (cause == null) println("completion")
+                }.collect { }
+            }
+        }
+        """
+
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendFunctionValueFlowEnvironment",
+            expectedStdout: "predicate\nfilter done\n2\n1\ncompletion\n"
+        )
+    }
+
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {

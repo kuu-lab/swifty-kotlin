@@ -20,6 +20,7 @@ extension CollectionLiteralConstructionLoweringPass {
             objectValue: result,
             nominalSymbol: resolved.symbol.id,
             sema: sema,
+            cache: ctx.nominalDispatchCache,
             arena: module.arena,
             interner: ctx.interner,
             instructions: &loweredBody

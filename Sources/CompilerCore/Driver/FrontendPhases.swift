@@ -447,10 +447,10 @@ public final class BuildASTPhase: CompilerPhase {
         var imports: [ImportDecl] = []
         var topLevelDecls: [DeclID] = []
         var scriptBody: [ExprID] = []
-        // Top-level `fun` declarations materialized as real file-scope FunDecls
-        // below; passed to `blockExpressions` so script mode doesn't also nest
-        // them as shadowing local functions inside the synthesized `main()` body.
-        var materializedFunDeclNodeIDs: Set<NodeID> = []
+        // Top-level declarations materialized as real file-scope decls below;
+        // passed to `blockExpressions` so script mode doesn't also nest them
+        // as shadowing local decls inside the synthesized `main()` body.
+        var materializedDeclNodeIDs: Set<NodeID> = []
         let rootNode = cst.node(root)
         let fileAnnotations = declarationAnnotations(from: root, in: cst, interner: interner)
             .filter { $0.useSiteTarget == "file" }
@@ -495,6 +495,7 @@ public final class BuildASTPhase: CompilerPhase {
             case .classDecl:
                 let decl = Decl.classDecl(makeClassDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .interfaceDecl:
                 let decl = Decl.interfaceDecl(makeInterfaceDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
@@ -503,11 +504,12 @@ public final class BuildASTPhase: CompilerPhase {
             case .objectDecl:
                 let decl = Decl.objectDecl(makeObjectDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .funDecl:
                 let decl = Decl.funDecl(makeFunDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
-                materializedFunDeclNodeIDs.insert(nodeID)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .propertyDecl where !isScript:
                 let decl = Decl.propertyDecl(makePropertyDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
@@ -537,7 +539,7 @@ public final class BuildASTPhase: CompilerPhase {
                 in: cst,
                 interner: interner,
                 astArena: arena,
-                excludingNodeIDs: materializedFunDeclNodeIDs
+                excludingNodeIDs: materializedDeclNodeIDs
             )
             scriptBody = scriptExprs
 

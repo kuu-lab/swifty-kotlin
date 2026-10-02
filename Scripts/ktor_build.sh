@@ -20,6 +20,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+# Space-separated flags appended to each kswiftc invocation, e.g.
+# KSWIFTC_FLAGS="--stdlib-library /path/to/KSwiftKStdlib.kklib" to bypass the
+# shared machine-wide stdlib cache under ~/Library/Caches/kswiftk/stdlib/,
+# which can be stale or mid-write from another concurrent session.
+KSWIFTC_FLAGS="${KSWIFTC_FLAGS:-}"
+KSWIFTC_EXTRA_ARGS=()
+if [[ -n "$KSWIFTC_FLAGS" ]]; then
+  read -r -a KSWIFTC_EXTRA_ARGS <<< "$KSWIFTC_FLAGS"
+fi
 CACHE_DIR="${KTOR_BUILD_CACHE_DIR:-$ROOT_DIR/.ktor-build-cache}"
 OUT_DIR="${KTOR_BUILD_OUT_DIR:-$ROOT_DIR/.ktor-build-out}"
 KTOR_TAG="${KTOR_TAG:-3.6.0}"
@@ -109,7 +118,7 @@ for module in $MODULES; do
   kklib="$OUT_DIR/$module.kklib"
   rm -rf "$kklib"
   set +e
-  "$KSWIFTC" --emit library -m "$module" -o "$kklib" "${files[@]}" > "$log" 2>&1
+  "$KSWIFTC" --emit library -m "$module" -o "$kklib" "${KSWIFTC_EXTRA_ARGS[@]}" "${files[@]}" > "$log" 2>&1
   exit_code=$?
   set -e
   error_count=$(grep -c 'error KSWIFTK' "$log" || true)

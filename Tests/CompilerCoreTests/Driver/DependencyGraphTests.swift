@@ -137,6 +137,26 @@ struct DependencyGraphTests {
     }
 
     @Test
+    func testRecompilationSetDeepDependencyChain() {
+        let graph = DependencyGraph()
+        // f0 provides S0; each f<i> depends on S<i-1> and provides S<i>.
+        let depth = 16
+        let files = (0 ..< depth).map { "f\($0).kt" }
+        for index in 0 ..< depth {
+            graph.recordProvided(filePath: files[index], symbols: ["S\(index)"])
+            if index > 0 {
+                graph.recordDepended(filePath: files[index], symbols: ["S\(index - 1)"])
+            }
+        }
+
+        let result = graph.recompilationSet(
+            changedFiles: [files[0]],
+            allFiles: files
+        )
+        #expect(result == files)
+    }
+
+    @Test
     func testRecompilationSetPreservesAllFilesOrder() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["X"])

@@ -40,7 +40,7 @@ expr e@15:52 name(function) type=kotlin.reflect.KFunction<*> ref=readFunction.$1
 expr e@15:52#1 memberCall recv=e@15:52 callee=returnType args=[] type=kotlin.reflect.KType ref=kotlin.reflect.KCallable.returnType[kind=prop]
 expr e@15:52#2 memberCall recv=e@15:52#1 callee=toString args=[] type=String call=kotlin.Any.toString[kind=fun;recv=kotlin.Any;params=]
 expr e@17:52 name(property) type=kotlin.reflect.KProperty<*> ref=readProperty.$3.property[kind=vparam]
-expr e@17:52#1 memberCall recv=e@17:52 callee=returnType args=[] type=kotlin.reflect.KType ref=kotlin.reflect.KProperty.returnType[kind=prop]
+expr e@17:52#1 memberCall recv=e@17:52 callee=returnType args=[] type=kotlin.reflect.KType ref=kotlin.reflect.KCallable.returnType[kind=prop]
 expr e@17:52#2 memberCall recv=e@17:52#1 callee=toString args=[] type=String call=kotlin.Any.toString[kind=fun;recv=kotlin.Any;params=]
 expr e@19:54 name(callable) type=kotlin.reflect.KCallable<*>? ref=readNullable.$2.callable[kind=vparam]
 expr e@19:54#1 safeMemberCall recv=e@19:54 callee=returnType args=[] type=kotlin.reflect.KType? ref=kotlin.reflect.KCallable.returnType[kind=prop]

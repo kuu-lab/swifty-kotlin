@@ -109,10 +109,15 @@ extension DeclTypeChecker {
     /// The arguments live in the primary constructor's scope, so they are
     /// checked with the primary constructor parameters seeded as locals — the
     /// same scope `typeCheckClassDelegation` builds for `by` expressions.
+    /// `extraLocals` seeds the delegation-argument scope with bindings that
+    /// outrank nothing but sit alongside the ctor params — used by the
+    /// KUU-555 local-class path, where `Base(x)` can reference a captured
+    /// outer local; named classes pass the default `[:]`.
     func typeCheckPrimaryConstructorSuperDelegation(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        extraLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
@@ -127,7 +132,7 @@ extension DeclTypeChecker {
         let args = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
 
         var delegationCtx = ctx
-        var locals: LocalBindings = [:]
+        var locals: LocalBindings = extraLocals
         if let signature = sema.symbols.functionSignature(for: primaryCtorSymbol.id) {
             let ctorScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
             for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
@@ -392,7 +397,13 @@ extension DeclTypeChecker {
                 let resolved = ctx.resolver.resolveCall(
                     candidates: candidates,
                     call: callExpr,
-                    expectedType: nil,
+                    expectedType: delegation.kind == .this
+                        ? constructorOwnerType(ownerSymbol, ctx: ctx)
+                        : constructorSuperclassType(
+                            ownerSymbol: ownerSymbol,
+                            superclassSymbol: explicitSuperclassSymbol,
+                            ctx: ctx
+                        ),
                     ctx: sema
                 )
                 if let diagnostic = resolved.diagnostic {
@@ -405,6 +416,40 @@ extension DeclTypeChecker {
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func constructorOwnerType(
+        _ ownerSymbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard let ownerSymbol else { return nil }
+        let typeArguments = ctx.sema.types.nominalTypeParameterSymbols(for: ownerSymbol).map {
+            TypeArg.invariant(ctx.sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
+    }
+
+    /// A secondary `super(...)` delegates to the instantiated superclass in
+    /// the class header. Its type arguments are known even when none of the
+    /// constructor arguments mention them.
+    private func constructorSuperclassType(
+        ownerSymbol: SymbolID?,
+        superclassSymbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard let ownerSymbol, let superclassSymbol else { return nil }
+        let typeArguments = ctx.sema.symbols.supertypeTypeArgs(
+            for: ownerSymbol, supertype: superclassSymbol
+        )
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: superclassSymbol,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
     }
 
     private func resolveDelegationTarget(
@@ -503,6 +548,17 @@ extension DeclTypeChecker {
             locals[thisName] = (receiverType, syntheticThisSymbol, false, true)
             if driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: ctx.interner) {
                 sema.bindings.markRangeSymbol(syntheticThisSymbol)
+            }
+            // A named `context(name: Type)` parameter addresses the same value as
+            // the first context receiver: alias it to the receiver parameter so
+            // `name.member` resolves identically to `this.member`. Member functions
+            // keep their owner as the signature receiver, so the alias only applies
+            // to context declarations whose receiver came from the context clause.
+            if ctx.enclosingClassSymbol == nil,
+               signature.receiverType != nil,
+               let contextParamName = function.contextReceiverNames.first.flatMap({ $0 })
+            {
+                locals[contextParamName] = (receiverType, syntheticThisSymbol, false, true)
             }
         }
 
@@ -608,6 +664,65 @@ extension DeclTypeChecker {
             ast: ctx.ast,
             interner: ctx.interner,
             sema: sema
+        )
+        recordDirectInlineLambdaInvocation(
+            function: function,
+            symbol: symbol,
+            signature: signature,
+            ast: ctx.ast,
+            sema: sema
+        )
+    }
+
+    /// An inline declaration only guarantees that its lambda does not escape;
+    /// it may still invoke the lambda zero or several times. Infer the stronger
+    /// EXACTLY_ONCE effect only for a body consisting solely of a direct call to
+    /// that parameter. Explicit contracts take precedence over this inference.
+    private func recordDirectInlineLambdaInvocation(
+        function: FunDecl,
+        symbol: SymbolID,
+        signature: FunctionSignature,
+        ast: ASTModule,
+        sema: SemaModule
+    ) {
+        guard function.isInline else { return }
+        let bodyExprID: ExprID
+        switch function.body {
+        case let .expr(expr, _):
+            bodyExprID = expr
+        case let .block(exprs, _) where exprs.count == 1:
+            bodyExprID = exprs[0]
+        default:
+            return
+        }
+        guard let bodyExpr = ast.arena.expr(bodyExprID) else { return }
+        let invocationExprID: ExprID
+        if case let .returnExpr(value?, _, _) = bodyExpr {
+            invocationExprID = value
+        } else {
+            invocationExprID = bodyExprID
+        }
+        guard let invocation = ast.arena.expr(invocationExprID),
+              case let .call(calleeID, _, args, _) = invocation,
+              args.isEmpty,
+              let callee = ast.arena.expr(calleeID),
+              case let .nameRef(calleeName, _) = callee,
+              let index = function.valueParams.firstIndex(where: {
+                  $0.name == calleeName && !$0.isNoinline
+              }),
+              signature.valueParameterSymbols.indices.contains(index),
+              !sema.symbols.contractCallsInPlaceEffects(for: symbol).contains(where: {
+                  $0.parameterSymbol == signature.valueParameterSymbols[index]
+              })
+        else {
+            return
+        }
+        sema.symbols.addContractCallsInPlaceEffect(
+            ContractCallsInPlaceEffect(
+                parameterSymbol: signature.valueParameterSymbols[index],
+                kind: .exactlyOnce
+            ),
+            for: symbol
         )
     }
 

@@ -1,6 +1,6 @@
 symbol fq=UserSequence.<init>.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=UserSequence.<init>[kind=ctor;recv=UserSequence;params=kotlin.sequences.Sequence<Int>] kind=constructor vis=public flags=_ sig=recv=UserSequence params=[kotlin.sequences.Sequence<Int>] ret=UserSequence
-symbol fq=UserSequence.values[kind=prop] kind=property vis=public flags=_ type=kotlin.sequences.Sequence<Int>
+symbol fq=UserSequence.values[kind=prop] kind=property vis=private flags=_ type=kotlin.sequences.Sequence<Int>
 symbol fq=UserSequence[kind=class] kind=class vis=public flags=_
 symbol fq=__local_0.source[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>
 symbol fq=__local_1.iterableDestination[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Int>

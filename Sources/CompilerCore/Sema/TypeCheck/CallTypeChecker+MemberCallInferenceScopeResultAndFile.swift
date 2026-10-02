@@ -460,8 +460,12 @@ extension CallTypeChecker {
                     } else {
                         sema.types.anyType
                     }
-                    lambdaReturnType = expectedType ?? sema.types.anyType
-                    callReturnType = expectedType ?? sema.types.anyType
+                    // Keep an unconstrained result distinct from a concrete Any
+                    // result.  The lambda body must be allowed to infer T so the
+                    // result can be used in a following member access, e.g.
+                    // `file.useLines { it.toList() }.size`.
+                    lambdaReturnType = expectedType ?? sema.types.nullableAnyType
+                    callReturnType = expectedType ?? sema.types.nullableAnyType
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [lambdaParamType],
@@ -474,14 +478,34 @@ extension CallTypeChecker {
                     expectedType: lambdaExpectedType
                 )
                 // For useLines, extract the actual return type from the lambda
-                let finalReturnType: TypeID = if calleeStr == "useLines" {
-                    if case let .functionType(fnType) = sema.types.kind(of: inferredLambdaType) {
+                let finalReturnType: TypeID
+                if calleeStr == "useLines" {
+                    let inferredReturnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: inferredLambdaType) {
                         fnType.returnType
                     } else {
                         callReturnType
                     }
+                    // `inferLambdaLiteralExpr` retains the placeholder in the
+                    // function type when T is unconstrained.  Refine the call
+                    // result from the lambda body in that case, just as the
+                    // residual `use` path does above.
+                    if expectedType == nil,
+                       inferredReturnType == sema.types.nullableAnyType,
+                       let lambdaExpr = ast.arena.expr(args[0].expr),
+                       case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
+                       let bodyType = sema.bindings.exprType(for: bodyExprID),
+                       bodyType != sema.types.anyType
+                    {
+                        if case .nothing = sema.types.kind(of: bodyType) {
+                            finalReturnType = inferredReturnType
+                        } else {
+                            finalReturnType = bodyType
+                        }
+                    } else {
+                        finalReturnType = inferredReturnType
+                    }
                 } else {
-                    callReturnType
+                    finalReturnType = callReturnType
                 }
 
                 // File.forEachLine/useLines are bundled Kotlin source functions.

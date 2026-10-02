@@ -32,7 +32,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ifaceSlot", type: .intptr),
             ],
             returnType: .intptr,
-            section: "TypeCheck"
+            section: "TypeCheck",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_object_register_itable_method",
@@ -59,6 +60,16 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_object_register_equals_override",
+            parameters: [
+                RuntimeABIParameter(name: "objectRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_object_register_hashcode_override",
             parameters: [
                 RuntimeABIParameter(name: "objectRaw", type: .intptr),
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
@@ -444,6 +455,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck",
             isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeprojection_star",
+            parameters: [],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_ktypeprojection_get_variance",

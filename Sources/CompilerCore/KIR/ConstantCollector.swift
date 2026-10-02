@@ -10,19 +10,20 @@ struct ConstantCollector {
         var mapping: [SymbolID: KIRExprKind] = [:]
         for file in ast.sortedFiles {
             let source = sourceByFileID[file.fileID.rawValue] ?? ""
+            let inlineGetters = InlineGetterBodyIndex(source: source)
             for declID in file.topLevelDecls {
-                collectPropertyConstant(declID, ast: ast, sema: sema, interner: interner, source: source, mapping: &mapping)
+                collectPropertyConstant(declID, ast: ast, sema: sema, interner: interner, inlineGetters: inlineGetters, mapping: &mapping)
             }
         }
         return mapping
     }
 
-    func collectPropertyConstant(
+    private func collectPropertyConstant(
         _ declID: DeclID,
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner,
-        source: String,
+        inlineGetters: InlineGetterBodyIndex,
         mapping: inout [SymbolID: KIRExprKind]
     ) {
         guard let decl = ast.arena.decl(declID) else { return }
@@ -52,7 +53,7 @@ struct ConstantCollector {
                 literalConstantExpr(property: property, ast: ast, interner: interner) ??
                 inlineGetterConstantExpr(
                     propertyName: interner.resolve(property.name),
-                    source: source,
+                    inlineGetters: inlineGetters,
                     interner: interner
                 )
             guard let constant else { return }
@@ -70,17 +71,17 @@ struct ConstantCollector {
             }
         case let .classDecl(classDecl):
             for memberDeclID in classDecl.memberProperties {
-                collectPropertyConstant(memberDeclID, ast: ast, sema: sema, interner: interner, source: source, mapping: &mapping)
+                collectPropertyConstant(memberDeclID, ast: ast, sema: sema, interner: interner, inlineGetters: inlineGetters, mapping: &mapping)
             }
             for nestedDeclID in classDecl.nestedClasses + classDecl.nestedObjects {
-                collectPropertyConstant(nestedDeclID, ast: ast, sema: sema, interner: interner, source: source, mapping: &mapping)
+                collectPropertyConstant(nestedDeclID, ast: ast, sema: sema, interner: interner, inlineGetters: inlineGetters, mapping: &mapping)
             }
         case let .objectDecl(objectDecl):
             for memberDeclID in objectDecl.memberProperties {
-                collectPropertyConstant(memberDeclID, ast: ast, sema: sema, interner: interner, source: source, mapping: &mapping)
+                collectPropertyConstant(memberDeclID, ast: ast, sema: sema, interner: interner, inlineGetters: inlineGetters, mapping: &mapping)
             }
             for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
-                collectPropertyConstant(nestedDeclID, ast: ast, sema: sema, interner: interner, source: source, mapping: &mapping)
+                collectPropertyConstant(nestedDeclID, ast: ast, sema: sema, interner: interner, inlineGetters: inlineGetters, mapping: &mapping)
             }
         default:
             break
@@ -92,22 +93,24 @@ struct ConstantCollector {
         source: String,
         interner: StringInterner
     ) -> KIRExprKind? {
-        guard !propertyName.isEmpty else {
-            return nil
-        }
-        let escapedPropertyName = NSRegularExpression.escapedPattern(for: propertyName)
-        let pattern = #"(?m)^\s*(?:val|var)\s+\#(escapedPropertyName)\b[^\n]*\n\s*get\s*\(\s*\)\s*=\s*([^\n;]+)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(
-                  in: source,
-                  range: NSRange(source.startIndex ..< source.endIndex, in: source)
-              ),
-              match.numberOfRanges >= 2,
-              let bodyRange = Range(match.range(at: 1), in: source)
+        inlineGetterConstantExpr(
+            propertyName: propertyName,
+            inlineGetters: InlineGetterBodyIndex(source: source),
+            interner: interner
+        )
+    }
+
+    private func inlineGetterConstantExpr(
+        propertyName: String,
+        inlineGetters: InlineGetterBodyIndex,
+        interner: StringInterner
+    ) -> KIRExprKind? {
+        guard !propertyName.isEmpty,
+              let rawBody = inlineGetters.body(forPropertyName: propertyName)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         else {
             return nil
         }
-        let rawBody = source[bodyRange].trimmingCharacters(in: .whitespacesAndNewlines)
         if rawBody == "true" {
             return .boolLiteral(true)
         }
@@ -327,6 +330,52 @@ struct ConstantCollector {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral:
             inner
         default: nil
+        }
+    }
+
+    /// Index of `val|var NAME ... get() = BODY` declarations in one source file.
+    /// The regex pass is deferred to the first lookup so files that never reach
+    /// the inline-getter fallback don't pay for the scan; the first match per
+    /// name wins, matching the previous per-name `firstMatch` behavior.
+    private final class InlineGetterBodyIndex {
+        private static let bodyRegex = try! NSRegularExpression(
+            pattern: #"(?m)^\s*(?:val|var)\s+([\p{L}_][\p{L}\p{N}_]*)[^\n]*\n\s*get\s*\(\s*\)\s*=\s*([^\n;]+)"#
+        )
+
+        private let source: String
+        private var bodiesByName: [String: String]?
+
+        init(source: String) {
+            self.source = source
+        }
+
+        func body(forPropertyName name: String) -> String? {
+            if bodiesByName == nil {
+                bodiesByName = Self.scanBodies(in: source)
+            }
+            return bodiesByName?[name]
+        }
+
+        private static func scanBodies(in source: String) -> [String: String] {
+            let matches = bodyRegex.matches(
+                in: source,
+                range: NSRange(source.startIndex ..< source.endIndex, in: source)
+            )
+            var bodies: [String: String] = [:]
+            bodies.reserveCapacity(matches.count)
+            for match in matches {
+                guard match.numberOfRanges >= 3,
+                      let nameRange = Range(match.range(at: 1), in: source),
+                      let bodyRange = Range(match.range(at: 2), in: source)
+                else {
+                    continue
+                }
+                let name = String(source[nameRange])
+                if bodies[name] == nil {
+                    bodies[name] = String(source[bodyRange])
+                }
+            }
+            return bodies
         }
     }
 }

@@ -1,12 +1,35 @@
 import Foundation
 
+/// Call-site-independent memoization for opt-in checks, shared by every
+/// `TypeCheckHelpers` method on one instance. A symbol's annotations and its
+/// owning file are fixed after header collection, and the only symbols
+/// `resolveAnnotationClassSymbol` can return — `.annotationClass` kinds — are
+/// all declared at header time (local symbols defined during type checking
+/// are never annotation classes), so the results cannot go stale mid-run.
+final class OptInResolutionCache {
+    struct RequirementsKey: Hashable {
+        let symbolID: SymbolID
+        /// The file `resolveAnnotationClassSymbol` resolves against: the
+        /// symbol's own file when recorded, else the file being checked.
+        let fileID: FileID?
+    }
+
+    struct AnnotationClassKey: Hashable {
+        let rawName: String
+        let fileID: FileID?
+    }
+
+    fileprivate var requirementsBySymbol: [RequirementsKey: [TypeCheckHelpers.OptInRequirement]] = [:]
+    fileprivate var annotationClassSymbols: [AnnotationClassKey: SymbolID?] = [:]
+}
+
 extension TypeCheckHelpers {
-    private enum OptInLevel {
+    fileprivate enum OptInLevel {
         case warning
         case error
     }
 
-    private struct OptInRequirement {
+    fileprivate struct OptInRequirement {
         let markerSymbol: SymbolID
         let markerName: String
         let message: String
@@ -203,6 +226,14 @@ extension TypeCheckHelpers {
         }
 
         let sourceFile = sourceFile(for: symbolID, ctx: ctx)
+        let cacheKey = OptInResolutionCache.RequirementsKey(
+            symbolID: symbolID,
+            fileID: sourceFile?.fileID
+        )
+        if let cached = optInResolutionCache.requirementsBySymbol[cacheKey] {
+            return cached
+        }
+
         var requirements: [OptInRequirement] = []
         var seenMarkers: Set<SymbolID> = []
 
@@ -236,6 +267,7 @@ extension TypeCheckHelpers {
             }
         }
 
+        optInResolutionCache.requirementsBySymbol[cacheKey] = requirements
         return requirements
     }
 
@@ -461,13 +493,10 @@ extension TypeCheckHelpers {
     private func parseOptInMarkerNames(_ arguments: [String]) -> [String] {
         var names: [String] = []
         var seen: Set<String> = []
-        let pattern = #"[A-Za-z_][A-Za-z0-9_\.]*\s*::\s*class"#
+        let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
             let value = optInArgumentValue(argument)
-            guard let regex = try? NSRegularExpression(pattern: pattern) else {
-                continue
-            }
             let nsValue = value as NSString
             let matches = regex.matches(
                 in: value,
@@ -556,6 +585,23 @@ extension TypeCheckHelpers {
         file: ASTFile?,
         ctx: TypeInferenceContext
     ) -> SymbolID? {
+        let cacheKey = OptInResolutionCache.AnnotationClassKey(
+            rawName: rawName,
+            fileID: file?.fileID
+        )
+        if let cached = optInResolutionCache.annotationClassSymbols[cacheKey] {
+            return cached
+        }
+        let resolved = uncachedAnnotationClassSymbol(named: rawName, file: file, ctx: ctx)
+        optInResolutionCache.annotationClassSymbols[cacheKey] = resolved
+        return resolved
+    }
+
+    private func uncachedAnnotationClassSymbol(
+        named rawName: String,
+        file: ASTFile?,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
         let parts = rawName
             .split(separator: ".")
             .map(String.init)
@@ -606,7 +652,7 @@ extension TypeCheckHelpers {
     }
 
     private func currentFile(in ctx: TypeInferenceContext) -> ASTFile? {
-        ctx.ast.sortedFiles.first(where: { $0.fileID == ctx.currentFileID })
+        ctx.ast.file(for: ctx.currentFileID)
     }
 
     private func sourceFile(
@@ -616,7 +662,7 @@ extension TypeCheckHelpers {
         guard let fileID = ctx.sema.symbols.sourceFileID(for: symbolID) else {
             return currentFile(in: ctx)
         }
-        return ctx.ast.sortedFiles.first(where: { $0.fileID == fileID })
+        return ctx.ast.file(for: fileID)
     }
 
     private func renderSymbolName(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> String {

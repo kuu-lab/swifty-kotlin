@@ -81,4 +81,4 @@ expr e@20:31 call callee=e@20:31#1 args=[_:e@20:45] type=kotlin.collections.Muta
 expr e@20:5 localDecl instanceDestination mutable=0 type=_ init=e@20:31 type=Unit ref=__local_7.instanceDestination[kind=local]
 expr e@21:5 name(mixed) type=kotlin.sequences.Sequence<Any?> ref=__local_6.mixed[kind=local]
 expr e@21:53 name(instanceDestination) type=kotlin.collections.MutableList<Int> ref=__local_7.instanceDestination[kind=local]
-expr e@21:5#1 memberCall recv=e@21:5 callee=filterIsInstanceTo args=[_:e@21:53] type=kotlin.collections.MutableList<Int> call=kotlin.sequences.filterIsInstanceTo[kind=fun;recv=kotlin.sequences.Sequence<*>;params=T0;gen=2] targs=[Int,kotlin.collections.MutableList<Int>]
+expr e@21:5#1 memberCall recv=e@21:5 callee=filterIsInstanceTo args=[_:e@21:53] type=kotlin.collections.MutableList<Int> call=kotlin.sequences.filterIsInstanceTo[kind=fun;recv=kotlin.sequences.Sequence<*>;params=T1;gen=2] targs=[Int,kotlin.collections.MutableList<Int>]

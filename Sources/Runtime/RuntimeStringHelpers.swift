@@ -155,6 +155,18 @@ func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
 
 func runtimeCharacterFromRaw(_ raw: Int) -> String {
     guard let scalar = runtimeUnicodeScalarFromRaw(raw) else {
+        // A lone surrogate half is a valid Kotlin Char; keep it (as the
+        // isolated-surrogate marker) so it can recombine into a pair later.
+        var code = raw
+        if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+           runtimeIsObjectPointer(pointer),
+           let charBox = tryCast(pointer, to: RuntimeCharBox.self)
+        {
+            code = Int(charBox.value)
+        }
+        if (0xD800 ... 0xDFFF).contains(code) {
+            return runtimeKotlinStringFromUTF16CodeUnits([UInt16(code)])
+        }
         return "?"
     }
     return String(scalar)
@@ -337,28 +349,66 @@ private func runtimeStringIndexOfLast(
     return lastIdx
 }
 
-func runtimeSplitString(_ source: String, delimiter: String, limit: Int = 0) -> [String] {
-    if delimiter.isEmpty {
-        return runtimeSplitStringOnEmptyDelimiter(source, limit: limit)
+/// `String.lowercase()` with the unconditional Unicode mappings plus the
+/// context-sensitive Final_Sigma rule (Σ -> ς at the end of a word, else σ),
+/// which `String.lowercased()` does not apply.
+func runtimeKotlinLowercased(_ source: String) -> String {
+    let scalars = Array(source.unicodeScalars)
+    guard scalars.contains(where: { $0.value == 0x3A3 }) else { return source.lowercased() }
+
+    func lowercased(_ range: Range<Int>) -> String {
+        var view = String.UnicodeScalarView()
+        view.append(contentsOf: scalars[range])
+        return String(view).lowercased()
     }
-    if source.isEmpty {
-        return [""]
+    func isFinalSigma(at index: Int) -> Bool {
+        var before = index - 1
+        while before >= 0, scalars[before].properties.isCaseIgnorable { before -= 1 }
+        guard before >= 0, scalars[before].properties.isCased else { return false }
+        var after = index + 1
+        while after < scalars.count, scalars[after].properties.isCaseIgnorable { after += 1 }
+        return after >= scalars.count || !scalars[after].properties.isCased
     }
 
-    var result: [String] = []
-    var cursor = source.startIndex
-    while true {
-        if limit > 0 && result.count == limit - 1 {
-            result.append(String(source[cursor...]))
-            return result
-        }
-        guard let match = source.range(of: delimiter, range: cursor ..< source.endIndex) else {
-            result.append(String(source[cursor...]))
-            return result
-        }
-        result.append(String(source[cursor ..< match.lowerBound]))
-        cursor = match.upperBound
+    var result = ""
+    var segmentStart = 0
+    for index in scalars.indices where scalars[index].value == 0x3A3 {
+        result += lowercased(segmentStart ..< index)
+        result += isFinalSigma(at: index) ? "\u{3C2}" : "\u{3C3}"
+        segmentStart = index + 1
     }
+    return result + lowercased(segmentStart ..< scalars.count)
+}
+
+func runtimeSplitString(_ source: String, delimiter: String, limit: Int = 0) -> [String] {
+    runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: false, limit: limit)
+}
+
+/// Index of the first occurrence of `needle` in `units` at or after `start`,
+/// comparing UTF-16 code units the way Kotlin's `indexOf` does. Foundation's
+/// `range(of:)` is unsuitable: it matches canonically equivalent sequences
+/// ("e\u{301}" ~ "é") and applies full case folding (ß ~ SS).
+private func runtimeIndexOfCodeUnits(
+    _ needle: [UInt16],
+    in units: [UInt16],
+    from start: Int,
+    ignoreCase: Bool
+) -> Int? {
+    let lastStart = units.count - needle.count
+    guard start <= lastStart else { return nil }
+    var candidate = start
+    while candidate <= lastStart {
+        var offset = 0
+        while offset < needle.count {
+            let lhs = units[candidate + offset]
+            let rhs = needle[offset]
+            if lhs != rhs, !(ignoreCase && runtimeCharsEqualIgnoringCase(lhs, rhs)) { break }
+            offset += 1
+        }
+        if offset == needle.count { return candidate }
+        candidate += 1
+    }
+    return nil
 }
 
 func runtimeSplitStringLimit(
@@ -374,20 +424,27 @@ func runtimeSplitStringLimit(
         return [""]
     }
 
-    let options: String.CompareOptions = ignoreCase ? [.caseInsensitive] : []
+    // Swift's UTF-16 view keeps isolated-surrogate markers as single BMP units,
+    // so unit offsets line up with Kotlin's and every match boundary is a
+    // scalar boundary (UTF-16 pairs are self-synchronizing).
+    let units = Array(source.utf16)
+    let needle = Array(delimiter.utf16)
+    func piece(_ range: Range<Int>) -> String {
+        String(decoding: units[range], as: UTF16.self)
+    }
     var result: [String] = []
-    var cursor = source.startIndex
+    var cursor = 0
     while true {
         if limit > 0, result.count == limit - 1 {
-            result.append(String(source[cursor...]))
+            result.append(piece(cursor ..< units.count))
             return result
         }
-        guard let match = source.range(of: delimiter, options: options, range: cursor ..< source.endIndex) else {
-            result.append(String(source[cursor...]))
+        guard let match = runtimeIndexOfCodeUnits(needle, in: units, from: cursor, ignoreCase: ignoreCase) else {
+            result.append(piece(cursor ..< units.count))
             return result
         }
-        result.append(String(source[cursor ..< match.lowerBound]))
-        cursor = match.upperBound
+        result.append(piece(cursor ..< match))
+        cursor = match + needle.count
     }
 }
 

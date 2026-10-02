@@ -1,3 +1,120 @@
+/// Memoizes the per-nominal dispatch-registration queries KIR lowering runs at
+/// every object construction site. Each result below is a pure function of the
+/// nominal symbol and `sema`, which is immutable during lowering, so entries
+/// computed once are identical for every site constructing the same nominal.
+/// Shared between `KIRLoweringContext` (driver passes) and `KIRContext`
+/// (driver-less passes such as collection-factory rewriting).
+final class KIRNominalDispatchCache {
+    private var vtableImplementationsByNominal: [SymbolID: [(slot: Int, dispatchMethod: SymbolID, implementation: SymbolID)]] = [:]
+    private var vtableAccessorImplementationsByNominal: [SymbolID: [(slot: Int, implementation: SymbolID)]] = [:]
+    private var transitiveInterfaceSupertypesByNominal: [SymbolID: [SymbolID]] = [:]
+    /// Nominal → interface method → implementation the nominal must expose:
+    /// the `kirFindOverrideMethod` result, or the method itself when no
+    /// override exists (both call sites apply that same fallback).
+    private var itableImplementationsByNominal: [SymbolID: [SymbolID: SymbolID]] = [:]
+    /// Interface → property-getter slot table, computed once per interface
+    /// instead of once per property read or object registration site.
+    private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
+    /// Interface → property → itable slot, built lazily from the slot table.
+    private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
+
+    func vtableImplementations(
+        for nominalSymbol: SymbolID,
+        sema: SemaModule
+    ) -> [(slot: Int, dispatchMethod: SymbolID, implementation: SymbolID)] {
+        if let cached = vtableImplementationsByNominal[nominalSymbol] {
+            return cached
+        }
+        let computed = kirVtableImplementations(for: nominalSymbol, sema: sema)
+        vtableImplementationsByNominal[nominalSymbol] = computed
+        return computed
+    }
+
+    func vtablePropertyAccessorImplementations(
+        for nominalSymbol: SymbolID,
+        sema: SemaModule
+    ) -> [(slot: Int, implementation: SymbolID)] {
+        if let cached = vtableAccessorImplementationsByNominal[nominalSymbol] {
+            return cached
+        }
+        let computed = kirVtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema)
+        vtableAccessorImplementationsByNominal[nominalSymbol] = computed
+        return computed
+    }
+
+    func transitiveInterfaceSupertypes(
+        of nominalSymbol: SymbolID,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        if let cached = transitiveInterfaceSupertypesByNominal[nominalSymbol] {
+            return cached
+        }
+        let computed = kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+        transitiveInterfaceSupertypesByNominal[nominalSymbol] = computed
+        return computed
+    }
+
+    /// Effective itable implementation for `interfaceMethod` on `nominalSymbol`:
+    /// the located override, or `interfaceMethod` itself when none is found.
+    func itableImplementation(
+        for interfaceMethod: SymbolID,
+        in nominalSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID {
+        if let cached = itableImplementationsByNominal[nominalSymbol]?[interfaceMethod] {
+            return cached
+        }
+        let resolved = kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: interner,
+            transitiveInterfaces: transitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+        ) ?? interfaceMethod
+        itableImplementationsByNominal[nominalSymbol, default: [:]][interfaceMethod] = resolved
+        return resolved
+    }
+
+    func interfacePropertyGetterSlots(
+        for interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [KIRInterfacePropertyGetterSlot] {
+        if let cached = interfacePropertyGetterSlotsByInterface[interfaceSymbol] {
+            return cached
+        }
+        let computed = kirInterfacePropertyGetterSlots(
+            interfaceSymbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        interfacePropertyGetterSlotsByInterface[interfaceSymbol] = computed
+        return computed
+    }
+
+    /// Itable slot of `interfaceProperty`'s getter on `interfaceSymbol`, or nil
+    /// when the property does not participate in itable dispatch.
+    func interfacePropertyGetterSlot(
+        for interfaceProperty: SymbolID,
+        in interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int? {
+        if let map = interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] {
+            return map[interfaceProperty]
+        }
+        var map: [SymbolID: Int] = [:]
+        for slot in interfacePropertyGetterSlots(for: interfaceSymbol, sema: sema, interner: interner) {
+            if let propertySymbol = slot.propertySymbol {
+                map[propertySymbol] = slot.slot
+            }
+        }
+        interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] = map
+        return map[interfaceProperty]
+    }
+}
+
 func kirVtableImplementations(
     for nominalSymbol: SymbolID,
     sema: SemaModule
@@ -86,7 +203,10 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     interner: StringInterner,
     instructions: inout C
 ) where C.Element == KIRInstruction {
-    let implementations = kirVtableImplementations(for: nominalSymbol, sema: sema)
+    let implementations = driver.ctx.nominalDispatchCache.vtableImplementations(
+        for: nominalSymbol,
+        sema: sema
+    )
     if !implementations.isEmpty {
         let intType = sema.types.intType
         let registerCallee = interner.intern("kk_object_register_vtable_method")
@@ -123,6 +243,7 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
         instructions: &instructions
@@ -131,10 +252,69 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
         instructions: &instructions
     )
+    appendObjectAnyHashCodeOverrideRegistration(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+}
+
+/// Mirror of `appendObjectAnyEqualsOverrideRegistration` for `Any.hashCode`:
+/// hashed collections only see an erased handle, so the most-specific user
+/// `hashCode` override is kept alongside each object.
+private func appendObjectAnyHashCodeOverrideRegistration<C: RangeReplaceableCollection>(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    cache: KIRNominalDispatchCache,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout C
+) where C.Element == KIRInstruction {
+    let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+    guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
+          let anyHashCode = sema.symbols.lookupAll(
+              fqName: anyFQName + [interner.intern("hashCode")]
+          ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol })
+    else {
+        return
+    }
+    let implementation = cache.itableImplementation(
+        for: anyHashCode,
+        in: nominalSymbol,
+        sema: sema,
+        interner: interner
+    )
+    guard implementation != anyHashCode,
+          sema.symbols.symbol(implementation)?.flags.contains(.overrideMember) == true,
+          let signature = sema.symbols.functionSignature(for: implementation),
+          signature.parameterTypes.isEmpty,
+          signature.returnType == sema.types.intType
+    else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
+    instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        symbol: nil,
+        callee: interner.intern("kk_object_register_hashcode_override"),
+        arguments: [objectValue, methodFnExpr],
+        result: registerResult,
+        canThrow: false,
+        thrownResult: nil
+    ))
 }
 
 /// KSP-967: Generic equality in source-backed functions is lowered through
@@ -145,6 +325,7 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
@@ -153,14 +334,17 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
     guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
           let anyEquals = sema.symbols.lookupAll(
               fqName: anyFQName + [interner.intern("equals")]
-          ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol }),
-          let implementation = kirFindOverrideMethod(
-              for: anyEquals,
-              in: nominalSymbol,
-              sema: sema,
-              interner: interner
-          ),
-          implementation != anyEquals,
+          ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol })
+    else {
+        return
+    }
+    let implementation = cache.itableImplementation(
+        for: anyEquals,
+        in: nominalSymbol,
+        sema: sema,
+        interner: interner
+    )
+    guard implementation != anyEquals,
           sema.symbols.symbol(implementation)?.flags.contains(.overrideMember) == true,
           let signature = sema.symbols.functionSignature(for: implementation),
           signature.parameterTypes.count == 1,
@@ -471,11 +655,15 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
 ) where C.Element == KIRInstruction {
-    let implementations = kirVtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema)
+    let implementations = cache.vtablePropertyAccessorImplementations(
+        for: nominalSymbol,
+        sema: sema
+    )
     guard !implementations.isEmpty else {
         return
     }
@@ -508,19 +696,23 @@ func itableBridgeSymbolForMethod(
     interfaceMethod: SymbolID,
     implementation: SymbolID,
     nominalSymbol: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
+    interfaceSignature: FunctionSignature? = nil,
+    implementationSignature: FunctionSignature? = nil,
     arena: KIRArena,
     sema: SemaModule,
     interner: StringInterner
 ) -> SymbolID {
     guard implementation != interfaceMethod,
-          implementation.rawValue >= 0,
-          let implementationFn = arena.function(for: implementation),
-          let interfaceSig = sema.symbols.functionSignature(for: interfaceMethod),
-          let implSig = sema.symbols.functionSignature(for: implementation)
+          implementation.rawValue >= 0 || SyntheticSymbolScheme.decodedPropertyAccessor(implementation) != nil,
+          let interfaceSig = interfaceSignature ?? sema.symbols.functionSignature(for: interfaceMethod),
+          let implSig = implementationSignature ?? sema.symbols.functionSignature(for: implementation)
     else {
         return implementation
     }
+    let implementationFn = arena.function(for: implementation)
+    guard implementationFn != nil || implementationSignature != nil else { return implementation }
+    let implementationReturnType = implementationFn?.returnType ?? implSig.returnType
 
     func isStringAggregate(_ type: TypeID?) -> Bool {
         guard let type else { return false }
@@ -532,19 +724,44 @@ func itableBridgeSymbolForMethod(
 
     let interfaceReceiver = interfaceSig.receiverType
     let interfaceParamTypes = [interfaceReceiver].compactMap { $0 } + interfaceSig.parameterTypes
-    let implementationParamTypes = implementationFn.params.map(\.type)
+    let implementationParamTypes = implementationFn?.params.map(\.type)
+        ?? ([implSig.receiverType].compactMap { $0 } + implSig.parameterTypes)
 
     guard implementationParamTypes.count == interfaceParamTypes.count else {
         return implementation
     }
 
     var needsBridge = false
-    if isStringAggregate(implementationFn.returnType) != isStringAggregate(interfaceSig.returnType) {
+    if isStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
+    }
+    let needsErasedPrimitiveReturnBoxing: Bool = {
+        guard case .typeParam = sema.types.kind(of: interfaceSig.returnType) else {
+            return false
+        }
+        let rawKind = sema.types.kind(of: implementationReturnType)
+        let resolvedKind = resolveValueClassKind(rawKind, types: sema.types, symbols: sema.symbols)
+        return BoxingCalleeTable(interner: interner).boxCallee(for: resolvedKind, requireNonNull: true) != nil
+    }()
+    if needsErasedPrimitiveReturnBoxing {
+        needsBridge = true
+    }
+    // Callers of the erased signature box `T`-typed arguments, but the
+    // implementation body expects the raw primitive (direct calls pass raw
+    // values), so the bridge must unbox them before forwarding.
+    func needsErasedPrimitiveParamUnboxing(implType: TypeID, ifaceType: TypeID) -> Bool {
+        guard case .typeParam = sema.types.kind(of: ifaceType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: implType)
+        else {
+            return false
+        }
+        return true
     }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
-            if isStringAggregate(implType) != isStringAggregate(ifaceType) {
+            if isStringAggregate(implType) != isStringAggregate(ifaceType)
+                || needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: ifaceType)
+            {
                 needsBridge = true
                 break
             }
@@ -555,22 +772,37 @@ func itableBridgeSymbolForMethod(
     }
 
     let cacheKey = "\(interfaceMethod.rawValue)|\(implementation.rawValue)"
-    if let cached = driver.ctx.itableBridgeSymbolsByKey[cacheKey] {
+    if let cached = driver?.ctx.itableBridgeSymbolsByKey[cacheKey] {
         return cached
     }
-
-    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-    driver.ctx.itableBridgeSymbolsByKey[cacheKey] = bridgeSymbol
+    let bridgeFQName = [interner.intern("$itableBridge"), interner.intern(cacheKey)]
+    if driver == nil, let cached = sema.symbols.lookup(fqName: bridgeFQName),
+       arena.function(for: cached) != nil {
+        return cached
+    }
+    let bridgeSymbol = driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+        kind: .function, name: bridgeFQName[1], fqName: bridgeFQName,
+        declSite: nil, visibility: .private, flags: [.synthetic]
+    )
+    driver?.ctx.itableBridgeSymbolsByKey[cacheKey] = bridgeSymbol
 
     let bridgeName = interner.intern("kk_itable_bridge_\(interfaceMethod.rawValue)_\(implementation.rawValue)_\(bridgeSymbol.rawValue)")
 
     var bridgeParams: [KIRParameter] = []
+    func parameterSymbol(_ index: Int) -> SymbolID {
+        if let driver { return driver.ctx.allocateSyntheticGeneratedSymbol() }
+        let name = interner.intern("p\(index)")
+        return sema.symbols.define(
+            kind: .valueParameter, name: name, fqName: bridgeFQName + [name],
+            declSite: nil, visibility: .private, flags: [.synthetic]
+        )
+    }
     if let receiverType = interfaceSig.receiverType {
-        let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        let receiverSymbol = parameterSymbol(bridgeParams.count)
         bridgeParams.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
     }
     for paramType in interfaceSig.parameterTypes {
-        let paramSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        let paramSymbol = parameterSymbol(bridgeParams.count)
         bridgeParams.append(KIRParameter(symbol: paramSymbol, type: paramType))
     }
 
@@ -581,8 +813,27 @@ func itableBridgeSymbolForMethod(
         body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
         bridgeParamExprs.append(expr)
     }
+    let unboxingTable = BoxingCalleeTable(interner: interner)
+    var forwardedArgExprs = bridgeParamExprs
+    for (index, implType) in implementationParamTypes.enumerated() {
+        guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
+              let unboxCallee = unboxingTable.unboxCallee(
+                  for: implType, types: sema.types, requireNonNull: true, preferStaticPrimitive: true
+              ) ?? unboxingTable.unboxCallee(for: implType, types: sema.types, requireNonNull: true)
+        else { continue }
+        let unboxed = arena.appendTemporary(type: implType)
+        body.append(.call(
+            symbol: nil,
+            callee: unboxCallee,
+            arguments: [bridgeParamExprs[index]],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        forwardedArgExprs[index] = unboxed
+    }
 
-    let callResult = arena.appendTemporary(type: implementationFn.returnType)
+    let callResult = arena.appendTemporary(type: implementationReturnType)
     let thrownResult: KIRExprID? = implSig.canThrow
         ? arena.appendTemporary(type: sema.types.nullableAnyType)
         : nil
@@ -592,15 +843,15 @@ func itableBridgeSymbolForMethod(
     body.append(.call(
         symbol: implementation,
         callee: implName,
-        arguments: bridgeParamExprs,
+        arguments: forwardedArgExprs,
         result: callResult,
         canThrow: implSig.canThrow,
         thrownResult: thrownResult
     ))
 
     if let thrownResult {
-        let continueLabel = driver.ctx.makeLoopLabel()
-        let rethrowLabel = driver.ctx.makeLoopLabel()
+        let continueLabel = driver?.ctx.makeLoopLabel() ?? 0
+        let rethrowLabel = driver?.ctx.makeLoopLabel() ?? 1
         body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
         body.append(.jump(continueLabel))
         body.append(.label(rethrowLabel))
@@ -608,7 +859,24 @@ func itableBridgeSymbolForMethod(
         body.append(.label(continueLabel))
     }
 
-    body.append(.returnValue(callResult))
+    let bridgeResult: KIRExprID
+    if needsErasedPrimitiveReturnBoxing {
+        bridgeResult = boxValueForAnySlot(
+            callResult,
+            sourceType: implementationReturnType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: interfaceSig.returnType,
+            requireNonNull: true,
+            sema: sema,
+            into: &body
+        )
+    } else {
+        bridgeResult = callResult
+    }
+    body.append(.returnValue(bridgeResult))
     body.append(.endBlock)
 
     let bridgeDecl = arena.appendDecl(
@@ -624,7 +892,10 @@ func itableBridgeSymbolForMethod(
             )
         )
     )
-    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    driver?.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    if driver == nil {
+        sema.symbols.setFunctionSignature(interfaceSig, for: bridgeSymbol)
+    }
 
     return bridgeSymbol
 }
@@ -646,15 +917,16 @@ func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
 ) where C.Element == KIRInstruction {
     var implementationsBySlot: [Int: SymbolID] = [:]
-    for entry in kirVtableImplementations(for: nominalSymbol, sema: sema) {
+    for entry in cache.vtableImplementations(for: nominalSymbol, sema: sema) {
         implementationsBySlot[entry.slot] = entry.implementation
     }
-    for entry in kirVtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema) {
+    for entry in cache.vtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema) {
         implementationsBySlot[entry.slot] = entry.implementation
     }
     guard !implementationsBySlot.isEmpty else { return }
@@ -761,7 +1033,10 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     }
 
     let intType = sema.types.intType
-    let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+    let interfaceSupertypes = driver.ctx.nominalDispatchCache.transitiveInterfaceSupertypes(
+        of: nominalSymbol,
+        sema: sema
+    )
     for interfaceSymbol in interfaceSupertypes {
         guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else {
             continue
@@ -805,12 +1080,12 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
             sema: sema,
             interner: interner
         ) {
-            let implementationSymbol = kirFindOverrideMethod(
+            let implementationSymbol = driver.ctx.nominalDispatchCache.itableImplementation(
                 for: methodSymbol,
                 in: nominalSymbol,
                 sema: sema,
                 interner: interner
-            ) ?? methodSymbol
+            )
             let bridgeSymbol = itableBridgeSymbolForMethod(
                 interfaceMethod: methodSymbol,
                 implementation: implementationSymbol,
@@ -844,6 +1119,18 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+    // Setter counterpart: register interface property setters into the itable
+    // so a write through an interface-typed receiver can dispatch to them.
+    appendObjectItablePropertySetterRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
         instructions: &instructions
@@ -863,7 +1150,12 @@ func kirItableMethodEntries(
     sema: SemaModule,
     interner: StringInterner
 ) -> [(methodSymbol: SymbolID, methodSlot: Int)] {
-    var methods = interfaceLayout.vtableSlots
+    // Property getter slots are registered separately below. Keep them out of
+    // the method table so runtime itables do not receive duplicate entries
+    // when a source-backed interface exposes both kinds of slots.
+    var methods = interfaceLayout.vtableSlots.filter {
+        sema.symbols.symbol($0.key)?.kind == .function
+    }
     let mutableIterableFQName = ["kotlin", "collections", "MutableIterable"].map(interner.intern)
     guard let symbol = sema.symbols.symbol(interfaceSymbol),
           symbol.fqName == mutableIterableFQName
@@ -922,7 +1214,8 @@ func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
     sema: SemaModule,
-    interner _: StringInterner
+    interner _: StringInterner,
+    transitiveInterfaces: [SymbolID]? = nil
 ) -> SymbolID? {
     var visited: Set<SymbolID> = []
     var current: SymbolID? = nominalSymbol
@@ -941,7 +1234,9 @@ func kirFindOverrideMethod(
     // (`Ranked.compareTo` for `Comparable.compareTo`). Prefer the closest
     // owner so a residual `Comparable.compareTo` does not win over Ranked.
     var bestDefault: (distance: Int, symbol: SymbolID)?
-    for interfaceSymbol in kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema) {
+    let interfaceSupertypes = transitiveInterfaces
+        ?? kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+    for interfaceSymbol in interfaceSupertypes {
         guard let found = kirFindMatchingMethod(
             matching: interfaceMethod,
             on: interfaceSymbol,
@@ -1060,9 +1355,11 @@ private func kirNominalDistance(
 ) -> Int? {
     var queue: [(symbol: SymbolID, distance: Int)] = [(nominalSymbol, 0)]
     var visited: Set<SymbolID> = []
+    var head = 0
 
-    while !queue.isEmpty {
-        let current = queue.removeFirst()
+    while head < queue.count {
+        let current = queue[head]
+        head += 1
         guard visited.insert(current.symbol).inserted else {
             continue
         }

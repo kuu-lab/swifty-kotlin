@@ -79,9 +79,39 @@ extension DataFlowSemaPhase {
         isStdlibArtifact: Bool = false
     ) -> LibraryManifestInfo {
         let libName = URL(fileURLWithPath: libraryDir).lastPathComponent
-        let manifestPath = URL(fileURLWithPath: libraryDir).appendingPathComponent("manifest.json").path
+        let libraryRoot = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
+        let manifestURL = libraryRoot.appendingPathComponent("manifest.json")
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
 
-        guard let manifestData = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)) else {
+        guard Self.isContained(manifestURL, in: libraryRoot) else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0018",
+                "Manifest path escapes library directory \(libName)",
+                range: nil
+            )
+            return LibraryManifestInfo(
+                metadataPath: libraryRoot.appendingPathComponent("metadata.bin").path,
+                inlineKIRDir: nil,
+                moduleName: nil,
+                isValid: false
+            )
+        }
+        guard Self.isRegularFile(at: manifestURL, fileManager: .default) else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0015",
+                "Missing or invalid manifest.json in \(libName); library cannot be loaded",
+                range: nil
+            )
+            return LibraryManifestInfo(
+                metadataPath: libraryRoot.appendingPathComponent("metadata.bin").path,
+                inlineKIRDir: nil,
+                moduleName: nil,
+                isValid: false
+            )
+        }
+
+        guard let manifestData = try? Data(contentsOf: manifestURL) else {
             diagnostics.error(
                 "KSWIFTK-LIB-0015",
                 "Missing manifest.json in \(libName); library cannot be loaded",
@@ -148,9 +178,16 @@ extension DataFlowSemaPhase {
             isStdlibArtifact: isStdlibArtifact
         ) && isValid
 
+        let canonicalMetadataPath = URL(fileURLWithPath: metadataPath)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
+        let canonicalInlineKIRDir = inlineKIRDir.map {
+            URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardizedFileURL.path
+        }
         return LibraryManifestInfo(
-            metadataPath: metadataPath,
-            inlineKIRDir: inlineKIRDir,
+            metadataPath: canonicalMetadataPath,
+            inlineKIRDir: canonicalInlineKIRDir,
             moduleName: manifest.moduleName,
             isValid: isValid
         )
@@ -300,22 +337,22 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         let fm = FileManager.default
         let libName = URL(fileURLWithPath: libraryDir).lastPathComponent
-        let libraryDirResolved = URL(fileURLWithPath: libraryDir).standardized.path
+        let libraryRoot = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
         var isValid = true
 
         // Validate metadata path is within library directory
-        let metadataResolved = URL(fileURLWithPath: metadataPath).standardized.path
-        if !metadataResolved.hasPrefix(libraryDirResolved + "/"), metadataResolved != libraryDirResolved {
+        let metadataURL = URL(fileURLWithPath: metadataPath).resolvingSymlinksInPath().standardizedFileURL
+        if !Self.isContained(metadataURL, in: libraryRoot) {
             diagnostics.error(
                 "KSWIFTK-LIB-0018",
                 "Metadata path '\(metadataPath)' escapes library directory \(libName)",
                 range: nil
             )
             isValid = false
-        } else if !fm.fileExists(atPath: metadataPath) {
+        } else if !Self.isRegularFile(at: metadataURL, fileManager: fm) {
             diagnostics.error(
                 "KSWIFTK-LIB-0014",
-                "Metadata file not found at '\(metadataPath)' referenced by \(libName)/manifest.json",
+                "Metadata file is missing or is not a regular file at '\(metadataPath)' referenced by \(libName)/manifest.json",
                 range: nil
             )
             isValid = false
@@ -345,16 +382,16 @@ extension DataFlowSemaPhase {
         if let objectPaths = manifest.objects {
             for relativePath in objectPaths {
                 let fullPath = URL(fileURLWithPath: libraryDir).appendingPathComponent(relativePath).path
-                let resolvedObjPath = URL(fileURLWithPath: fullPath).standardized.path
-                if !resolvedObjPath.hasPrefix(libraryDirResolved + "/"), resolvedObjPath != libraryDirResolved {
+                let resolvedObjURL = URL(fileURLWithPath: fullPath).resolvingSymlinksInPath().standardizedFileURL
+                if !Self.isContained(resolvedObjURL, in: libraryRoot) {
                     diagnostics.error(
                         "KSWIFTK-LIB-0018",
                         "Object path '\(relativePath)' escapes library directory \(libName)",
                         range: nil
                     )
                     isValid = false
-                } else if !fm.fileExists(atPath: fullPath) {
-                    let message = "Object file not found at '\(relativePath)' referenced by \(libName)/manifest.json"
+                } else if !Self.isRegularFile(at: resolvedObjURL, fileManager: fm) {
+                    let message = "Object file is missing or is not a regular file at '\(relativePath)' referenced by \(libName)/manifest.json"
                     if isStdlibArtifact {
                         diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
                         isValid = false
@@ -367,8 +404,8 @@ extension DataFlowSemaPhase {
 
         // Validate inlineKIRDir path
         if let inlineDir = inlineKIRDir {
-            let inlineDirResolved = URL(fileURLWithPath: inlineDir).standardized.path
-            if !inlineDirResolved.hasPrefix(libraryDirResolved + "/"), inlineDirResolved != libraryDirResolved {
+            let inlineDirURL = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
+            if !Self.isContained(inlineDirURL, in: libraryRoot) {
                 diagnostics.error(
                     "KSWIFTK-LIB-0018",
                     "Inline KIR path '\(inlineDir)' escapes library directory \(libName)",
@@ -377,7 +414,7 @@ extension DataFlowSemaPhase {
                 isValid = false
             } else {
                 var isDirectory: ObjCBool = false
-                if !fm.fileExists(atPath: inlineDir, isDirectory: &isDirectory) {
+                if !fm.fileExists(atPath: inlineDirURL.path, isDirectory: &isDirectory) {
                     let message = "Inline KIR directory not found at '\(inlineDir)' referenced by \(libName)/manifest.json"
                     if isStdlibArtifact {
                         diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
@@ -398,5 +435,14 @@ extension DataFlowSemaPhase {
         }
 
         return isValid
+    }
+
+    private static func isContained(_ candidate: URL, in root: URL) -> Bool {
+        candidate.path == root.path || candidate.path.hasPrefix(root.path.hasSuffix("/") ? root.path : root.path + "/")
+    }
+
+    private static func isRegularFile(at url: URL, fileManager: FileManager) -> Bool {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
+        return attributes[.type] as? FileAttributeType == .typeRegular
     }
 }

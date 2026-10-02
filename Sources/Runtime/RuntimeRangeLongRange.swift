@@ -13,9 +13,7 @@ public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_long_rangeUntil")
 public func __kk_long_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
-    let last = rhs &- 1
-    let step = rhs <= lhs ? 0 : 1
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: last, step: step, kind: .longRange))
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .longRange, endAtOrBelowMinimum: rhs == Int.min)
 }
 
 @_cdecl("__kk_long_range_step")
@@ -34,7 +32,7 @@ public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
@@ -168,7 +166,7 @@ public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
@@ -201,12 +199,12 @@ public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
         let uStep = UInt(bitPattern: iterator.step)
         let (next, overflow) = uCurrent.addingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     } else if iterator.step < 0 {
         let uStep = UInt(iterator.step.magnitude)
         let (next, overflow) = uCurrent.subtractingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     }
     return current
 }

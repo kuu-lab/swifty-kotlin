@@ -1,8 +1,9 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-944: MutableList's nominal shell and size/init factory are bundled
-/// Kotlin declarations; mutation members remain compiler/runtime residuals.
+/// KSP-1503: MutableList's nominal shell, mutation surface, and size/init
+/// factory are bundled Kotlin declarations; only private bridge helpers retain
+/// the runtime ABI links.
 @Suite
 struct MutableListInterfaceSourceMigrationTests {
     @Test
@@ -14,6 +15,19 @@ struct MutableListInterfaceSourceMigrationTests {
             fun asMutableIterable(values: MutableList<Int>): MutableIterable<Int> = values
             fun factoryProbe(): MutableList<Int> = MutableList(3) { it }
             fun typeProbe(value: Any): Boolean = value is MutableList<*>
+            fun mutationProbe(values: MutableList<Int>) {
+                values[0] = 1
+                values.add(1)
+                values.add(0, 2)
+                values.removeAt(0)
+                values.clear()
+                values.removeAll(listOf(1))
+                values.retainAll(listOf(1))
+                values += 1
+                values += listOf(2)
+                values -= 1
+                values -= listOf(2)
+            }
             """
         )
         try runSema(ctx)
@@ -55,5 +69,26 @@ struct MutableListInterfaceSourceMigrationTests {
                 && signature.parameterTypes[0] == sema.types.intType
         }
         #expect(factorySymbols.count == 1)
+
+        let sourceMutationMembers: [(String, Int)] = [
+            ("set", 1),
+            ("add", 2),
+            ("removeAt", 1),
+            ("clear", 1),
+            ("removeAll", 1),
+            ("retainAll", 1),
+            ("plusAssign", 2),
+            ("minusAssign", 2),
+        ]
+        for (memberName, expectedCount) in sourceMutationMembers {
+            let members = sema.symbols.lookupAll(
+                fqName: collections + [interner.intern("MutableList"), interner.intern(memberName)]
+            )
+            #expect(members.count == expectedCount, "Expected MutableList.\(memberName) overloads to be source-backed")
+            #expect(members.allSatisfy { symbolID in
+                sema.symbols.isSourceBackedSymbol(symbolID)
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            })
+        }
     }
 }

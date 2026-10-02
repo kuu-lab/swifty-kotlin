@@ -1,0 +1,38 @@
+symbol fq=golden.sema.atomicIntArrayCompareAndExchange.$0.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndExchange.$0.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndExchange.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndExchange.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndExchange[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int] ret=Int
+symbol fq=golden.sema.atomicIntArrayCompareAndSet.$1.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndSet.$1.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndSet.$1.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndSet.$1.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayCompareAndSet[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int] ret=Boolean
+symbol fq=golden.sema.atomicIntArrayLength.$2.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayLength[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray] ret=Int
+symbol fq=golden.sema.atomicIntArraySize.$3.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray] ret=Int
+symbol fq=golden.sema.atomicIntArrayToString.$4.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicIntArray] ret=String
+file fstdlib_kotlin_concurrent_atomics_AtomicIntArray_AtomicIntArray_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicIntArrayCompareAndExchange[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int] fun atomicIntArrayCompareAndExchange sym=golden.sema.atomicIntArrayCompareAndExchange[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int]
+  decl golden.sema.atomicIntArrayCompareAndSet[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int] fun atomicIntArrayCompareAndSet sym=golden.sema.atomicIntArrayCompareAndSet[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray,Int,Int,Int]
+  decl golden.sema.atomicIntArrayLength[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray] fun atomicIntArrayLength sym=golden.sema.atomicIntArrayLength[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray]
+  decl golden.sema.atomicIntArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray] fun atomicIntArraySize sym=golden.sema.atomicIntArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray]
+  decl golden.sema.atomicIntArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray] fun atomicIntArrayToString sym=golden.sema.atomicIntArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicIntArray]
+expr e@12:10 name(values) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayCompareAndExchange.$0.values[kind=vparam]
+expr e@12:36 name(index) type=Int ref=golden.sema.atomicIntArrayCompareAndExchange.$0.index[kind=vparam]
+expr e@12:43 name(expectedValue) type=Int ref=golden.sema.atomicIntArrayCompareAndExchange.$0.expectedValue[kind=vparam]
+expr e@12:58 name(newValue) type=Int ref=golden.sema.atomicIntArrayCompareAndExchange.$0.newValue[kind=vparam]
+expr e@12:10#1 memberCall recv=e@12:10 callee=compareAndExchange args=[_:e@12:36,_:e@12:43,_:e@12:58] type=Int call=kotlin.concurrent.atomics.AtomicIntArray.compareAndExchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,Int,Int]
+expr e@19:14 name(values) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayCompareAndSet.$1.values[kind=vparam]
+expr e@19:35 name(index) type=Int ref=golden.sema.atomicIntArrayCompareAndSet.$1.index[kind=vparam]
+expr e@19:42 name(expectedValue) type=Int ref=golden.sema.atomicIntArrayCompareAndSet.$1.expectedValue[kind=vparam]
+expr e@19:57 name(newValue) type=Int ref=golden.sema.atomicIntArrayCompareAndSet.$1.newValue[kind=vparam]
+expr e@19:14#1 memberCall recv=e@19:14 callee=compareAndSet args=[_:e@19:35,_:e@19:42,_:e@19:57] type=Boolean call=kotlin.concurrent.atomics.AtomicIntArray.compareAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,Int,Int]
+expr e@21:57 name(values) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayLength.$2.values[kind=vparam]
+expr e@21:57#1 memberCall recv=e@21:57 callee=length args=[] type=Int ref=kotlin.concurrent.atomics.AtomicIntArray.length[kind=prop]
+expr e@23:55 name(values) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArraySize.$3.values[kind=vparam]
+expr e@23:55#1 memberCall recv=e@23:55 callee=size args=[] type=Int ref=kotlin.concurrent.atomics.AtomicIntArray.size[kind=prop]
+expr e@25:62 name(values) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayToString.$4.values[kind=vparam]
+expr e@25:62#1 memberCall recv=e@25:62 callee=toString args=[] type=String call=kotlin.concurrent.atomics.AtomicIntArray.toString[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=]

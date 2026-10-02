@@ -687,6 +687,9 @@ final class KIRContext {
     let options: CompilerOptions
     let interner: StringInterner
     let sema: SemaModule?
+    /// Per-nominal vtable/itable registration entries, computed once per type
+    /// instead of once per factory-call rewrite.
+    let nominalDispatchCache = KIRNominalDispatchCache()
 
     init(
         diagnostics: DiagnosticEngine,

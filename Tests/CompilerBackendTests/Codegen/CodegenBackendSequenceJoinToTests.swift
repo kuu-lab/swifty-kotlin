@@ -99,7 +99,7 @@ struct CodegenBackendSequenceJoinToTests {
         import kotlin.text.StringBuilder
 
         fun render(builder: StringBuilder): String {
-            sequenceOf(1, 2, 3).joinTo(builder, "|", "<", ">")
+            sequenceOf(1, 2, 3).joinTo(builder, "|", "<", ">", -1, "...")
             return builder.toString()
         }
         """

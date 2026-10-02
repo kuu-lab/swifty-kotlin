@@ -19,11 +19,11 @@ expr e@4:45#1 memberCall recv=e@4:45 callee=shuffled args=[_:e@4:61] type=kotlin
 expr e@4:5 localDecl shuffledWithRandom mutable=0 type=Sequence<Int> init=e@4:45#1 type=Unit ref=__local_2.shuffledWithRandom[kind=local]
 expr e@5:13 name(shuffled) type=kotlin.sequences.Sequence<Int> ref=__local_1.shuffled[kind=local]
 expr e@5:13#1 memberCall recv=e@5:13 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]
-expr e@5:13#2 memberCall recv=e@5:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@5:13#2 memberCall recv=e@5:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@6:13 name(shuffledWithRandom) type=kotlin.sequences.Sequence<Int> ref=__local_2.shuffledWithRandom[kind=local]
 expr e@6:13#1 memberCall recv=e@6:13 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]
-expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 section stdlib-targets
 target fq=kotlin.sequences.Sequence.shuffled[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] origin=sourceBackedAlias kind=function vis=public flags=synthetic sig=recv=kotlin.sequences.Sequence<kotlin.sequences.shuffled.$0.T> params=[] ret=kotlin.sequences.Sequence<kotlin.sequences.shuffled.$0.T> tparams=[T0]

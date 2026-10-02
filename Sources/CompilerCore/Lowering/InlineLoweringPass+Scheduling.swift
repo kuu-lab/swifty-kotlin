@@ -24,7 +24,7 @@ extension InlineLoweringPass {
     /// still re-expands the frozen originals, so a body is never spliced
     /// twice.
     func expandNestedBodylessInlineCalls(
-        index: inout InlineExpansionIndex,
+        index: InlineExpansionIndex,
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?
@@ -53,10 +53,64 @@ extension InlineLoweringPass {
         }
     }
 
+    /// Emits one deterministic diagnostic per leftover call that names a
+    /// bodyless callee -- `isInlineOnly` declarations and imported inline
+    /// symbols whose bodies are never emitted, so an unexpanded call would
+    /// dangle at link time. Non-mandatory calls (to regular `inline`
+    /// functions or non-expansion targets) are legal to leave behind and are
+    /// not reported. A callee on or reaching a bodyless call cycle can never
+    /// converge, so its callers are diagnosed as recursion; any other residue
+    /// means the expansion budget ran out.
+    ///
+    /// This runs after both expansion phases and scans the module's
+    /// post-expansion bodies in declaration order. The residue verdict is
+    /// the contract `expandNestedBodylessInlineCalls` and `inlineTransform`
+    /// are held to before their fixed rounds can be removed.
+    func diagnoseMandatoryInlineResidue(
+        module: KIRModule,
+        index: InlineExpansionIndex,
+        ctx: KIRContext
+    ) {
+        let byName = index.inlineFunctionsByName
+        let recursive = index.recursiveBodylessCallees()
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            for (offset, instruction) in function.body.enumerated() {
+                guard case let .call(callSymbol, callee, _, _, _, _, _, _) = instruction,
+                      index.isMandatoryExpansionCall(
+                          callSymbol: callSymbol,
+                          callee: callee,
+                          inlineFunctionsByName: byName,
+                          interner: ctx.interner,
+                          externalLinkName: { ctx.sema?.symbols.externalLinkName(for: $0) }
+                      )
+                else {
+                    continue
+                }
+                let calleeName = ctx.interner.resolve(callee)
+                let callerName = ctx.interner.resolve(function.name)
+                let cause: String = if let callSymbol, recursive.contains(callSymbol) {
+                    "the callee is recursive, so inline expansion cannot terminate"
+                } else {
+                    "inline expansion reached its limit"
+                }
+                ctx.diagnostics.error(
+                    "KSWIFTK-INL-0001",
+                    "call to '\(calleeName)' in '\(callerName)' was not expanded: \(cause); "
+                        + "the callee has no emitted body",
+                    range: (offset < function.instructionLocations.count
+                            ? function.instructionLocations[offset] : nil) ?? function.sourceRange
+                )
+            }
+        }
+    }
+
     func inlineTransform(
         function: KIRFunction,
         index: InlineExpansionIndex,
-        inlineFunctionsByName: [InternedString: [KIRFunction]],
+        inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?
