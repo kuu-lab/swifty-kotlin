@@ -246,6 +246,29 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return .failed
     }
 
+    func tryReceive() -> (status: ChannelOperationStatus, value: Int) {
+        lock.lock()
+        if let value = buffer.dequeue() {
+            let sender = senderQueue.dequeue()
+            if let sender {
+                buffer.enqueue(sender.value)
+                sender.delivered = true
+            }
+            lock.unlock()
+            if let sender { resumeSender(sender) }
+            return (.success, value)
+        }
+        if let sender = senderQueue.dequeue() {
+            sender.delivered = true
+            lock.unlock()
+            resumeSender(sender)
+            return (.success, sender.value)
+        }
+        let status: ChannelOperationStatus = closed ? .closed : .failed
+        lock.unlock()
+        return (status, 0)
+    }
+
     /// Receive a value from the channel, suspending (blocking) the caller when
     /// the buffer is empty and no sender is ready.
     ///

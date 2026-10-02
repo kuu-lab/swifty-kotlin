@@ -18,14 +18,24 @@ import kotlinx.coroutines.CoroutineScope
 @JvmInline
 public value class ChannelResult<out T> internal constructor(internal val token: Int) {
     public val isSuccess: Boolean
-        get() = token == 0
+        get() = token == 0 || token > 3 || token < 0
 
     public val isFailure: Boolean
         get() = !isSuccess
 
     public val isClosed: Boolean
         get() = token == 1 || token == 2
+
+    public fun getOrNull(): T? = if (isSuccess) __kkChannelResultValue(token) as T? else null
+
+    public fun getOrThrow(): T {
+        if (!isSuccess) throw NoSuchElementException("Channel was closed")
+        return __kkChannelResultValue(token) as T
+    }
 }
+
+@KsSymbolName("__kk_select_receive_value")
+internal external fun __kkChannelResultValue(token: Int): Any?
 
 public interface SendChannel<in E> {
     @KsSymbolName("kk_channel_send")

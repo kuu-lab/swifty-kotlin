@@ -2115,6 +2115,28 @@ final class CallTypeChecker {
             return implicitReceiverResult
         }
 
+        if let calleeName,
+           let local = locals[calleeName],
+           case .classType = sema.types.kind(of: sema.types.makeNonNullable(local.type))
+        {
+            let invokeName = interner.intern("invoke")
+            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: invokeName,
+                receiverType: local.type,
+                sema: sema,
+                interner: interner
+            ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+            if !invokeCandidates.isEmpty {
+                let returnType = inferMemberCallExpr(
+                    id, receiverID: calleeID, calleeName: invokeName,
+                    args: args, range: range, ctx: ctx, locals: &locals,
+                    expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+                )
+                sema.bindings.markInvokeOperatorCall(id)
+                return returnType
+            }
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         // A generic destination parameter can be constrained from the call's
