@@ -108,6 +108,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // reference.  Senders deposit a value before signaling the semaphore.
     private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
 
+    // KSP-1573: `invokeOnClose` handlers, as (fnPtr, closureRaw) function-value
+    // pairs.  They run exactly once, on the first successful `close()`, with a
+    // nil cause argument until `close(cause:)` lands.
+    private var closeHandlers: [(fnPtr: Int, closureRaw: Int)] = []
+
     init(capacity: Int, bufferOverflow: ChannelBufferOverflow = .suspend) {
         self.capacity = max(0, capacity)
         self.bufferOverflow = bufferOverflow
@@ -368,6 +373,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         closed = true
         let pendingSenders = senderQueue.drain()
         let pendingReceivers = receiverQueue.drain()
+        let pendingCloseHandlers = closeHandlers
+        closeHandlers.removeAll()
         lock.unlock()
 
         // Wake all suspended senders -- they will see `closed == true` and
@@ -382,6 +389,40 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             // CORO-004: Use continuation-based resume if available
             resumeReceiver(receiver)
         }
+        for handler in pendingCloseHandlers {
+            guard handler.fnPtr != 0 else { continue }
+            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                fnPtr: handler.fnPtr,
+                closureRaw: handler.closureRaw,
+                value: runtimeNullSentinelInt,
+                outThrown: nil
+            )
+        }
+        return true
+    }
+
+    /// Registers an `invokeOnClose` handler (KSP-1573).
+    ///
+    /// Returns `true` when the handler was queued and will run on the first
+    /// close.  When the channel is already closed the handler is invoked
+    /// inline with a nil cause, matching kotlinx.coroutines semantics, and
+    /// `false` is returned.
+    @discardableResult
+    func addCloseHandler(fnPtr: Int, closureRaw: Int) -> Bool {
+        lock.lock()
+        if closed {
+            lock.unlock()
+            guard fnPtr != 0 else { return false }
+            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                fnPtr: fnPtr,
+                closureRaw: closureRaw,
+                value: runtimeNullSentinelInt,
+                outThrown: nil
+            )
+            return false
+        }
+        closeHandlers.append((fnPtr, closureRaw))
+        lock.unlock()
         return true
     }
 
@@ -492,6 +533,67 @@ public func kk_channel_create(_ capacity: Int) -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
+}
+
+/// KSP-1573: `Channel(capacity, onBufferOverflow)` factory bridge. The
+/// `onBufferOverflow` argument is the `BufferOverflow` ordinal (0 SUSPEND,
+/// 1 DROP_OLDEST, 2 DROP_LATEST).  Negative capacity values keep their
+/// kotlinx.coroutines sentinel semantics: -1 CONFLATED maps to a
+/// one-slot DROP_OLDEST channel, -2 BUFFERED expands to the default buffer
+/// size, and -3 OPTIONAL_CHANNEL falls back to a rendezvous channel.
+@_cdecl("__kk_channel_create_with_policy")
+public func __kk_channel_create_with_policy(_ capacity: Int, _ onBufferOverflow: Int) -> Int {
+    var resolvedCapacity = capacity
+    var overflow: ChannelBufferOverflow
+    switch onBufferOverflow {
+    case 1:
+        overflow = .dropOldest
+    case 2:
+        overflow = .dropLatest
+    default:
+        overflow = .suspend
+    }
+    switch capacity {
+    case -1:
+        resolvedCapacity = 1
+        overflow = .dropOldest
+    case -2:
+        resolvedCapacity = 64
+    case -3:
+        resolvedCapacity = 0
+    default:
+        break
+    }
+    let channel = RuntimeChannelHandle(capacity: resolvedCapacity, bufferOverflow: overflow)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(channel).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// KSP-1573: `SendChannel.invokeOnClose(handler)` bridge. `handler` crosses
+/// the boundary as an (fnPtr, closureRaw) pair, the same function-value
+/// convention `kk_job_invoke_on_completion` uses. The handler is invoked with
+/// a nil cause when the channel first closes, or immediately when it is
+/// already closed.
+@_cdecl("__kk_channel_invoke_on_close")
+public func __kk_channel_invoke_on_close(_ handle: Int, _ handlerFnPtr: Int, _ handlerClosureRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
+          let channel = tryCast(ptr, to: RuntimeChannelHandle.self)
+    else {
+        return 0
+    }
+    return channel.addCloseHandler(fnPtr: handlerFnPtr, closureRaw: handlerClosureRaw) ? 1 : 0
+}
+
+/// Identity bridge used by bundled stdlib declarations that reinterpret a
+/// runtime handle under a different static type (e.g. Channel as
+/// ProducerScope/SendChannel) where both sides share the same object
+/// representation.
+@_cdecl("__kk_identity")
+public func __kk_identity(_ value: Int) -> Int {
+    value
 }
 
 public func kk_channel_send(_ handle: Int, _ value: Int) -> Int {

@@ -34,4 +34,6 @@ private class DiscardingSink : RawSink {
     }
 }
 
-public val SystemLineSeparator: String = "\n"
+// `const` because stored top-level val initializers deserialize as null from
+// .kklib stdlib artifacts in this compiler.
+public const val SystemLineSeparator: String = "\n"

@@ -1243,6 +1243,9 @@ extension ExprTypeChecker {
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset)))
             let parameterType = parameterTypes[offset]
+            // Preserve the declaration type for checks that must ignore smart casts,
+            // just as for local function parameters.
+            sema.symbols.setPropertyType(parameterType, for: syntheticSymbol)
             lambdaLocals[param] = (
                 type: parameterType,
                 symbol: syntheticSymbol,
@@ -1458,6 +1461,25 @@ extension ExprTypeChecker {
         return inferredFunctionType
     }
 
+    /// Visible `<init>` symbols of a concrete class, or `nil` for an abstract
+    /// class or one without constructors. Constructors live under the class's
+    /// own FQ name with the reserved `<init>` short name (HeaderHelpers.swift).
+    private func visibleConstructorCandidates(
+        of classSymbol: SemanticSymbol,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID]? {
+        guard !classSymbol.flags.contains(.abstractType) else {
+            return nil
+        }
+        let ctorSymbols = ctx.sema.symbols.lookupAll(
+            fqName: classSymbol.fqName + [ctx.interner.intern("<init>")]
+        )
+        guard !ctorSymbols.isEmpty else {
+            return nil
+        }
+        return ctx.filterByVisibility(ctorSymbols).0
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -1665,6 +1687,26 @@ extension ExprTypeChecker {
                     }
                     return sema.types.isSubtype(nonNullReceiver, declaredReceiver)
                 }
+                // `Outer::Nested` where `Nested` is a nested (non-inner) class
+                // is a constructor reference `(Args...) -> Outer.Nested`. It
+                // has no receiver parameter, so it is folded into the bound
+                // side like the bare `::Foo` form. `inner` classes are left
+                // out: their reference takes the outer instance as a
+                // leading parameter, which this path does not model.
+                if candidates.isEmpty,
+                   unboundClassType != nil,
+                   let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
+                {
+                    let nestedClass = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+                        .compactMap { ctx.cachedSymbol($0) }
+                        .first { ($0.kind == .class || $0.kind == .enumClass) && !$0.flags.contains(.innerClass) }
+                    if let nestedClass,
+                       let ctorCandidates = visibleConstructorCandidates(of: nestedClass, ctx: ctx)
+                    {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                    }
+                }
             }
         } else {
             let propertyCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
@@ -1768,15 +1810,10 @@ extension ExprTypeChecker {
                 }
                 if let classSym = classCandidates.first,
                    let classSymbol = ctx.cachedSymbol(classSym),
-                   !classSymbol.flags.contains(.abstractType)
+                   let ctorCandidates = visibleConstructorCandidates(of: classSymbol, ctx: ctx)
                 {
-                    let ctorFQName = classSymbol.fqName + [interner.intern("<init>")]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    if !ctorSymbols.isEmpty {
-                        let (ctorVis, _) = ctx.filterByVisibility(ctorSymbols)
-                        candidates = ctorVis
-                        isConstructorReference = true
-                    }
+                    candidates = ctorCandidates
+                    isConstructorReference = true
                 }
             }
         }

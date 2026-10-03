@@ -130,6 +130,30 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // An extension `var` property (e.g. the bundled
+        // `kotlin.native.concurrent.AtomicInt.value`) has no backing storage —
+        // its owner is the package, so the member-property branches above
+        // never fire for it. Route the write through its registered setter
+        // accessor, mirroring the getter-side read lowering; without this the
+        // generic call-binding fallback below emits a call to the property
+        // name and fails to link.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+           let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+        {
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            instructions.append(.call(
+                symbol: setterSymbol,
+                callee: interner.intern("set"),
+                arguments: [receiverID, valueID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
         // `object` member properties are stored as flat global slots keyed by
         // the property's own symbol — the same storage `tryLowerObjectMemberPropertyRead`
         // reads via `loadGlobal` and bare-name assignment inside the object body
@@ -212,10 +236,17 @@ extension CallLowerer {
             ] {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                    valueID,
+                    slotType: sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [receiverID, offsetExpr, valueID],
+                    arguments: [receiverID, offsetExpr, storedValueID],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -648,10 +679,17 @@ extension CallLowerer {
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                let storedValue = normalizedValueForNullablePrimitiveSlot(
+                    newValue,
+                    slotType: propType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [receiverID, offsetExpr, newValue],
+                    arguments: [receiverID, offsetExpr, storedValue],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil

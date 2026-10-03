@@ -67,10 +67,10 @@ enum GoldenHarnessExprFormat {
 
         // Type operations
         case let .isCheck(expr, type, negated, _):
-            let typeStr = ctx.sema.bindings.isCheckTargetTypes[id].map { ctx.renderType($0) } ?? ctx.renderTypeRef(type)
+            let typeStr = ctx.sema.bindings.isCheckTargetTypes[id].map { ctx.ordinaryType($0) } ?? ctx.renderTypeRef(type)
             return "isCheck\(negated ? "!" : "") expr=\(ctx.exprKey(expr)) type=\(typeStr)"
         case let .asCast(expr, type, isSafe, _):
-            let typeStr = ctx.sema.bindings.castTargetTypes[id].map { ctx.renderType($0) } ?? ctx.renderTypeRef(type)
+            let typeStr = ctx.sema.bindings.castTargetTypes[id].map { ctx.ordinaryType($0) } ?? ctx.renderTypeRef(type)
             return "asCast\(isSafe ? "?" : "") expr=\(ctx.exprKey(expr)) type=\(typeStr)"
         case let .nullAssert(expr, _):
             return "nullAssert expr=\(ctx.exprKey(expr))"

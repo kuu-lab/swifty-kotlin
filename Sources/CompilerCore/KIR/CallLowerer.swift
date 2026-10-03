@@ -695,7 +695,7 @@ final class CallLowerer {
             defer {
                 driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance
             }
-            return driver.lowerExpr(
+            let rawArgID = driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -704,6 +704,19 @@ final class CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            // Freeze each bare mutable-local argument immediately after
+            // lowering it (e.g. `x` in `f(x, x++)`) so it observes its
+            // value at the point it was evaluated, not any mutation a later
+            // argument performs on the same variable. Anything else (a
+            // literal, a lambda, a nested call, ...) is left untouched —
+            // see needsEvaluationOrderFreeze's doc comment for why an
+            // unconditional freeze here is unsafe for trailing-lambda
+            // arguments to inline functions. Only worth it when a later
+            // argument could actually mutate something (expressionMayMutateState).
+            return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
+                ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
+                : rawArgID
         }
         let knownNames = KnownCompilerNames(interner: interner)
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
@@ -1158,13 +1171,24 @@ final class CallLowerer {
         // so scan for the first argument that actually is a callable value and
         // insert its captures right after it.
         if loweredCallable == nil {
+            // KSP-1573: `kotlinx.coroutines.channels.produce` is now a real
+            // bundled-source function whose block is a boxed suspend lambda —
+            // its captures travel inside the callable's closure env, so this
+            // thunk-style capture expansion must only run for the synthetic
+            // launcher symbols (runBlocking/launch/async/produce stubs).
+            // Imported library declarations always carry `.synthetic` (they
+            // have no source declSite), so a genuinely imported produce must
+            // be excluded here too or its captures would be flattened into
+            // trailing call args and break the kirbin expansion's arity.
             let isSyntheticCoroutineLauncher: Bool = if let chosen,
                                                         let chosenInfo = sema.symbols.symbol(chosen)
             {
-                chosenInfo.fqName == knownNames.kotlinxCoroutinesRunBlockingFQName
-                    || chosenInfo.fqName == knownNames.kotlinxCoroutinesLaunchFQName
-                    || chosenInfo.fqName == knownNames.kotlinxCoroutinesAsyncFQName
-                    || chosenInfo.fqName == knownNames.kotlinxCoroutinesProduceFQName
+                chosenInfo.flags.contains(.synthetic)
+                    && !chosenInfo.flags.contains(.importedLibrary)
+                    && (chosenInfo.fqName == knownNames.kotlinxCoroutinesRunBlockingFQName
+                        || chosenInfo.fqName == knownNames.kotlinxCoroutinesLaunchFQName
+                        || chosenInfo.fqName == knownNames.kotlinxCoroutinesAsyncFQName
+                        || chosenInfo.fqName == knownNames.kotlinxCoroutinesProduceFQName)
             } else {
                 true
             }
