@@ -399,6 +399,29 @@ final class CallTypeChecker {
         // --- produce { ... } builder (CORO-075) ---
         if let calleeName,
            calleeName == knownNames.produce,
+           !args.isEmpty,
+           args.count <= 2,
+           locals[calleeName] == nil,
+           let lastArgumentExprID = args.last?.expr,
+           isLambdaOrCallableRefArg(lastArgumentExprID, ast: ast)
+        {
+            // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
+            // when it is visible; it composes channel + kk_coroutine_scope_launch
+            // in real Kotlin source, and its block is a boxed suspend lambda.
+            if let boundProduceResult = tryBindSourceBackedProduceCall(
+                id,
+                calleeName: calleeName,
+                args: args,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectedType,
+                ast: ast
+            ) {
+                return boundProduceResult
+            }
+        }
+        if let calleeName,
+           calleeName == knownNames.produce,
            args.count == 1,
            locals[calleeName] == nil
         {
@@ -2141,6 +2164,75 @@ final class CallTypeChecker {
                     continue
                 }
                 expectedTypeOverrides[index] = expectedType
+            }
+        }
+        // A generic factory whose return type is a class parameterized by its
+        // own type parameters (`listOf<T>(vararg values: T): List<T>`) can seed
+        // those parameters from the call's expected result type before a
+        // lambda argument is inferred. Without this, `val xs: List<(Int) ->
+        // Int> = listOf({ it + 1 }, ...)` leaves every vararg slot's expected
+        // type as the bare, unsubstituted `T`, so a lambda argument's implicit
+        // `it` never resolves. Scoped to lambda-literal arguments only, since
+        // other argument kinds already have their own contextual inference.
+        // An explicit call-site type argument (`Array<Int>(3) { it }`) always
+        // wins over the expected type (`Array<out Any>` here), matching
+        // Kotlin's own precedence -- skip this substitution when one is given.
+        if explicitTypeArgs.isEmpty,
+           let expectedType,
+           expectedType != sema.types.errorType,
+           case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
+        {
+            func argType(_ arg: TypeArg) -> TypeID? {
+                switch arg {
+                case let .invariant(type), let .out(type), let .in(type):
+                    type
+                case .star:
+                    nil
+                }
+            }
+            for candidate in candidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      !signature.typeParameterSymbols.isEmpty,
+                      case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
+                      returnClassType.classSymbol == expectedClassType.classSymbol,
+                      returnClassType.args.count == expectedClassType.args.count
+                else {
+                    continue
+                }
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                var substitution: [TypeVarID: TypeID] = [:]
+                for (returnArg, expectedArg) in zip(returnClassType.args, expectedClassType.args) {
+                    guard let returnArgType = argType(returnArg),
+                          let expectedArgType = argType(expectedArg),
+                          case let .typeParam(returnTypeParam) = sema.types.kind(of: returnArgType),
+                          let typeVar = typeVarBySymbol[returnTypeParam.symbol]
+                    else {
+                        continue
+                    }
+                    substitution[typeVar] = expectedArgType
+                }
+                guard !substitution.isEmpty else { continue }
+                for index in args.indices {
+                    guard case .lambdaLiteral = ast.arena.expr(args[index].expr),
+                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                    else {
+                        continue
+                    }
+                    let substitutedType = sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    guard substitutedType != parameterType,
+                          !typeMentionsTypeParameter(substitutedType, sema: sema)
+                    else {
+                        continue
+                    }
+                    if let existing = expectedTypeOverrides[index], existing != substitutedType {
+                        continue
+                    }
+                    expectedTypeOverrides[index] = substitutedType
+                }
             }
         }
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
