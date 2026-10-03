@@ -869,6 +869,19 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // The nominal's own type parameters may already be bound to real
+        // declaration symbols (e.g. `kotlin.Enum<T>` declared by the bundled
+        // source shell) while the metadata signatures spell them as synthetic
+        // `T<n>` symbols. `liftedNominalSupertypeArgs` substitutes by the
+        // registered symbols, so rewrite the synthetic ones to the registered
+        // ones or `Enum<Color>` would lift to `Comparable<T<n>>` instead of
+        // `Comparable<Color>`.
+        let syntheticToRegisteredParameters = importedSyntheticToRegisteredTypeParameters(
+            record: record,
+            registeredSymbols: types.nominalTypeParameterSymbols(for: binding.symbol),
+            decode: decode,
+            types: types
+        )
         for supertypeSignature in record.nominalSupertypeSignatures {
             guard let supertype = decode(supertypeSignature),
                   !supertype.args.isEmpty,
@@ -876,7 +889,10 @@ extension DataFlowSemaPhase {
             else {
                 continue
             }
-            types.setNominalSupertypeTypeArgs(supertype.args, for: binding.symbol, supertype: supertype.classSymbol)
+            let args = syntheticToRegisteredParameters.map { mapping in
+                supertype.args.map { types.substitutingTypeParameterSymbols($0, mapping: mapping) }
+            } ?? supertype.args
+            types.setNominalSupertypeTypeArgs(args, for: binding.symbol, supertype: supertype.classSymbol)
         }
 
         if binding.record.kind == .enumClass,
@@ -896,6 +912,38 @@ extension DataFlowSemaPhase {
             symbols.setSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
             types.setNominalSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
         }
+    }
+
+    /// Maps the synthetic type-parameter symbols spelled by an imported
+    /// nominal's `typeParamsSig` to the symbols already registered for it, by
+    /// position. Returns `nil` when there is nothing to rewrite (no registered
+    /// parameters, no self signature, or both spellings already agree).
+    private func importedSyntheticToRegisteredTypeParameters(
+        record: ImportedLibrarySymbolRecord,
+        registeredSymbols: [SymbolID],
+        decode: (String) -> ClassType?,
+        types: TypeSystem
+    ) -> [SymbolID: SymbolID]? {
+        guard !registeredSymbols.isEmpty,
+              let selfSignature = record.nominalTypeParametersSignature,
+              let selfType = decode(selfSignature),
+              selfType.args.count == registeredSymbols.count
+        else {
+            return nil
+        }
+        var mapping: [SymbolID: SymbolID] = [:]
+        for (arg, registered) in zip(selfType.args, registeredSymbols) {
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type):
+                guard case let .typeParam(typeParam) = types.kind(of: type) else { return nil }
+                if typeParam.symbol != registered {
+                    mapping[typeParam.symbol] = registered
+                }
+            case .star:
+                return nil
+            }
+        }
+        return mapping.isEmpty ? nil : mapping
     }
 
     /// Synthesizes function symbols for precompiled object/companion initializers
