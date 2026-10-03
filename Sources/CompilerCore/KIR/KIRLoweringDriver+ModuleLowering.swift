@@ -134,6 +134,7 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
+        insertEnumLazyInitTriggers(arena: arena, sema: sema)
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
         return module
@@ -153,7 +154,7 @@ extension KIRLoweringDriver {
         let ast = shared.ast
         let arena = shared.arena
         let interner = compilationCtx.interner
-        let prefix = "$enumConstructorProperty$"
+        let prefixes = [EnumPropertyHelperNames.getterPrefix, EnumPropertyHelperNames.setterPrefix]
 
         var neededOwnerIDs = Set<Int32>()
         for decl in arena.declarations {
@@ -161,7 +162,7 @@ extension KIRLoweringDriver {
             for instruction in function.body {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
                 let calleeName = interner.resolve(callee)
-                guard calleeName.hasPrefix(prefix) else { continue }
+                guard let prefix = prefixes.first(where: { calleeName.hasPrefix($0) }) else { continue }
                 let remainder = calleeName.dropFirst(prefix.count)
                 guard let separatorIndex = remainder.firstIndex(of: "$"),
                       let ownerID = Int32(remainder[..<separatorIndex])

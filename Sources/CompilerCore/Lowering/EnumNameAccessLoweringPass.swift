@@ -18,11 +18,14 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
         let kkAnyMemberToStringCallee = ctx.interner.intern("kk_any_member_to_string")
-        let enumConstructorPropertyPrefix = "$enumConstructorProperty$"
+        let helperPrefixes = [EnumPropertyHelperNames.getterPrefix, EnumPropertyHelperNames.setterPrefix]
         return module.usedCallees.contains(nameCallee)
             || module.usedCallees.contains(ordinalCallee)
             || module.usedCallees.contains(kkAnyMemberToStringCallee)
-            || module.usedCallees.contains(where: { ctx.interner.resolve($0).hasPrefix(enumConstructorPropertyPrefix) })
+            || module.usedCallees.contains(where: { callee in
+                let name = ctx.interner.resolve(callee)
+                return helperPrefixes.contains(where: { name.hasPrefix($0) })
+            })
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -231,12 +234,18 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner
     ) -> [KIRInstruction]? {
-        let prefix = "$enumConstructorProperty$"
         guard case let .call(symbol, callee, arguments, result, _, _, _, _) = instruction,
-              symbol == nil,
-              arguments.count == 1,
-              interner.resolve(callee).hasPrefix(prefix)
+              symbol == nil
         else {
+            return nil
+        }
+        let calleeName = interner.resolve(callee)
+        let prefix: String
+        if arguments.count == 1, calleeName.hasPrefix(EnumPropertyHelperNames.getterPrefix) {
+            prefix = EnumPropertyHelperNames.getterPrefix
+        } else if arguments.count == 2, calleeName.hasPrefix(EnumPropertyHelperNames.setterPrefix) {
+            prefix = EnumPropertyHelperNames.setterPrefix
+        } else {
             return nil
         }
 
@@ -271,11 +280,12 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             }
         guard let helperSymbol else { return nil }
 
-        let targetResult = result ?? arena.appendTemporary(type: propType)
+        let isSetter = prefix == EnumPropertyHelperNames.setterPrefix
+        let targetResult = result ?? arena.appendTemporary(type: isSetter ? sema.types.unitType : propType)
         return [.call(
             symbol: helperSymbol,
             callee: helperName,
-            arguments: [arguments[0]],
+            arguments: arguments,
             result: targetResult,
             canThrow: false,
             thrownResult: nil,
