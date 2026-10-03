@@ -2031,6 +2031,32 @@ struct RuntimeStringArrayTests {
         }
     }
 
+    /// Runtime-allocated throwables have no Kotlin vtable; the open `message`
+    /// and `cause` getter slots must resolve to raw-ABI runtime bridges.
+    @Test
+    func testThrowableVtableLookupResolvesMessageAndCauseSlots() {
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("inner")))
+        let throwable = Int(bitPattern: __kk_throwable_new_with_cause(makeRuntimeString("outer"), cause))
+        typealias Getter = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
+        let messageGetter = unsafeBitCast(
+            kk_vtable_lookup(throwable, RuntimeThrowableVtableSlot.message),
+            to: Getter.self
+        )
+        var thrown = -1
+        #expect(runtimeStringValue(messageGetter(throwable, &thrown)) == "outer")
+        #expect(thrown == 0)
+
+        let causeGetter = unsafeBitCast(
+            kk_vtable_lookup(throwable, RuntimeThrowableVtableSlot.cause),
+            to: Getter.self
+        )
+        #expect(causeGetter(throwable, nil) == cause)
+
+        let noMessage = Int(bitPattern: __kk_throwable_new(nil))
+        #expect(messageGetter(noMessage, nil) == runtimeNullSentinelInt)
+    }
+
     @Test
     func testThrowableIsCancellationReturnsFalseForNil() {
         #expect(kk_throwable_is_cancellation(0) == 0)
