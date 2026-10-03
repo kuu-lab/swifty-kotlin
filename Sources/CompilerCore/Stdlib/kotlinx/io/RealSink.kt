@@ -6,8 +6,8 @@
  */
 package kotlinx.io
 
-internal class RealSink(private val sink: RawSink) : Sink {
-    internal var closed: Boolean = false
+internal class RealSink(val sink: RawSink) : Sink {
+    var closed: Boolean = false
     private val bufferField = Buffer()
 
     override val buffer: Buffer

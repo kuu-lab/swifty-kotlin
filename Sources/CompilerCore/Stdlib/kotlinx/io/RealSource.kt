@@ -6,8 +6,8 @@
  */
 package kotlinx.io
 
-internal class RealSource(private val source: RawSource) : Source {
-    private var closed: Boolean = false
+internal class RealSource(val source: RawSource) : Source {
+    var closed: Boolean = false
     private val bufferField = Buffer()
 
     override val buffer: Buffer

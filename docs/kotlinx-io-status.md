@@ -156,6 +156,9 @@ SHA-256 で pin）と出力が完全一致することを確認した。`Scripts
 `kotlinx_io_buffered_source_sink.kt` は当初、ユーザ定義クラスが `RawSource`/`RawSink` を実装して
 `.buffered()` を呼ぶケースを含めていたが、下記のコンパイラバグで解決できないため、`Buffer.peek()`
 （`PeekSource`/`RealSource` を内部的に経由）と `discardingSink()` のみを使う形に絞った。
+その後 master 側で下記バグ3（同名・受信型違いの隣接拡張関数の解決）が解消されたため、ユーザ定義
+`RawSource`/`RawSink` に対する `.buffered()` の read/write（close 伝播・flush タイミング含む）も
+同ケースに復活させている（kotlinc + kotlinx-io-core-jvm 0.9.1 と出力一致）。
 
 ## 見つけたコンパイラバグ（kotlinx.io 実装とは別件、このセッションでは修正せず）
 
@@ -195,6 +198,10 @@ KSP-1553 では adapter が `java.io.IOException` を投げることで回避済
    のような expected-type 文脈でコンストラクタ呼び出しの対象にすると `No viable overload found`
    になるケースがあり、既存の `AutoCloseable` では発生しない（新規追加インターフェース固有の
    何らかの登録漏れの可能性）。
+   **追記（KUU-885 作業時）:** `RawSource.buffered()`/`RawSink.buffered()` のパターンは現行 master
+   （`dec047057` 時点）で解消済みを確認（ユーザ定義 `RawSource`/`RawSink` に対する `.buffered()`
+   呼び出しが解決し、出力も kotlinc と一致）。`Source.preview()`/`Sink.preview()` 側の Ktor 再現
+   パターンは未再検証。
 
 ## 参考：`equal-constraint-lub-glb-pollution-bug` メモリの追記について
 
