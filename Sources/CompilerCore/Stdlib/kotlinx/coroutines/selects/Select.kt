@@ -58,6 +58,7 @@ public interface SelectBuilder<R> {
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     public fun <E> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
         val channel = this
         var result = ChannelResult<Any?>(3)
