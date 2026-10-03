@@ -3041,12 +3041,41 @@ final class CallTypeChecker {
             }
         }
 
-        if let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
-            calleeName: calleeName,
-            argumentCount: args.count,
-            sema: sema,
-            interner: interner
-        ) {
+        // KUU-963: `emit` is also an ordinary member name (e.g. a user-defined
+        // `Sink.emit`). The Flow builtin fallback must not shadow a real
+        // member on an in-scope implicit receiver — when any receiver in the
+        // implicit-receiver tower declares `emit`, defer to the member
+        // resolution below so the call binds to the real declaration.
+        let emitMemberExistsOnImplicitReceiver: Bool = {
+            guard let calleeName,
+                  calleeName == knownNames.emit
+            else {
+                return false
+            }
+            var receiverTypes: [TypeID] = []
+            if let implicitReceiverType = ctx.implicitReceiverType {
+                receiverTypes.append(implicitReceiverType)
+            }
+            for outerReceiver in ctx.outerReceiverTypes {
+                receiverTypes.append(outerReceiver.type)
+            }
+            return receiverTypes.contains { receiverType in
+                !driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: sema.types.makeNonNullable(receiverType),
+                    sema: sema,
+                    interner: interner
+                ).isEmpty
+            }
+        }()
+        if !emitMemberExistsOnImplicitReceiver,
+           let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
+               calleeName: calleeName,
+               argumentCount: args.count,
+               sema: sema,
+               interner: interner
+           )
+        {
             sema.bindings.bindExprType(id, type: builtinType)
             return builtinType
         }

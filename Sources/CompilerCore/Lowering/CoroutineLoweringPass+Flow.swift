@@ -160,6 +160,159 @@ extension CoroutineLoweringPass {
             return classType.classSymbol == flowClassSymbol
         }
 
+        // KUU-963: a bare `emit(x)` call is the Flow builder effect only when
+        // it appears inside a `flow { }` builder's scope. Determine that
+        // scope module-wide — the lambda passed to `flow`/`kk_flow_create`,
+        // plus functions referenced from inside such functions (e.g. a
+        // nested `collect { emit(it) }` callback) — so receivers that happen
+        // to declare their own `emit` member keep normal dispatch.
+        var functionNameBySymbol: [SymbolID: InternedString] = [:]
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            functionNameBySymbol[function.symbol] = function.name
+        }
+        var flowScopeFunctionSymbols: Set<SymbolID> = []
+        var flowScopeFunctionNames: Set<InternedString> = []
+        func addFlowScopeSymbol(_ symbol: SymbolID) {
+            flowScopeFunctionSymbols.insert(symbol)
+            if let name = functionNameBySymbol[symbol] {
+                flowScopeFunctionNames.insert(name)
+            }
+        }
+        // Symbols that directly reference a module-declared function from an
+        // instruction: `constValue(.symbolRef)` values plus the `symbol` field
+        // of direct calls (used by `kk_function_value_adapter_*` forwarders).
+        func referencedFunctionSymbols(
+            in instruction: KIRInstruction,
+            symbolByExprRaw: [Int32: SymbolID]
+        ) -> [SymbolID] {
+            var symbols: [SymbolID] = []
+            switch instruction {
+            case let .constValue(_, .symbolRef(symbol)):
+                symbols.append(symbol)
+            case let .call(symbol, _, arguments, _, _, _, _, _),
+                 let .virtualCall(symbol, _, _, arguments, _, _, _, _):
+                if let symbol {
+                    symbols.append(symbol)
+                }
+                for argument in arguments {
+                    if let symbol = symbolByExprRaw[argument.rawValue] {
+                        symbols.append(symbol)
+                    }
+                }
+            default:
+                break
+            }
+            return symbols
+        }
+        // Calls whose function-value arguments execute with a Flow collector
+        // in scope: `flow { }` builders and the Flow operators whose callback
+        // may invoke the bare `emit` effect (`transform`, `catch`,
+        // `retryWhen`, `onEach`, `onEmpty`, ...). Other argument shapes
+        // (ints, handles) simply resolve to no function symbol.
+        let flowEmitScopeCalleeNames: Set<InternedString> = [
+            flowName, collectName, collectLatestName, mapName, filterName,
+            takeName, transformName, takeWhileName, dropWhileName,
+            flatMapConcatName, flatMapMergeName, flatMapLatestName,
+            combineName, zipName, mergeName, bufferName, conflateName,
+            flowOnName, debounceName, sampleName, delayEachName,
+            catchName, retryName, retryWhenName,
+            onErrorReturnName, onErrorResumeName,
+            ctx.interner.intern("onEach"),
+            ctx.interner.intern("onEmpty"),
+            kkFlowCreateName, kkChannelFlowCreateName, kkCallbackFlowCreateName,
+            // Already-lowered bridge calls carry the callback as a payload:
+            // tagged `kk_flow_emit` (transform/map/catch/...), collector
+            // references of `kk_flow_collect`, and the flatMap/combine family.
+            kkFlowEmitName, kkFlowCollectName, kkFlowCollectLatestName,
+            kkFlowFlatMapConcatName, kkFlowFlatMapMergeName, kkFlowFlatMapLatestName,
+            kkFlowZipName, kkFlowCombineName, kkFlowMergeName,
+        ]
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            var symbolByExprRaw: [Int32: SymbolID] = [:]
+            for instruction in function.body {
+                if case let .constValue(result, .symbolRef(symbol)) = instruction {
+                    symbolByExprRaw[result.rawValue] = symbol
+                }
+            }
+            for instruction in function.body {
+                let seedArguments: [KIRExprID]?
+                switch instruction {
+                case let .call(_, callee, arguments, _, _, _, _, _):
+                    seedArguments = flowEmitScopeCalleeNames.contains(callee) ? arguments : nil
+                case let .virtualCall(_, callee, _, arguments, _, _, _, _):
+                    seedArguments = flowEmitScopeCalleeNames.contains(callee) ? arguments : nil
+                default:
+                    seedArguments = nil
+                }
+                guard let arguments = seedArguments
+                else {
+                    continue
+                }
+                for lambdaArg in arguments {
+                    if let symbol = symbolByExprRaw[lambdaArg.rawValue] {
+                        addFlowScopeSymbol(symbol)
+                    } else {
+                        // The lambda may be materialized as a `kk_function_create_*`
+                        // closure or `kk_function_value_adapter_*`: harvest function
+                        // symbols from the instruction that produced the argument.
+                        for producer in function.body {
+                            guard case let .call(_, _, _, result, _, _, _, _) = producer,
+                                  result == lambdaArg
+                            else {
+                                continue
+                            }
+                            for symbol in referencedFunctionSymbols(in: producer, symbolByExprRaw: symbolByExprRaw)
+                            where module.arena.function(for: symbol) != nil {
+                                addFlowScopeSymbol(symbol)
+                            }
+                        }
+                    }
+                    // Convention-based fallback for synthetic lambda names,
+                    // mirroring FlowLoweringPass.
+                    flowScopeFunctionNames.insert(
+                        ctx.interner.intern("kk_lambda_\(lambdaArg.rawValue)")
+                    )
+                }
+            }
+        }
+        func isFlowScopeFunction(_ function: KIRFunction) -> Bool {
+            flowScopeFunctionSymbols.contains(function.symbol)
+                || flowScopeFunctionNames.contains(function.name)
+        }
+        var expandedFlowScope = true
+        while expandedFlowScope {
+            expandedFlowScope = false
+            for decl in module.arena.declarations {
+                guard case let .function(function) = decl,
+                      isFlowScopeFunction(function)
+                else {
+                    continue
+                }
+                var symbolByExprRaw: [Int32: SymbolID] = [:]
+                for instruction in function.body {
+                    if case let .constValue(result, .symbolRef(symbol)) = instruction {
+                        symbolByExprRaw[result.rawValue] = symbol
+                    }
+                }
+                for instruction in function.body {
+                    for symbol in referencedFunctionSymbols(in: instruction, symbolByExprRaw: symbolByExprRaw)
+                    where module.arena.function(for: symbol) != nil
+                        && flowScopeFunctionSymbols.insert(symbol).inserted {
+                        if let name = functionNameBySymbol[symbol] {
+                            flowScopeFunctionNames.insert(name)
+                        }
+                        expandedFlowScope = true
+                    }
+                }
+            }
+        }
+
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
 
@@ -369,6 +522,7 @@ extension CoroutineLoweringPass {
                         }
                         if callee == emitName,
                            arguments.count == 1,
+                           isFlowScopeFunction(function),
                            isFlowRewriteCandidate(symbol, callee)
                         {
                             if markFlowExpr(result) { changed = true }
@@ -592,7 +746,8 @@ extension CoroutineLoweringPass {
                 flowExprIDs: &flowExprIDs,
                 remainingConsumes: &remainingConsumes,
                 symbolByExprRaw: symbolByExprRaw,
-                names: names
+                names: names,
+                isFlowScopeFunction: isFlowScopeFunction(function)
             )
 
             updated.replaceBody(loweredBody)
