@@ -1254,6 +1254,9 @@ extension ExprTypeChecker {
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset)))
             let parameterType = parameterTypes[offset]
+            // Preserve the declaration type for checks that must ignore smart casts,
+            // just as for local function parameters.
+            sema.symbols.setPropertyType(parameterType, for: syntheticSymbol)
             lambdaLocals[param] = (
                 type: parameterType,
                 symbol: syntheticSymbol,

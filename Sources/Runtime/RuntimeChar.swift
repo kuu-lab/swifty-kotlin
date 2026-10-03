@@ -242,7 +242,8 @@ public func kk_char_toDoubleOrNull(_ value: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return kk_double_to_bits(Double(digitValue))
+    // Double? slots hold box-or-sentinel (KUU-854).
+    return kk_box_double_nonnull(kk_double_to_bits(Double(digitValue)))
 }
 
 // Code point and Unicode properties

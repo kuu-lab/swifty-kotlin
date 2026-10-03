@@ -45,10 +45,183 @@ func runtime_test_undispatched_body(_ continuation: Int, _ outThrown: UnsafeMuta
     return kk_coroutine_state_exit(continuation, 7)
 }
 
+private let blockingActorFunctionID = 8_902
+private let blockingRootFunctionID = 8_903
+private let blockingDescendantFunctionID = 8_904
+
+private func launchEventLoopTestActor(_ entry: EventLoopTestSuspendEntry, functionID: Int) {
+    let channel = kk_channel_create(1)
+    let continuation = kk_coroutine_continuation_new(functionID)
+    _ = __kk_produce_launch_with_cont(channel, unsafeBitCast(entry, to: Int.self), continuation)
+}
+
+@_cdecl("runtime_test_blocking_actor")
+func runtime_test_blocking_actor(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if kk_coroutine_state_enter(continuation, blockingActorFunctionID) == 0 {
+        eventLoopTestLog.record("actor started")
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_kxmini_delay(1, continuation)
+    }
+    // This inner suspend-value invocation borrows the actor's scope. It must
+    // return without joining that scope, which contains the actor itself.
+    let inner = kk_coroutine_continuation_new(undispatchedBodyFunctionID)
+    _ = kk_kxmini_run_blocking_with_cont(
+        unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
+        inner,
+        outThrown
+    )
+    eventLoopTestLog.record("actor finished")
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_blocking_root")
+func runtime_test_blocking_root(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    launchEventLoopTestActor(runtime_test_blocking_actor, functionID: blockingActorFunctionID)
+    eventLoopTestLog.record("parent finished")
+    return kk_coroutine_state_exit(continuation, 42)
+}
+
+@_cdecl("runtime_test_blocking_descendant")
+func runtime_test_blocking_descendant(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    launchEventLoopTestActor(runtime_test_blocking_actor, functionID: blockingActorFunctionID)
+    eventLoopTestLog.record("child finished")
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_blocking_descendant_root")
+func runtime_test_blocking_descendant_root(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    launchEventLoopTestActor(runtime_test_blocking_descendant, functionID: blockingDescendantFunctionID)
+    return kk_coroutine_state_exit(continuation, 42)
+}
+
+@_cdecl("runtime_test_blocking_actor_failure")
+func runtime_test_blocking_actor_failure(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    eventLoopTestLog.record("actor failed")
+    outThrown?.pointee = runtimeAllocateThrowable(message: "actor failure")
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_blocking_failure_root")
+func runtime_test_blocking_failure_root(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    launchEventLoopTestActor(runtime_test_blocking_actor_failure, functionID: blockingActorFunctionID)
+    return kk_coroutine_state_exit(continuation, 42)
+}
+
+@_cdecl("runtime_test_blocking_body_failure")
+func runtime_test_blocking_body_failure(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    launchEventLoopTestActor(runtime_test_blocking_actor, functionID: blockingActorFunctionID)
+    outThrown?.pointee = runtimeAllocateThrowable(message: "body failure")
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_blocking_return_job")
+func runtime_test_blocking_return_job(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let handle = kk_kxmini_launch(
+        unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
+        undispatchedBodyFunctionID
+    )
+    return kk_coroutine_state_exit(continuation, handle)
+}
+
+@_cdecl("runtime_test_blocking_return_deferred")
+func runtime_test_blocking_return_deferred(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let handle = kk_kxmini_async(
+        unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
+        undispatchedBodyFunctionID
+    )
+    return kk_coroutine_state_exit(continuation, handle)
+}
+
 // The FIFO run queue that gives `runBlocking` deterministic
 // resumption order, and the UNDISPATCHED start mode built on top of it.
 @Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetEventLoopTestState))
 struct RuntimeCoroutineEventLoopTests {
+
+    // MARK: - runBlocking child completion
+
+    @Test func testRunBlockingWaitsForActorAfterBodyReturnsWithoutSuspending() {
+        var thrown = 0
+        let result = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_root as EventLoopTestSuspendEntry, to: Int.self),
+            blockingRootFunctionID,
+            &thrown
+        )
+        eventLoopTestLog.record("runBlocking returned")
+        #expect(thrown == 0)
+        #expect(result == 42)
+        #expect(eventLoopTestLog.snapshot() == [
+            "parent finished", "actor started", "body", "actor finished", "runBlocking returned",
+        ])
+    }
+
+    @Test func testRunBlockingWaitsForDescendantsRegisteredWhileJoining() {
+        var thrown = 0
+        let result = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_descendant_root as EventLoopTestSuspendEntry, to: Int.self),
+            blockingRootFunctionID,
+            &thrown
+        )
+        #expect(thrown == 0)
+        #expect(result == 42)
+        #expect(eventLoopTestLog.snapshot() == ["child finished", "actor started", "body", "actor finished"])
+    }
+
+    @Test func testRunBlockingPropagatesActorFailure() {
+        var thrown = 0
+        let result = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_failure_root as EventLoopTestSuspendEntry, to: Int.self),
+            blockingRootFunctionID,
+            &thrown
+        )
+        #expect(result == 0)
+        #expect(thrown != 0)
+        #expect(eventLoopTestLog.snapshot() == ["actor failed"])
+    }
+
+    @Test func testRunBlockingCancelsActorOnBodyFailure() {
+        var thrown = 0
+        let result = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_body_failure as EventLoopTestSuspendEntry, to: Int.self),
+            blockingRootFunctionID,
+            &thrown
+        )
+        #expect(result == 0)
+        #expect(thrown != 0)
+        #expect(eventLoopTestLog.snapshot().isEmpty, "the queued actor must be cancelled before it starts")
+    }
+
+    @Test func testRunBlockingKeepsReturnedJobAliveAfterJoining() {
+        var thrown = 0
+        let handle = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_return_job as EventLoopTestSuspendEntry, to: Int.self),
+            blockingRootFunctionID,
+            &thrown
+        )
+        #expect(thrown == 0)
+        let job = resolveLiveRuntimeHandle(handle, as: RuntimeJobHandle.self)
+        #expect(job != nil, "a returned Job must remain registered after its scope completes")
+        #expect(job?.completedSnapshot() == true)
+    }
+
+    @Test func testRunBlockingKeepsReturnedDeferredAliveAfterJoining() {
+        var thrown = 0
+        let handle = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_return_deferred as EventLoopTestSuspendEntry, to: Int.self),
+            blockingRootFunctionID,
+            &thrown
+        )
+        #expect(thrown == 0)
+        let task = resolveLiveRuntimeHandle(handle, as: RuntimeAsyncTask.self)
+        #expect(task != nil, "a returned Deferred must remain registered after its scope completes")
+        #expect(task?.isCompletedSnapshot() == true)
+    }
 
     // MARK: - RuntimeEventLoop
 
