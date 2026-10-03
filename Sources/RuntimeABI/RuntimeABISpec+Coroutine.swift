@@ -476,10 +476,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "collectorEnvPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_flow_collectLatest",
@@ -488,10 +489,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "collectorEnvPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_flow_retain",

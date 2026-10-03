@@ -32,4 +32,5 @@ fun main() = runBlocking {
     } catch (e: IllegalStateException) {
         println("upstream failure")
     }
+    Unit
 }

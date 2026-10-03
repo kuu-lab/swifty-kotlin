@@ -16,7 +16,7 @@ public fun <T> Flow<T>.onEmpty(action: suspend FlowCollector<T>.() -> Unit): Flo
             emit(value)
         }
         if (empty) {
-            action(AmbientFlowCollector<T>())
+            action(AmbientFlowCollector())
         }
     }
 }

@@ -11,8 +11,8 @@ public fun interface FlowCollector<in T> {
     public suspend fun emit(value: T)
 }
 
-internal class AmbientFlowCollector<T> : FlowCollector<T> {
-    override suspend fun emit(value: T) {
+internal class AmbientFlowCollector : FlowCollector<Any?> {
+    override suspend fun emit(value: Any?) {
         emitToCurrentFlow(value)
     }
 }
