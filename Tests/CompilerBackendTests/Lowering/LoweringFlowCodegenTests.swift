@@ -298,7 +298,7 @@ struct LoweringFlowCodegenTests {
             println(predicate { delay(1); it <= limit })
             println(predicate { delay(1); it > limit })
             println(flowOf(1, 2, 3, 4).map { it * 10 }
-                .takeWhile { it <= limit }.dropWhile { it < 20 }.toList())
+                .takeWhile { delay(1); it <= limit }.dropWhile { delay(1); it < 20 }.toList())
             println(coroutineContext.job.isActive)
         }
         """

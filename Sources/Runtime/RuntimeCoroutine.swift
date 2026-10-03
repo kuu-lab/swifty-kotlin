@@ -4453,9 +4453,15 @@ func runtimeRunBlockingOnEventLoop(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let previousLoop = RuntimeEventLoop.current
+    let callerTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let callerJobHandle = RuntimeJobHandle.current
     let loop = previousLoop ?? RuntimeEventLoop()
     RuntimeEventLoop.current = loop
-    defer { RuntimeEventLoop.current = previousLoop }
+    defer {
+        RuntimeEventLoop.current = previousLoop
+        RuntimeCoroutineScopeTaskKey.installKey(callerTaskKey)
+        RuntimeJobHandle.current = callerJobHandle
+    }
 
     let state = runtimeContinuationState(from: continuation)
     state?.eventLoop = loop
