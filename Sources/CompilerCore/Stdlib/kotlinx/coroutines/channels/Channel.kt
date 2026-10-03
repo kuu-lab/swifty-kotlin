@@ -54,3 +54,23 @@ public fun SendChannel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
 public fun Channel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
     __kkChannelInvokeOnClose(this, handler)
 }
+
+// KSP-1572: non-blocking and catching receive surface. Both bridges return a
+// `ChannelResult` box; `__kk_channel_receive_catching` performs the same
+// blocking receive as `receive()` so `receiveCatching`/`receiveOrNull` keep
+// proper suspend semantics instead of polling `tryReceive`.
+
+@KsSymbolName("__kk_channel_try_receive")
+private external fun <E> __kkChannelTryReceive(channel: Channel<E>): ChannelResult<E>
+
+@KsSymbolName("__kk_channel_receive_catching")
+private external fun <E> __kkChannelReceiveCatching(channel: Channel<E>): ChannelResult<E>
+
+public fun <E> ReceiveChannel<E>.tryReceive(): ChannelResult<E> =
+    __kkChannelTryReceive(this)
+
+public suspend fun <E> ReceiveChannel<E>.receiveCatching(): ChannelResult<E> =
+    __kkChannelReceiveCatching(this)
+
+public suspend fun <E> ReceiveChannel<E>.receiveOrNull(): E? =
+    receiveCatching().getOrNull()
