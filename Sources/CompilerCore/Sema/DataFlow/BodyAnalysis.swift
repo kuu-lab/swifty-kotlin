@@ -447,7 +447,12 @@ extension DataFlowSemaPhase {
         var candidatePaths: [[InternedString]] = {
             var paths: [[InternedString]] = []
             if path.count == 1 {
-                if let currentPackageFQName {
+                if let currentPackageFQName,
+                   !currentPackageFQName.isEmpty || symbols.lookupAll(fqName: path).contains(where: { symbolID in
+                       guard let symbol = symbols.symbol(symbolID) else { return false }
+                       return isNominalTypeSymbol(symbol.kind) && !symbol.flags.contains(.synthetic)
+                   })
+                {
                     paths.append(currentPackageFQName + path)
                 }
                 if let shortName = path.first {

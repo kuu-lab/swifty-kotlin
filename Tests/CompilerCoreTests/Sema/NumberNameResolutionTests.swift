@@ -4,6 +4,33 @@ import TestStdlibCache
 
 @Suite
 struct NumberNameResolutionTests {
+    @Test(arguments: [false, true], [
+        "import kotlinx.coroutines.CancellationException\nimport kotlinx.coroutines.TimeoutCancellationException",
+        "import kotlinx.coroutines.*",
+    ])
+    func importedAliasesOverrideSyntheticRootTypes(useArtifact: Bool, importDecl: String) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        try withTemporaryFiles(contents: ["""
+        \(importDecl)
+        fun asCancellation(timeout: TimeoutCancellationException): CancellationException = timeout
+        """]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let canonical = try #require(sema.symbols.lookup(fqName:
+                ["kotlin", "coroutines", "cancellation", "CancellationException"].map(ctx.interner.intern)
+            ))
+            let function = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("asCancellation")]))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            #expect(signature.returnType == sema.types.make(.classType(ClassType(classSymbol: canonical))))
+        }
+    }
+
     @Test(arguments: [false, true], ["", "package counters"])
     func operatorsReturnTheirOwnNumber(useArtifact: Bool, packageDecl: String) throws {
         if useArtifact { TestStdlibCache.shared.prepare() }
