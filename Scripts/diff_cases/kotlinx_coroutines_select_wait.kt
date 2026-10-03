@@ -45,13 +45,18 @@ fun main() = runBlocking {
     } })
     // KUU-962: R must flow from the clause callback's return type into
     // SelectBuilder<R> -- untyped select, expected-type, and inferred select
-    // over a non-String element all rely on that connection.
+    // over a non-String element all rely on that connection. `val`-bound
+    // untyped select is used instead of `println(select { ... })` because
+    // real Kotlin cannot infer R in argument position (SelectBuilder<in R>
+    // is contravariant there) and the diff harness needs both sides valid.
     strings.send("infer")
-    println(select { strings.onReceive { "infer:$it" } })
+    val inferred = select { strings.onReceive { "infer:$it" } }
+    println(inferred)
     strings.send("exp")
     val expectedType: String = select { strings.onReceive { "exp:$it" } }
     println(expectedType)
     channel.send(11)
-    println(select { channel.onReceive { "nint:$it" } })
+    val nint = select { channel.onReceive { "nint:$it" } }
+    println(nint)
     println("done")
 }
