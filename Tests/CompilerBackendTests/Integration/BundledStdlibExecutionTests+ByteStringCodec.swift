@@ -50,9 +50,14 @@ extension BundledStdlibExecutionTests {
                 println("$count:${out.decodeToString(0, count)}")
                 println(Base64.UrlSafe.encode(ByteString(byteArrayOf(62, 62, 62))))
                 println(Base64.UrlSafe.decodeToByteString("Pj4-").decodeToString())
+
+                // Same-named member calls must keep resolving while the
+                // ByteString extensions are imported.
+                println(Base64.encode("Hi".encodeToByteArray()))
+                println(Base64.decode("SGk=").decodeToString())
             }
             """,
-            expectedOutput: "ab12cdef\nAB12CDEF\n12cd\nab12\nhexToByteString-invalid\nSGVsbG8=\nSGVsbG8=\n8:SGVsbG8=\nSGVsbG8=\nHello\nHello\nHello\n5:Hello\nPj4-\n>>>\n"
+            expectedOutput: "ab12cdef\nAB12CDEF\n12cd\nab12\nhexToByteString-invalid\nSGVsbG8=\nSGVsbG8=\n8:SGVsbG8=\nSGVsbG8=\nHello\nHello\nHello\n5:Hello\nPj4-\n>>>\nSGk=\nHi\n"
         )
     }
 }

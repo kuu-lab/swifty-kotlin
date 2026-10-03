@@ -43,4 +43,11 @@ fun main() {
     val urlSafe = ByteString(byteArrayOf(62, 62, 62))
     println(Base64.UrlSafe.encode(urlSafe))
     println(Base64.UrlSafe.decodeToByteString("Pj4-").decodeToString())
+
+    // Same-named Base64 member calls must keep resolving while the
+    // ByteString extensions are imported (member takes precedence when
+    // its signature applies).
+    println(Base64.encode("Hi".encodeToByteArray()))
+    println(Base64.decode("SGk=").decodeToString())
+    println(Base64.encodeToByteArray("Hi".encodeToByteArray()).decodeToString())
 }

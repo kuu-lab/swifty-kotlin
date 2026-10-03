@@ -892,6 +892,27 @@ extension CallTypeChecker {
                     companionCandidates.append(candidate)
                 }
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                // Precompiled library extensions are not inserted into
+                // file scopes, because their receiver is resolved during
+                // member-call inference. Recover those synthetic
+                // declarations by short name for class-name receivers.
+                let syntheticCompanionCandidates = {
+                    sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              symbol.flags.contains(.synthetic),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let recv = signature.receiverType
+                        else {
+                            return false
+                        }
+                        return self.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionTypeForExtensionLookup,
+                            declaredReceiver: recv,
+                            sema: sema
+                        )
+                    }
+                }
                 if companionCandidates.isEmpty {
                     // Fall back to Companion-scoped extension functions
                     // (e.g. `fun Duration.Companion.parse(value: String): Duration`)
@@ -910,27 +931,20 @@ extension CallTypeChecker {
                             sema: sema
                         )
                     }
+                    if !companionCandidates.isEmpty {
+                        // A scoped supertype-receiver extension (e.g.
+                        // `fun Base64.encode` resolved through companion
+                        // `Default`) satisfies this lookup, but the companion's
+                        // synthetic members (inherited `Base64.encode(ByteArray)`)
+                        // are still valid targets: keep them in the same set so
+                        // member calls are not shadowed by the extension.
+                        for candidate in syntheticCompanionCandidates() where !companionCandidates.contains(candidate) {
+                            companionCandidates.append(candidate)
+                        }
+                    }
                 }
                 if companionCandidates.isEmpty {
-                    // Precompiled library extensions are not inserted into
-                    // file scopes, because their receiver is resolved during
-                    // member-call inference. Recover those synthetic
-                    // declarations by short name for class-name receivers.
-                    companionCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                        guard let symbol = sema.symbols.symbol(candidate),
-                              symbol.kind == .function,
-                              symbol.flags.contains(.synthetic),
-                              let signature = sema.symbols.functionSignature(for: candidate),
-                              let recv = signature.receiverType
-                        else {
-                            return false
-                        }
-                        return extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: companionTypeForExtensionLookup,
-                            declaredReceiver: recv,
-                            sema: sema
-                        )
-                    }
+                    companionCandidates = syntheticCompanionCandidates()
                 }
                 if !companionCandidates.isEmpty {
                     companionReceiverType = companionTypeForExtensionLookup
