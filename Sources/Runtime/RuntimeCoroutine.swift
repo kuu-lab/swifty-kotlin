@@ -1576,6 +1576,12 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// Cancellation cause stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
+    /// The Job this scope installs into its block's coroutine context
+    /// (KUU-964). `coroutineScope { }`/`supervisorScope { }` create a fresh
+    /// child job at scope entry so `currentCoroutineContext().job` resolves
+    /// inside the block; scopes built around an explicit context adopt the
+    /// context's Job element instead.
+    private(set) var job: RuntimeJobHandle?
     fileprivate var parent: RuntimeCoroutineScope?
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
@@ -1643,6 +1649,43 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         RuntimeLiveHandles.unregister(self)
     }
 
+    /// KUU-964: create this scope's own Job — the element `coroutineContext.job`
+    /// resolves to inside the scope's block — mark it started, and parent it to
+    /// the job currently in force so a parent cancellation reaches this scope's
+    /// children. The job is kept alive for the process lifetime (same bounded
+    /// leak `kk_job_new` accepts) so a `CoroutineContext` handle that outlives
+    /// the scope still resolves to a valid job object.
+    @discardableResult
+    func installJob() -> RuntimeJobHandle {
+        let scopeJob = RuntimeJobHandle()
+        scopeJob.isSupervisorMarker = isSupervisor
+        scopeJob.markStarted()
+        job = scopeJob
+        installJobCancellationLink(scopeJob)
+        let scopeJobRaw = runtimeRegisterObject(scopeJob)
+        RuntimeJobHandle.current?.registerChild(scopeJobRaw)
+        return scopeJob
+    }
+
+    /// Adopt `existing` (e.g. the Job element a `CoroutineScope(context)` was
+    /// built around) as this scope's job so scope cancellation and a cancel
+    /// reaching the job propagate both ways.
+    func adoptJob(_ existing: RuntimeJobHandle) {
+        job = existing
+        installJobCancellationLink(existing)
+    }
+
+    /// When the scope's job starts cancelling (e.g. via its parent), tear down
+    /// the scope — `cancel()` then cancels every registered child and re-enters
+    /// `job.cancel()`, which is a no-op by then. The job side references the
+    /// scope weakly: the job is registered for the process lifetime while the
+    /// scope can be released at `kk_coroutine_scope_wait`.
+    private func installJobCancellationLink(_ scopeJob: RuntimeJobHandle) {
+        _ = scopeJob.addCompletionHandler(onCancelling: true) { [weak self] _ in
+            self?.cancel()
+        }
+    }
+
     func registerChild(_ handle: Int) {
         // Take an additional retain so the scope keeps the child alive
         // even if user code calls takeRetainedValue (e.g. kk_kxmini_async_await)
@@ -1660,9 +1703,17 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
 
     func cancel() {
         lock.lock()
+        if isCancelled {
+            lock.unlock()
+            return
+        }
         isCancelled = true
         let currentChildren = children
+        let scopeJob = job
+        let message = cancellationMessage
+        let cause = cancellationCause
         lock.unlock()
+        scopeJob?.cancel(message: message, cause: cause)
         for child in currentChildren {
             runtimeCancelChild(child)
         }
@@ -1672,13 +1723,17 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// CancellationException carries the correct values.
     func cancel(message: String, cause: Int) {
         lock.lock()
-        if !isCancelled {
-            cancellationMessage = message
-            cancellationCause = cause
+        if isCancelled {
+            lock.unlock()
+            return
         }
+        cancellationMessage = message
+        cancellationCause = cause
         isCancelled = true
         let currentChildren = children
+        let scopeJob = job
         lock.unlock()
+        scopeJob?.cancel(message: message, cause: cause)
         for child in currentChildren {
             runtimeCancelChild(child)
         }
@@ -2678,6 +2733,16 @@ public func kk_kxmini_run_blocking_with_cont(
     if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
     }
+    if let contState, contState.jobHandle == nil {
+        // KUU-964: a scoped block runs inside its scope's own Job — the
+        // SupervisorJob a `supervisorScope { }` installed, or the child Job a
+        // `coroutineScope { }` installed — so `currentCoroutineContext().job`
+        // resolves inside the block (kotlinx's contract) and children launched
+        // here parent to the scope's job, preserving failure isolation. Only
+        // when the scope carries no Job (e.g. a Job-less `CoroutineScope(context)`)
+        // does the invoked value keep the caller's job.
+        contState.jobHandle = contState.scope?.job ?? RuntimeContinuationState.current?.jobHandle
+    }
     if let contState {
         // A non-capturing flow emitter enters through the direct C callback and
         // creates this continuation before the nested suspend loop installs its
@@ -3339,6 +3404,10 @@ public func kk_coroutine_scope_new() -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
 
+    // KUU-964: the scope's own Job — installed into the block's context so
+    // `currentCoroutineContext().job` resolves there.
+    scope.installJob()
+
     // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
     enterScopeOnCurrentContinuation(scope)
@@ -3354,9 +3423,16 @@ public func kk_supervisor_scope_new() -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
 
-    // Push: save parent scope and set this as current via the task-scope map
+    // KUU-964: the scope's own SupervisorJob — installed into the block's
+    // context so `currentCoroutineContext().job` resolves there. Children's
+    // failures never complete this job (supervisor failure isolation).
+    scope.installJob()
+
+    // Push: save parent scope and set this as current via the task-scope map,
+    // mirroring kk_coroutine_scope_new so the running continuation observes
+    // the same ambient scope the task-scope map reports.
     scope.parent = RuntimeCoroutineScope.current
-    RuntimeCoroutineScope.current = scope
+    enterScopeOnCurrentContinuation(scope)
 
     return Int(bitPattern: ptr)
 }
@@ -3378,6 +3454,18 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_wait received invalid scope handle")
     }
     let firstFailure = scope.waitForChildren()
+
+    // KUU-964: settle the scope's own Job as the scope tears down. A cancelled
+    // scope leaves the job cancelled (the complete() below settles the
+    // intermediate .cancelling state into .cancelled); every other outcome —
+    // a supervisor observing a child failure included — completes the job
+    // normally, matching kotlinx's scope-coroutine lifecycle.
+    if let scopeJob = scope.job {
+        if scope.isCancelled {
+            _ = scopeJob.cancel(message: scope.cancellationMessage, cause: scope.cancellationCause)
+        }
+        _ = scopeJob.complete(with: 0)
+    }
 
     // Pop: restore parent scope in the task-scope map (CORO-003) and on the
     // running continuation, mirroring enterScopeOnCurrentContinuation.
@@ -3448,6 +3536,12 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
         isSupervisor = job.isSupervisorMarker
     }
     let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor)
+    if let job = runtimeJobHandle(from: ctx.jobHandleRaw) {
+        // The scope's job is the context's Job element: scope.cancel() cancels
+        // it (kotlinx's CoroutineScope.cancel contract), and a cancel reaching
+        // it takes this scope's children down with it.
+        scope.adoptJob(job)
+    }
     return runtimeRegisterObject(scope)
 }
 
@@ -4134,8 +4228,12 @@ public func kk_coroutine_current_scope() -> Int {
         // A top-level runBlocking body has a continuation but no inherited scope.
         // Materialize its CoroutineScope lazily when a builder lambda needs the
         // implicit receiver, then attach it to the continuation for suspensions
-        // and child launchers that follow.
+        // and child launchers that follow. The scope's job is the running job —
+        // the same element `coroutineContext.job` resolves to here.
         let scope = RuntimeCoroutineScope()
+        if let job = state.jobHandle {
+            scope.adoptJob(job)
+        }
         state.scope = scope
         RuntimeCoroutineScope.current = scope
         return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
@@ -4443,6 +4541,12 @@ func runtimeRunBlockingOnEventLoop(
     let ownedScope = state != nil && state?.scope == nil ? RuntimeCoroutineScope() : nil
     if let ownedScope {
         state?.scope = ownedScope
+        // The owned scope's job is this blocking coroutine's job, so suspend
+        // values invoked inside it keep observing `coroutineContext.job`
+        // (KUU-964) and a scope cancel reaches the job itself.
+        if let job = state?.jobHandle {
+            ownedScope.adoptJob(job)
+        }
     }
 
     final class Outcome: @unchecked Sendable {
