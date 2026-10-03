@@ -74,50 +74,8 @@ extension DataFlowSemaPhase {
         var resolvedBase: [SymbolID: SymbolID] = [:]
         var inProgress: Set<SymbolID> = []
 
-        // Ordered declarations matching `id`'s member (name, arity, suspend,
-        // parameter types) at the nearest supertype level that declares any —
-        // the BFS portion of the original `resolve` walk, unchanged. Mirrors
-        // `findAllInheritedMembers`: once a level declares the member, deeper
-        // ancestors are earlier overrides of the same logical member, not
-        // independent candidates, so the BFS stops at the first level with
-        // matches.
         func matchingOverrideCandidates(of id: SymbolID) -> [SymbolID] {
-            guard let sym = symbols.symbol(id),
-                  sym.flags.contains(.overrideMember),
-                  let ownerID = symbols.parentSymbol(for: id),
-                  let signature = symbols.functionSignature(for: id)
-            else { return [] }
-
-            let paramCount = signature.parameterTypes.count
-            var visited: Set<SymbolID> = [ownerID]
-            var queue = symbols.directSupertypes(for: ownerID)
-            while !queue.isEmpty {
-                let currentOwner = queue.removeFirst()
-                guard visited.insert(currentOwner).inserted else { continue }
-                guard let ownerSym = symbols.symbol(currentOwner) else { continue }
-
-                var candidates: [SymbolID] = []
-                for candidateID in symbols.children(ofFQName: ownerSym.fqName) {
-                    guard let candidate = symbols.symbol(candidateID),
-                          candidate.kind == .function,
-                          candidate.name == sym.name,
-                          let candidateSig = symbols.functionSignature(for: candidateID),
-                          candidateSig.parameterTypes.count == paramCount,
-                          candidateSig.isSuspend == signature.isSuspend,
-                          isOverrideVtableParameterMatch(
-                              candidateParameterTypes: candidateSig.parameterTypes,
-                              overrideParameterTypes: signature.parameterTypes,
-                              types: types
-                          )
-                    else { continue }
-                    candidates.append(candidateID)
-                }
-                if !candidates.isEmpty {
-                    return candidates
-                }
-                queue.append(contentsOf: symbols.directSupertypes(for: currentOwner))
-            }
-            return []
+            nearestOverriddenFunctionCandidates(of: id, symbols: symbols, types: types)
         }
 
         // Finds the nearest ancestor declaration (by BFS over
@@ -229,5 +187,55 @@ extension DataFlowSemaPhase {
             )
             symbols.setOverrideDefaultsBaseSymbol(baseID, for: overrideID)
         }
+    }
+
+    /// Ordered declarations matching `id`'s member (name, arity, suspend,
+    /// parameter types) at the nearest supertype level that declares any —
+    /// the BFS portion of the original `resolve` walk, unchanged. Mirrors
+    /// `findAllInheritedMembers`: once a level declares the member, deeper
+    /// ancestors are earlier overrides of the same logical member, not
+    /// independent candidates, so the BFS stops at the first level with
+    /// matches.
+    func nearestOverriddenFunctionCandidates(
+        of id: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        guard let sym = symbols.symbol(id),
+              sym.flags.contains(.overrideMember),
+              let ownerID = symbols.parentSymbol(for: id),
+              let signature = symbols.functionSignature(for: id)
+        else { return [] }
+
+        let paramCount = signature.parameterTypes.count
+        var visited: Set<SymbolID> = [ownerID]
+        var queue = symbols.directSupertypes(for: ownerID)
+        while !queue.isEmpty {
+            let currentOwner = queue.removeFirst()
+            guard visited.insert(currentOwner).inserted else { continue }
+            guard let ownerSym = symbols.symbol(currentOwner) else { continue }
+
+            var candidates: [SymbolID] = []
+            for candidateID in symbols.children(ofFQName: ownerSym.fqName) {
+                guard let candidate = symbols.symbol(candidateID),
+                      candidate.kind == .function,
+                      candidate.name == sym.name,
+                      let candidateSig = symbols.functionSignature(for: candidateID),
+                      candidateSig.parameterTypes.count == paramCount,
+                      candidateSig.isSuspend == signature.isSuspend,
+                      isOverrideVtableParameterMatch(
+                          candidateParameterTypes: candidateSig.parameterTypes,
+                          overrideParameterTypes: signature.parameterTypes,
+                          types: types
+                      )
+                else { continue }
+                candidates.append(candidateID)
+            }
+            if !candidates.isEmpty {
+                return candidates
+            }
+            queue.append(contentsOf: symbols.directSupertypes(for: currentOwner))
+        }
+        return []
     }
 }

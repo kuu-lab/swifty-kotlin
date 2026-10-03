@@ -3117,14 +3117,18 @@ extension ExprLowerer {
                 let calleeSymbol: SymbolID? = chosenCallee.flatMap { callee in
                     sema.symbols.isSourceBackedSymbol(callee) ? callee : nil
                 }
-                instructions.append(.call(
+                driver.callLowerer.emitDestructuringComponentCall(
+                    candidate: chosenCallee,
                     symbol: calleeSymbol,
                     callee: calleeName,
-                    arguments: [rhsID],
+                    receiverExpr: initializer,
+                    receiverID: rhsID,
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {
@@ -3209,6 +3213,7 @@ extension ExprLowerer {
                     containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
+                    arena: arena,
                     interner: interner,
                     instructions: &instructions
                 )
@@ -3247,6 +3252,7 @@ extension ExprLowerer {
                 containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
+                arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
@@ -3267,6 +3273,7 @@ extension ExprLowerer {
         containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
+        arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
@@ -3301,6 +3308,23 @@ extension ExprLowerer {
                 calleeName = sym.name
             } else {
                 calleeName = interner.intern("contains")
+            }
+            // An open member `contains` must dispatch on the container's
+            // runtime type, exactly like `container.contains(element)`.
+            if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                chosenCallee: callBinding.chosenCallee,
+                calleeName: calleeName,
+                receiverExpr: containerExpr,
+                loweredReceiverID: containerID,
+                isSuperCall: false,
+                finalArguments: [containerID, elementID],
+                result: resultID,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            ) {
+                instructions.append(virtualInstruction)
+                return
             }
             instructions.append(.call(
                 symbol: callBinding.chosenCallee,
