@@ -454,6 +454,29 @@ extension VirtualDispatchTests {
         // the core mechanism.
     }
 
+    @Test func testSuspendCallableRefVirtualDispatchForwardsContinuation() throws {
+        let source = """
+        interface Writer { suspend fun flush(): Int }
+        class BufferedWriter : Writer { override suspend fun flush(): Int = 42 }
+        fun Writer.flushLater(): suspend () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module = try #require(ctx.kir)
+        let virtualFlushCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .virtualCall(_, callee, _, arguments, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "flush"
+                else { return nil }
+                return arguments
+            }
+        }
+        #expect(!virtualFlushCalls.isEmpty)
+        #expect(virtualFlushCalls.allSatisfy { $0.count == 1 },
+                "A virtual suspend call must pass the caller continuation after explicit arguments.")
+    }
+
     // MARK: - 15. resolveVirtualDispatch: open class with subtypes -> vtable
 }
 #endif
