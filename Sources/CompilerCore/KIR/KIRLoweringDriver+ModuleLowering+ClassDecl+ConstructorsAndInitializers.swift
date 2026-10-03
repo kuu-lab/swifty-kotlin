@@ -337,21 +337,18 @@ extension KIRLoweringDriver {
             return
         }
 
-        var argIDs: [KIRExprID] = [receiverID]
-        for arg in superArgs {
-            argIDs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
-        }
-
+        let loweredSuperArgs = superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) }
         let resultID = arena.appendTemporary(type: sema.types.unitType)
-        body.append(.call(
-            symbol: superCtorSymbol,
-            callee: shared.interner.intern("<init>"),
-            arguments: argIDs,
+        emitDelegatedConstructorCall(
+            target: superCtorSymbol,
+            receiver: receiverID,
+            loweredArgs: loweredSuperArgs,
+            spreadFlags: superArgs.map(\.isSpread),
+            callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
             result: resultID,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
-        ))
+            shared: shared,
+            body: &body
+        )
     }
 
     private func emitPrimaryConstructorPropertyInitializers(
