@@ -443,7 +443,7 @@ extension DataFlowSemaPhase {
                 fqName: classFQName,
                 declSite: nil,
                 visibility: .public,
-                flags: (name == "UIntProgression" || name == "ULongProgression" || name == "CharProgression")
+                flags: (name == "ULongProgression" || name == "CharProgression")
                     ? [.synthetic, .openType]
                     : [.synthetic]
             )
