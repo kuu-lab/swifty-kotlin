@@ -1146,6 +1146,15 @@ extension CallLowerer {
                 )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
+                ?? arena.exprType(loweredReceiverID)
+            let isRuntimeRangeReceiver = receiverTypeForDispatch.map { receiverType in
+                MemberRuntimeDispatch.rangeReceiverKind(
+                    receiverExpr: receiverExpr,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) != nil
+            } ?? false
             let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             let usesIteratorRuntimeVirtualBridge = chosen.map {
                 isIteratorRuntimeVirtualBridge(
@@ -1156,6 +1165,7 @@ extension CallLowerer {
                 )
             } ?? false
             if !isSuperCall,
+               !isRuntimeRangeReceiver,
                let chosen,
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
@@ -1282,9 +1292,27 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
+    // Range/progression receivers are RuntimeRangeBox handles without a
+    // Kotlin vtable/itable — dispatching a member virtually on them crashes
+    // at kk_vtable_lookup (KSWIFTK-RUNTIME-0001). Their member calls always
+    // use direct dispatch.
+    if let receiverTypeID,
+       MemberRuntimeDispatch.rangeReceiverKind(for: receiverTypeID, sema: sema, interner: interner) != nil
+    {
+        return nil
+    }
     guard let parentID = sema.symbols.parentSymbol(for: callee),
           let parentSymbol = sema.symbols.symbol(parentID)
     else { return nil }
+    // Members declared on a range/progression class are only ever invoked on
+    // RuntimeRangeBox handles — the constructors are internal, so no
+    // vtable-carrying subclass exists. Keep them on direct dispatch even when
+    // the receiver's static type lost the nominal (e.g. ClosedRange<Long>).
+    if parentSymbol.kind == .class,
+       MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: parentSymbol, interner: interner) != nil
+    {
+        return nil
+    }
     guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
     if parentSymbol.kind == .interface {
         return resolveItableDispatchKind(

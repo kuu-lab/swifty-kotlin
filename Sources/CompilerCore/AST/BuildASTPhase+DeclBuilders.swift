@@ -269,7 +269,9 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena
         )
-        let receiverType = explicitReceiverType ?? contextReceivers.first?.ref
+        // Do not promote a context receiver to `receiverType`: that would
+        // overwrite a member function's class `this` with the context type.
+        let receiverType = explicitReceiverType
         let returnType = declarationReturnType(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let body = declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -283,7 +285,7 @@ extension BuildASTPhase {
             annotations: annotations,
             typeParams: typeParams,
             receiverType: receiverType,
-            contextReceiverNames: explicitReceiverType == nil ? contextReceivers.map(\.name) : [],
+            contextReceivers: contextReceivers,
             valueParams: valueParams,
             returnType: returnType,
             body: body,

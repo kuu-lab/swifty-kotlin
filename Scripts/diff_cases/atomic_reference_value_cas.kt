@@ -4,9 +4,9 @@ import kotlin.concurrent.atomics.AtomicReference
 
 // KUU-858: CAS on AtomicReference<T> with value types must succeed when the
 // caller's expected word is the same logical value — the erased-T boundary
-// re-marshals it (raw Int payload vs fresh Int box, re-materialized String
-// handle), so the runtime compares decoded payloads. Real reference types
-// keep pointer identity.
+// re-marshals primitives (raw Int payload vs fresh Int box), so the runtime
+// compares decoded primitive payloads. Strings preserve their canonical
+// object handles through flat bridges and keep reference identity.
 fun main() {
     val strings = AtomicReference("aaa")
     val cur = strings.load()

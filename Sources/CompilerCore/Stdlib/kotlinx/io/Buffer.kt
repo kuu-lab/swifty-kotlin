@@ -13,42 +13,6 @@ package kotlinx.io
 
 internal const val SEGMENT_SIZE_HINT: Int = 8192
 
-internal fun checkByteCount(byteCount: Long) {
-    if (byteCount < 0L) {
-        throw IllegalArgumentException("byteCount ($byteCount) < 0")
-    }
-}
-
-internal fun checkBounds(size: Int, startIndex: Int, endIndex: Int) {
-    if (startIndex < 0 || endIndex > size) {
-        throw IndexOutOfBoundsException(
-            "startIndex ($startIndex) and endIndex ($endIndex) are not within the range [0..size($size))"
-        )
-    }
-    if (startIndex > endIndex) {
-        throw IllegalArgumentException("startIndex ($startIndex) > endIndex ($endIndex)")
-    }
-}
-
-internal fun checkBounds(size: Long, startIndex: Long, endIndex: Long) {
-    if (startIndex < 0L || endIndex > size) {
-        throw IndexOutOfBoundsException(
-            "startIndex ($startIndex) and endIndex ($endIndex) are not within the range [0..size($size))"
-        )
-    }
-    if (startIndex > endIndex) {
-        throw IllegalArgumentException("startIndex ($startIndex) > endIndex ($endIndex)")
-    }
-}
-
-internal fun checkOffsetAndCount(size: Long, offset: Long, byteCount: Long) {
-    if (offset < 0L || offset > size || size - offset < byteCount || byteCount < 0L) {
-        throw IllegalArgumentException(
-            "offset ($offset) and byteCount ($byteCount) are not within the range [0..size($size))"
-        )
-    }
-}
-
 /**
  * A collection of bytes in memory.
  *

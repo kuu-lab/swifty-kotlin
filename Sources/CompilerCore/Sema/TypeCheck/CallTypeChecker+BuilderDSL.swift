@@ -1312,6 +1312,171 @@ extension CallTypeChecker {
         )))
     }
 
+    /// KSP-1573: bind `produce { }` / `produce(capacity) { }` to the bundled
+    /// source-backed `CoroutineScope.produce` extension. The element type
+    /// keeps the same `send`-scan inference the synthetic launcher path used,
+    /// but the bound callee is the real generic function whose block is a
+    /// boxed suspend lambda — not the kk_produce launcher thunk. Returns nil
+    /// when no source-backed produce overload applies (residual synthetic
+    /// path or user-defined produce handles the call instead).
+    func tryBindSourceBackedProduceCall(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        ast: ASTModule
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
+
+        // The extension needs an implicit CoroutineScope receiver: an ambient
+        // coroutine-builder lambda scope, or an implicit receiver whose type
+        // is already a CoroutineScope.
+        let hasScopeReceiver = ctx.isCoroutineBuilderLambdaScope
+            || (ctx.implicitReceiverType.map {
+                isCoroutineScopeType($0, sema: sema, interner: interner)
+            } ?? false)
+        guard hasScopeReceiver else { return nil }
+
+        // Imported library symbols always carry `.synthetic` (they have no
+        // source declSite), so the stub-exclusion test must distinguish a
+        // genuinely synthetic launcher (kk_produce) from a source-backed
+        // decl that merely arrived via .kklib metadata.
+        let produceSymbol = ctx.cachedScopeLookup(calleeName).first { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
+                  symbol.fqName == knownNames.kotlinxCoroutinesProduceFQName,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.receiverType != nil,
+                  signature.parameterTypes.count == args.count
+            else { return false }
+            return true
+        }
+        guard let produceSymbol,
+              let signature = sema.symbols.functionSignature(for: produceSymbol),
+              let blockParamType = signature.parameterTypes.last
+        else { return nil }
+
+        guard let lastArgumentExprID = args.last?.expr else { return nil }
+
+        // Infer the produced element type exactly like the synthetic path:
+        // prefer an expected Channel<E>/ReceiveChannel<E>, otherwise LUB the
+        // `send(...)` argument types seen in the lambda body.
+        let channelType = produceBuilderChannelType(
+            lambdaExprID: lastArgumentExprID,
+            expectedType: expectedType,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let elementType = produceBuilderElementType(of: channelType, sema: sema)
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let substitution: [TypeVarID: TypeID] = [
+            TypeVarID(rawValue: 0): elementType,
+        ]
+        let lambdaExpectedType = sema.types.substituteTypeParameters(
+            in: blockParamType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        let receiverType: TypeID = {
+            guard case let .functionType(fnType) = sema.types.kind(of: lambdaExpectedType),
+                  let fnReceiver = fnType.receiver
+            else {
+                return produceBuilderReceiverType(channelType: channelType, sema: sema, interner: interner)
+            }
+            return fnReceiver
+        }()
+
+        // Non-lambda leading arguments (e.g. `capacity`) type-check normally.
+        for (index, argument) in args.dropLast().enumerated() {
+            let paramExpected: TypeID? = index < signature.parameterTypes.count
+                ? sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[index],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                : nil
+            _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: paramExpected)
+        }
+
+        // Same marking the synthetic produce path applied (CORO-075): the
+        // block's captures must ride the launcher-continuation convention
+        // (CoroutineLoweringPass+LauncherSupport's rewrite) and the lowered
+        // lambda must keep its receiver-first param layout — see
+        // LambdaLowerer's receiverFirstLauncherABI gate.
+        sema.bindings.markCoroutineLauncherLambdaExpr(lastArgumentExprID)
+        _ = driver.inferExpr(
+            lastArgumentExprID,
+            ctx: ctx.with(implicitReceiverType: receiverType),
+            locals: &locals,
+            expectedType: lambdaExpectedType
+        )
+
+        // Re-refine once the lambda has been checked, mirroring CORO-075.
+        let refinedChannelType = produceBuilderChannelType(
+            lambdaExprID: lastArgumentExprID,
+            expectedType: expectedType,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let refinedElementType = produceBuilderElementType(of: refinedChannelType, sema: sema)
+
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: produceSymbol,
+                substitutedTypeArguments: signature.typeParameterSymbols.map { _ in refinedElementType },
+                parameterMapping: Dictionary(
+                    uniqueKeysWithValues: args.indices.map { ($0, $0) }
+                )
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(produceSymbol))
+        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        markCoroutineScopeImplicitReceiverCallIfNeeded(
+            id,
+            chosenCallee: produceSymbol,
+            receiverType: ctx.implicitReceiverType
+                ?? coroutineScopeType(sema: sema, interner: interner)
+                ?? sema.types.anyType,
+            ctx: ctx
+        )
+
+        let resultType = sema.types.substituteTypeParameters(
+            in: signature.returnType,
+            substitution: [TypeVarID(rawValue: 0): refinedElementType],
+            typeVarBySymbol: typeVarBySymbol
+        )
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    private func produceBuilderElementType(
+        of channelType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let classType = resolveClassType(channelType, sema: sema),
+              let firstArg = classType.args.first
+        else {
+            return sema.types.anyType
+        }
+        switch firstArg {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return sema.types.anyType
+        }
+    }
+
     private func produceBuilderExpectedElementType(
         _ expectedType: TypeID?,
         sema: SemaModule,
@@ -1355,9 +1520,24 @@ extension CallTypeChecker {
             sendArgumentExprs: &sendArgumentExprs
         )
 
+        // Speculative scan: on the pre-check pass the lambda body hasn't been
+        // checked yet, so its internal bindings (loop variables, local vals)
+        // are absent from previewLocals. Snapshot/truncate discards the
+        // spurious diagnostics emitted for those names — the real lambda
+        // check re-emits genuine errors. On the post-check re-refine the
+        // send args already carry real types in the binding table, so consult
+        // it first (same pattern as the sequence-builder yield scan above).
         var previewLocals = locals
+        let diagnosticEngine = ctx.semaCtx.diagnostics
         let argumentTypes = sendArgumentExprs.compactMap { exprID -> TypeID? in
+            if let cached = sema.bindings.exprType(for: exprID),
+               cached != sema.types.errorType
+            {
+                return cached
+            }
+            let snapshot = diagnosticEngine.count
             let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
+            diagnosticEngine.truncate(to: snapshot)
             return inferredType == sema.types.errorType ? nil : inferredType
         }
         return .unary(argumentTypes)

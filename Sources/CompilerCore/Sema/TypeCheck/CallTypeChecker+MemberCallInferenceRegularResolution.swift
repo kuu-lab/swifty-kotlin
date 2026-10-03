@@ -1171,9 +1171,9 @@ extension CallTypeChecker {
                 // Any.equals/hashCode/toString win before extension fallback.
                 standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
-                // Source-backed bundled extensions are the live implementation
-                // for migrated atomic APIs, including overrides of inherited
-                // synthetic Any members such as AtomicInt.toString().
+                // Source-backed bundled declarations are the live implementation
+                // for migrated atomic APIs and should win over residual synthetic
+                // candidates such as inherited Any members.
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1662,7 +1662,24 @@ extension CallTypeChecker {
             }
         }
 
-        let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        // Direct member lookup and short-name extension recovery can bypass
+        // cachedScopeLookup, which normally removes an expect declaration once
+        // its matching actual is linked. Apply the same rule before resolving
+        // member-style calls, or the identical expect/actual signatures become
+        // two viable overloads and produce a false ambiguity.
+        let candidateSet = Set(allCandidates)
+        let resolvedCandidates = allCandidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.flags.contains(.expectDeclaration)
+            else {
+                return true
+            }
+            guard let actual = sema.symbols.actualSymbol(for: candidate) else {
+                return true
+            }
+            return !candidateSet.contains(actual)
+        }
+        let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
         let memberName = interner.resolve(calleeName)
         if !isClassNameReceiver,
            !safeCall,
@@ -2509,7 +2526,7 @@ extension CallTypeChecker {
         return finalType
     }
 
-    private func floatingPointRangeArgumentType(
+    func floatingPointRangeArgumentType(
         _ exprID: ExprID,
         ast: ASTModule,
         sema: SemaModule,
