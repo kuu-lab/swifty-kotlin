@@ -1192,12 +1192,20 @@ extension CallTypeChecker {
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
                 let memberName = interner.resolve(calleeName)
-                guard memberName == "toString" || memberName == "replace" else {
+                // kotlinx.io.bytestring Base64 codec functions are bundled source
+                // extensions whose first parameter is ByteString, disjoint from
+                // every same-named kotlin.io.encoding.Base64 member's
+                // ByteArray/CharSequence source, so merging them is unambiguous.
+                guard memberName == "toString" || memberName == "replace"
+                    || memberName == "encode" || memberName == "decode"
+                    || memberName == "encodeToByteArray" || memberName == "encodeIntoByteArray"
+                    || memberName == "decodeIntoByteArray" || memberName == "encodeToAppendable"
+                else {
                     return []
                 }
                 if memberName == "toString" {
                     guard !args.isEmpty else { return [] }
-                } else {
+                } else if memberName == "replace" {
                     guard args.count == 2,
                           ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
                     else {
@@ -1222,7 +1230,7 @@ extension CallTypeChecker {
                     ) else {
                         return false
                     }
-                    if memberName == "toString" {
+                    if memberName != "replace" {
                         return true
                     }
 
