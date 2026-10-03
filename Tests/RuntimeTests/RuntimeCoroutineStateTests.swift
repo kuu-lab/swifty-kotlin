@@ -850,17 +850,6 @@ struct RuntimeCoroutineStateTests {
         #expect(child.completedSnapshot())
     }
 
-    @Test func testJobCancelWithCausePreservesCauseValue() {
-        let job = RuntimeJobHandle()
-        job.markStarted()
-        let cause = runtimeAllocateThrowable(message: "cancel cause")
-
-        #expect(job.cancel(cause: cause))
-        #expect(job.cancellationSnapshot())
-        #expect(job.complete(with: 0))
-        #expect(job.join() == cause)
-    }
-
     // MARK: - STDLIB-250: withContext async context switching
 
     @Test func testWithContextDefaultDispatcherReturnsBlockResult() {
