@@ -196,10 +196,20 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
+        // Only `lateinit` is carried over from the leading modifiers: it
+        // changes storage semantics (null-sentinel seeding, guarded reads,
+        // `::p.isInitialized`), whereas the others are still ignored here.
+        var modifiers: Modifiers = []
+        let declKeywordIndex = sanitized.firstIndex { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }
+            ?? sanitized.endIndex
+        if sanitized[..<declKeywordIndex].contains(where: { $0.kind == .keyword(.lateinit) }) {
+            modifiers.insert(.lateinit)
+        }
+
         return PropertyDecl(
             range: propertyRange,
             name: prefix.name,
-            modifiers: [],
+            modifiers: modifiers,
             type: prefix.typeAnnotation,
             isVar: prefix.isMutable,
             initializer: prefix.initializer,

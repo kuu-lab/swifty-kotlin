@@ -336,6 +336,7 @@ extension KIRLoweringDriver {
         // sees "already initialized" and does not recurse.
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+        emitSingletonLateinitSentinels(objectDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(
             objectDecl,
             objectSymbol: objectSymbol,

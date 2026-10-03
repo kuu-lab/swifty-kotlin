@@ -270,28 +270,13 @@ extension ExprLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let symbolInfo = sema.symbols.symbol(symbol),
-              symbolInfo.flags.contains(.lateinitProperty)
-        else {
-            return valueExpr
-        }
-        let propertyNameExpr = arena.appendExpr(
-            .stringLiteral(symbolInfo.name),
-            type: sema.types.stringType
+        CompilerCore.wrapLateinitReadIfNeeded(
+            valueExpr,
+            symbol: symbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
         )
-        instructions.append(.constValue(result: propertyNameExpr, value: .stringLiteral(symbolInfo.name)))
-        let result = arena.appendTemporary(type: arena.exprType(valueExpr) ?? sema.types.anyType
-        )
-        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
-        )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_lateinit_get_or_throw"),
-            arguments: [valueExpr, propertyNameExpr],
-            result: result,
-            canThrow: true,
-            thrownResult: thrownResult
-        ))
-        return result
     }
 }
