@@ -182,7 +182,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var loweredCallableID = loweredArgID
-        var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+        let callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if let originalCallableInfo = callableInfo,
            !originalCallableInfo.hasClosureParam,
            !adaptOnlyWhenCapturing || !originalCallableInfo.captureArguments.isEmpty,
@@ -210,18 +210,16 @@ extension CallLowerer {
                 hasClosureParam: adapted.hasClosureParam
             )
             loweredCallableID = adaptedExpr
-            callableInfo = adapted
         }
 
-        var finalArgs: [KIRExprID] = [loweredCallableID]
-        finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: callableInfo,
+        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+            loweredCallableID,
             sema: sema,
             arena: arena,
             interner: interner,
             instructions: &instructions
-        ))
-        return finalArgs
+        )
+        return [fnPtrExpr, envPtrExpr]
     }
 
     private func makeCollectionHOFSelectorArgument(

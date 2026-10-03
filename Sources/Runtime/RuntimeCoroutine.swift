@@ -3402,7 +3402,7 @@ public func kk_supervisor_scope_new() -> Int {
 
     // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
-    RuntimeCoroutineScope.current = scope
+    enterScopeOnCurrentContinuation(scope)
 
     return Int(bitPattern: ptr)
 }
@@ -3716,10 +3716,11 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     job.markStarted()
     job.continuationState = contState
     contState.jobHandle = job
-    // launcherArgs[0] is the suspend-entry receiver slot: the block's `this`
-    // (ProducerScope / ActorScope) is the channel handle; captures occupy the
-    // remaining slots, seeded by the call-site rewrite.
-    contState.launcherArgs[0] = Int64(channelHandle)
+    // Legacy launchers leave slot zero for the receiver; closure-first
+    // adapters seed both the closure and receiver at the call site.
+    if contState.launcherArgs[0] == nil {
+        contState.launcherArgs[0] = Int64(channelHandle)
+    }
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope

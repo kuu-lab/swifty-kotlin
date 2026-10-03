@@ -346,6 +346,89 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testSuspendProducerAndActorCallablesPreserveReceiverAndCaptures() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+
+        fun main() = runBlocking {
+            val base = 7
+            val producer = produce {
+                delay(1)
+                send(base + 1)
+                send(base * 10)
+            }
+            for (value in producer) println(value)
+            val offset = 100
+            val done = Channel<Int>(1)
+            val worker = actor<Int> {
+                for (value in channel) {
+                    delay(1)
+                    done.send(value + offset)
+                }
+            }
+            worker.send(2)
+            worker.close()
+            println(done.receive())
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendProducerActorCallableExecutable",
+            expectedStdout: "8\n70\n102\n"
+        )
+    }
+
+    @Test
+    func testBoxedRuntimeCallbacksExposeRawEntryPoints() throws {
+        let source = """
+        import kotlinx.io.*
+
+        fun main() {
+            val buffer = Buffer()
+            val stream = buffer.asOutputStream()
+            stream.write(65)
+            stream.flush()
+            stream.close()
+            println(buffer.readByte())
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "BoxedRuntimeCallbackExecutable",
+            expectedStdout: "65\n"
+        )
+    }
+
+    @Test
+    func testSuspendSupervisorScopeKeepsHandledFailuresIsolated() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            supervisorScope {
+                val child = async {
+                    delay(1)
+                    throw IllegalStateException("child")
+                }
+                try {
+                    child.await()
+                } catch (error: IllegalStateException) {
+                    println(error.message)
+                }
+            }
+            delay(1)
+            println("finished")
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendSupervisorScopeCallableExecutable",
+            expectedStdout: "child\nfinished\n"
+        )
+    }
+
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {

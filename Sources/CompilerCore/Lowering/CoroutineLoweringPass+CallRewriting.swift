@@ -196,6 +196,19 @@ extension CoroutineLoweringPass {
         // closure object to rebuild the launcher continuation below.
         var functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo] = [:]
         for instruction in function.body {
+            if case let .copy(from, to) = instruction,
+               let info = functionValueInfoByExprRaw[from.rawValue]
+            {
+                functionValueInfoByExprRaw[to.rawValue] = info
+            }
+            if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
+               rewrite.ctx.interner.resolve(callee) == "kk_function_value_fn_ptr",
+               let argument = arguments.first,
+               let result,
+               let info = functionValueInfoByExprRaw[argument.rawValue]
+            {
+                functionValueInfoByExprRaw[result.rawValue] = info
+            }
             guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
                   rewrite.ctx.interner.resolve(callee).hasPrefix("kk_function_create_"),
                   let result,
@@ -212,7 +225,7 @@ extension CoroutineLoweringPass {
                 symbol: functionSymbol,
                 callee: callee,
                 captureArguments: [arguments[1]],
-                hasClosureParam: false
+                hasClosureParam: true
             )
         }
         // STDLIB-CORO-BUG-01: a lowered suspend function's own continuation is
@@ -275,6 +288,7 @@ extension CoroutineLoweringPass {
             if let launcherInstructions = rewriteLauncherCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             ) {
                 loweredBody.append(contentsOf: launcherInstructions)
