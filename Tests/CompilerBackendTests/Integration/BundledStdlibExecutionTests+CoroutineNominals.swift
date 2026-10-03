@@ -2,6 +2,32 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
+    func testCoroutineScopeAmbientContext(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+
+            class ContextOwner(val coroutineContext: String) {
+                fun value(): String = coroutineContext
+            }
+
+            fun main() = runBlocking {
+                println(ContextOwner("custom").value())
+                println(coroutineContext.job.isActive)
+                supervisorScope {
+                    println(coroutineContext.isActive)
+                }
+                launch {
+                    println(coroutineContext.job.isActive)
+                }.join()
+            }
+            """,
+            expectedOutput: "custom\ntrue\ntrue\ntrue\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
     func testCoroutineNominalsPreserveJobBridges(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """
