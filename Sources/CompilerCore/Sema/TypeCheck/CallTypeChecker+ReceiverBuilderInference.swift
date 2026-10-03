@@ -23,6 +23,24 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
         guard let calleeName, locals[calleeName] == nil else { return nil }
+        // Coroutine launcher and sequence builders (`produce { }`,
+        // `runBlocking { }`, `sequence { }`, ...) have dedicated handling
+        // below that derives their element/result type from `send`/`yield`
+        // calls inside the block and marks the lambda for the receiver-first
+        // launcher ABI (launcher slot 0 carries the produced channel/scope).
+        // Letting generic builder inference intercept them would lose both
+        // specializations -- `produceIn` lowered with captures bound to the
+        // wrong launcher slots, so `source.collect` crashed in
+        // `__kk_flow_retain` (KUU-962 / flow_scope_launch_produce).
+        let launcherNames = KnownCompilerNames(interner: ctx.interner)
+        guard calleeName != launcherNames.produce,
+              calleeName != launcherNames.runBlocking,
+              calleeName != launcherNames.launch,
+              calleeName != launcherNames.async,
+              calleeName != launcherNames.coroutineScope,
+              calleeName != launcherNames.supervisorScope,
+              calleeName != launcherNames.sequenceFn
+        else { return nil }
         let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         guard candidates.count == 1,
               let candidate = candidates.first,

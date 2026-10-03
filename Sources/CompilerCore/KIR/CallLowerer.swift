@@ -1219,12 +1219,25 @@ final class CallLowerer {
             // implementation of an interface method, is otherwise bypassed.
             // SequenceScope calls use runtime-owned builder receivers, so their
             // remapped ABI entry points must remain direct calls.
+            //
+            // Source-declared callees (no link name) always take this path.
+            // Imported `kk_fn_*` members only take it when the callee is
+            // abstract: kklib emits a no-op stub for abstract declarations, so
+            // a direct call silently does nothing (KUU-962: `registerClause`
+            // inside `SelectBuilder` member extensions). Non-abstract
+            // `kk_fn_*` members (`external` runtime bridges like
+            // `MutableCollection.remove`, and members with real bodies) are
+            // callable directly — virtual dispatch on them would also break
+            // receivers whose runtime box never registered the interface
+            // itable (`kk_itable_lookup_dynamic` → dispatch error).
+            let chosenLinkName = sema.symbols.externalLinkName(for: chosen)
+            let isUnlinkedSourceCallee = chosenLinkName?.isEmpty ?? true
+            let isAbstractLinkedCallee = CallLowerer.isSourceBackedLinkName(chosenLinkName)
+                && !isUnlinkedSourceCallee
+                && sema.symbols.symbol(chosen)?.flags.contains(.abstractType) == true
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               // Source-backed callees — bundled or imported (`kk_fn_*`) —
-               // still need virtual dispatch; only runtime-bridge link
-               // names (`kk_channel_*`, ...) stay direct.
-               CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosen)),
+               isUnlinkedSourceCallee || isAbstractLinkedCallee,
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,
