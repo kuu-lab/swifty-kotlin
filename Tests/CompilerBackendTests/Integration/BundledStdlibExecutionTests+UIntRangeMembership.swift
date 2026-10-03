@@ -78,5 +78,44 @@ extension BundledStdlibExecutionTests {
             moduleName: "UIntRangeMembership"
         )
     }
+
+    // KSP-1311 regression: `in`/`!in` on unsigned ranges binds the
+    // `ClosedRange<T>.contains` interface residual, which carries no external
+    // link name. Through the precompiled stdlib artifact the symbol must still
+    // reach the `__kk_range_contains` bridge (UInt) or the bundled ULong
+    // implementation instead of emitting a bare `contains` reference.
+    @Test
+    func testInOperatorOnUnsignedRangesLinksThroughRangeBridge() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(3u in (1u..5u))
+                println(7u in (1u..5u))
+                println(7u !in (1u..5u))
+                println(3uL in (1uL..5uL))
+                println(7uL in (1uL..5uL))
+                println(7uL !in (1uL..5uL))
+                println(3 in (1..5))
+                println(7 !in (1..5))
+                println('c' in ('a'..'e'))
+                println('z' in ('a'..'e'))
+            }
+            """,
+            expectedOutput: """
+            true
+            false
+            true
+            true
+            false
+            true
+            true
+            true
+            true
+            false
+
+            """,
+            moduleName: "UnsignedRangeInOperator"
+        )
+    }
 }
 #endif

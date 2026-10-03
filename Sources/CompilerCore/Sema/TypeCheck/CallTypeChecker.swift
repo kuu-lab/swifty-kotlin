@@ -399,6 +399,29 @@ final class CallTypeChecker {
         // --- produce { ... } builder (CORO-075) ---
         if let calleeName,
            calleeName == knownNames.produce,
+           !args.isEmpty,
+           args.count <= 2,
+           locals[calleeName] == nil,
+           let lastArgumentExprID = args.last?.expr,
+           isLambdaOrCallableRefArg(lastArgumentExprID, ast: ast)
+        {
+            // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
+            // when it is visible; it composes channel + kk_coroutine_scope_launch
+            // in real Kotlin source, and its block is a boxed suspend lambda.
+            if let boundProduceResult = tryBindSourceBackedProduceCall(
+                id,
+                calleeName: calleeName,
+                args: args,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectedType,
+                ast: ast
+            ) {
+                return boundProduceResult
+            }
+        }
+        if let calleeName,
+           calleeName == knownNames.produce,
            args.count == 1,
            locals[calleeName] == nil
         {

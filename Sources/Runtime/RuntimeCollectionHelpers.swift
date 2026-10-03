@@ -136,6 +136,10 @@ private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
 // own vtable method count (2 slots) is untouched by KSP-960, which only
 // changes Collection's synthetic member registration.
 private let runtimeCollectionSizeGetterSlot = 4
+private let runtimeCollectionIsEmptyMethodSlot = 0
+private let runtimeListIteratorAtMethodSlot = 1
+private let runtimeMutableListSubListMethodSlot = 0
+private let runtimeMutableListSetMethodSlot = 1
 // Map properties are ordered alphabetically after Map's two methods:
 // entries, keys, size, values.
 private let runtimeMapEntriesGetterSlot = 2
@@ -146,6 +150,9 @@ private let runtimeMapIsEmptyMethodSlot = 0
 private let runtimeMapGetMethodSlot = 1
 private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.List"
+)
+private let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableList"
 )
 private let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableCollection"
@@ -188,6 +195,19 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     return result
 }
 
+/// Dispatch a source-defined Collection.isEmpty override. A custom List may
+/// implement this independently of size, so deriving it from size is not
+/// equivalent to calling the member.
+@inline(__always)
+func runtimeSourceCollectionIsEmpty(_ rawValue: Int) -> Int? {
+    runtimeSourceInterfaceCall0(
+        rawValue,
+        interfaceTypeID: runtimeCollectionSizeInterfaceTypeID,
+        methodSlot: runtimeCollectionIsEmptyMethodSlot,
+        context: "Collection.isEmpty dispatch"
+    )
+}
+
 /// Calls a source implementation of `List.get` when the receiver is a
 /// source-backed object rather than one of the runtime's native list boxes.
 /// `List.get` occupies the first method slot in List's own interface table.
@@ -213,6 +233,66 @@ func runtimeSourceListGet(
         )
     }
     return result
+}
+
+/// List.listIterator(index) is slot 1 of List's own methods.
+@inline(__always)
+func runtimeSourceListIteratorAt(
+    _ rawValue: Int,
+    index: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        index,
+        interfaceTypeID: runtimeListGetInterfaceTypeID,
+        methodSlot: runtimeListIteratorAtMethodSlot,
+        context: "List.listIterator(index) dispatch",
+        outThrown: outThrown
+    )
+}
+
+/// MutableList.subList(fromIndex, toIndex) delegates to the source method to
+/// preserve the implementation's live view.
+@inline(__always)
+func runtimeSourceMutableListSubList(
+    _ rawValue: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMutableListInterfaceTypeID),
+        runtimeMutableListSubListMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, fromIndex, toIndex, outThrown)
+}
+
+/// Route writes to Kotlin-defined mutable-list implementations and views.
+@inline(__always)
+func runtimeSourceMutableListSet(
+    _ rawValue: Int,
+    index: Int,
+    element: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMutableListInterfaceTypeID),
+        runtimeMutableListSetMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, index, element, outThrown)
 }
 
 /// Calls the source `MutableCollection.add` implementation through its own
@@ -1670,6 +1750,30 @@ private func runtimeNullablePrimitiveEqualityCheck(
     peerRaw: Int,
     peerIsNullable: Int
 ) -> Bool {
+    if peerIsNullable >= 2 {
+        // Kotlin `P? == P` on floating point is IEEE-754 once nullness is
+        // ruled out (`-0.0 == 0.0`, `NaN != NaN`) — not the boxed `equals`
+        // bit-pattern compare runtimeNonNullValuesEqual uses. Flags 2/3 mark
+        // a provably non-null raw Double/Float peer; 4/5 mark a Double?/
+        // Float? slot whose sentinel still means null. The operands may be
+        // raw words or registered (possibly tagged) boxes;
+        // runtimeFloatingBoxBitPattern exposes a box's payload and a raw
+        // non-null word passes through as its own bit pattern.
+        let nullableIsNull = nullableRaw == runtimeNullSentinelInt
+        let peerIsNull = (peerIsNullable == 4 || peerIsNullable == 5)
+            && peerRaw == runtimeNullSentinelInt
+        if nullableIsNull || peerIsNull {
+            return nullableIsNull && peerIsNull
+        }
+        let lhsBits = runtimeFloatingBoxBitPattern(nullableRaw) ?? nullableRaw
+        let rhsBits = runtimeFloatingBoxBitPattern(peerRaw) ?? peerRaw
+        if peerIsNullable == 2 || peerIsNullable == 4 {
+            return Double(bitPattern: UInt64(bitPattern: Int64(lhsBits)))
+                == Double(bitPattern: UInt64(bitPattern: Int64(rhsBits)))
+        }
+        return Float(bitPattern: UInt32(truncatingIfNeeded: lhsBits))
+            == Float(bitPattern: UInt32(truncatingIfNeeded: rhsBits))
+    }
     let nullableIsNull = nullableRaw == runtimeNullSentinelInt
     let peerIsNull = peerIsNullable != 0 && peerRaw == runtimeNullSentinelInt
     if nullableIsNull || peerIsNull {

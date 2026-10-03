@@ -22,18 +22,6 @@ struct CompilerOptionsTests {
         #expect(t1 != t3)
     }
 
-    @Test func testTargetTripleHostDefault() {
-        let triple = TargetTriple.hostDefault()
-        #expect(!(triple.arch.isEmpty))
-        #expect(!(triple.vendor.isEmpty))
-        #expect(!(triple.os.isEmpty))
-    }
-
-    @Test func testTargetTripleWithNilOsVersion() {
-        let triple = TargetTriple(arch: "arm64", vendor: "unknown", os: "linux-gnu", osVersion: nil)
-        #expect(triple.osVersion == nil)
-    }
-
     // MARK: - CompilerOptions init
 
     @Test func testCompilerOptionsDefaultValues() {

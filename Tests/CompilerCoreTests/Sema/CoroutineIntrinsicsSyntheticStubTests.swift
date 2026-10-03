@@ -245,23 +245,26 @@ struct CoroutineIntrinsicsSyntheticStubTests {
     }
 
     @Test
-    func testNoReceiverStartCoroutineResidualStubIsRegisteredWithoutStdlib() throws {
-        let (sema, interner) = try sharedSema()
+    func testStartCoroutineUninterceptedOrReturnOverloadsAreRegistered() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let fqName = ["kotlin", "coroutines", "intrinsics", "startCoroutineUninterceptedOrReturn"].map {
             interner.intern($0)
         }
         let symbols = sema.symbols.lookupAll(fqName: fqName)
-        #expect(symbols.count == 1)
+        #expect(symbols.count == 2)
 
         let signatures = symbols.compactMap { sema.symbols.functionSignature(for: $0) }
-        #expect(signatures.count == 1)
+        #expect(signatures.count == 2)
         #expect(symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         #expect(symbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.inlineFunction) == true })
         #expect(signatures.allSatisfy { $0.receiverType != nil })
         #expect(signatures.allSatisfy { $0.returnType == sema.types.nullableAnyType })
         #expect(signatures.contains(where: { $0.parameterTypes.count == 1 && $0.typeParameterSymbols.count == 1 }))
-        #expect(!signatures.contains(where: { $0.parameterTypes.count == 2 }))
+        #expect(signatures.contains(where: { $0.parameterTypes.count == 2 && $0.typeParameterSymbols.count == 2 }))
     }
 
     @Test
@@ -414,21 +417,29 @@ struct CoroutineIntrinsicsSyntheticStubTests {
 
     @Test
     func testStartCoroutineUninterceptedOrReturnResolvesInSource() throws {
-        let (ctx, paths) = try sharedCtx()
-        let path = paths[3]
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
+        // The no-receiver overload is bundled Kotlin source (SuspendFunction0.kt),
+        // so this needs the bundled stdlib that the shared context omits.
+        try withTemporaryFile(contents: Self.sharedSources[3]) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
 
-        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
-            guard case let .memberCall(_, memberName, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(memberName) == "startCoroutineUninterceptedOrReturn"
-        })
+            let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .memberCall(_, memberName, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(memberName) == "startCoroutineUninterceptedOrReturn"
+            })
 
-        let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-        #expect(sema.bindings.exprTypes[callExpr] == sema.types.nullableAnyType)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.nullableAnyType)
+        }
     }
 
     private func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {

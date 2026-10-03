@@ -66,7 +66,7 @@ expr e@22:20 name(value) type=UInt ref=golden.sema.uintRangeContainsUInt.$5.valu
 expr e@22:5#1 memberCall recv=e@22:5 callee=contains args=[_:e@22:20] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[UInt]
 expr e@25:5 name(value) type=UInt ref=golden.sema.uintRangeContainsUIntIn.$6.value[kind=vparam]
 expr e@25:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUIntIn.$6.range[kind=vparam]
-expr e@25:5#1 inExpr lhs=e@25:5 rhs=e@25:14 type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UInt]
+expr e@25:5#1 inExpr lhs=e@25:5 rhs=e@25:14 type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[UInt]
 expr e@28:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByteNamed.$3.range[kind=vparam]
 expr e@28:28 name(value) type=UByte ref=golden.sema.uintRangeContainsUByteNamed.$3.value[kind=vparam]
 expr e@28:5#1 memberCall recv=e@28:5 callee=contains args=[value:e@28:28] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UByte]
