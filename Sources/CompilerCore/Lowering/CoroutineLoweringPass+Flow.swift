@@ -167,11 +167,13 @@ extension CoroutineLoweringPass {
         // nested `collect { emit(it) }` callback) — so receivers that happen
         // to declare their own `emit` member keep normal dispatch.
         var functionNameBySymbol: [SymbolID: InternedString] = [:]
+        var functionSymbolsByName: [InternedString: [SymbolID]] = [:]
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else {
                 continue
             }
             functionNameBySymbol[function.symbol] = function.name
+            functionSymbolsByName[function.name, default: []].append(function.symbol)
         }
         var flowScopeFunctionSymbols: Set<SymbolID> = []
         var flowScopeFunctionNames: Set<InternedString> = []
@@ -184,6 +186,9 @@ extension CoroutineLoweringPass {
         // Symbols that directly reference a module-declared function from an
         // instruction: `constValue(.symbolRef)` values plus the `symbol` field
         // of direct calls (used by `kk_function_value_adapter_*` forwarders).
+        // Suspend machinery calls lowered copies through `$kk_coro_synthetic_*`
+        // Sema symbols the arena cannot resolve, so the callee name is also
+        // mapped back onto module declarations.
         func referencedFunctionSymbols(
             in instruction: KIRInstruction,
             symbolByExprRaw: [Int32: SymbolID]
@@ -192,10 +197,13 @@ extension CoroutineLoweringPass {
             switch instruction {
             case let .constValue(_, .symbolRef(symbol)):
                 symbols.append(symbol)
-            case let .call(symbol, _, arguments, _, _, _, _, _),
-                 let .virtualCall(symbol, _, _, arguments, _, _, _, _):
+            case let .call(symbol, callee, arguments, _, _, _, _, _),
+                 let .virtualCall(symbol, callee, _, arguments, _, _, _, _):
                 if let symbol {
                     symbols.append(symbol)
+                }
+                if let byName = functionSymbolsByName[callee] {
+                    symbols.append(contentsOf: byName)
                 }
                 for argument in arguments {
                     if let symbol = symbolByExprRaw[argument.rawValue] {
@@ -230,6 +238,39 @@ extension CoroutineLoweringPass {
             kkFlowFlatMapConcatName, kkFlowFlatMapMergeName, kkFlowFlatMapLatestName,
             kkFlowZipName, kkFlowCombineName, kkFlowMergeName,
         ]
+        // Container writes that carry a callback into an object or
+        // continuation feeding a flow call: `kk_array_set(obj, i, v)` and
+        // `kk_coroutine_launcher_arg_set(cont, i, v)`. kklib-imported call
+        // shapes route `flow`/`collect` arguments through these slots
+        // (e.g. `.map { }` lowering where the lambda is packed into the
+        // collector object next to `externSymbolAddress` launcher thunks).
+        let containerWriteCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_array_set"),
+            ctx.interner.intern("kk_coroutine_launcher_arg_set"),
+        ]
+        func inputExprs(of instruction: KIRInstruction) -> [KIRExprID] {
+            switch instruction {
+            case let .call(_, _, arguments, _, _, _, _, _):
+                return arguments
+            case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
+                return [receiver] + arguments
+            case let .copy(from, _):
+                return [from]
+            case let .binary(_, lhs, rhs, _):
+                return [lhs, rhs]
+            case let .unary(_, operand, _), let .nullAssert(operand, _):
+                return [operand]
+            case let .jumpIfEqual(lhs, rhs, _):
+                return [lhs, rhs]
+            case let .jumpIfNotNull(value, _), let .rethrow(value),
+                 let .returnValue(value), let .storeGlobal(value, _):
+                return [value]
+            case let .nonLocalReturn(value):
+                return value.map { [$0] } ?? []
+            default:
+                return []
+            }
+        }
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else {
                 continue
@@ -238,6 +279,62 @@ extension CoroutineLoweringPass {
             for instruction in function.body {
                 if case let .constValue(result, .symbolRef(symbol)) = instruction {
                     symbolByExprRaw[result.rawValue] = symbol
+                }
+            }
+            var propagatedSeedSymbols = true
+            while propagatedSeedSymbols {
+                propagatedSeedSymbols = false
+                for instruction in function.body {
+                    if case let .copy(from, to) = instruction,
+                       let symbol = symbolByExprRaw[from.rawValue],
+                       symbolByExprRaw[to.rawValue] == nil
+                    {
+                        symbolByExprRaw[to.rawValue] = symbol
+                        propagatedSeedSymbols = true
+                    }
+                }
+            }
+            var producerByResultRaw: [Int32: KIRInstruction] = [:]
+            var writtenValuesByTargetRaw: [Int32: [KIRExprID]] = [:]
+            for instruction in function.body {
+                switch instruction {
+                case let .copy(from, to):
+                    writtenValuesByTargetRaw[to.rawValue, default: []].append(from)
+                case let .call(_, callee, arguments, result, _, _, _, _):
+                    if let result {
+                        producerByResultRaw[result.rawValue] = instruction
+                    }
+                    if arguments.count == 3, containerWriteCallees.contains(callee) {
+                        writtenValuesByTargetRaw[arguments[0].rawValue, default: []]
+                            .append(arguments[2])
+                    }
+                case let .virtualCall(_, _, _, _, result, _, _, _):
+                    if let result {
+                        producerByResultRaw[result.rawValue] = instruction
+                    }
+                default:
+                    break
+                }
+            }
+            // Bounded closure from a flow-call argument to every expression
+            // that produced it or was written into the containers carrying it,
+            // so indirect callback shapes still resolve to a lambda symbol.
+            func seedFlowArgumentClosure(_ root: KIRExprID) {
+                var queue: [KIRExprID] = [root]
+                var seen: Set<Int32> = []
+                while let expr = queue.popLast() {
+                    guard seen.insert(expr.rawValue).inserted else {
+                        continue
+                    }
+                    if let symbol = symbolByExprRaw[expr.rawValue] {
+                        addFlowScopeSymbol(symbol)
+                    }
+                    if let producer = producerByResultRaw[expr.rawValue] {
+                        queue.append(contentsOf: inputExprs(of: producer))
+                    }
+                    if let writes = writtenValuesByTargetRaw[expr.rawValue] {
+                        queue.append(contentsOf: writes)
+                    }
                 }
             }
             for instruction in function.body {
@@ -255,24 +352,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
                 for lambdaArg in arguments {
-                    if let symbol = symbolByExprRaw[lambdaArg.rawValue] {
-                        addFlowScopeSymbol(symbol)
-                    } else {
-                        // The lambda may be materialized as a `kk_function_create_*`
-                        // closure or `kk_function_value_adapter_*`: harvest function
-                        // symbols from the instruction that produced the argument.
-                        for producer in function.body {
-                            guard case let .call(_, _, _, result, _, _, _, _) = producer,
-                                  result == lambdaArg
-                            else {
-                                continue
-                            }
-                            for symbol in referencedFunctionSymbols(in: producer, symbolByExprRaw: symbolByExprRaw)
-                            where module.arena.function(for: symbol) != nil {
-                                addFlowScopeSymbol(symbol)
-                            }
-                        }
-                    }
+                    seedFlowArgumentClosure(lambdaArg)
                     // Convention-based fallback for synthetic lambda names,
                     // mirroring FlowLoweringPass.
                     flowScopeFunctionNames.insert(
@@ -285,34 +365,38 @@ extension CoroutineLoweringPass {
             flowScopeFunctionSymbols.contains(function.symbol)
                 || flowScopeFunctionNames.contains(function.name)
         }
-        var expandedFlowScope = true
-        while expandedFlowScope {
-            expandedFlowScope = false
-            for decl in module.arena.declarations {
-                guard case let .function(function) = decl,
-                      isFlowScopeFunction(function)
-                else {
-                    continue
+        // Worklist BFS: scan each in-scope function once; newly discovered
+        // functions are queued for their own scan.
+        var flowScopeWorklist: [SymbolID] = []
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  isFlowScopeFunction(function)
+            else {
+                continue
+            }
+            flowScopeWorklist.append(function.symbol)
+        }
+        while let scopeSymbol = flowScopeWorklist.popLast() {
+            guard let function = module.arena.function(for: scopeSymbol) else {
+                continue
+            }
+            var symbolByExprRaw: [Int32: SymbolID] = [:]
+            for instruction in function.body {
+                if case let .constValue(result, .symbolRef(symbol)) = instruction {
+                    symbolByExprRaw[result.rawValue] = symbol
                 }
-                var symbolByExprRaw: [Int32: SymbolID] = [:]
-                for instruction in function.body {
-                    if case let .constValue(result, .symbolRef(symbol)) = instruction {
-                        symbolByExprRaw[result.rawValue] = symbol
+            }
+            for instruction in function.body {
+                for symbol in referencedFunctionSymbols(in: instruction, symbolByExprRaw: symbolByExprRaw)
+                where module.arena.function(for: symbol) != nil
+                    && flowScopeFunctionSymbols.insert(symbol).inserted {
+                    if let name = functionNameBySymbol[symbol] {
+                        flowScopeFunctionNames.insert(name)
                     }
-                }
-                for instruction in function.body {
-                    for symbol in referencedFunctionSymbols(in: instruction, symbolByExprRaw: symbolByExprRaw)
-                    where module.arena.function(for: symbol) != nil
-                        && flowScopeFunctionSymbols.insert(symbol).inserted {
-                        if let name = functionNameBySymbol[symbol] {
-                            flowScopeFunctionNames.insert(name)
-                        }
-                        expandedFlowScope = true
-                    }
+                    flowScopeWorklist.append(symbol)
                 }
             }
         }
-
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
 
