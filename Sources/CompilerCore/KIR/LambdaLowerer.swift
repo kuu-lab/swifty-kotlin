@@ -535,6 +535,7 @@ final class LambdaLowerer {
            !needsClosureParam,
            !isSamConversion,
            !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
+           !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
            let functionType
         {
             if let materialized = materializeEscapingCallableValue(
@@ -775,7 +776,7 @@ final class LambdaLowerer {
             symbol: adapterSymbol,
             callee: adapterName,
             captureArguments: [closureObj],
-            hasClosureParam: false
+            hasClosureParam: true
         )
         return materializedExpr
     }

@@ -2794,6 +2794,13 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            if sema.symbols.externalLinkName(for: chosen) == "__kk_deep_recursive_function_new" {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markRawSuspendEntryLambdaExpr(argument.expr)
+                    }
+                }
+            }
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // Mark the lambda only after overload resolution selects the bundled

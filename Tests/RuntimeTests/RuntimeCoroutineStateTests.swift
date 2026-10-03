@@ -273,9 +273,20 @@ struct RuntimeCoroutineStateTests {
         #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == 0)
     }
 
-    @Test func testDirectSuspendCallReturnsImmediateChildResult() {
+    @Test func testDirectSuspendCallReturnsImmediateChildResult() throws {
         let callerContinuation = kk_coroutine_continuation_new(9108)
         defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+        let callerState = try #require(runtimeContinuationState(from: callerContinuation))
+        let taskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousState = RuntimeContinuationState.current
+        let previousJob = RuntimeJobHandle.current
+        defer {
+            RuntimeContinuationState.installState(previousState, forTask: taskKey)
+            RuntimeJobHandle.current = previousJob
+        }
+        let job = RuntimeJobHandle()
+        RuntimeContinuationState.current = callerState
+        RuntimeJobHandle.current = job
         let childContinuation = kk_coroutine_continuation_new(9109)
         let entryRaw = unsafeBitCast(
             runtime_test_direct_suspend_immediate as RuntimeTestSuspendEntry,
@@ -291,6 +302,9 @@ struct RuntimeCoroutineStateTests {
         #expect(result == 123)
         #expect(result != Int(bitPattern: kk_coroutine_suspended()))
         #expect(kk_coroutine_state_get_completion(callerContinuation) == 123)
+        #expect(RuntimeCoroutineScopeTaskKey.currentTaskKey == taskKey)
+        #expect(RuntimeContinuationState.current === callerState)
+        #expect(RuntimeJobHandle.current === job)
     }
 
     @Test func testLauncherArgSetAndGetRoundTrips() {

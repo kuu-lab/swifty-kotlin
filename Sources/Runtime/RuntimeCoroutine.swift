@@ -1913,6 +1913,12 @@ public func kk_coroutine_call_direct_suspend(
     guard let callerState = runtimeContinuationState(from: callerContinuationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_call_direct_suspend received invalid caller continuation handle")
     }
+    let callerTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let callerJobHandle = RuntimeJobHandle.current
+    defer {
+        RuntimeCoroutineScopeTaskKey.installKey(callerTaskKey)
+        RuntimeJobHandle.current = callerJobHandle
+    }
     let childState = runtimeContinuationState(from: childContinuation)
     if let childState {
         childState.scope = callerState.scope
@@ -2696,11 +2702,19 @@ public func kk_kxmini_run_blocking_with_cont(
     // Forward `outThrown` so an exception thrown by the blocking body reaches the
     // caller. Callers (e.g. the `runBlocking`/suspend-value thunks) branch on this
     // slot to rethrow; dropping it silently swallowed the exception.
-    return runtimeRunBlockingOnEventLoop(
-        entryPointRaw: entryPointRaw,
-        continuation: continuation,
-        outThrown: outThrown
-    )
+    let ownedJob = contState?.jobHandle == nil ? RuntimeJobHandle() : nil
+    if let ownedJob {
+        ownedJob.markStarted()
+        ownedJob.continuationState = contState
+        contState?.jobHandle = ownedJob
+    }
+    return withExtendedLifetime(ownedJob) {
+        runtimeRunBlockingOnEventLoop(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("kk_suspend_coroutine")
@@ -3860,6 +3874,7 @@ private func runTimeoutBlock(
     let blockContinuation = kk_coroutine_continuation_new(entryPointRaw)
     let blockJob = RuntimeJobHandle()
     if let blockState = runtimeContinuationState(from: blockContinuation) {
+        blockState.launcherArgs = runtimeContinuationState(from: continuation)?.launcherArgs ?? [:]
         blockState.scope = scope
         blockState.jobHandle = blockJob
         blockJob.continuationState = blockState

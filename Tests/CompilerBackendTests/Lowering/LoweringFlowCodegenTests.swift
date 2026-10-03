@@ -267,6 +267,49 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testSuspendBlocksPreserveCapturesInContextAndTimeout() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            val captured = 40
+            println(withTimeout(1000) { delay(1); captured + 1 })
+            println(withTimeoutOrNull(1000) { delay(1); captured + 2 })
+            println(withContext(Dispatchers.Default) { delay(1); captured + 3 })
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendBlockCapturesExecutable",
+            expectedStdout: "41\n42\n43\n"
+        )
+    }
+
+    @Test
+    func testSuspendPredicatesPreserveBooleanResultsAndCallerContext() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        suspend fun predicate(block: suspend (Int) -> Boolean): Boolean = block(2)
+
+        fun main() = runBlocking {
+            val limit = 30
+            println(predicate { delay(1); it <= limit })
+            println(predicate { delay(1); it > limit })
+            println(flowOf(1, 2, 3, 4).map { it * 10 }
+                .takeWhile { it <= limit }.dropWhile { it < 20 }.toList())
+            println(coroutineContext.job.isActive)
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "SuspendBooleanResultsExecutable",
+            expectedStdout: "true\nfalse\n[20, 30]\ntrue\n"
+        )
+    }
+
+    @Test
     func testSuspendReceiverCallableUnwindsBeforeJoin() throws {
         let source = """
         import kotlinx.coroutines.*

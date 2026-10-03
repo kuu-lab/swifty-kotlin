@@ -308,6 +308,7 @@ extension CoroutineLoweringPass {
             if let withContextInstructions = rewriteWithContextCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             ) {
                 loweredBody.append(contentsOf: withContextInstructions)
@@ -317,6 +318,7 @@ extension CoroutineLoweringPass {
             if let withTimeoutInstructions = rewriteWithTimeoutCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             ) {
                 loweredBody.append(contentsOf: withTimeoutInstructions)
@@ -872,6 +874,7 @@ extension CoroutineLoweringPass {
     func rewriteWithContextCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.withContextCallee,
@@ -887,7 +890,12 @@ extension CoroutineLoweringPass {
         }
 
         let dispatcherExpr = call.arguments[0]
-        let extraArgs = Array(call.arguments.dropFirst(2))
+        let extraArgs = blockLauncherArguments(
+            for: call,
+            referencedSymbol: referencedSymbol,
+            functionValueInfoByExprRaw: functionValueInfoByExprRaw,
+            using: rewrite
+        )
         let targetArity = rewrite.suspendFunctionArityBySymbol[referencedSymbol] ?? 0
         guard extraArgs.count == targetArity else {
             rewrite.ctx.diagnostics.error(
@@ -1111,6 +1119,7 @@ extension CoroutineLoweringPass {
     func rewriteWithTimeoutCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         let runtimeCallee: InternedString
@@ -1134,7 +1143,12 @@ extension CoroutineLoweringPass {
         }
 
         let timeMillisExpr = call.arguments[0]
-        let extraArgs = Array(call.arguments.dropFirst(2))
+        let extraArgs = blockLauncherArguments(
+            for: call,
+            referencedSymbol: referencedSymbol,
+            functionValueInfoByExprRaw: functionValueInfoByExprRaw,
+            using: rewrite
+        )
         let targetArity = rewrite.suspendFunctionArityBySymbol[referencedSymbol] ?? 0
         guard extraArgs.count == targetArity else {
             rewrite.ctx.diagnostics.error(
@@ -1202,6 +1216,22 @@ extension CoroutineLoweringPass {
             thrownResult: call.thrownResult
         ))
         return rewritten
+    }
+
+    private func blockLauncherArguments(
+        for call: CallRewriteInput,
+        referencedSymbol: SymbolID,
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRExprID] {
+        if call.arguments.count > 2 {
+            return Array(call.arguments.dropFirst(2))
+        }
+        guard let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[1])
+            ?? functionValueInfoByExprRaw[call.arguments[1].rawValue],
+            callableInfo.symbol == referencedSymbol
+        else { return [] }
+        return callableInfo.captureArguments
     }
 
     func rewriteYieldCall(
