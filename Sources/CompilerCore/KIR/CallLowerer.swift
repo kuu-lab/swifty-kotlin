@@ -768,7 +768,15 @@ final class CallLowerer {
             }
             return loweredCollectionFactory
         }
+        // Numeric conversions take no value parameters, so a resolved callee
+        // that consumes the single argument (e.g. an implicit-receiver
+        // `toInt(radix)` inside a `String` extension) is a real call, not a
+        // conversion of that argument.
+        let chosenConsumesArgument = chosen
+            .flatMap { sema.symbols.functionSignature(for: $0) }
+            .map { $0.parameterTypes.count == args.count } ?? false
         if args.count == 1,
+           !chosenConsumesArgument,
            let loweredNumericConversion = lowerTopLevelNumericConversionCall(
                sourceCalleeName: sourceCalleeName,
                argumentExpr: args[0].expr,

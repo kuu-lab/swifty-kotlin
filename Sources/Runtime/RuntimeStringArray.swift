@@ -2402,7 +2402,7 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2431,7 +2431,7 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2636,6 +2636,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let rendered = runtimeRenderIndexedValueObject(value, render: runtimeRenderAnyForPrint) {
         return rendered
+    }
+    if let resultBox = tryCast(raw, to: RuntimeResultBox.self) {
+        return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
     }
     return "<object \(raw)>"
 }
