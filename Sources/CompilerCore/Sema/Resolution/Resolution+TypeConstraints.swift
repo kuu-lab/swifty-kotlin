@@ -658,7 +658,9 @@ extension OverloadResolver {
             if case let .functionType(subFunc) = subtypeKind,
                subFunc.params.count == superFunc.params.count,
                subFunc.contextReceivers.count == superFunc.contextReceivers.count,
-               subFunc.isSuspend == superFunc.isSuspend,
+               // A non-suspend function is usable wherever a suspend one is
+               // expected (`() -> T <: suspend () -> T`), but not vice versa.
+               superFunc.isSuspend || !subFunc.isSuspend,
                subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable,
                receiverShapesMatch
             {

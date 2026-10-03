@@ -43,5 +43,15 @@ fun main() = runBlocking {
         yield()
         "suspended"
     } })
+    // KUU-962: R must flow from the clause callback's return type into
+    // SelectBuilder<R> -- untyped select, expected-type, and inferred select
+    // over a non-String element all rely on that connection.
+    strings.send("infer")
+    println(select { strings.onReceive { "infer:$it" } })
+    strings.send("exp")
+    val expectedType: String = select { strings.onReceive { "exp:$it" } }
+    println(expectedType)
+    channel.send(11)
+    println(select { channel.onReceive { "nint:$it" } })
     println("done")
 }

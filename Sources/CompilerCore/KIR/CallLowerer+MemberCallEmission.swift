@@ -207,10 +207,31 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: [KIRExprID],
         sourceArgExprs: [ExprID] = [],
-        sourceArgLabels: [InternedString?] = []
+        sourceArgLabels: [InternedString?] = [],
+        callExprID: ExprID? = nil
     ) {
         let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
+        // Member extensions (`fun T.m(...)` declared inside a class or
+        // interface) take a dispatch receiver (`this@Owner`) ahead of the
+        // extension receiver the call-site receiver already supplies at
+        // argument slot 0. Thread the enclosing receiver through so the
+        // body sees [dispatch, extension, args].
+        var memberExtensionDispatchReceiver: KIRExprID?
+        if let chosenCallee,
+           let memberExtOwner = memberExtensionOwnerSymbol(for: chosenCallee, sema: sema),
+           let ownerInfo = sema.symbols.symbol(memberExtOwner)
+        {
+            let dispatchReceiver = callExprID
+                .flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
+                .flatMap { driver.ctx.localValue(for: $0) }
+                ?? driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name)
+                ?? driver.ctx.activeImplicitReceiverExprID()
+            if let dispatchReceiver {
+                memberExtensionDispatchReceiver = dispatchReceiver
+                finalArguments.insert(dispatchReceiver, at: 0)
+            }
+        }
         // Enum entry implementations are stored as ordinary functions whose
         // first argument is the ordinal-backed enum value. Route the resolved
         // enum member through the predeclared ordinal dispatcher before any
@@ -300,6 +321,15 @@ extension CallLowerer {
         // either way), but silently dropping any captured values (`bonus`)
         // for one that does capture, since nothing ever threaded the actual
         // closure environment through.
+        // Member-extension calls carry TWO leading receiver slots here --
+        // [dispatch, extension, ...valueArgs] once the dispatch receiver was
+        // inserted above -- while the callee signature counts only the
+        // extension receiver. Without the override, value-parameter index 0
+        // (e.g. a `suspend (E) -> R` block) would be matched against the
+        // extension receiver slot, so its function value silently stayed a
+        // raw `symbolRef` and crossed the kklib boundary with an ABI the
+        // callee's kk_suspend_function_invoke cannot drive (aggregate
+        // params, KUU-962).
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -307,7 +337,8 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: &finalArguments
+            arguments: &finalArguments,
+            valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil
         )
         if normalized.defaultMask != 0,
            let chosenCallee,
@@ -786,7 +817,8 @@ extension CallLowerer {
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
-               receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
+               receiverExpr: memberExtensionDispatchReceiver == nil ? receiver.expr : nil,
+               loweredReceiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
                result: result, sema: sema, arena: arena, interner: interner
            )
@@ -1107,5 +1139,28 @@ extension CallLowerer {
             envPtrExpr = closureRawResult
         }
         return (fnPtrExpr, envPtrExpr)
+    }
+}
+
+extension CallLowerer {
+    /// The enclosing class/interface of a member extension (`fun T.m(...)`
+    /// declared inside a type). Member extensions carry a dispatch receiver
+    /// (`this@Owner`) ahead of the call-site extension receiver, so callers
+    /// and declarations must agree on the [dispatch, extension, args] shape.
+    /// A plain member's signature receiver is the owner type itself and is
+    /// excluded, as is a top-level extension (which has no owner type).
+    func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
+        guard let signature = sema.symbols.functionSignature(for: callee),
+              let receiverType = signature.receiverType,
+              let owner = sema.symbols.parentSymbol(for: callee),
+              let ownerInfo = sema.symbols.symbol(owner),
+              [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+        else { return nil }
+        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+           classType.classSymbol == owner
+        {
+            return nil
+        }
+        return owner
     }
 }

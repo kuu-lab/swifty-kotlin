@@ -1152,6 +1152,16 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
+            // Inside a member-extension body the active implicit receiver is
+            // the extension receiver, but an unqualified call to an enclosing
+            // member must dispatch on the `this@Owner` parameter instead.
+            if implicitReceiver == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let ownerName = sema.symbols.symbol(owner)?.name,
+               let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName)
+            {
+                implicitReceiver = qualifiedThis
+            }
             if implicitReceiver == nil {
                 implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
                 // A bare call inside an object literal can resolve to a member of
@@ -1211,7 +1221,10 @@ final class CallLowerer {
             // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
+               // Source-backed callees — bundled or imported (`kk_fn_*`) —
+               // still need virtual dispatch; only runtime-bridge link
+               // names (`kk_channel_*`, ...) stay direct.
+               CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosen)),
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,

@@ -501,6 +501,39 @@ final class MemberLowerer {
         var params: [KIRParameter] = []
         if let signature {
             if let receiverType = signature.receiverType {
+                // Member extensions (`fun T.m(...)` declared inside a class or
+                // interface) carry two receivers: the dispatch receiver
+                // (`this@Owner`, the enclosing instance) followed by the
+                // extension receiver (bare `this`). Emit the dispatch receiver
+                // as an implicit leading parameter so calls lower to
+                // [dispatch, extension, args] like JVM member extensions.
+                if function.receiverType != nil,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                   [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map {
+                            .invariant(sema.types.make(.typeParam(TypeParamType(
+                                symbol: $0,
+                                nullability: .nonNull
+                            ))))
+                        }
+                    let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol,
+                        args: ownerArgs,
+                        nullability: .nonNull
+                    )))
+                    let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                    params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                    let dispatchReceiverExpr = arena.appendExpr(
+                        .symbolRef(dispatchReceiverSymbol),
+                        type: dispatchReceiverType
+                    )
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                    driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                }
                 let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol)
                 params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
                 driver.ctx.setImplicitReceiver(

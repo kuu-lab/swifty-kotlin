@@ -345,7 +345,7 @@ extension DataFlowSemaPhase {
             from: functionType,
             types: types
         )
-        let classTypeParameterCount = ownerNominalTypeParameterCount(
+        var classTypeParameterCount = ownerNominalTypeParameterCount(
             of: functionType,
             record: record,
             symbols: symbols,
@@ -388,6 +388,29 @@ extension DataFlowSemaPhase {
             if isWellFormed, restored.count >= typeParameterSymbols.count {
                 typeParameterSymbols = restored
                 restoredDeclarationOrder = true
+            }
+        }
+        // Member extensions (`fun T.m(...)` declared inside a nominal type)
+        // carry the *extension* receiver in `functionType.receiver`, so the
+        // receiver-based owner scan in `ownerNominalTypeParameterCount`
+        // yields 0. When `callTParams` restored the declaration order, the
+        // leading owner parameters are present as placeholders — recover the
+        // count from the declaring nominal resolved by FQ name. Without
+        // `callTParams` the owner parameters' positions among the
+        // structurally collected ones are unknowable, so the count stays 0.
+        if classTypeParameterCount == 0,
+           restoredDeclarationOrder,
+           record.fqName.count >= 2
+        {
+            let ownerFQName = Array(record.fqName.dropLast())
+            if let ownerSymbol = symbols.lookupAll(fqName: ownerFQName)
+                .compactMap({ symbols.symbol($0) })
+                .first(where: { isNominalLayoutTargetSymbol($0.kind) })
+            {
+                classTypeParameterCount = min(
+                    types.nominalTypeParameterSymbols(for: ownerSymbol.id).count,
+                    typeParameterSymbols.count
+                )
             }
         }
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: `collectTypeParameterSymbols` only

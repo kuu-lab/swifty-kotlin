@@ -1,7 +1,5 @@
 import Foundation
 
-private let selectBuilderKey = "KSwiftK.selectBuilder"
-
 @_cdecl("__kk_select_start_job")
 public func __kk_select_start_job(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else { return 0 }
@@ -12,22 +10,6 @@ public func __kk_select_start_job(_ handle: Int) -> Int {
         task.startIfNeeded()
     }
     return 0
-}
-
-@_cdecl("__kk_select_builder_exchange")
-public func __kk_select_builder_exchange(_ builder: Int) -> Int {
-    let previous = __kk_select_builder_current()
-    if builder == runtimeNullSentinelInt {
-        Thread.current.threadDictionary.removeObject(forKey: selectBuilderKey)
-    } else {
-        Thread.current.threadDictionary[selectBuilderKey] = builder
-    }
-    return previous
-}
-
-@_cdecl("__kk_select_builder_current")
-public func __kk_select_builder_current() -> Int {
-    Thread.current.threadDictionary[selectBuilderKey] as? Int ?? runtimeNullSentinelInt
 }
 
 private final class RuntimeSelectReceiveResult {

@@ -479,7 +479,7 @@ extension CallTypeChecker {
     /// candidate. Returns nil (leaving the literal as Int) when candidates
     /// disagree or none expect a wideable numeric type — the normal Int-literal
     /// path and existing overload resolution still handle those cases.
-    private func uniformNumericLiteralParameterType(
+    func uniformNumericLiteralParameterType(
         at index: Int,
         candidates: [SymbolID],
         sema: SemaModule
@@ -492,11 +492,23 @@ extension CallTypeChecker {
                 return nil
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
-                  primitive == .long || primitive == .uint || primitive == .ulong ||
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType)
+            else {
+                // A parameter of non-numeric type can never accept an integer
+                // literal -- it does not veto narrowing to a numeric overload
+                // (e.g. `onTimeout(30)` with `Long` and `Duration` overloads).
+                continue
+            }
+            // A plain `Int` candidate absorbs the literal as an exact match
+            // and must not be pre-empted by narrowing.
+            if primitive == .int {
+                return nil
+            }
+            guard primitive == .long || primitive == .uint || primitive == .ulong ||
                   primitive == .byte || primitive == .short
             else {
-                return nil
+                // Float/Double/other primitives cannot take an integer literal.
+                continue
             }
             if let result, result != nonNullParameterType {
                 return nil
@@ -510,7 +522,7 @@ extension CallTypeChecker {
     /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
     /// allows a constant UInt literal to narrow to UByte/UShort or widen to
     /// ULong when the expected parameter type requires it.
-    private func uniformUnsignedLiteralParameterType(
+    func uniformUnsignedLiteralParameterType(
         at index: Int,
         candidates: [SymbolID],
         sema: SemaModule
@@ -523,11 +535,17 @@ extension CallTypeChecker {
                 return nil
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
-                  primitive == .ubyte || primitive == .ushort ||
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType)
+            else {
+                continue
+            }
+            if primitive == .uint {
+                return nil
+            }
+            guard primitive == .ubyte || primitive == .ushort ||
                   primitive == .uint || primitive == .ulong
             else {
-                return nil
+                continue
             }
             if let result, result != nonNullParameterType {
                 return nil

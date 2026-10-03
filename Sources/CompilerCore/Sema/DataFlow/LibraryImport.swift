@@ -1359,10 +1359,21 @@ extension DataFlowSemaPhase {
             // ownership from the decoded receiver type so imported stdlib
             // extensions (for example Sequence.chunked/windowed) follow the
             // same resolution path as bundled source declarations.
+            //
+            // Member extensions (`fun T.m(...)` declared inside a nominal
+            // type) already carry their declaring owner in the metadata FQ
+            // name and were parented there by restoreImportedParentSymbol —
+            // re-parenting them to the extension receiver would erase the
+            // dispatch-receiver owner that member-extension calls need.
+            let declaringOwnerSymbol = symbols.lookupAll(fqName: Array(record.fqName.dropLast()))
+                .compactMap { symbols.symbol($0) }
+                .first { isNominalLayoutTargetSymbol($0.kind) }
+            let declaringOwnerIsNominal = declaringOwnerSymbol != nil
             if let receiverType = signature.receiverType,
                case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
                let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
-               isNominalLayoutTargetSymbol(receiverSymbol.kind)
+               isNominalLayoutTargetSymbol(receiverSymbol.kind),
+               !declaringOwnerIsNominal
             {
                 symbols.setParentSymbol(receiverSymbol.id, for: symbol)
             }
@@ -1373,17 +1384,56 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
                 let intType = types.intType
                 let reifiedCount = signature.reifiedTypeParameterIndices.count
-                let stubParameterTypes = signature.parameterTypes + Array(repeating: intType, count: reifiedCount) + [intType]
+                // Member extensions (`fun T.m(...)` inside a nominal type)
+                // add an implicit leading dispatch-receiver parameter ahead
+                // of the extension receiver, matching the emitted stub's
+                // [dispatch, extension, params..., mask] ABI — model it as
+                // the stub signature's receiver + leading parameter so
+                // sourceExternalSignature matches the call-site arity.
+                var isMemberExtension = false
+                if let receiverType = signature.receiverType,
+                   let declaringOwnerSymbol,
+                   case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+                   receiverClassType.classSymbol != declaringOwnerSymbol.id
+                {
+                    isMemberExtension = true
+                }
+                let stubReceiverType: TypeID?
+                var stubParameterTypes = signature.parameterTypes
+                    + Array(repeating: intType, count: reifiedCount) + [intType]
+                var stubVarargFlags = signature.valueParameterIsVararg
+                    + Array(repeating: false, count: reifiedCount + 1)
+                if isMemberExtension,
+                   let declaringOwnerSymbol,
+                   let extensionReceiverType = signature.receiverType
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map {
+                            .invariant(types.make(.typeParam(TypeParamType(
+                                symbol: $0,
+                                nullability: .nonNull
+                            ))))
+                        }
+                    stubReceiverType = types.make(.classType(ClassType(
+                        classSymbol: declaringOwnerSymbol.id,
+                        args: ownerArgs,
+                        nullability: .nonNull
+                    )))
+                    stubParameterTypes.insert(extensionReceiverType, at: 0)
+                    stubVarargFlags.insert(false, at: 0)
+                } else {
+                    stubReceiverType = signature.receiverType
+                }
                 symbols.setFunctionSignature(
                     FunctionSignature(
-                        receiverType: signature.receiverType,
+                        receiverType: stubReceiverType,
                         parameterTypes: stubParameterTypes,
                         returnType: signature.returnType,
                         isSuspend: false,
                         canThrow: signature.canThrow,
                         valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: signature.valueParameterIsVararg
-                            + Array(repeating: false, count: reifiedCount + 1),
+                        valueParameterIsVararg: stubVarargFlags,
                         typeParameterSymbols: signature.typeParameterSymbols,
                         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
                     ),

@@ -132,7 +132,39 @@ final class CallSupportLowerer {
         driver.ctx.setCurrentFunctionSymbol(originalSymbol)
 
         var params: [KIRParameter] = []
+        var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
         if let receiverType = signature.receiverType {
+            // Member extensions (`fun T.m(...)` declared inside a nominal
+            // type) carry a dispatch receiver (`this@Owner`) ahead of the
+            // extension receiver, so the stub's ABI is
+            // [dispatch, extension, params..., mask] and its inner call
+            // forwards both receivers.
+            if let ownerSymbol = driver.callLowerer.memberExtensionOwnerSymbol(for: originalSymbol, sema: sema),
+               let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            {
+                let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .map {
+                        .invariant(sema.types.make(.typeParam(TypeParamType(
+                            symbol: $0,
+                            nullability: .nonNull
+                        ))))
+                    }
+                let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol,
+                    args: ownerArgs,
+                    nullability: .nonNull
+                )))
+                let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                let dispatchReceiverExpr = arena.appendExpr(
+                    .symbolRef(dispatchReceiverSymbol),
+                    type: dispatchReceiverType
+                )
+                driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                dispatchReceiverBinding = (dispatchReceiverSymbol, dispatchReceiverExpr)
+            }
             let receiverSym = syntheticReceiverParameterSymbol(functionSymbol: originalSymbol)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSym), type: receiverType)
@@ -183,6 +215,9 @@ final class CallSupportLowerer {
 
         var body: [KIRInstruction] = [.beginBlock]
 
+        if let dispatchReceiverBinding {
+            body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
+        }
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
@@ -242,6 +277,9 @@ final class CallSupportLowerer {
 
         let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
         var callArgs: [KIRExprID] = []
+        if let dispatchReceiverBinding {
+            callArgs.append(dispatchReceiverBinding.exprID)
+        }
         if let receiverExprForCall {
             callArgs.append(receiverExprForCall)
         }
@@ -289,7 +327,10 @@ final class CallSupportLowerer {
                chosenCallee: originalSymbol,
                calleeName: originalName,
                receiverExpr: nil,
-               loweredReceiverID: receiverExprForCall,
+               // Member extensions dispatch on the enclosing owner (the
+               // leading `callArgs` entry), not the extension receiver —
+               // the extension receiver is an ordinary leading argument.
+               loweredReceiverID: dispatchReceiverBinding?.exprID ?? receiverExprForCall,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from
                // `finalArguments` itself (see its `vcArguments.removeFirst()`)
