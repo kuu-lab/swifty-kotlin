@@ -54,10 +54,128 @@ extension DataFlowSemaPhase {
                 == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
         }
 
+        func registerRecords(
+            _ records: [ImportedLibrarySymbolRecord],
+            metadataPath: String,
+            libraryModuleFQN: InternedString?,
+            inlineKIRDir: String?,
+            stdlibArtifact: Bool
+        ) {
+            for record in records {
+                registerRecord(
+                    record,
+                    metadataPath: metadataPath,
+                    libraryModuleFQN: libraryModuleFQN,
+                    inlineKIRDir: inlineKIRDir,
+                    stdlibArtifact: stdlibArtifact
+                )
+            }
+        }
+
+        func registerRecord(
+            _ record: ImportedLibrarySymbolRecord,
+            metadataPath: String,
+            libraryModuleFQN: InternedString?,
+            inlineKIRDir: String?,
+            stdlibArtifact: Bool
+        ) {
+            guard !record.fqName.isEmpty else {
+                return
+            }
+            let name = record.fqName.last ?? interner.intern("_")
+            var flags: SymbolFlags = [.synthetic, .importedLibrary]
+            if record.isSuspend, record.kind == .function {
+                flags.insert(.suspendFunction)
+            }
+            if record.isInline, record.kind == .function {
+                flags.insert(.inlineFunction)
+            }
+            if record.isOperator, record.kind == .function {
+                flags.insert(.operatorFunction)
+            }
+            // Overrides must stay marked so member lookup can shadow the
+            // supertype declaration instead of reporting an ambiguity.
+            // Properties/fields override too (for example
+            // `AbstractMap.size`), so the flag is not function-only.
+            if record.isOverride,
+               record.kind == .function || record.kind == .property || record.kind == .field {
+                flags.insert(.overrideMember)
+            }
+            if record.isDataClass {
+                flags.insert(.dataType)
+            }
+            if record.isOpenClass {
+                flags.insert(.openType)
+            }
+            switch record.modality {
+            case .abstract:
+                flags.insert(.abstractType)
+            case .open:
+                flags.insert(.openType)
+            case .final:
+                break
+            }
+            if record.isSealedClass {
+                flags.insert(.sealedType)
+            }
+            if record.isFunInterface, record.kind == .interface {
+                flags.insert(.funInterface)
+            }
+            if record.isValueClass {
+                flags.insert(.valueType)
+            }
+            if record.isFunInterface {
+                flags.insert(.funInterface)
+            }
+            if record.isExpect {
+                flags.insert(.expectDeclaration)
+            }
+            if record.isActual {
+                flags.insert(.actualDeclaration)
+            }
+            if record.isMutable, record.kind == .property || record.kind == .field {
+                flags.insert(.mutable)
+            }
+            let symbol = symbols.define(
+                kind: record.kind,
+                name: name,
+                fqName: record.fqName,
+                declSite: nil,
+                visibility: record.visibility,
+                flags: flags
+            )
+            if let libraryModuleFQN {
+                symbols.setModuleFQN(libraryModuleFQN, for: symbol)
+            }
+            importedBindings.append(ImportedLibraryBinding(
+                record: record,
+                symbol: symbol,
+                metadataPath: metadataPath,
+                inlineKIRDir: inlineKIRDir,
+                isStdlibArtifact: stdlibArtifact
+            ))
+        }
+
         for libraryDir in libraryDirs {
             if libraryDir.hasSuffix(".klib") {
                 if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
                     klibModules.append(module)
+                    let stdlibArtifact = isStdlibArtifact(libraryDir)
+                    if stdlibArtifact {
+                        stdlibArtifactLoaded = true
+                        stdlibModuleName = interner.intern(module.uniqueName)
+                    }
+                    registerRecords(
+                        materializeKlibRecords(
+                            module: module,
+                            interner: interner,
+                            diagnostics: diagnostics
+                        ),
+                        metadataPath: "\(libraryDir)/ir",
+                        libraryModuleFQN: interner.intern(module.uniqueName),
+                        inlineKIRDir: nil,
+                        stdlibArtifact: stdlibArtifact
+                    )
                 }
                 continue
             }
@@ -118,83 +236,13 @@ extension DataFlowSemaPhase {
                 cache?.cacheMetadataRecords(records, metadataPath: metadataPath, interner: interner)
             }
 
-            for record in records {
-                guard !record.fqName.isEmpty else {
-                    continue
-                }
-                let name = record.fqName.last ?? interner.intern("_")
-                var flags: SymbolFlags = [.synthetic, .importedLibrary]
-                if record.isSuspend, record.kind == .function {
-                    flags.insert(.suspendFunction)
-                }
-                if record.isInline, record.kind == .function {
-                    flags.insert(.inlineFunction)
-                }
-                if record.isOperator, record.kind == .function {
-                    flags.insert(.operatorFunction)
-                }
-                // Overrides must stay marked so member lookup can shadow the
-                // supertype declaration instead of reporting an ambiguity.
-                // Properties/fields override too (for example
-                // `AbstractMap.size`), so the flag is not function-only.
-                if record.isOverride,
-                   record.kind == .function || record.kind == .property || record.kind == .field {
-                    flags.insert(.overrideMember)
-                }
-                if record.isDataClass {
-                    flags.insert(.dataType)
-                }
-                if record.isOpenClass {
-                    flags.insert(.openType)
-                }
-                switch record.modality {
-                case .abstract:
-                    flags.insert(.abstractType)
-                case .open:
-                    flags.insert(.openType)
-                case .final:
-                    break
-                }
-                if record.isSealedClass {
-                    flags.insert(.sealedType)
-                }
-                if record.isFunInterface, record.kind == .interface {
-                    flags.insert(.funInterface)
-                }
-                if record.isValueClass {
-                    flags.insert(.valueType)
-                }
-                if record.isFunInterface {
-                    flags.insert(.funInterface)
-                }
-                if record.isExpect {
-                    flags.insert(.expectDeclaration)
-                }
-                if record.isActual {
-                    flags.insert(.actualDeclaration)
-                }
-                if record.isMutable, record.kind == .property || record.kind == .field {
-                    flags.insert(.mutable)
-                }
-                let symbol = symbols.define(
-                    kind: record.kind,
-                    name: name,
-                    fqName: record.fqName,
-                    declSite: nil,
-                    visibility: record.visibility,
-                    flags: flags
-                )
-                if let libraryModuleFQN {
-                    symbols.setModuleFQN(libraryModuleFQN, for: symbol)
-                }
-                importedBindings.append(ImportedLibraryBinding(
-                    record: record,
-                    symbol: symbol,
-                    metadataPath: metadataPath,
-                    inlineKIRDir: manifestInfo.inlineKIRDir,
-                    isStdlibArtifact: stdlibArtifact
-                ))
-            }
+            registerRecords(
+                records,
+                metadataPath: metadataPath,
+                libraryModuleFQN: libraryModuleFQN,
+                inlineKIRDir: manifestInfo.inlineKIRDir,
+                stdlibArtifact: stdlibArtifact
+            )
         }
 
         if options.stdlibLibraryPath != nil && !stdlibArtifactLoaded {
