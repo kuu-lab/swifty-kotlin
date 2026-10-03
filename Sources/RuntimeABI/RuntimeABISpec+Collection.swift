@@ -219,6 +219,17 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_hash_set_new_checked",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "loadFactorBits", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: true
+        ),
         // BUG-254: nominal-tag bridge for the mutable set factories and the
         // LinkedHashSet constructors, mirroring `__kk_hash_set_of`.
         RuntimeABIFunctionSpec(

@@ -11,3 +11,6 @@ public enum class DurationUnit {
     HOURS,
     DAYS
 }
+
+public val DurationUnit.entries: kotlin.enums.EnumEntries<DurationUnit>
+    get() = enumEntries<DurationUnit>()

@@ -505,7 +505,7 @@ final class CallSupportLowerer {
             }
         }
 
-        if externalLinkName == "kk_array_of",
+        if (externalLinkName == "kk_array_of" || externalLinkName == "__kk_immutable_blob_of"),
            parameterCount == 1,
            isVararg.first == true
         {

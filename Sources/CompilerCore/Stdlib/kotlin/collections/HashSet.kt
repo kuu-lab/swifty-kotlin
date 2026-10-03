@@ -35,6 +35,7 @@ private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
 public class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
     constructor()
     constructor(initialCapacity: Int)
+    constructor(initialCapacity: Int, loadFactor: Float)
     constructor(elements: Collection<E>)
 
     override val size: Int

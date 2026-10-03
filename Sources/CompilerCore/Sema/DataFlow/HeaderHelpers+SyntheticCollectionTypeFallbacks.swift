@@ -657,7 +657,10 @@ extension DataFlowSemaPhase {
 
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = iterableFQName + [iterFnName]
-        if symbols.lookup(fqName: iterFnFQName) == nil {
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if symbols.lookup(fqName: iterFnFQName) == nil,
+           !bundledIndex.contains(owner: iterableFQName, name: iterFnName, arity: 0)
+        {
             let typeParamType = types.make(.typeParam(TypeParamType(
                 symbol: typeParamSymbol,
                 nullability: .nonNull
@@ -705,7 +708,6 @@ extension DataFlowSemaPhase {
 
         let hasNextName = interner.intern("hasNext")
         let hasNextFQName = iteratorFQName + [hasNextName]
-        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
         if symbols.lookup(fqName: hasNextFQName) == nil,
            !bundledIndex.contains(owner: iteratorFQName, name: hasNextName, arity: 0)
         {

@@ -1662,7 +1662,24 @@ extension CallTypeChecker {
             }
         }
 
-        let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        // Direct member lookup and short-name extension recovery can bypass
+        // cachedScopeLookup, which normally removes an expect declaration once
+        // its matching actual is linked. Apply the same rule before resolving
+        // member-style calls, or the identical expect/actual signatures become
+        // two viable overloads and produce a false ambiguity.
+        let candidateSet = Set(allCandidates)
+        let resolvedCandidates = allCandidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.flags.contains(.expectDeclaration)
+            else {
+                return true
+            }
+            guard let actual = sema.symbols.actualSymbol(for: candidate) else {
+                return true
+            }
+            return !candidateSet.contains(actual)
+        }
+        let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
         let memberName = interner.resolve(calleeName)
         if !isClassNameReceiver,
            !safeCall,
@@ -1788,6 +1805,38 @@ extension CallTypeChecker {
                 return parameterSymbol.name == knownNames.closedFloatingPointRange
             }
             candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
+        }
+        if calleeName == knownNames.coerceAtLeast
+            || calleeName == knownNames.coerceAtMost
+            || calleeName == knownNames.coerceIn
+        {
+            // A concrete `Int.coerceIn`/`UByte.coerceAtLeast`-style overload is
+            // strictly more specific than the generic `T.coerceX` extensions
+            // (upstream's overload ranking). Keeping both in the candidate set
+            // turns calls whose arguments need literal coercion (or whose
+            // argument type makes the generic's bound fail) into a constraint
+            // error instead of binding the concrete overload. Keep the generic
+            // only when no concrete overload has the same arity — i.e.
+            // user-defined `Comparable` receivers, or shapes no concrete
+            // overload covers (e.g. `Double.coerceIn(ClosedFloatingPointRange)`).
+            let concreteArities = Set(candidates.compactMap { candidate -> Int? in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.isEmpty
+                else {
+                    return nil
+                }
+                return signature.parameterTypes.count
+            })
+            candidates.removeAll { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      let receiver = signature.receiverType,
+                      resolveClassTypeSymbol(receiver, sema: sema) == nil
+                else {
+                    return false
+                }
+                return concreteArities.contains(signature.parameterTypes.count)
+            }
         }
         if calleeName == knownNames.toList {
             candidates = preferCollectionToListCandidates(
@@ -2509,7 +2558,7 @@ extension CallTypeChecker {
         return finalType
     }
 
-    private func floatingPointRangeArgumentType(
+    func floatingPointRangeArgumentType(
         _ exprID: ExprID,
         ast: ASTModule,
         sema: SemaModule,
