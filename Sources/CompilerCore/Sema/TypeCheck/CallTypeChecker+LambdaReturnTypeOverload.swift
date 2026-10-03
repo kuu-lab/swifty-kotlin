@@ -296,7 +296,14 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> ResolvedCall {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            return CallArg(
+                label: argument.label,
+                isSpread: argument.isSpread,
+                type: type,
+                signedIntegerLiteral: literal.signed,
+                unsignedIntegerLiteral: literal.unsigned
+            )
         }
         let call = CallExpr(
             range: range,
@@ -455,6 +462,29 @@ extension CallTypeChecker {
         return ambiguousCallResult(range: range, candidateSymbols: refinedCandidates, sema: ctx.sema)
     }
 
+    func integerLiteralValues(
+        _ exprID: ExprID,
+        ast: ASTModule
+    ) -> (signed: Int64?, unsigned: UInt64?) {
+        switch ast.arena.expr(exprID) {
+        case let .intLiteral(value, _):
+            return (value, nil)
+        case let .uintLiteral(value, _):
+            return (nil, value)
+        case let .unaryExpr(op, operand, _) where op == .unaryMinus || op == .unaryPlus:
+            guard case let .intLiteral(value, _) = ast.arena.expr(operand) else {
+                return (nil, nil)
+            }
+            if op == .unaryMinus {
+                let (negated, overflow) = value.multipliedReportingOverflow(by: -1)
+                return (overflow ? nil : negated, nil)
+            }
+            return (value, nil)
+        default:
+            return (nil, nil)
+        }
+    }
+
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
         // Unit contexts accept and discard any expression result, so Unit must
         // not act as a return-type constraint while choosing an overload.
@@ -563,6 +593,13 @@ extension CallTypeChecker {
                     return false
                 }
                 if sema.types.isSubtype(inferredType, parameterType) {
+                    continue
+                }
+                if !args[otherIndex].isSpread,
+                   let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
+                   otherIndex >= varargIndex,
+                   integerLiteralFitsVararg(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
+                {
                     continue
                 }
                 // A parameter whose type is still an unsubstituted type
@@ -731,6 +768,35 @@ extension CallTypeChecker {
         }
 
         return narrowed.isEmpty ? candidates : narrowed
+    }
+
+    private func integerLiteralFitsVararg(
+        _ exprID: ExprID,
+        parameterType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let values = integerLiteralValues(exprID, ast: ctx.ast)
+        let types = ctx.sema.types
+        guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+            return false
+        }
+        if let value = values.signed {
+            switch primitive {
+            case .byte: return (-128...127).contains(value)
+            case .short: return (-32768...32767).contains(value)
+            case .long: return true
+            default: return false
+            }
+        }
+        if let value = values.unsigned {
+            switch primitive {
+            case .ubyte: return value <= UInt64(UInt8.max)
+            case .ushort: return value <= UInt64(UInt16.max)
+            case .ulong: return true
+            default: return false
+            }
+        }
+        return false
     }
 
     /// Whether the call-site receiver can ever satisfy the candidate's declared
