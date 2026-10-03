@@ -3287,6 +3287,11 @@ extension ExprLowerer {
            signature.receiverType != nil
         {
             let calleeName: InternedString
+            // Set when `calleeName` is a concrete runtime range bridge rather
+            // than the member itself; such callees must never be dispatched
+            // through a vtable/itable (mirrors the remap gate in
+            // `CallLowerer+MemberCallEmission`).
+            var remappedToRangeBridge = false
             if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
                !linkName.isEmpty
             {
@@ -3304,6 +3309,7 @@ extension ExprLowerer {
                 // Generic range interface members may lack a link name; use
                 // the concrete runtime bridge, as in the `r.contains(x)` path.
                 calleeName = rangeLink
+                remappedToRangeBridge = true
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
                 calleeName = sym.name
             } else {
@@ -3311,18 +3317,20 @@ extension ExprLowerer {
             }
             // An open member `contains` must dispatch on the container's
             // runtime type, exactly like `container.contains(element)`.
-            if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
-                chosenCallee: callBinding.chosenCallee,
-                calleeName: calleeName,
-                receiverExpr: containerExpr,
-                loweredReceiverID: containerID,
-                isSuperCall: false,
-                finalArguments: [containerID, elementID],
-                result: resultID,
-                sema: sema,
-                arena: arena,
-                interner: interner
-            ) {
+            if !remappedToRangeBridge,
+               let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                   chosenCallee: callBinding.chosenCallee,
+                   calleeName: calleeName,
+                   receiverExpr: containerExpr,
+                   loweredReceiverID: containerID,
+                   isSuperCall: false,
+                   finalArguments: [containerID, elementID],
+                   result: resultID,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner
+               )
+            {
                 instructions.append(virtualInstruction)
                 return
             }

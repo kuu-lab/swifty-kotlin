@@ -619,7 +619,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
-        inheritOperatorModifierForOverrides(symbols: symbols, types: types)
+        inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
         synthesizeNominalLayouts(
             symbols: symbols, types: types,
             interner: ctx.interner, diagnostics: ctx.diagnostics
