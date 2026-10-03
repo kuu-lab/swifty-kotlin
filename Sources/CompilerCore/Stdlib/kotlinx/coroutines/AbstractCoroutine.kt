@@ -21,7 +21,7 @@ public abstract class AbstractCoroutine<in T>(
         afterCompletion(state)
     }
 
-    public final override fun resumeWith(result: Result<T>) {
+    public final override fun resumeWith(result: kotlin.Result<T>) {
         val failure = result.exceptionOrNull()
         if (failure != null) {
             completeExceptionally(failure)
