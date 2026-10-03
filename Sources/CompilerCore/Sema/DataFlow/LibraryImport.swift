@@ -488,6 +488,7 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 layoutDiagnostics: layoutDiagnostics,
+                bundledIndexReady: lazyLoaderState.layoutBootstrapComplete,
                 interner: interner,
                 bundledIndex: lazyLoaderState.bundledIndex,
                 indexedBindingsBySymbol: bindingsBySymbol
@@ -639,6 +640,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         layoutDiagnostics: DiagnosticEngine,
+        bundledIndexReady: Bool,
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex,
         indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]
@@ -712,7 +714,9 @@ extension DataFlowSemaPhase {
             }
         }
 
-        if binding.record.kind == .enumClass {
+        // Before the bundled index is installed the `values` skip guard cannot
+        // see source-backed enums; the deferred-work retry applies them then.
+        if binding.record.kind == .enumClass, bundledIndexReady {
             applyImportedEnumSyntheticMembers(
                 work: singleBindingWork,
                 symbols: symbols,
@@ -740,6 +744,40 @@ extension DataFlowSemaPhase {
             let retries = lazyLoaderState.pendingLayoutRetries
             lazyLoaderState.pendingLayoutRetries = []
             for binding in retries {
+                // Synthetic bootstrap registration may have replaced the
+                // direct supertypes of a binding materialized before it ran;
+                // the eager path applies these edges after bootstrap, so
+                // restore any that were dropped.
+                let allSuperFQNames = binding.record.superFQNames
+                    ?? binding.record.superFQName.map { [$0] } ?? []
+                for superFQName in allSuperFQNames where !superFQName.isEmpty {
+                    guard let superSymbol = symbols.lookupAll(fqName: superFQName)
+                        .compactMap({ symbols.symbol($0) })
+                        .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
+                    else { continue }
+                    var supertypes = symbols.directSupertypes(for: binding.symbol)
+                    if !supertypes.contains(superSymbol) {
+                        supertypes.append(superSymbol)
+                        supertypes.sort(by: { $0.rawValue < $1.rawValue })
+                        symbols.setDirectSupertypes(supertypes, for: binding.symbol)
+                        types.setNominalDirectSupertypes(supertypes, for: binding.symbol)
+                    }
+                }
+                if binding.record.kind == .enumClass {
+                    applyImportedEnumSyntheticMembers(
+                        work: LibraryImportDeferredWork(
+                            pendingSupertypeEdges: [],
+                            importedBindings: [binding],
+                            lazyLoaderState: nil,
+                            stdlibModuleName: nil,
+                            klibModules: []
+                        ),
+                        symbols: symbols,
+                        types: types,
+                        interner: interner,
+                        bundledIndex: bundledIndex
+                    )
+                }
                 applyImportedNominalLayout(
                     record: binding.record,
                     symbol: binding.symbol,
