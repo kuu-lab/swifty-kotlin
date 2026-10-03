@@ -138,8 +138,55 @@ func runtime_test_channel_pending_launch_send(
     return kk_coroutine_state_exit(continuation, status)
 }
 
+@_cdecl("runtime_test_channel_nested_await_close")
+func runtime_test_channel_nested_await_close(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let channel = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    _ = __kk_channel_await_close(channel, outThrown)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeChannelTests {
+    @Test(arguments: [false, true])
+    func awaitClosePreservesNestedProducerContext(scopeOverride: Bool) {
+        let channel = kk_channel_create(0)
+        _ = kk_channel_close(channel)
+        let job = RuntimeJobHandle()
+        job.producerChannel = channel
+        let scope = RuntimeCoroutineScope()
+        let activeScope = scopeOverride ? RuntimeCoroutineScope(isSupervisor: true) : scope
+        let state = RuntimeContinuationState(functionID: 9401)
+        state.scope = scope
+        state.jobHandle = job
+        let previousKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousJob = RuntimeJobHandle.current
+        let key = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        RuntimeContinuationState.installState(state, forTask: key)
+        RuntimeCoroutineScope.installScope(activeScope, forTask: key)
+        RuntimeJobHandle.current = job
+        defer {
+            RuntimeContinuationState.removeCurrent(forTask: key)
+            RuntimeCoroutineScope.removeScope(forTask: key)
+            RuntimeCoroutineScopeTaskKey.installKey(previousKey)
+            RuntimeJobHandle.current = previousJob
+        }
+        let continuation = kk_coroutine_continuation_new(9402)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(channel))
+        var thrown = 0
+        _ = kk_kxmini_run_blocking_with_cont(
+            unsafeBitCast(runtime_test_channel_nested_await_close as ChannelPendingLaunchEntry, to: Int.self),
+            continuation,
+            &thrown
+        )
+        #expect((thrown != 0) == scopeOverride)
+        #expect(RuntimeContinuationState.current === state)
+        #expect(RuntimeCoroutineScope.current === activeScope)
+        #expect(RuntimeJobHandle.current === job)
+    }
+
     @Test func awaitCloseWaitsWithoutConsumingBufferedValues() {
         let handle = kk_channel_create(1)
         let channel = runtimeChannelHandle(handle)
