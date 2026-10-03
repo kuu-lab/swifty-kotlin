@@ -126,7 +126,8 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         )
         let symbol = try #require(sema.symbols.symbol(genericRangeUntil))
         #expect(symbol.flags.contains(.operatorFunction))
-        #expect(sema.symbols.externalLinkName(for: genericRangeUntil) == "__kk_op_rangeUntil")
+        // The bundled generic `T.rangeUntil` is source-backed (no external
+        // link); the old `__kk_op_rangeUntil` synthetic was removed in KSP-1281.
 
         let signature = try #require(sema.symbols.functionSignature(for: genericRangeUntil))
         #expect(signature.typeParameterSymbols.count == 1)
@@ -177,12 +178,11 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             #expect(rangeUntilCalls.count == 1)
             let rangeUntilCall = try #require(rangeUntilCalls.first)
             let rangeUntilType = try #require(sema.bindings.exprType(for: rangeUntilCall))
-            try assertOpenEndRange(
-                rangeUntilType,
-                elementType: sema.types.intType,
-                sema: sema,
-                interner: interner
-            )
+            // `0.rangeUntil(10)` binds the concrete `Int.rangeUntil` overload and
+            // returns IntRange (kotlinc parity since Kotlin 1.9); the generic
+            // `OpenEndRange` fallback only serves non-primitive receivers.
+            let expectedType = try #require(rangeType(for: sema.types.intType, in: sema, interner: interner))
+            #expect(rangeUntilType == expectedType)
             #expect(sema.bindings.isRangeExpr(rangeUntilCall))
 
             let endExclusiveCalls = memberCallExprIDs(named: "endExclusive", in: ast, interner: interner, sourceManager: ctx.sourceManager)

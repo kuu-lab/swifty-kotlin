@@ -2,8 +2,11 @@ extension DataFlowSemaPhase {
     private static let bundledUIntRangeSourcePath =
         "__bundled_kotlin/ranges/UIntRange/Stdlib.kt"
 
-    /// KSP-1314: Adopt the synthetic Companion created by the unsigned-range
-    /// stub when the bundled UIntRange declaration is collected.
+    /// KSP-1281: Adopt the synthetic Companion created by the unsigned range
+    /// bootstrap when the bundled UIntRange declaration is collected. The
+    /// bundled `UIntRange.Companion.EMPTY` extension in
+    /// `UIntRange/Companion/Companion.kt` is collected first and binds to this
+    /// shell.
     func reusableSyntheticUIntRangeSourceCompanionSymbol(
         fqName: [InternedString],
         sourceFileID: FileID,

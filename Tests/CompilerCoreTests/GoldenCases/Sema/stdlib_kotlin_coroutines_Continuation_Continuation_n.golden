@@ -8,8 +8,8 @@ symbol fq=__local_1.source[kind=local] kind=local vis=private flags=_ type=kotli
 symbol fq=__local_2.source[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Int>
 symbol fq=__local_3.callback[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Int>
 symbol fq=__local_4.completion[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Int>
-symbol fq=__local_5.successful[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<in Unit>
-symbol fq=__local_6.failed[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<in Unit>
+symbol fq=__local_5.successful[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Unit>
+symbol fq=__local_6.failed[kind=local] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Unit>
 symbol fq=__try_0_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
 symbol fq=__try_1_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
 symbol fq=__try_2_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
@@ -131,9 +131,9 @@ expr e@49:22 call callee=e@49:22#1 args=[_:e@49:40,_:e@49:63] type=kotlin.corout
 expr e@49:5 localDecl completion mutable=0 type=_ init=e@49:22 type=Unit ref=__local_4.completion[kind=local]
 expr e@52:23 callableRef recv=_ member=completedValue type=suspend () -> Int ref=completedValue[kind=fun;params=;susp]
 expr e@52:70 name(completion) type=kotlin.coroutines.Continuation<Int> ref=__local_4.completion[kind=local]
-expr e@52:23#1 memberCall recv=e@52:23 callee=createCoroutineUnintercepted args=[_:e@52:70] type=kotlin.coroutines.Continuation<in Unit> call=kotlin.coroutines.intrinsics.createCoroutineUnintercepted[kind=fun;recv=fn{su;p=;ret=T0};params=kotlin.coroutines.Continuation<T0>;gen=1] targs=[Int]
+expr e@52:23#1 memberCall recv=e@52:23 callee=createCoroutineUnintercepted args=[_:e@52:70] type=kotlin.coroutines.Continuation<Unit> call=kotlin.coroutines.intrinsics.createCoroutineUnintercepted[kind=fun;recv=fn{su;p=;ret=T0};params=kotlin.coroutines.Continuation<T0>;gen=1] targs=[Int]
 expr e@52:5 localDecl successful mutable=0 type=_ init=e@52:23#1 type=Unit ref=__local_5.successful[kind=local]
-expr e@53:11 name(successful) type=kotlin.coroutines.Continuation<in Unit> ref=__local_5.successful[kind=local]
+expr e@53:11 name(successful) type=kotlin.coroutines.Continuation<Unit> ref=__local_5.successful[kind=local]
 expr e@53:29 name(Unit) type=Unit ref=kotlin.Unit[kind=obj]
 expr e@53:11#1 memberCall recv=e@53:11 callee=resume args=[_:e@53:29] type=Unit call=kotlin.coroutines.resume[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=T0;gen=1] targs=[Unit]
 expr e@53:9 blockExpr stmts=[] trailing=e@53:11#1 type=Unit
@@ -144,9 +144,9 @@ expr e@53:70 blockExpr stmts=[] trailing=e@53:72 type=Unit ref=__try_4_catch_0.e
 expr e@53:5 try body=e@53:9 catches=[e@53:70] finally=_ type=Unit
 expr e@54:19 callableRef recv=_ member=completedValue type=suspend () -> Int ref=completedValue[kind=fun;params=;susp]
 expr e@54:66 name(completion) type=kotlin.coroutines.Continuation<Int> ref=__local_4.completion[kind=local]
-expr e@54:19#1 memberCall recv=e@54:19 callee=createCoroutineUnintercepted args=[_:e@54:66] type=kotlin.coroutines.Continuation<in Unit> call=kotlin.coroutines.intrinsics.createCoroutineUnintercepted[kind=fun;recv=fn{su;p=;ret=T0};params=kotlin.coroutines.Continuation<T0>;gen=1] targs=[Int]
+expr e@54:19#1 memberCall recv=e@54:19 callee=createCoroutineUnintercepted args=[_:e@54:66] type=kotlin.coroutines.Continuation<Unit> call=kotlin.coroutines.intrinsics.createCoroutineUnintercepted[kind=fun;recv=fn{su;p=;ret=T0};params=kotlin.coroutines.Continuation<T0>;gen=1] targs=[Int]
 expr e@54:5 localDecl failed mutable=0 type=_ init=e@54:19#1 type=Unit ref=__local_6.failed[kind=local]
-expr e@55:11 name(failed) type=kotlin.coroutines.Continuation<in Unit> ref=__local_6.failed[kind=local]
+expr e@55:11 name(failed) type=kotlin.coroutines.Continuation<Unit> ref=__local_6.failed[kind=local]
 expr e@55:60 string(input) type=String
 expr e@55:38 call callee=e@55:38#1 args=[_:e@55:60] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?]
 expr e@55:11#1 memberCall recv=e@55:11 callee=resumeWithException args=[_:e@55:38] type=Unit call=kotlin.coroutines.resumeWithException[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=kotlin.Throwable;gen=1] targs=[Unit]

@@ -396,20 +396,25 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
         #expect(__kk_atomic_ref_load(atomicRef) == update)
     }
 
-    // The same marshal asymmetry for String: two RuntimeStringBox handles
-    // carrying the same text (the stored cell vs a freshly boxed expect)
-    // must still CAS-match. The flat-string bridge now dedups, so this
-    // constructs two distinct boxes directly instead of relying on a
-    // distinct flat round-trip handle.
-    @Test func compareAndExchangeMatchesReboxedStringHandle() {
+    @Test func compareAndExchangeMatchesSameStringHandle() {
         let current = registerRuntimeObject(RuntimeStringBox("aaa"))
-        let expect = registerRuntimeObject(RuntimeStringBox("aaa"))
-        #expect(expect != current, "Independently boxed equal strings must be distinct handles")
         let update = registerRuntimeObject(RuntimeStringBox("bbb"))
         let atomicRef = kk_atomic_ref_create(current)
-        let old = __kk_atomic_ref_compareAndExchange(atomicRef, expect, update)
-        #expect(old == expect)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, current, update)
+        #expect(old == current)
         #expect(__kk_atomic_ref_load(atomicRef) == update)
+    }
+
+    @Test func compareAndExchangeRejectsEqualButDistinctStringHandles() {
+        let current = registerRuntimeObject(RuntimeStringBox("aaa"))
+        let equalButDistinct = registerRuntimeObject(RuntimeStringBox("aaa"))
+        let replacement = registerRuntimeObject(RuntimeStringBox("bbb"))
+        #expect(equalButDistinct != current)
+        let atomicRef = kk_atomic_ref_create(current)
+        let old = __kk_atomic_ref_compareAndExchange(atomicRef, equalButDistinct, replacement)
+        #expect(old == current)
+        #expect(__kk_atomic_ref_load(atomicRef) == current,
+                "Equal but distinct strings must not satisfy AtomicReference CAS")
     }
 
     @Test func nullReferenceRoundTrip() {

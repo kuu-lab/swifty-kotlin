@@ -438,6 +438,148 @@ extension CompilerCoreTests {
         #expect(ctx.interner.resolve(sema.symbols.symbol(returnClassType.classSymbol)!.name) == "Foo")
     }
 
+    /// KUU-917: a class used as the receiver of a nested constructor reference
+    /// provides the constructor's owner, not a captured receiver argument.
+    @Test func testNestedConstructorReferenceBindsConstructorWithoutReceiver() throws {
+        let source = """
+        class Outer { class Nested(val n: Int) }
+        fun make(): Outer.Nested {
+            val ctor: (Int) -> Outer.Nested = Outer::Nested
+            return ctor(7)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let ctor = try #require(sema.bindings.identifierSymbols[ref])
+        #expect(sema.symbols.symbol(ctor)?.kind == .constructor)
+        #expect(!sema.bindings.isUnboundCallableRef(ref))
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected nested constructor function type.")
+            return
+        }
+        #expect(function.params == [sema.types.make(.primitive(.int, .nonNull))])
+        guard case let .classType(result) = sema.types.kind(of: function.returnType) else {
+            Issue.record("Expected nested constructor result type.")
+            return
+        }
+        #expect(sema.symbols.symbol(result.classSymbol)?.fqName.map { ctx.interner.resolve($0) } == ["Outer", "Nested"])
+    }
+
+    /// KUU-917: a bare reference in an extension body binds its receiver,
+    /// including members inherited through an interface.
+    @Test func testExtensionBareMemberReferenceBindsImplicitReceiver() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        fun flush(): Int = 7
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+        let member = try #require(sema.bindings.identifierSymbols[ref])
+        let owner = try #require(sema.symbols.parentSymbol(for: member))
+        #expect(sema.symbols.symbol(owner)?.kind == .interface)
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected bound member function type.")
+            return
+        }
+        #expect(function.params.isEmpty)
+        #expect(function.returnType == sema.types.make(.primitive(.int, .nonNull)))
+    }
+
+    @Test func testSuspendImplicitMemberReferenceRetainsSuspendFunctionType() throws {
+        let source = """
+        interface Writer { suspend fun flush(): Int }
+        fun Writer.flushLater(): suspend () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected suspend function reference type.")
+            return
+        }
+        #expect(function.isSuspend)
+        #expect(function.params.isEmpty)
+    }
+
+    @Test func testImplicitMemberReferenceBeatsSameNamedPackageProperty() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        val flush: Int = 7
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let member = try #require(sema.bindings.identifierSymbols[ref])
+        let owner = try #require(sema.symbols.parentSymbol(for: member))
+        #expect(sema.symbols.symbol(owner)?.kind == .interface)
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+    }
+
+    /// The implicit-receiver fallback must leave a top-level `::function`
+    /// unchanged, even when that reference occurs inside an extension body.
+    @Test func testTopLevelCallableReferenceInsideExtensionRemainsReceiverless() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        fun top(): Int = 3
+        fun Writer.topLater(): () -> Int = ::top
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] == nil)
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected top-level function reference type.")
+            return
+        }
+        #expect(function.params.isEmpty)
+    }
+
     /// REFL-EXTPROP: `String::length` is a package-level extension property
     /// (`Sources/CompilerCore/Stdlib/kotlin/String.kt`) registered under its
     /// declaring package's FQ name, not under `kotlin.String`'s -- the

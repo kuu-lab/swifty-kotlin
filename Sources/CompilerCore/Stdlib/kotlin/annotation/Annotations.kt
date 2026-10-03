@@ -34,6 +34,12 @@ public enum class AnnotationRetention {
     RUNTIME
 }
 
+public val AnnotationTarget.entries: kotlin.enums.EnumEntries<AnnotationTarget>
+    get() = enumEntries<AnnotationTarget>()
+
+public val AnnotationRetention.entries: kotlin.enums.EnumEntries<AnnotationRetention>
+    get() = enumEntries<AnnotationRetention>()
+
 /** Specifies the code elements which are possible targets of an annotation. */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 @MustBeDocumented
