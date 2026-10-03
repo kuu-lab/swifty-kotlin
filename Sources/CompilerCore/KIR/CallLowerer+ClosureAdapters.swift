@@ -369,13 +369,14 @@ extension CallLowerer {
             hasStringSignature = false
         }
         if functionType.isSuspend,
-           functionType.receiver == nil,
            !resolvedCallableInfo.hasClosureParam,
-           !hasStringSignature
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+               || (functionType.receiver == nil && !hasStringSignature)
         {
             return loweredArgID
         }
-        if (!resolvedCallableInfo.hasClosureParam || hasStringSignature || functionType.receiver != nil),
+        if (!resolvedCallableInfo.hasClosureParam
+            || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,
