@@ -2,9 +2,7 @@
  * Copyright 2017-2023 JetBrains s.r.o. and respective authors and developers.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  *
- * Derived from kotlinx-io core/common/src/RealSink.kt (tag 0.9.1). `hintEmit` approximates
- * upstream's "flush complete segments, keep the trailing partial one" behavior using a fixed-size
- * threshold instead of real segment boundaries (see the note in Buffer.kt).
+ * Derived from kotlinx-io core/common/src/RealSink.kt (tag 0.9.1).
  */
 package kotlinx.io
 
@@ -95,13 +93,9 @@ internal class RealSink(private val sink: RawSink) : Sink {
 
     override fun hintEmit() {
         checkNotClosed()
-        val size = bufferField.size
-        val hint = SEGMENT_SIZE_HINT.toLong()
-        if (size >= hint) {
-            val toFlush = (size / hint) * hint
-            if (toFlush > 0L) {
-                sink.write(bufferField, toFlush)
-            }
+        val byteCount = bufferField.completeSegmentByteCount()
+        if (byteCount > 0L) {
+            sink.write(bufferField, byteCount)
         }
     }
 
