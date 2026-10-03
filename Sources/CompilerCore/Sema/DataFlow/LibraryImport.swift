@@ -45,6 +45,14 @@ extension DataFlowSemaPhase {
         /// Populated by `loadImportedLibrarySymbols`; resolves pending bodies
         /// for callees demanded by the module. Forwarded onto `SemaModule`.
         var resolveDemandedInlineBodies: ((KIRModule) -> Void)?
+        /// Lazy materialization can apply a nominal layout before the
+        /// synthetic bootstrap stubs it references (e.g. `MutableMap.put`)
+        /// exist. Until `applyImportedLibraryDeferredWork` runs, layout
+        /// warnings are withheld and those bindings are re-applied there,
+        /// mirroring the eager path's "layout after bootstrap" ordering.
+        var layoutBootstrapComplete = false
+        var pendingLayoutRetries: [ImportedLibraryBinding] = []
+        var indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding] = [:]
 
         init(importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()) {
             self.importedInlineFunctions = importedInlineFunctions
@@ -426,6 +434,7 @@ extension DataFlowSemaPhase {
         // SymbolTable semantic-data accessors and applies exactly one body
         // record before returning the requested value.
         let bindingsBySymbol = Dictionary(uniqueKeysWithValues: importedBindings.map { ($0.symbol, $0) })
+        lazyLoaderState.indexedBindingsBySymbol = bindingsBySymbol
         if lazyMetadataEnabled {
             // `symbols` is weak: this closure is stored on the symbol table
             // itself, so a strong capture would be a retain cycle leaking the
@@ -446,12 +455,20 @@ extension DataFlowSemaPhase {
                 isStdlibArtifact: binding.isStdlibArtifact,
                 phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
+            let layoutDiagnostics: DiagnosticEngine
+            if lazyLoaderState.layoutBootstrapComplete {
+                layoutDiagnostics = diagnostics
+            } else {
+                layoutDiagnostics = DiagnosticEngine()
+                lazyLoaderState.pendingLayoutRetries.append(binding)
+            }
             self.applyImportedLibraryBindingDeferredDetails(
                 binding,
                 pendingSupertypeEdges: bindingEdges,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
+                layoutDiagnostics: layoutDiagnostics,
                 interner: interner,
                 bundledIndex: lazyLoaderState.bundledIndex,
                 indexedBindingsBySymbol: bindingsBySymbol
@@ -602,6 +619,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
+        layoutDiagnostics: DiagnosticEngine,
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex,
         indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]
@@ -642,7 +660,7 @@ extension DataFlowSemaPhase {
             symbol: binding.symbol,
             symbols: symbols,
             types: types,
-            diagnostics: diagnostics,
+            diagnostics: layoutDiagnostics,
             metadataPath: binding.metadataPath,
             interner: interner,
             indexedBindingsBySymbol: indexedBindingsBySymbol
@@ -694,7 +712,26 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex
     ) {
-        if work.lazyLoaderState != nil {
+        if let lazyLoaderState = work.lazyLoaderState {
+            // Bootstrap stubs now exist: re-apply layouts that were computed
+            // earlier (warnings withheld) so unresolved slots are reported
+            // only if they are still unresolved, and later materializations
+            // report directly.
+            lazyLoaderState.layoutBootstrapComplete = true
+            let retries = lazyLoaderState.pendingLayoutRetries
+            lazyLoaderState.pendingLayoutRetries = []
+            for binding in retries {
+                applyImportedNominalLayout(
+                    record: binding.record,
+                    symbol: binding.symbol,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    metadataPath: binding.metadataPath,
+                    interner: interner,
+                    indexedBindingsBySymbol: lazyLoaderState.indexedBindingsBySymbol
+                )
+            }
             // Indexed metadata owns its deferred work and resolves it from the
             // per-symbol materialization callback. Eagerly walking all nominal
             // records here would defeat ARCH-029's lazy boundary.

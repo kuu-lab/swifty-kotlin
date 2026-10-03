@@ -1674,6 +1674,17 @@ package final class MetadataEncoder {
             "fq=\(record.fqName)",
             "schema=v1",
         ]
+        // Imported visibility checks run on the compact index record before
+        // any body is decoded, so the index must carry it too.
+        if record.visibility != .public {
+            let encoded: String = switch record.visibility {
+            case .public: "public"
+            case .private: "private"
+            case .internal: "internal"
+            case .protected: "protected"
+            }
+            fields.append("visibility=\(encoded)")
+        }
         if record.kind == .function || record.kind == .constructor {
             fields.append("arity=\(record.arity)")
             fields.append("suspend=\(record.isSuspend ? 1 : 0)")
