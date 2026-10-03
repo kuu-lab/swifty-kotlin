@@ -39,6 +39,12 @@ private external fun __kk_string_toLong(str: String): Long
 @KsSymbolName("__kk_string_toLongOrNull")
 private external fun __kk_string_toLongOrNull(str: String): Long?
 
+@KsSymbolName("__kk_string_toLong_radix")
+private external fun __kk_string_toLong_radix(str: String, radix: Int): Long
+
+@KsSymbolName("__kk_string_toLongOrNull_radix")
+private external fun __kk_string_toLongOrNull_radix(str: String, radix: Int): Long?
+
 @KsSymbolName("__kk_string_toShort")
 private external fun __kk_string_toShort(str: String): Short
 
@@ -131,8 +137,16 @@ public fun String.toLong(): Long {
     return __kk_string_toLong(this)
 }
 
+public fun String.toLong(radix: Int): Long {
+    return __kk_string_toLong_radix(this, radix)
+}
+
 public fun String.toLongOrNull(): Long? {
     return __kk_string_toLongOrNull(this)
+}
+
+public fun String.toLongOrNull(radix: Int): Long? {
+    return __kk_string_toLongOrNull_radix(this, radix)
 }
 
 public fun String.toShort(): Short {

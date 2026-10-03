@@ -186,7 +186,19 @@ extension KIRLoweringDriver {
             let fallbackMethodSymbol = classDelegationDefaultMethodSymbol(
                 interfaceMethodSymbol: info.interfaceMethodSymbol,
                 sema: sema
-            )
+            ) ?? {
+                // Runtime collection boxes such as `listOf(...)` carry the
+                // interface type ID but are not concrete Kotlin classes in
+                // `dispatchTargets`. Abstract collection members that have a
+                // runtime ABI link must use that bridge as the delegation
+                // fallback instead of reaching `kk_abort_unreachable`.
+                guard let linkName = sema.symbols.externalLinkName(for: info.interfaceMethodSymbol),
+                      !linkName.isEmpty
+                else {
+                    return nil
+                }
+                return info.interfaceMethodSymbol
+            }()
             ctx.resetScopeForFunction()
             ctx.beginCallableLoweringScope()
             ctx.setCurrentFunctionSymbol(forwardingSymbol)
@@ -726,7 +738,10 @@ extension KIRLoweringDriver {
         sema: SemaModule
     ) -> SymbolID? {
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
-              !interfaceProperty.flags.contains(.abstractType)
+              !interfaceProperty.flags.contains(.abstractType),
+              // A runtime-bridged property's synthetic accessor has no
+              // emitted body — resolve it through the bridge instead.
+              (sema.symbols.externalLinkName(for: interfacePropertySymbol) ?? "").isEmpty
         else {
             return nil
         }
@@ -895,13 +910,9 @@ extension KIRLoweringDriver {
             }
         }
         guard !delegationTarget.isEmpty else { return }
-        var argIDs: [KIRExprID] = []
-        if let receiver = ctx.activeImplicitReceiverExprID() {
-            argIDs.append(receiver)
-        }
+        var loweredArgs: [KIRExprID] = []
         for arg in delegation.args {
-            let lowered = lowerExpr(arg.expr, shared: shared, emit: &body)
-            argIDs.append(lowered)
+            loweredArgs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
         }
         let delegationResultID = arena.appendTemporary(type: sema.types.unitType
         )
@@ -920,11 +931,80 @@ extension KIRLoweringDriver {
             // Any's compiler-provided constructor is allocation-only.
             return
         }
+        emitDelegatedConstructorCall(
+            target: resolvedSymbol,
+            receiver: ctx.activeImplicitReceiverExprID(),
+            loweredArgs: loweredArgs,
+            spreadFlags: delegation.args.map(\.isSpread),
+            callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+            result: delegationResultID,
+            shared: shared,
+            body: &body
+        )
+    }
+
+    /// Emits `this(...)` / `super(...)` as an ordinary constructor call: named
+    /// arguments, the default mask and vararg packing go through the same
+    /// normalization as a call site, and an omitted-default call is routed to
+    /// `<Class>$default`.
+    func emitDelegatedConstructorCall(
+        target: SymbolID?,
+        receiver: KIRExprID?,
+        loweredArgs: [KIRExprID],
+        spreadFlags: [Bool],
+        callBinding: CallBinding?,
+        result: KIRExprID,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        var argIDs: [KIRExprID] = []
+        if let receiver {
+            argIDs.append(receiver)
+        }
+        var defaultMask: Int64 = 0
+        if let target, let callBinding, callBinding.chosenCallee == target {
+            let normalized = callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgs,
+                callBinding: callBinding,
+                chosenCallee: target,
+                spreadFlags: spreadFlags,
+                shared: shared,
+                emit: &body
+            )
+            argIDs.append(contentsOf: normalized.arguments)
+            defaultMask = normalized.defaultMask
+        } else {
+            argIDs.append(contentsOf: loweredArgs)
+        }
+        if defaultMask != 0,
+           let target,
+           sema.symbols.externalLinkName(for: target)?.isEmpty ?? true,
+           let ownerName = sema.symbols.parentSymbol(for: target).flatMap({ sema.symbols.symbol($0)?.name })
+        {
+            callLowerer.appendDefaultMaskArgument(
+                defaultMask,
+                sema: sema,
+                arena: arena,
+                instructions: &body.instructions,
+                arguments: &argIDs
+            )
+            body.append(.call(
+                symbol: callSupportLowerer.defaultStubSymbol(for: target),
+                callee: shared.interner.intern(shared.interner.resolve(ownerName) + "$default"),
+                arguments: argIDs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         body.append(.call(
-            symbol: resolvedSymbol,
+            symbol: target,
             callee: shared.interner.intern("<init>"),
             arguments: argIDs,
-            result: delegationResultID,
+            result: result,
             canThrow: false,
             thrownResult: nil
         ))

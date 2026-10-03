@@ -67,6 +67,31 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // Link-time markers for the source-backed receiver-less intrinsics. The
+        // coroutine lowering pass rewrites calls to them into the entry-point ABI
+        // above; the runtime only exports stubs so the standalone inline copies link.
+        RuntimeABIFunctionSpec(
+            name: "kk_create_coroutine_unintercepted_no_receiver",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionContextRaw", type: .intptr),
+                RuntimeABIParameter(name: "completionContinuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_start_coroutine_unintercepted_or_return_no_receiver",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionContextRaw", type: .intptr),
+                RuntimeABIParameter(name: "completionContinuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_enter",
             parameters: [
@@ -824,6 +849,66 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Coroutine"
+        ),
+        // Channel capacity/overflow-policy factory and invokeOnClose handler
+        // registration (KSP-1573).
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_create_with_policy",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "onBufferOverflow", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_invoke_on_close",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "handlerFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "handlerClosureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_identity",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        // Scope-launch used by the bundled produce/actor builders; a suspend
+        // block value arrives as the (fnPtr, closureRaw) pair suspend
+        // function values use at the ABI boundary (KSP-1573).
+        RuntimeABIFunctionSpec(
+            name: "__kk_produce_launch",
+            parameters: [
+                RuntimeABIParameter(name: "channelHandle", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        // Launcher-continuation counterpart for a suspend literal block:
+        // `(channel, launcherThunk, continuation)` mirroring
+        // `kk_kxmini_produce_with_cont` (KSP-1573).
+        RuntimeABIFunctionSpec(
+            name: "__kk_produce_launch_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "channelHandle", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
         ),
         // Structured Concurrency (P5-89)
         RuntimeABIFunctionSpec(

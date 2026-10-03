@@ -150,7 +150,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let checksExprTypes: Bool
     }
 
-    /// Makes the bundled MemoryModel / OsFamily / KVariance / CpuArchitecture
+    /// Makes referenced bundled coroutine, native, and reflection
     /// enum nominals visible to the shared enum synthesis pass when a consumer
     /// KIR references one of their generated APIs or the enum type itself.
     /// Bundled source declarations are omitted from consumer KIR, but their
@@ -163,6 +163,13 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         interner: StringInterner
     ) {
         let specs: [BundledEnumSpec] = [
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "coroutines", "intrinsics", "CoroutineSingletons"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
             BundledEnumSpec(
                 pathSegments: ["kotlin", "native", "MemoryModel"],
                 requiresSourceBacked: false,
@@ -530,7 +537,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     }
 
     /// Returns the primary-constructor data properties of a data class, sorted by constructor order.
-    private func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
+    func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
         let primaryConstructorParamNames: [InternedString] = primaryConstructorSymbol(owner: owner, symbols: symbols)
             .flatMap { constructor in
                 symbols.functionSignature(for: constructor.id)?.valueParameterSymbols.compactMap { paramSymbol in

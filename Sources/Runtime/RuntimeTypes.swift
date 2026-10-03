@@ -253,6 +253,7 @@ class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionHierarchyFQNames: [String] {
         [
             "kotlin.CancellationException",
+            "kotlin.coroutines.cancellation.CancellationException",
             "kotlinx.coroutines.CancellationException",
             "CancellationException",
             "kotlin.IllegalStateException",
@@ -533,6 +534,10 @@ final class RuntimeFunctionValueBox {
 final class RuntimeListBox {
     private final class DirectStorage {
         var values: [RuntimeValue]
+        /// Bumped on every structural mutation (size change), never on an
+        /// element replacement. Iterators capture this at creation and
+        /// re-check it in `next()` to detect concurrent modification.
+        var modCount: Int = 0
 
         init(values: [RuntimeValue]) {
             self.values = values
@@ -605,6 +610,9 @@ final class RuntimeListBox {
             guard !isReadOnly else { return }
             switch storage {
             case .direct(let direct):
+                if newValue.count != direct.values.count {
+                    direct.modCount += 1
+                }
                 direct.values = newValue
             case .reversedViewOf(let base):
                 base.values = Array(newValue.reversed())
@@ -625,6 +633,23 @@ final class RuntimeListBox {
                 else { return }
                 map.removeAll()
             }
+        }
+    }
+
+    /// Structural-modification counter (Java/Kotlin `modCount` equivalent).
+    /// View storages forward to the backing list's own counter, so an
+    /// iterator over a `subList`/reversed view still detects a structural
+    /// change made through the root list.
+    var modCount: Int {
+        switch storage {
+        case .direct(let direct):
+            return direct.modCount
+        case .reversedViewOf(let base):
+            return base.modCount
+        case .arrayViewOf:
+            return 0
+        case .subList(let slice):
+            return slice.base.modCount
         }
     }
 
@@ -728,7 +753,12 @@ final class RuntimeListBox {
         }
         switch storage {
         case .direct(let direct):
-            return body(&direct.values)
+            let countBefore = direct.values.count
+            let result = body(&direct.values)
+            if direct.values.count != countBefore {
+                direct.modCount += 1
+            }
+            return result
         case .reversedViewOf, .arrayViewOf, .subList:
             var values = self.values
             let result = body(&values)
@@ -813,6 +843,16 @@ final class RuntimeSetBox {
     private let backingMapRaw: Int?
     private let backingMapViewKind: MapViewKind
     private(set) var isReadOnly = false
+    private var directModCount: Int = 0
+
+    /// Structural-modification counter. An entries view has no storage of
+    /// its own, so it forwards to the backing map's counter.
+    var modCount: Int {
+        if let backingMapRaw, let map = runtimeMapBox(from: backingMapRaw) {
+            return map.modCount
+        }
+        return directModCount
+    }
 
     var values: [RuntimeValue] {
         get {
@@ -974,13 +1014,14 @@ final class RuntimeSetBox {
     @discardableResult
     func insert(value: RuntimeValue) -> Bool {
         guard backingMapRaw == nil, !isReadOnly else { return false }
-        let key = RuntimeElementKey(value: value.legacyRawValue)
+        let key = RuntimeElementKey(runtimeValue: value)
         guard index[key] == nil else {
             return false
         }
         let newIndex = storage.count
         storage.append(value)
         index[key] = newIndex
+        directModCount += 1
         return true
     }
 
@@ -1014,6 +1055,7 @@ final class RuntimeSetBox {
         }
         storage.remove(at: index)
         rebuildIndex()
+        directModCount += 1
         return true
     }
 
@@ -1033,6 +1075,7 @@ final class RuntimeSetBox {
         }
         storage.removeAll(keepingCapacity: keepingCapacity)
         index.removeAll(keepingCapacity: keepingCapacity)
+        directModCount += 1
         return true
     }
 
@@ -1054,6 +1097,7 @@ final class RuntimeSetBox {
             return false
         }
         rebuildIndex()
+        directModCount += 1
         return true
     }
 
@@ -1061,7 +1105,7 @@ final class RuntimeSetBox {
         index.removeAll(keepingCapacity: true)
         index.reserveCapacity(storage.count)
         for (offset, value) in storage.enumerated() {
-            let key = RuntimeElementKey(value: value.legacyRawValue)
+            let key = RuntimeElementKey(runtimeValue: value)
             // Keep the first position for malformed duplicate input, matching
             // the legacy linear lookup behavior.
             if index[key] == nil {
@@ -1094,9 +1138,18 @@ final class RuntimeMapBox {
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
     private(set) var isReadOnly = false
+    private var directModCount: Int = 0
 
     var isEffectivelyReadOnly: Bool {
         backingMap?.isEffectivelyReadOnly ?? isReadOnly
+    }
+
+    /// Structural-modification counter. Bumped on key insertion/removal
+    /// (`appendEntry`/`remove`/`removeAll`), never on `updateValue`, which
+    /// only replaces an existing key's value (matches JVM `HashMap.put`'s
+    /// non-structural update not incrementing `modCount`).
+    var modCount: Int {
+        backingMap?.modCount ?? directModCount
     }
 
     var keyValues: [RuntimeValue] {
@@ -1227,10 +1280,11 @@ final class RuntimeMapBox {
         let newIndex = keyStorage.count
         keyStorage.append(key)
         valueStorage.append(value)
-        let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+        let runtimeKey = RuntimeElementKey(runtimeValue: key)
         if keyIndex[runtimeKey] == nil {
             keyIndex[runtimeKey] = newIndex
         }
+        directModCount += 1
     }
 
     @discardableResult
@@ -1244,7 +1298,7 @@ final class RuntimeMapBox {
             return backingMap.put(key: key, value: value)
         }
         guard !isReadOnly else { return nil }
-        let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+        let runtimeKey = RuntimeElementKey(runtimeValue: key)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
             updateValue(at: index, value: value)
@@ -1265,6 +1319,7 @@ final class RuntimeMapBox {
         keyStorage.remove(at: index)
         let removedValue = valueStorage.indices.contains(index) ? valueStorage.remove(at: index).legacyRawValue : nil
         rebuildKeyIndex()
+        directModCount += 1
         return removedValue
     }
 
@@ -1277,13 +1332,14 @@ final class RuntimeMapBox {
         keyStorage.removeAll()
         valueStorage.removeAll()
         keyIndex.removeAll()
+        directModCount += 1
     }
 
     private func rebuildKeyIndex() {
         keyIndex.removeAll(keepingCapacity: true)
         keyIndex.reserveCapacity(keyStorage.count)
         for (offset, key) in keyStorage.enumerated() {
-            let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+            let runtimeKey = RuntimeElementKey(runtimeValue: key)
             // Keep the first position for malformed duplicate input, matching
             // the legacy linear lookup behavior.
             if keyIndex[runtimeKey] == nil {
@@ -1461,12 +1517,21 @@ final class RuntimeListIteratorBox {
     let removeAction: ((Int) -> Void)?
     let setAction: ((Int, RuntimeValue) -> Void)?
     let addAction: ((Int, RuntimeValue) -> Void)?
+    /// Reads the live backing collection's structural-modification counter.
+    /// `nil` for iterators with no live backing (plain `Array`, or the
+    /// BUG-231 empty fallback) — comodification can never be detected there.
+    let currentModCount: (() -> Int)?
+    /// The backing collection's `modCount` as of the last point this
+    /// iterator observed it in sync (construction, or its own successful
+    /// `remove()`/`add()`, which re-syncs after performing the mutation).
+    var expectedModCount: Int
 
     init(
         elements: [Int],
         removeAction: ((Int) -> Void)? = nil,
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
-        addAction: ((Int, RuntimeValue) -> Void)? = nil
+        addAction: ((Int, RuntimeValue) -> Void)? = nil,
+        currentModCount: (() -> Int)? = nil
     ) {
         values = elements.map(runtimeValueFromCollectionABI)
         index = 0
@@ -1474,13 +1539,16 @@ final class RuntimeListIteratorBox {
         self.removeAction = removeAction
         self.setAction = setAction
         self.addAction = addAction
+        self.currentModCount = currentModCount
+        self.expectedModCount = currentModCount?() ?? 0
     }
 
     init(
         values: [RuntimeValue],
         removeAction: ((Int) -> Void)? = nil,
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
-        addAction: ((Int, RuntimeValue) -> Void)? = nil
+        addAction: ((Int, RuntimeValue) -> Void)? = nil,
+        currentModCount: (() -> Int)? = nil
     ) {
         self.values = values
         index = 0
@@ -1488,6 +1556,16 @@ final class RuntimeListIteratorBox {
         self.removeAction = removeAction
         self.setAction = setAction
         self.addAction = addAction
+        self.currentModCount = currentModCount
+        self.expectedModCount = currentModCount?() ?? 0
+    }
+
+    /// `true` when the backing collection has not structurally changed since
+    /// this iterator last observed it. Iterators with no live backing always
+    /// report in sync.
+    func isInSyncWithBackingCollection() -> Bool {
+        guard let currentModCount else { return true }
+        return currentModCount() == expectedModCount
     }
 
     func removeLastReturned() -> Bool {
@@ -1498,6 +1576,13 @@ final class RuntimeListIteratorBox {
         index = lastReturnedIndex
         removeAction?(lastReturnedIndex)
         lastReturnedIndex = -1
+        // The removal above just went through `removeAction`, which mutates
+        // the live backing collection (bumping its modCount) — resync so
+        // this iterator's own next `next()` call does not see its own
+        // change as a concurrent modification.
+        if let currentModCount {
+            expectedModCount = currentModCount()
+        }
         return true
     }
 
@@ -1523,19 +1608,37 @@ final class RuntimeListIteratorBox {
         addAction?(index, value)
         index += 1
         lastReturnedIndex = -1
+        // Same resync rationale as `removeLastReturned()` above.
+        if let currentModCount {
+            expectedModCount = currentModCount()
+        }
     }
 }
 
-/// Iterator box for `Map` iteration via `for (entry in map)`.
+/// Iterator box for `Map` iteration via `for (entry in map)`. Read-only (no
+/// `remove()`), but the for-loop lowering resolves `for ((k, _) in map)` to
+/// this same iterator even when `map` is a `MutableMap`, so it still needs
+/// its own comodification check — mutating the map through a different
+/// handle (`map[key] = value`, `map.remove(...)`) while this iterator is
+/// live must still throw `ConcurrentModificationException`.
 final class RuntimeMapIteratorBox {
+    let mapRaw: Int
     let keys: [Int]
     let values: [Int]
     var index: Int
+    var expectedModCount: Int
 
-    init(keys: [Int], values: [Int]) {
+    init(mapRaw: Int, keys: [Int], values: [Int]) {
+        self.mapRaw = mapRaw
         self.keys = keys
         self.values = values
         index = 0
+        expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
+    }
+
+    func isInSyncWithBackingMap() -> Bool {
+        guard let map = runtimeMapBox(from: mapRaw) else { return true }
+        return map.modCount == expectedModCount
     }
 }
 
@@ -1545,12 +1648,24 @@ final class RuntimeMutableMapIteratorBox {
     let keys: [Int]
     var index: Int
     var lastKey: Int?
+    /// The backing map's `modCount` as of the last point this iterator
+    /// observed it in sync (construction, or its own successful `remove()`,
+    /// which re-syncs after performing the mutation).
+    var expectedModCount: Int
 
     init(mapRaw: Int, keys: [Int]) {
         self.mapRaw = mapRaw
         self.keys = keys
         index = 0
         lastKey = nil
+        expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
+    }
+
+    /// `true` when the backing map has not structurally changed since this
+    /// iterator last observed it.
+    func isInSyncWithBackingMap() -> Bool {
+        guard let map = runtimeMapBox(from: mapRaw) else { return true }
+        return map.modCount == expectedModCount
     }
 }
 
@@ -3103,6 +3218,91 @@ final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
     }
 
     var underlyingFileHandle: FileHandle { fileHandle }
+}
+
+/// A Kotlin throwable rethrown through the Swift `Error` channel by a
+/// callback-backed stream sink. `thrownRaw` is the original Kotlin throwable
+/// handle; the `__kk_*_stream_*` bridges write it to `outThrown` unchanged so
+/// the Kotlin caller observes the original exception rather than a synthesized
+/// `IOException`.
+struct RuntimeKotlinThrownError: Error {
+    let thrownRaw: Int
+}
+
+/// `RuntimeOutputStreamSink` that forwards write/flush/close into Kotlin
+/// lambdas captured by `kotlinx.io.Sink.asOutputStream()` (KSP-1553).
+///
+/// Each callback is a KSwiftK closure stored as a (fnPtr, closureRaw) pair:
+/// `write: (ByteArray) -> Unit` is invoked through the collection-HOF
+/// entry-point convention and `flush`/`close: () -> Unit` through the closure
+/// thunk convention — the same conventions the `__kk_synchronized` /
+/// `kk_worker_execute` bridges use. The `write` argument is passed as a
+/// `RuntimeArrayBox`, which is the runtime representation of `ByteArray`.
+final class RuntimeKotlinOutputStreamSink: RuntimeOutputStreamSink {
+    private let writeFnPtr: Int
+    private let writeClosureRaw: Int
+    private let flushFnPtr: Int
+    private let flushClosureRaw: Int
+    private let closeFnPtr: Int
+    private let closeClosureRaw: Int
+
+    init(
+        writeFnPtr: Int,
+        writeClosureRaw: Int,
+        flushFnPtr: Int,
+        flushClosureRaw: Int,
+        closeFnPtr: Int,
+        closeClosureRaw: Int
+    ) {
+        self.writeFnPtr = writeFnPtr
+        self.writeClosureRaw = writeClosureRaw
+        self.flushFnPtr = flushFnPtr
+        self.flushClosureRaw = flushClosureRaw
+        self.closeFnPtr = closeFnPtr
+        self.closeClosureRaw = closeClosureRaw
+    }
+
+    func write(_ data: Data) throws {
+        let arrayBox = RuntimeArrayBox(length: data.count)
+        for (index, byte) in data.enumerated() {
+            arrayBox[index] = Int(byte)
+        }
+        let arrayRaw = registerRuntimeObject(arrayBox)
+        var thrown = 0
+        _ = runtimeInvokeCollectionLambda1(
+            fnPtr: writeFnPtr,
+            closureRaw: writeClosureRaw,
+            value: arrayRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            throw RuntimeKotlinThrownError(thrownRaw: thrown)
+        }
+    }
+
+    func flush() throws {
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: flushFnPtr,
+            closureRaw: flushClosureRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            throw RuntimeKotlinThrownError(thrownRaw: thrown)
+        }
+    }
+
+    func close() {
+        // `close()` has no thrown channel (`__kk_output_stream_close` takes no
+        // outThrown), so a throwable raised by the close callback is dropped,
+        // matching the file-backed sink's `try? fileHandle.close()` swallow.
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: closeFnPtr,
+            closureRaw: closeClosureRaw,
+            outThrown: &thrown
+        )
+    }
 }
 
 final class RuntimeOutputStreamBox {

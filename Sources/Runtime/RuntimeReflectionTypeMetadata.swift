@@ -21,6 +21,9 @@ let kFunction1RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect
 let kFunction2RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction2")
 let kFunction3RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction3")
 let kClassifierRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KClassifier")
+let kAnnotatedElementRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KAnnotatedElement")
+let kDeclarationContainerRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KDeclarationContainer")
+let kotlinFunctionRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Function")
 let kClassRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KClass")
 let kTypeRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KType")
 let kTypeParameterRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KTypeParameter")
@@ -55,6 +58,14 @@ private func runtimeKCallableIsReceiver(_ value: Int) -> Bool {
 /// arg2 = outThrown), depending on which callee signature the emitter
 /// resolved for the synthetic accessor. The receiver is always a registered
 /// object or tagged callable ref, so identify which argument carries it.
+///
+/// The flat branch only matches x86-64 SysV, where LLVM demotes the
+/// `{ptr, i64, i64, i64}` return to a hidden first-argument pointer. AArch64
+/// returns that aggregate in x0-x3, which this shim cannot produce, so the
+/// compiler reads `KCallable.name` for runtime values through
+/// `__kk_kcallable_get_name` before falling back to interface dispatch
+/// (`emitRuntimeKCallableNameFastPath`), so interface property reads of
+/// runtime values never reach this shim.
 private let runtimeKCallableNameGetter: @convention(c) (
     Int,
     Int,
@@ -123,7 +134,12 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
 }
 
 private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
+    // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable and KClass
+    // extend KAnnotatedElement, KClass extends KDeclarationContainer, and
+    // KFunction extends kotlin.Function.
+    (kCallableRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
     (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
+    (kFunctionRuntimeTypeID, kotlinFunctionRuntimeTypeID),
     (kConstructorRuntimeTypeID, kFunctionRuntimeTypeID),
     (kPropertyRuntimeTypeID, kCallableRuntimeTypeID),
     (kMutablePropertyRuntimeTypeID, kPropertyRuntimeTypeID),
@@ -141,6 +157,8 @@ private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
     (kFunction2RuntimeTypeID, kFunctionRuntimeTypeID),
     (kFunction3RuntimeTypeID, kFunctionRuntimeTypeID),
     (kClassRuntimeTypeID, kClassifierRuntimeTypeID),
+    (kClassRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
+    (kClassRuntimeTypeID, kDeclarationContainerRuntimeTypeID),
     (kTypeRuntimeTypeID, kClassifierRuntimeTypeID),
     (kTypeParameterRuntimeTypeID, kClassifierRuntimeTypeID),
 ]

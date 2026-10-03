@@ -8,8 +8,8 @@
  */
 package kotlinx.io
 
-internal class RealSink(private val sink: RawSink) : Sink {
-    private var closed: Boolean = false
+internal class RealSink(val sink: RawSink) : Sink {
+    var closed: Boolean = false
     private val bufferField = Buffer()
 
     override val buffer: Buffer
@@ -28,6 +28,14 @@ internal class RealSink(private val sink: RawSink) : Sink {
         }
         bufferField.write(source, byteCount)
         hintEmit()
+    }
+
+    override fun write(source: ByteArray) {
+        write(source, 0, source.size)
+    }
+
+    override fun write(source: ByteArray, startIndex: Int) {
+        write(source, startIndex, source.size)
     }
 
     override fun write(source: ByteArray, startIndex: Int, endIndex: Int) {

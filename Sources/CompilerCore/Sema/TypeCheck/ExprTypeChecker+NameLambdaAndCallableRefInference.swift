@@ -185,6 +185,13 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
+    private func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case let .primitive(primitive, .nonNull) = sema.types.kind(of: type) {
+            return primitive != .char && primitive != .boolean
+        }
+        return false
+    }
+
     private func isPrimitiveIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .primitive = sema.types.kind(of: type) {
             return true
@@ -219,7 +226,11 @@ extension ExprTypeChecker {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
             return nil
         }
-        if let resolvedType = bindIncrementDecrementOperatorCall(
+        // Numeric primitives (everything but Char) keep `++` / `--` on the builtin path even
+        // though explicit `x.inc()` calls now resolve to the bundled extensions.
+        let usesBuiltinIncrement = isBuiltinNumericIncrementDecrementTarget(receiverType, sema: ctx.sema)
+        if !usesBuiltinIncrement,
+           let resolvedType = bindIncrementDecrementOperatorCall(
             exprID: exprID,
             op: op,
             receiverType: receiverType,
@@ -560,6 +571,31 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
+    /// Resolve the property read in a compound assignment through the existing
+    /// getter overload rules. Reserve the expression's call binding for its
+    /// arithmetic operator; lowering reads and writes the selected property.
+    private func resolveExtensionPropertyForCompoundAssignment(
+        id: ExprID,
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        let sema = ctx.sema
+        guard let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
+            id: id,
+            calleeName: calleeName,
+            range: range,
+            receiverType: receiverType,
+            expectedType: nil,
+            ctx: ctx,
+            bindCall: false
+        ), let property = sema.bindings.identifierSymbol(for: id) else {
+            return nil
+        }
+        return (property, propertyType)
+    }
+
     /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
     /// or `this.box.n += value`. Mirrors `inferCompoundAssignExpr`'s operator-overload
     /// resolution (`plusAssign` then binary-operator fallback) but resolves the
@@ -585,6 +621,12 @@ extension ExprTypeChecker {
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
+        ) ?? resolveExtensionPropertyForCompoundAssignment(
+            id: id,
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            range: range,
+            ctx: ctx
         ) else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
@@ -770,6 +812,7 @@ extension ExprTypeChecker {
                 invisibleSyms = invisibleFallbackSyms
             }
         }
+
         if let receiverType = ctx.implicitReceiverType {
             let memberType = resolveImplicitReceiverMember(
                 id: id,
@@ -1232,6 +1275,9 @@ extension ExprTypeChecker {
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset)))
             let parameterType = parameterTypes[offset]
+            // Preserve the declaration type for checks that must ignore smart casts,
+            // just as for local function parameters.
+            sema.symbols.setPropertyType(parameterType, for: syntheticSymbol)
             lambdaLocals[param] = (
                 type: parameterType,
                 symbol: syntheticSymbol,
@@ -1250,6 +1296,20 @@ extension ExprTypeChecker {
         // set the implicit receiver so that unqualified member calls resolve correctly.
         if let receiverType = expectedFunctionType?.receiver {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
+            // The lambda's own receiver is its `this`: shadow the enclosing
+            // function's receiver in `locals` (which `inferThisRefExpr` reads
+            // first) and address it through a per-lambda symbol so that
+            // `this@callee` from a nested lambda can capture it.
+            let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)
+            lambdaLocals[ctx.interner.intern("this")] = (
+                type: receiverType,
+                symbol: receiverSymbol,
+                isMutable: false,
+                isInitialized: true
+            )
+            if let label {
+                bodyCtx = bodyCtx.withOuterReceiver(label: label, type: receiverType, symbol: receiverSymbol)
+            }
         }
         if let expectedFunctionType, !expectedFunctionType.contextReceivers.isEmpty {
             bodyCtx = bodyCtx.with(
@@ -1433,6 +1493,25 @@ extension ExprTypeChecker {
         return inferredFunctionType
     }
 
+    /// Visible `<init>` symbols of a concrete class, or `nil` for an abstract
+    /// class or one without constructors. Constructors live under the class's
+    /// own FQ name with the reserved `<init>` short name (HeaderHelpers.swift).
+    private func visibleConstructorCandidates(
+        of classSymbol: SemanticSymbol,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID]? {
+        guard !classSymbol.flags.contains(.abstractType) else {
+            return nil
+        }
+        let ctorSymbols = ctx.sema.symbols.lookupAll(
+            fqName: classSymbol.fqName + [ctx.interner.intern("<init>")]
+        )
+        guard !ctorSymbols.isEmpty else {
+            return nil
+        }
+        return ctx.filterByVisibility(ctorSymbols).0
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -1548,6 +1627,22 @@ extension ExprTypeChecker {
         let effectiveReceiverType = unboundClassType ?? receiverType
 
         var candidates: [SymbolID] = []
+        // Resolve receiver members before the bare-property shortcut below:
+        // a package `val flush` must not hide `Writer.flush` for `::flush` in
+        // implicit-receiver scope. Local declarations retain lexical priority.
+        let hasLocalDeclaration = locals[member] != nil
+        let implicitMemberCandidates: [SymbolID] = {
+            guard receiver == nil, !hasLocalDeclaration,
+                  let implicitReceiver = ctx.implicitReceiverType
+            else { return [] }
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: member,
+                receiverType: sema.types.makeNonNullable(implicitReceiver),
+                sema: sema,
+                interner: interner
+            )
+            return ctx.filterByVisibility(members).0
+        }()
         // REFL-CTOR: set when `candidates` were filled with constructor
         // symbols for a bare `::Foo` reference below. A constructor
         // signature's `receiverType` field carries the class type for the
@@ -1558,6 +1653,7 @@ extension ExprTypeChecker {
         // reference is, or `(Int) -> Foo` would gain a spurious leading `Foo`
         // parameter.
         var isConstructorReference = false
+        var isImplicitlyBoundMember = false
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1640,6 +1736,26 @@ extension ExprTypeChecker {
                     }
                     return sema.types.isSubtype(nonNullReceiver, declaredReceiver)
                 }
+                // `Outer::Nested` where `Nested` is a nested (non-inner) class
+                // is a constructor reference `(Args...) -> Outer.Nested`. It
+                // has no receiver parameter, so it is folded into the bound
+                // side like the bare `::Foo` form. `inner` classes are left
+                // out: their reference takes the outer instance as a
+                // leading parameter, which this path does not model.
+                if candidates.isEmpty,
+                   unboundClassType != nil,
+                   let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
+                {
+                    let nestedClass = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+                        .compactMap { ctx.cachedSymbol($0) }
+                        .first { ($0.kind == .class || $0.kind == .enumClass) && !$0.flags.contains(.innerClass) }
+                    if let nestedClass,
+                       let ctorCandidates = visibleConstructorCandidates(of: nestedClass, ctx: ctx)
+                    {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                    }
+                }
             }
         } else {
             let propertyCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
@@ -1648,7 +1764,12 @@ extension ExprTypeChecker {
                 }
                 return symbol.kind == .property
             }
-            if let propertySymbol = propertyCandidates.first {
+            let packagePropertyShadowedByMember = propertyCandidates.first.map { propertySymbol in
+                let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
+                    .flatMap { sema.symbols.symbol($0)?.kind }
+                return !implicitMemberCandidates.isEmpty && (ownerKind == .package || ownerKind == nil)
+            } ?? false
+            if let propertySymbol = propertyCandidates.first, !packagePropertyShadowedByMember {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
                 let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
                 // KSP-496/KSP-505: a bare `::member` reference to a member
@@ -1743,15 +1864,48 @@ extension ExprTypeChecker {
                 }
                 if let classSym = classCandidates.first,
                    let classSymbol = ctx.cachedSymbol(classSym),
-                   !classSymbol.flags.contains(.abstractType)
+                   let ctorCandidates = visibleConstructorCandidates(of: classSymbol, ctx: ctx)
                 {
-                    let ctorFQName = classSymbol.fqName + [interner.intern("<init>")]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    if !ctorSymbols.isEmpty {
-                        let (ctorVis, _) = ctx.filterByVisibility(ctorSymbols)
-                        candidates = ctorVis
-                        isConstructorReference = true
-                    }
+                    candidates = ctorCandidates
+                    isConstructorReference = true
+                }
+            }
+        }
+
+        // Within a class or extension body, `::member` uses the active
+        // implicit receiver before a same-named package function. Lexical
+        // scope lookup does not walk inherited member scopes. A local
+        // function still shadows the receiver's member.
+        if !implicitMemberCandidates.isEmpty {
+            candidates = implicitMemberCandidates
+            isImplicitlyBoundMember = true
+        }
+
+        // A nested class constructor (`Outer::Nested`) is stored under
+        // `Outer.Nested.<init>`, just as bare `::Nested` is under
+        // `Nested.<init>`. Ordinary member lookup by the short name misses it.
+        // Only a type receiver may introduce this fallback.
+        if candidates.isEmpty,
+           let unboundClassType,
+           let (_, owner) = resolveClassTypeSymbol(unboundClassType, sema: sema)
+        {
+            let nestedClasses = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+            for nestedID in nestedClasses {
+                let (visibleNested, _) = ctx.filterByVisibility([nestedID])
+                guard let nested = ctx.cachedSymbol(nestedID),
+                      (nested.kind == .class || nested.kind == .enumClass),
+                      !nested.flags.contains(.abstractType),
+                      !nested.flags.contains(.innerClass),
+                      !visibleNested.isEmpty
+                else { continue }
+                let constructors = sema.symbols.lookupAll(
+                    fqName: nested.fqName + [interner.intern("<init>")]
+                )
+                let (visible, _) = ctx.filterByVisibility(constructors)
+                if !visible.isEmpty {
+                    candidates = visible
+                    isConstructorReference = true
+                    break
                 }
             }
         }
@@ -1761,7 +1915,8 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured. A constructor
         // reference has no receiver at all; see `isConstructorReference`'s
         // declaration above for why it is folded into the "bound" side here.
-        let isBoundReceiver = (receiver != nil && unboundClassType == nil) || isConstructorReference
+        let isBoundReceiver = (receiver != nil && unboundClassType == nil)
+            || isConstructorReference || isImplicitlyBoundMember
 
         // BUG-164: callable references must also support SAM-conversion to a
         // functional interface expected type, the same way lambda literals do.
@@ -1783,10 +1938,59 @@ extension ExprTypeChecker {
             expectedSamInterfaceType = nil
         }
 
+        // `Type::toString` as a `(Type) -> String` value: the zero-argument
+        // `toString()` has no member symbol (only the `toString(radix)`
+        // overload is declared), so every candidate is an arity mismatch.
+        // kotlinc picks the overload matching the expected function type;
+        // synthesize the missing one.
+        if let unboundClassType,
+           interner.resolve(member) == "toString",
+           let expectedFunctionType,
+           case let .functionType(expectedFT) = sema.types.kind(of: expectedFunctionType),
+           expectedFT.params.count == 1,
+           !candidates.contains(where: { candidate in
+               guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+               return signature.parameterTypes.count == 0 && signature.receiverType != nil
+           })
+        {
+            let receiverParam = sema.types.makeNonNullable(unboundClassType)
+            let inferredType = sema.types.make(.functionType(FunctionType(
+                params: [receiverParam],
+                returnType: sema.types.stringType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let resultType: TypeID
+            if sema.types.typeContainsAnyTypeParam(expectedType ?? expectedFunctionType) {
+                resultType = inferredType
+            } else {
+                driver.emitSubtypeConstraint(
+                    left: inferredType,
+                    right: expectedFunctionType,
+                    range: range,
+                    solver: ConstraintSolver(),
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                resultType = expectedType ?? expectedFunctionType
+            }
+            sema.bindings.bindAnyToStringCallableRef(id)
+            sema.bindings.bindCallableRefKind(id, kind: .functionRef)
+            sema.bindings.markUnboundCallableRef(id)
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
+
+        // Only a bound `value::member` reference has a concrete receiver
+        // instantiation to substitute into the member's signature.
+        let boundReceiverType: TypeID? = (receiver != nil && unboundClassType == nil && !isConstructorReference)
+            ? effectiveReceiverType.map { sema.types.makeNonNullable($0) }
+            : nil
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
+            boundReceiverType: boundReceiverType,
             sema: sema
         )
 
@@ -1796,6 +2000,7 @@ extension ExprTypeChecker {
             let inferredType = driver.helpers.callableFunctionType(
                 for: signature,
                 bindReceiver: isBoundReceiver,
+                boundReceiver: boundReceiverType.map { (chosen, $0) },
                 sema: sema
             )
             let resultType: TypeID
@@ -1843,7 +2048,10 @@ extension ExprTypeChecker {
             // REFL-003: Tag the callable reference as KFunction so KIR
             // lowering can emit type identity metadata.
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
-            if unboundClassType != nil {
+            if isImplicitlyBoundMember {
+                sema.bindings.markImplicitReceiverMember(id, name: member)
+            }
+            if unboundClassType != nil && !isConstructorReference {
                 sema.bindings.markUnboundCallableRef(id)
             }
             let captures = receiver.map { recv in

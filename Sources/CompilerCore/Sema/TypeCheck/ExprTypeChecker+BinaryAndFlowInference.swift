@@ -82,11 +82,48 @@ extension ExprTypeChecker {
             return boolType
         }
 
-        let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
+        // A simple, already-available fallback can constrain a generic safe-call
+        // on the left (`x?.let { Result.failure(it) } ?: RESUME`). Resolve only
+        // an independent name reference early: arbitrary RHS expressions may
+        // read locals modified while checking the LHS and must keep their order.
+        let isSafeLetElvisFailure: Bool
+        if op == .elvis,
+           case let .safeMemberCall(_, member, _, args, _) = ast.arena.expr(lhsID),
+           interner.resolve(member) == "let", args.count == 1,
+           case let .lambdaLiteral(_, lambdaBodyID, _, _) = ast.arena.expr(args[0].expr)
+        {
+            let bodyID: ExprID? = if case let .blockExpr(_, trailing, _) = ast.arena.expr(lambdaBodyID) {
+                trailing
+            } else {
+                lambdaBodyID
+            }
+            isSafeLetElvisFailure = if let bodyID,
+               case let .memberCall(_, method, typeArgs, _, _) = ast.arena.expr(bodyID),
+               interner.resolve(method) == "failure", typeArgs.isEmpty
+            { true } else { false }
+        } else {
+            isSafeLetElvisFailure = false
+        }
+        let earlyElvisRhs: TypeID? = {
+            guard isSafeLetElvisFailure, expectedType == nil,
+                  case let .nameRef(rhsName, _) = ast.arena.expr(rhsID),
+                  locals[rhsName]?.isInitialized != false
+            else { return nil }
+            let rhsType = driver.inferExpr(rhsID, ctx: ctx, locals: &locals)
+            guard case let .classType(resultClass) = sema.types.kind(of: sema.types.makeNonNullable(rhsType)),
+                  sema.symbols.symbol(resultClass.classSymbol)?.fqName
+                    == KnownCompilerNames(interner: interner).kotlinResultFQName
+            else { return nil }
+            return rhsType
+        }()
+        let lhs = driver.inferExpr(
+            lhsID, ctx: ctx, locals: &locals,
+            expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
+        )
         // Elvis can narrow an integer literal on the right side to the overall
         // expected type, e.g. `val b: Byte = parsed ?: 0`.
         let rhsExpectedType: TypeID? = if op == .elvis { expectedType } else { nil }
-        let rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+        let rhs = earlyElvisRhs ?? driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely —
@@ -94,6 +131,21 @@ extension ExprTypeChecker {
         if op == .identityEqual || op == .notIdentityEqual {
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
+        }
+        if (op == .equal || op == .notEqual),
+           equalityHasIncompatibleBuiltinTypes(
+               equalityOperandType(lhsID, inferred: lhs, ctx: ctx),
+               equalityOperandType(rhsID, inferred: rhs, ctx: ctx),
+               sema: sema
+           )
+        {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "Operator '\(op == .equal ? "==" : "!=")' cannot be applied to unrelated types.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         if op == .add,
            isCoroutineContextLikeType(lhs, sema: sema, interner: interner),
@@ -128,6 +180,27 @@ extension ExprTypeChecker {
             sema: sema,
             interner: interner
         )
+        // KSP-1281: the bundled generic `T.rangeTo`/`T.rangeUntil` extension in
+        // ranges/Stdlib.kt must not capture `..`/`..<` on primitive receivers —
+        // those keep the existing scalar range-handle path (markRangeExpr +
+        // `__kk_*` construction), which the heap-allocated ComparableRange the
+        // generic body builds cannot represent. The generic extension only
+        // covers receivers without a concrete range representation (String,
+        // user Comparable types), matching upstream where the concrete
+        // `Int.rangeTo` members win over the extension.
+        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
+            operatorCandidates = operatorCandidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiverType = signature.receiverType
+                else {
+                    return true
+                }
+                if case .typeParam = sema.types.kind(of: receiverType) {
+                    return false
+                }
+                return true
+            }
+        }
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators (Int/Long/etc. never have
         // an applicable arithmetic *member*), but that also hides a
@@ -657,6 +730,77 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    private func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
+        let sema = ctx.sema
+        let declared = equalityDeclaredType(expr, inferred: inferred, sema: sema)
+        // Range literals and their local references can carry a scalar element
+        // type for lowering. Compare their source-level range types instead.
+        guard sema.bindings.isRangeExpr(expr),
+              case .primitive = sema.types.kind(of: sema.types.makeNonNullable(declared))
+        else { return declared }
+        return driver.callChecker.sourceLevelRangeMemberLookupType(
+            receiverExpr: expr,
+            receiverType: declared,
+            sema: sema,
+            interner: ctx.interner
+        ) ?? driver.callChecker.floatingPointRangeArgumentType(
+            expr,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner
+        ) ?? declared
+    }
+
+    // Use the declaration type for smart-cast references. Kotlin only warns
+    // when a comparison becomes incompatible after smart casting.
+    private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
+        guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
+        if let declared = sema.symbols.propertyType(for: symbol) { return declared }
+        if let owner = sema.symbols.valueParameterOwner(for: symbol),
+           let signature = sema.symbols.functionSignature(for: owner),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           signature.parameterTypes.indices.contains(index)
+        {
+            return signature.parameterTypes[index]
+        }
+        return inferred
+    }
+
+    // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or
+    // String is involved. Ordinary classes may implement cross-type equals.
+    // Type-parameter bounds and enum/value-class diagnostics have additional
+    // warning rules and remain on the existing path.
+    private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        func erasedOperand(_ type: TypeID) -> TypeID? {
+            let nonNull = sema.types.makeNonNullable(type)
+            switch sema.types.kind(of: nonNull) {
+            case .typeParam, .intersection:
+                return nil
+            case let .classType(classType):
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: classType.classSymbol,
+                    args: classType.args.map { _ in .star },
+                    nullability: .nonNull
+                )))
+            default:
+                return nonNull
+            }
+        }
+        guard let lhs = erasedOperand(lhs), let rhs = erasedOperand(rhs),
+              !sema.types.isSubtype(lhs, rhs), !sema.types.isSubtype(rhs, lhs)
+        else { return false }
+
+        func requiresCompatibleOperand(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case .primitive, .stringStruct:
+                return true
+            default:
+                return false
+            }
+        }
+        return requiresCompatibleOperand(lhs) || requiresCompatibleOperand(rhs)
     }
 
     private func coroutineContextType(sema: SemaModule, interner: StringInterner) -> TypeID? {

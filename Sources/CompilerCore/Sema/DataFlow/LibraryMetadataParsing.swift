@@ -126,6 +126,7 @@ extension DataFlowSemaPhase {
 
             records.append(ImportedLibrarySymbolRecord(
                 kind: metadataRecord.kind,
+                visibility: metadataRecord.visibility,
                 mangledName: metadataRecord.mangledName,
                 fqName: fqName,
                 arity: metadataRecord.arity,
@@ -172,6 +173,7 @@ extension DataFlowSemaPhase {
                 sealedSubclassFQNames: sealedSubclassFQNames,
                 propertyReceiverTypeSignature: metadataRecord.propertyReceiverTypeSignature,
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
+                propertySetterExternalLinkName: metadataRecord.propertySetterExternalLinkName,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
                 isMutable: metadataRecord.isMutable,

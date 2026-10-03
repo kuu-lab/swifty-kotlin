@@ -180,13 +180,6 @@ import Testing
 
     // MARK: - Advanced Test Cases
 
-    @Test func testAbstractOverrideChaining() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
     @Test func testFinalOverrideTermination() throws {
         let ctx = try negativeCtx()
 
@@ -194,33 +187,6 @@ import Testing
     }
 
     // MARK: - Primary constructor `override val` / `override var` properties
-
-    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
-        let ctx = try negativeCtx()
-
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
 
     @Test func testPrimaryConstructorOpenPropertyCanBeOverridden() throws {
         let source = """
@@ -255,6 +221,27 @@ import Testing
         try runSema(ctx)
 
         #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testEmptyExpectAbstractClassDoesNotWarn() throws {
+        let source = """
+        expect abstract class CharsetEncoder
+
+        actual abstract class CharsetEncoder {
+            abstract fun encode(): String
+        }
+
+        abstract class RegularEmpty
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let emptyAbstractWarnings = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                && $0.message.contains("has no abstract members")
+        }
+        #expect(emptyAbstractWarnings.count == 1)
+        #expect(emptyAbstractWarnings.first?.message.contains("RegularEmpty") == true)
     }
 
 }

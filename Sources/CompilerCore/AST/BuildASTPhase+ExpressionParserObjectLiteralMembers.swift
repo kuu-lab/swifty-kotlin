@@ -219,6 +219,13 @@ extension BuildASTPhase.ExpressionParser {
             if let prefix = parseObjectLiteralLocalDeclPrefix(from: tokens[..<accessorIndex], endIndex: accessorIndex) {
                 return prefix
             }
+            // `val name get() = ...` has neither a type nor an initializer, so the
+            // local-decl parser rejects the prefix. Without this fallback the whole
+            // member was re-parsed as one declaration whose `=` (after `get()`)
+            // turned the getter body into the property initializer.
+            if let bareHeader = parseObjectLiteralBareHeader(from: Array(tokens[..<accessorIndex])) {
+                return (bareHeader.name, bareHeader.isMutable, bareHeader.typeAnnotation, nil, accessorIndex)
+            }
             searchIndex = accessorIndex + 1
         }
 
@@ -251,7 +258,11 @@ extension BuildASTPhase.ExpressionParser {
     private func parseObjectLiteralBareHeader(
         from tokens: [Token]
     ) -> (name: InternedString, isMutable: Bool, typeAnnotation: TypeRefID?)? {
-        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        var sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        // Skip leading modifiers (`override`, `private`, ...) before `val`/`var`.
+        if let declIndex = sanitized.firstIndex(where: { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }) {
+            sanitized.removeFirst(declIndex)
+        }
         guard sanitized.count >= 2 else {
             return nil
         }

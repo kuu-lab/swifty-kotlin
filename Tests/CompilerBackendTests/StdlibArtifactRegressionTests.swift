@@ -69,6 +69,53 @@ struct StdlibArtifactRegressionTests {
     }
     """
 
+    /// A direct range expression can retain its primitive element type in
+    /// Sema. Its source-backed members still receive a runtime range box,
+    /// which has no Kotlin vtable.
+    @Test
+    func testLongRangeExpressionIteratorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun main() {
+            val iterator = (Long.MAX_VALUE - 1L..Long.MAX_VALUE).iterator()
+            while (iterator.hasNext()) println(iterator.next())
+            println(iterator.hasNext())
+
+            val range: LongRange = Long.MIN_VALUE..Long.MIN_VALUE
+            val typedIterator: LongIterator = range.iterator()
+            println(typedIterator.nextLong())
+            println(typedIterator.hasNext())
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "LongRangeExpressionIteratorArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                9223372036854775806
+                9223372036854775807
+                false
+                -9223372036854775808
+                false
+
+                """)
+        }
+    }
+
     /// KSP-697: inferred mutable collection factories must preserve their
     /// MutableIterable supertype when the stdlib is consumed as an artifact.
     @Test
@@ -174,10 +221,12 @@ struct StdlibArtifactRegressionTests {
                 from: try findKIRFunctionBody(named: "sumMutableList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must use generic hasNext: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must use generic next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must not force list hasNext: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must not force list next: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_list_iterator"), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
+            #expect(mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must use list next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_iterable_iterator"), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
             #expect(!mutableListCallees.contains("kk_range_iterator"), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
 
             try LoweringPhase().run(ctx)
@@ -1044,6 +1093,55 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "s.isSuccess=true s.isFailure=false\nf.isSuccess=false f.isFailure=true\n")
+        }
+    }
+
+    /// Setter counterpart of `testResultMemberPropertyGetterSharedPath`:
+    /// `var` properties with custom setters — a bundled extension `var`
+    /// (`AtomicInt.value`) and a bundled member `var` (`AtomicLong.value`) —
+    /// must round-trip the precompiled setter link through the shared stdlib
+    /// artifact (`propertySetterExternalLinkName`). Without it the consumer
+    /// lowers `a.value = x` to a call to a bare `set`/`value` symbol and
+    /// fails to link.
+    @Test
+    func testBundledAtomicPropertySetterSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.native.concurrent.AtomicInt
+        import kotlin.native.concurrent.AtomicLong
+        fun main() {
+            val i = AtomicInt(1)
+            i.value = 42
+            println(i.value)
+            val l = AtomicLong(10)
+            l.value = 64
+            println(l.value)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "AtomicPropertySetterArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "42\n64\n")
         }
     }
 

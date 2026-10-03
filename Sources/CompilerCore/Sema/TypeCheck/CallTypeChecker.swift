@@ -399,6 +399,29 @@ final class CallTypeChecker {
         // --- produce { ... } builder (CORO-075) ---
         if let calleeName,
            calleeName == knownNames.produce,
+           !args.isEmpty,
+           args.count <= 2,
+           locals[calleeName] == nil,
+           let lastArgumentExprID = args.last?.expr,
+           isLambdaOrCallableRefArg(lastArgumentExprID, ast: ast)
+        {
+            // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
+            // when it is visible; it composes channel + kk_coroutine_scope_launch
+            // in real Kotlin source, and its block is a boxed suspend lambda.
+            if let boundProduceResult = tryBindSourceBackedProduceCall(
+                id,
+                calleeName: calleeName,
+                args: args,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectedType,
+                ast: ast
+            ) {
+                return boundProduceResult
+            }
+        }
+        if let calleeName,
+           calleeName == knownNames.produce,
            args.count == 1,
            locals[calleeName] == nil
         {
@@ -970,17 +993,36 @@ final class CallTypeChecker {
         }
 
         // --- STDLIB-REFLECT-066: typeOf<T>() — inline reified reflection ---
-        if let calleeName,
-           args.isEmpty,
-           calleeName == knownNames.typeOf,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
-        {
-            // Resolve the KType return type from the stub.
-            let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-            if let stubSymbol = candidates.first(where: { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-                return signature.reifiedTypeParameterIndices.contains(0)
-            }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
+        let typeOfIntrinsicFQName = [
+            interner.intern("kotlin"), interner.intern("reflect"), interner.intern("typeOf"),
+        ]
+        let isQualifiedReflectTypeOf = calleePath == typeOfIntrinsicFQName
+        let isUnqualifiedTypeOf = calleeName.map {
+            $0 == knownNames.typeOf && !isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+        } ?? false
+        if args.isEmpty, isQualifiedReflectTypeOf || isUnqualifiedTypeOf {
+            // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
+            // intrinsic owner. A same-named non-synthetic user declaration
+            // still shadows the unqualified special-call path, but the bundled
+            // intrinsic itself no longer counts as shadowing. The qualified
+            // `kotlin.reflect.typeOf` spelling cannot be shadowed.
+            let typeOfName = interner.intern("typeOf")
+            let hasNonSyntheticUserCandidate = isUnqualifiedTypeOf
+                && !isQualifiedReflectTypeOf
+                && ctx.cachedScopeLookup(typeOfName).contains { candidate in
+                    guard let sym = ctx.cachedSymbol(candidate),
+                          !sym.flags.contains(.synthetic)
+                    else { return false }
+                    return sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == nil
+                }
+            let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(typeOfName)).visible
+            if !hasNonSyntheticUserCandidate,
+               let stubSymbol = candidates.first(where: { candidate in
+                   sema.wellKnownSymbols.reflectIntrinsic(for: candidate) == .typeOf
+               }) ?? candidates.first(where: { candidate in
+                   guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                   return signature.reifiedTypeParameterIndices.contains(0)
+               }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
                 let typeArg = explicitTypeArgs.first ?? sema.types.anyType
                 sema.bindings.bindCall(
                     id,
@@ -1852,6 +1894,24 @@ final class CallTypeChecker {
                             // filter the duplicate becomes a second,
                             // indistinguishable overload candidate and every
                             // call to that name falsely resolves as ambiguous.
+                            // Hidden compatibility factories are present in
+                            // metadata but must not suppress an identically shaped
+                            // constructor. They are intentionally retained by
+                            // filterByVisibility when no other function overload
+                            // exists so a direct call to a removed function still
+                            // receives the deprecation diagnostic; constructors are
+                            // merged only here, so discard the hidden duplicate now.
+                            let constructorParameterTypes = ctorVis.compactMap {
+                                sema.symbols.functionSignature(for: $0)?.parameterTypes
+                            }
+                            candidates.removeAll { existingID in
+                                guard isHiddenByDeprecatedAnnotation(existingID, symbols: sema.symbols),
+                                      let signature = sema.symbols.functionSignature(for: existingID)
+                                else {
+                                    return false
+                                }
+                                return constructorParameterTypes.contains(signature.parameterTypes)
+                            }
                             let newCtorVis = ctorVis.filter { ctorID in
                                 guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
                                     return true
@@ -2104,6 +2164,75 @@ final class CallTypeChecker {
                     continue
                 }
                 expectedTypeOverrides[index] = expectedType
+            }
+        }
+        // A generic factory whose return type is a class parameterized by its
+        // own type parameters (`listOf<T>(vararg values: T): List<T>`) can seed
+        // those parameters from the call's expected result type before a
+        // lambda argument is inferred. Without this, `val xs: List<(Int) ->
+        // Int> = listOf({ it + 1 }, ...)` leaves every vararg slot's expected
+        // type as the bare, unsubstituted `T`, so a lambda argument's implicit
+        // `it` never resolves. Scoped to lambda-literal arguments only, since
+        // other argument kinds already have their own contextual inference.
+        // An explicit call-site type argument (`Array<Int>(3) { it }`) always
+        // wins over the expected type (`Array<out Any>` here), matching
+        // Kotlin's own precedence -- skip this substitution when one is given.
+        if explicitTypeArgs.isEmpty,
+           let expectedType,
+           expectedType != sema.types.errorType,
+           case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
+        {
+            func argType(_ arg: TypeArg) -> TypeID? {
+                switch arg {
+                case let .invariant(type), let .out(type), let .in(type):
+                    type
+                case .star:
+                    nil
+                }
+            }
+            for candidate in candidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      !signature.typeParameterSymbols.isEmpty,
+                      case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
+                      returnClassType.classSymbol == expectedClassType.classSymbol,
+                      returnClassType.args.count == expectedClassType.args.count
+                else {
+                    continue
+                }
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                var substitution: [TypeVarID: TypeID] = [:]
+                for (returnArg, expectedArg) in zip(returnClassType.args, expectedClassType.args) {
+                    guard let returnArgType = argType(returnArg),
+                          let expectedArgType = argType(expectedArg),
+                          case let .typeParam(returnTypeParam) = sema.types.kind(of: returnArgType),
+                          let typeVar = typeVarBySymbol[returnTypeParam.symbol]
+                    else {
+                        continue
+                    }
+                    substitution[typeVar] = expectedArgType
+                }
+                guard !substitution.isEmpty else { continue }
+                for index in args.indices {
+                    guard case .lambdaLiteral = ast.arena.expr(args[index].expr),
+                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                    else {
+                        continue
+                    }
+                    let substitutedType = sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    guard substitutedType != parameterType,
+                          !typeMentionsTypeParameter(substitutedType, sema: sema)
+                    else {
+                        continue
+                    }
+                    if let existing = expectedTypeOverrides[index], existing != substitutedType {
+                        continue
+                    }
+                    expectedTypeOverrides[index] = substitutedType
+                }
             }
         }
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
@@ -2733,6 +2862,21 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
+            }
+            // Resolution may narrow a literal only after choosing a vararg
+            // element type. Persist that type for KIR lowering and codegen.
+            if let signature = sema.symbols.functionSignature(for: chosen) {
+                for (index, argument) in args.enumerated() where !argument.isSpread {
+                    guard let parameterIndex = resolved.parameterMapping[index],
+                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
+                          signature.valueParameterIsVararg[parameterIndex],
+                          parameterIndex < signature.parameterTypes.count
+                    else { continue }
+                    let parameterType = signature.parameterTypes[parameterIndex]
+                    let literal = integerLiteralValues(argument.expr, ast: ast)
+                    guard literal.signed != nil || literal.unsigned != nil else { continue }
+                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+                }
             }
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.

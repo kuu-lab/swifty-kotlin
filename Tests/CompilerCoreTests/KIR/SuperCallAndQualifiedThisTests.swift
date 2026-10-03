@@ -166,6 +166,80 @@ struct SuperCallAndQualifiedThisTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
     }
 
+    // MARK: - `this` inside lambdas with receiver
+
+    private static let nestedReceiverLambdaSource = """
+    class A(val v: Int)
+    class B(val w: Int)
+    fun <T> withA(a: A, f: A.() -> T): T = a.f()
+    fun <T> withB(b: B, f: B.() -> T): T = b.f()
+    fun String.ext(): Int = withB(B(2)) { this.w + this@ext.length }
+    fun main() {
+        println(withA(A(1)) { withB(B(2)) { this@withA.v + this.w } })
+    }
+    """
+
+    /// Lambda literals in source order as `(exprID, label)`.
+    private func lambdaLiterals(in ctx: CompilationContext) throws -> [(id: ExprID, label: String?)] {
+        let ast = try #require(ctx.ast)
+        return ast.arena.exprs.enumerated().compactMap { index, expr in
+            guard case let .lambdaLiteral(_, _, label, _) = expr else { return nil }
+            return (ExprID(rawValue: Int32(index)), label.map { ctx.interner.resolve($0) })
+        }
+    }
+
+    @Test func testCalleeLabelQualifiedThisResolvesInReceiverLambda() throws {
+        let ctx = makeContextFromSource(Self.nestedReceiverLambdaSource)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.message)
+        #expect(errors.isEmpty, "this@withA / this.w / this@ext inside receiver lambdas must type-check, got: \(errors)")
+    }
+
+    @Test func testNestedCalleeLabelThisBindsOuterLambdaReceiverAndIsCaptured() throws {
+        let ctx = makeContextFromSource(Self.nestedReceiverLambdaSource)
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let lambdas = try lambdaLiterals(in: ctx)
+        let outer = try #require(lambdas.first { $0.label == "withA" && $0.id.rawValue < 1000 })
+        let outerReceiver = SyntheticSymbolScheme.lambdaReceiverSymbol(for: outer.id)
+        let innerLambdas = lambdas.filter { $0.label == "withB" && $0.id.rawValue < 1000 }
+        // `this@withA` must be bound to the OUTER lambda's receiver symbol (never the inner one)...
+        let ast = try #require(ctx.ast)
+        let qualified = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            if case let .thisRef(label?, _) = expr, ctx.interner.resolve(label) == "withA" {
+                return ExprID(rawValue: Int32(index))
+            }
+            return nil
+        }
+        #expect(qualified.contains { sema.bindings.identifierSymbol(for: $0) == outerReceiver })
+        // ...and a withB lambda must capture it so KIR reads the outer receiver value,
+        // while no lambda ever captures its own receiver symbol.
+        let captureSets = innerLambdas.map { (lambda: $0, symbols: sema.bindings.captureSymbolsByExpr[$0.id] ?? []) }
+        #expect(captureSets.contains { $0.symbols.contains(outerReceiver) }, "captures: \(captureSets.map(\.symbols))")
+        for entry in captureSets {
+            #expect(!entry.symbols.contains(SyntheticSymbolScheme.lambdaReceiverSymbol(for: entry.lambda.id)))
+        }
+    }
+
+    @Test func testExplicitThisInReceiverLambdaUsesLambdaReceiverNotEnclosingExtension() throws {
+        let ctx = makeContextFromSource("""
+        class W(val w: Int)
+        fun <T> withW(w: W, f: W.() -> T): T = w.f()
+        fun String.ext(): Int = withW(W(3)) { this.w }
+        class C { fun f(): Int = withW(W(4)) { this.w } }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.message)
+        #expect(errors.isEmpty, "explicit `this` must be the lambda receiver W, got: \(errors)")
+    }
+
+    @Test func testNestedReceiverLambdaLowersToKIRWithoutErrors() throws {
+        let ctx = makeContextFromSource(Self.nestedReceiverLambdaSource)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        _ = try #require(ctx.kir)
+    }
+
     @Test func testKIRDumpFormatIncludesSuperTag() throws {
         let source = """
         open class Base {
