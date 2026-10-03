@@ -806,6 +806,12 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isCompleted && thrownException != 0
     }
 
+    func completionSnapshot() -> (completed: Bool, value: Int, exception: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (isCompleted, result, thrownException)
+    }
+
     func complete(with result: Int) {
         lock.lock()
         guard !isCompleted else {
@@ -841,22 +847,20 @@ final class RuntimeAsyncTask: @unchecked Sendable {
 
     func cancel() {
         lock.lock()
+        guard !isCompleted else {
+            lock.unlock()
+            return
+        }
         isCancelled = true
-        let wasCompleted = isCompleted
-        if !wasCompleted {
-            isCompleted = true
-        }
-        let resumers = wasCompleted ? [] : completionResumers
-        if !wasCompleted {
-            completionResumers = []
-        }
+        thrownException = runtimeAllocateCancellationException()
+        isCompleted = true
+        let resumers = completionResumers
+        completionResumers = []
         let snapshotResult = result
         let snapshotThrown = thrownException
         lock.unlock()
-        if !wasCompleted {
-            for resumer in resumers {
-                resumer(snapshotResult, snapshotThrown)
-            }
+        for resumer in resumers {
+            resumer(snapshotResult, snapshotThrown)
         }
     }
 
@@ -1206,6 +1210,12 @@ final class RuntimeJobHandle: @unchecked Sendable {
         body()
     }
 
+    func markBodyless() {
+        lock.lock()
+        hasStartedExecuting = false
+        lock.unlock()
+    }
+
     func registerChild(_ childHandle: Int) {
         lock.lock()
         childJobHandles.append(childHandle)
@@ -1281,6 +1291,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
         case .new, .active, .completing, .cancelling:
             return 0
         }
+    }
+
+    func completionSnapshot() -> (completed: Bool, value: Int, exception: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        let cause = completionCauseLocked()
+        return (state.isCompleted, result, cause == runtimeNullSentinelInt ? 0 : cause)
     }
 
     /// KUU-CORO-101: the value `invokeOnCompletion` handlers receive as
@@ -1550,7 +1567,11 @@ private enum RuntimeJobOrTask {
     case other
 
     init(_ object: AnyObject) {
-        if let job = object as? RuntimeJobHandle {
+        if let wrapper = object as? RuntimeObjectBox,
+           let job = runtimeJobHandle(from: wrapper.coroutineJobHandle)
+        {
+            self = .job(job)
+        } else if let job = object as? RuntimeJobHandle {
             self = .job(job)
         } else if let task = object as? RuntimeAsyncTask {
             self = .task(task)
@@ -3266,6 +3287,31 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
 
 @_cdecl("kk_kxmini_async_await")
 public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
+    if let job = runtimeJobHandle(from: handle) {
+        job.markConsumedByUserCode()
+        job.startIfNeeded()
+        if let callerState = runtimeContinuationState(from: continuation) {
+            let snapshot = job.completionSnapshot()
+            if snapshot.completed {
+                if snapshot.exception != 0 {
+                    callerState.thrownException = snapshot.exception
+                    callerState.signalResume()
+                    return Int(bitPattern: kk_coroutine_suspended())
+                }
+                return snapshot.value
+            }
+            job.addJoinResumer { _ in
+                let completed = job.completionSnapshot()
+                if completed.exception != 0 {
+                    callerState.resume(withException: completed.exception)
+                } else {
+                    callerState.resume(with: completed.value)
+                }
+            }
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
+        return kk_job_join(handle, 0)
+    }
     guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle),
           let task = runtimeAsyncTask(from: handle) else {
         return 0
@@ -3707,6 +3753,58 @@ public func kk_job_new() -> Int {
     let job = RuntimeJobHandle()
     job.markStarted()
     return runtimeRegisterObject(job)
+}
+
+@_cdecl("__kk_job_bind_wrapper")
+public func __kk_job_bind_wrapper(_ wrapperRaw: Int, _ jobRaw: Int, _ parentRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: wrapperRaw),
+          let wrapper = tryCast(ptr, to: RuntimeObjectBox.self),
+          let job = runtimeJobHandle(from: jobRaw)
+    else { return jobRaw }
+    job.markBodyless()
+    wrapper.coroutineJobHandle = jobRaw
+    if let parent = runtimeJobHandle(from: parentRaw) {
+        parent.registerChild(jobRaw)
+        if !parent.isSupervisorMarker {
+            _ = job.addCompletionHandler(onCancelling: false) { cause in
+                if cause != runtimeNullSentinelInt, job.isFailedSnapshot(),
+                   !runtimeCoroutineIsCancellationResult(cause)
+                {
+                    _ = parent.cancel(cause: cause)
+                }
+            }
+        }
+    }
+    return jobRaw
+}
+
+private func deferredCompletionSnapshot(_ handle: Int) -> (completed: Bool, value: Int, exception: Int) {
+    if let job = runtimeJobHandle(from: handle) { return job.completionSnapshot() }
+    if let task = runtimeAsyncTask(from: handle) { return task.completionSnapshot() }
+    return (false, 0, 0)
+}
+
+@_cdecl("__kk_deferred_get_completed")
+public func __kk_deferred_get_completed(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let snapshot = deferredCompletionSnapshot(handle)
+    guard snapshot.completed else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
+        return 0
+    }
+    outThrown?.pointee = snapshot.exception
+    return snapshot.exception == 0 ? snapshot.value : 0
+}
+
+@_cdecl("__kk_deferred_completion_exception")
+public func __kk_deferred_completion_exception(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let snapshot = deferredCompletionSnapshot(handle)
+    guard snapshot.completed else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
+        return runtimeNullSentinelInt
+    }
+    return snapshot.exception == 0 ? runtimeNullSentinelInt : snapshot.exception
 }
 
 /// Backing for `kotlinx.coroutines.SupervisorJob(): Job`. Identical to `kk_job_new` except
@@ -4174,9 +4272,9 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        return job.cancellationSnapshot() ? 1 : 0
+        return job.cancellationSnapshot() || job.isFailedSnapshot() ? 1 : 0
     case .task(let task):
-        return task.isCancelledSnapshot() ? 1 : 0
+        return task.isCancelledSnapshot() || task.isFailedSnapshot() ? 1 : 0
     case .other:
         return 0
     }
@@ -4209,8 +4307,7 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
 /// active" fallback below.
 @_cdecl("kk_job_get_cancellation_exception")
 public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    guard let job = runtimeJobHandle(from: jobHandle)
     else {
         return runtimeAllocateCancellationException(message: "Job is still active")
     }
@@ -4237,8 +4334,7 @@ public func kk_job_invoke_on_completion(
     _ handlerFnPtr: Int,
     _ handlerClosureRaw: Int
 ) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    guard let job = runtimeJobHandle(from: jobHandle)
     else {
         return 0
     }
@@ -4259,8 +4355,7 @@ public func kk_job_invoke_on_completion(
 /// `Job.invokeOnCompletion` (via `__kk_job_dispose_completion_handler`).
 @_cdecl("kk_job_dispose_completion_handler")
 public func kk_job_dispose_completion_handler(_ jobHandle: Int, _ handlerID: Int) {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    guard let job = runtimeJobHandle(from: jobHandle)
     else {
         return
     }
