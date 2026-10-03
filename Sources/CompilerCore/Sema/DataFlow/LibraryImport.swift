@@ -180,6 +180,25 @@ extension DataFlowSemaPhase {
             if libraryDir.hasSuffix(".klib") {
                 if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
                     klibModules.append(module)
+                    let stdlibArtifact = isStdlibArtifact(libraryDir)
+                    if stdlibArtifact {
+                        stdlibArtifactLoaded = true
+                        stdlibModuleName = interner.intern(module.uniqueName)
+                    }
+                    let klibModuleFQN = interner.intern(module.uniqueName)
+                    for record in materializeKlibRecords(
+                        module: module,
+                        interner: interner,
+                        diagnostics: diagnostics
+                    ) {
+                        appendImportedBinding(
+                            record,
+                            metadataPath: "\(libraryDir)/ir",
+                            inlineKIRDir: nil,
+                            isStdlibArtifact: stdlibArtifact,
+                            moduleFQN: klibModuleFQN
+                        )
+                    }
                 }
                 continue
             }
