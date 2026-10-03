@@ -1405,7 +1405,7 @@ extension CallTypeChecker {
         return types.make(.functionType(FunctionType(
             receiver: first.functionType.receiver,
             params: first.functionType.params,
-            returnType: types.anyType,
+            returnType: types.nullableAnyType,
             isSuspend: first.functionType.isSuspend,
             nullability: first.functionType.nullability
         )))
