@@ -98,7 +98,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.virtualCall(
@@ -214,7 +215,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.virtualCall(
@@ -236,10 +238,17 @@ extension CallLowerer {
             ] {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                    valueID,
+                    slotType: sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [receiverID, offsetExpr, valueID],
+                    arguments: [receiverID, offsetExpr, storedValueID],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -397,7 +406,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
         }
         let virtualSetterDispatch = propertySymbol.flatMap { propertySymbol in
@@ -406,7 +416,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
         }
 
@@ -672,10 +683,17 @@ extension CallLowerer {
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                let storedValue = normalizedValueForNullablePrimitiveSlot(
+                    newValue,
+                    slotType: propType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [receiverID, offsetExpr, newValue],
+                    arguments: [receiverID, offsetExpr, storedValue],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil

@@ -51,6 +51,19 @@ struct RuntimeStringEqualsTests {
     }
 
     @Test
+    func testFlatRoundTripPreservesStringHandleIdentity() {
+        let original = runtimeString("atomic-reference")
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let flatData = kk_string_to_flat(original, &length, &byteCount, &hash)
+        let roundTrip = kk_string_from_flat(flatData, length, byteCount, hash)
+
+        #expect(roundTrip == original)
+        #expect(roundTrip != runtimeString("atomic-reference"))
+    }
+
+    @Test
     func testEqualsDifferentContent() {
         #expect(!boolValue(kk_string_equals(runtimeString("hello"), runtimeString("world"))))
     }

@@ -182,7 +182,30 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     peerIsNullable = isNullableOrPlatform(lhs, arena: arena, types: types)
                 }
                 let intType = types?.make(.primitive(.int, .nonNull))
-                let flagValue: Int64 = peerIsNullable ? 1 : 0
+                // The flag encodes the peer's nature, not just nullability:
+                //   0 — provably non-null, non-floating peer: structural/value
+                //       compare (runtimeNonNullValuesEqual).
+                //   1 — peer may hold null and is not a floating-point
+                //       primitive: sentinel-check then structural compare.
+                //   2/3 — provably non-null raw Double/Float word.
+                //   4/5 — a Double?/Float? slot (sentinel still means null).
+                // For 2-5 Kotlin `==`/`!=` is IEEE-754 once nullness is ruled
+                // out (`-0.0 == 0.0`, `NaN != NaN`) — not the boxed `equals`
+                // bit-pattern compare runtimeNonNullValuesEqual applies.
+                let flagValue: Int64 = {
+                    if peerIsNullable {
+                        switch nullablePrimitiveKind(peerSide, arena: arena, types: types) {
+                        case .double: return 4
+                        case .float: return 5
+                        default: return 1
+                        }
+                    }
+                    switch nonNullPrimitiveKind(peerSide, arena: arena, types: types) {
+                    case .double: return 2
+                    case .float: return 3
+                    default: return 0
+                    }
+                }()
                 let flagExpr = arena.appendExpr(.intLiteral(flagValue), type: intType)
                 newBody.append(.constValue(result: flagExpr, value: .intLiteral(flagValue)))
                 let callee = interner.intern(op == .equal ? "kk_nullable_primitive_eq" : "kk_nullable_primitive_ne")
@@ -271,6 +294,16 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     private func nullablePrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
         guard let types, let typeID = arena.exprType(exprID) else { return nil }
         if case let .primitive(primitiveType, .nullable) = types.kind(of: typeID) {
+            return primitiveType
+        }
+        return nil
+    }
+
+    /// The expression's static primitive kind, if its type is a non-null
+    /// primitive (`Double`, `Float`, `Long`, ...); `nil` otherwise.
+    private func nonNullPrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
+        guard let types, let typeID = arena.exprType(exprID) else { return nil }
+        if case let .primitive(primitiveType, .nonNull) = types.kind(of: typeID) {
             return primitiveType
         }
         return nil

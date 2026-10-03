@@ -1194,14 +1194,37 @@ final class LambdaLowerer {
             callArguments.append(paramExpr)
         }
         let callResult = arena.appendTemporary(type: returnType)
-        body.append(.call(
-            symbol: targetSymbol,
-            callee: targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner),
-            arguments: callArguments,
-            result: callResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        let callee = targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner)
+        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+           let receiver = callArguments.first,
+           let receiverType = captureParams.first?.type,
+           let dispatch = driver.callLowerer.resolveVirtualDispatch(
+               callee: targetSymbol,
+               receiverTypeID: receiverType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            body.append(.virtualCall(
+                symbol: targetSymbol,
+                callee: callee,
+                receiver: receiver,
+                arguments: Array(callArguments.dropFirst()),
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+        } else {
+            body.append(.call(
+                symbol: targetSymbol,
+                callee: callee,
+                arguments: callArguments,
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         switch sema.types.kind(of: returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
@@ -1325,7 +1348,9 @@ final class LambdaLowerer {
             return parentKind == .object
         }()
         var captureArguments: [KIRExprID] = []
-        if let receiverExpr {
+        if let receiverExpr,
+           targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor
+        {
             let loweredReceiver = driver.lowerExpr(
                 receiverExpr,
                 ast: ast,
@@ -1375,6 +1400,20 @@ final class LambdaLowerer {
             // crash bare `::member` already had for a receiver it can't
             // safely resolve — not memory corruption from reading a
             // wrong-typed object's fields.
+            captureArguments.append(implicitReceiver)
+        } else if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+                  let targetSymbol,
+                  let declaredReceiver = sema.symbols.functionSignature(for: targetSymbol)?.receiverType,
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                  let activeType = arena.exprType(implicitReceiver),
+                  sema.types.isSubtype(
+                      sema.types.makeNonNullable(activeType),
+                      sema.types.makeNonNullable(declaredReceiver)
+                  )
+        {
+            // A bare `::member` in an extension function is a bound method
+            // reference: its wrapper forwards the captured extension receiver
+            // before the explicit arguments.
             captureArguments.append(implicitReceiver)
         }
 
@@ -1591,6 +1630,77 @@ final class LambdaLowerer {
                 )
             )
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
+        } else if let callTargetSymbol,
+                  sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+                  let boundReceiver = captureArguments.first,
+                  let dispatch = driver.callLowerer.resolveVirtualDispatch(
+                      callee: callTargetSymbol,
+                      receiverTypeID: arena.exprType(boundReceiver),
+                      sema: sema,
+                      interner: interner
+                  )
+        {
+            // A bound `::member` must retain virtual dispatch. Passing the
+            // interface declaration as a raw callable target would invoke it
+            // directly and bypass the concrete receiver's itable entry.
+            callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+            callableName = syntheticLambdaName(for: exprID, interner: interner)
+            let functionType = boundType.flatMap { typeID -> FunctionType? in
+                guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
+                return ft
+            }
+            let returnType = functionType?.returnType ?? sema.types.anyType
+            let receiverParam = KIRParameter(
+                symbol: needsHOFWrapper
+                    ? syntheticLambdaClosureParamSymbol(lambdaExprID: exprID)
+                    : syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: 0),
+                type: needsHOFWrapper
+                    ? sema.types.intType
+                    : (arena.exprType(boundReceiver) ?? sema.types.anyType)
+            )
+            let valueParams: [KIRParameter] = (functionType?.params ?? []).enumerated().map { index, type in
+                KIRParameter(
+                    symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
+                    type: type
+                )
+            }
+            var body: [KIRInstruction] = [.beginBlock]
+            let receiverRef = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverParam.type)
+            body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
+            var valueRefs: [KIRExprID] = []
+            for valueParam in valueParams {
+                let valueRef = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
+                body.append(.constValue(result: valueRef, value: .symbolRef(valueParam.symbol)))
+                valueRefs.append(valueRef)
+            }
+            let callResult = arena.appendTemporary(type: returnType)
+            body.append(.virtualCall(
+                symbol: callTargetSymbol,
+                callee: callableTargetName(for: callTargetSymbol, sema: sema, interner: interner),
+                receiver: receiverRef,
+                arguments: valueRefs,
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+            switch sema.types.kind(of: returnType) {
+            case .unit, .nothing(.nonNull), .nothing(.nullable):
+                body.append(.returnUnit)
+            default:
+                body.append(.returnValue(callResult))
+            }
+            body.append(.endBlock)
+            let wrapperDecl = arena.appendDecl(.function(KIRFunction(
+                symbol: callableSymbol,
+                name: callableName,
+                params: [receiverParam] + valueParams,
+                returnType: returnType,
+                body: body,
+                isSuspend: functionType?.isSuspend ?? false,
+                isInline: false
+            )))
+            driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
         } else if let callTargetSymbol, needsHOFWrapper {
             // Generate a HOF-ABI wrapper that delegates to the target function.
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
@@ -1749,6 +1859,32 @@ final class LambdaLowerer {
             return callableExpr
         }
 
+        // An implicit `::member` returned from its receiver scope outlives
+        // the KIR callable-value table: another function cannot recover its
+        // captured `this` from that compile-time map. Box it using the same
+        // closure adapter as an escaping lambda, so runtime invocation reads
+        // the receiver from the closure object.
+        let callableValue: KIRExprID
+        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+           !captureArguments.isEmpty,
+           case let .functionType(functionType) = sema.types.kind(of: callableType),
+           let materialized = materializeEscapingCallableValue(
+               exprID: exprID,
+               lambdaSymbol: callableSymbol,
+               lambdaReturnType: functionType.returnType,
+               functionType: functionType,
+               captureArguments: captureArguments,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            callableValue = materialized
+        } else {
+            callableValue = callableExpr
+        }
+
         // REFL-003: Emit KFunction / KProperty type identity tag.
         // The tagging call wraps the callable value with reflection
         // metadata (name, arity, KFunction vs KProperty).  We register
@@ -1757,7 +1893,7 @@ final class LambdaLowerer {
         // correct target symbol and capture arguments.
         if let refKind = sema.bindings.callableRefKind(for: exprID) {
             let taggedExpr = emitCallableRefTypeTag(
-                callableExpr: callableExpr,
+                callableExpr: callableValue,
                 callableType: callableType,
                 refKind: refKind,
                 memberName: memberName,
@@ -1766,16 +1902,19 @@ final class LambdaLowerer {
                 interner: interner,
                 instructions: &instructions
             )
-            driver.ctx.registerCallableValue(
-                taggedExpr,
-                symbol: callableSymbol,
-                callee: callableName,
-                captureArguments: captureArguments
-            )
+            if let callableInfo = driver.ctx.callableValueInfo(for: callableValue) {
+                driver.ctx.registerCallableValue(
+                    taggedExpr,
+                    symbol: callableInfo.symbol,
+                    callee: callableInfo.callee,
+                    captureArguments: callableInfo.captureArguments,
+                    hasClosureParam: callableInfo.hasClosureParam
+                )
+            }
             return taggedExpr
         }
 
-        return callableExpr
+        return callableValue
     }
 
     /// Builds the wrapper for `Type::toString` used as a `(Type) -> String`
