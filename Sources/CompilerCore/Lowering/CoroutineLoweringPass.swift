@@ -78,6 +78,7 @@ final class CoroutineLoweringPass: LoweringPass {
 
         let anyType = ctx.sema?.types.nullableAnyType ?? ctx.sema?.types.anyType
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
+        let longType = ctx.sema?.types.make(.primitive(.long, .nonNull))
         let unitType = ctx.sema?.types.unitType
         let sequenceClassSymbol = ctx.sema?.symbols.lookup(fqName: [
             ctx.interner.intern("kotlin"),
@@ -240,6 +241,7 @@ final class CoroutineLoweringPass: LoweringPass {
                     continuationType: continuationType,
                     anyType: anyType ?? continuationType,
                     intType: intType,
+                    longType: longType,
                     unitType: unitType
                 )
             )
