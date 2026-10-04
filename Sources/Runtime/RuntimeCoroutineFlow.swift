@@ -1061,12 +1061,14 @@ private func runtimeFlowCollectLazy(
         return retVal
     }
     let result = runtimeFlowEvaluate(flow: flow)
+    let context = RuntimeFlowCollectContext()
     for value in result.values {
         let delivered = runtimeFlowDeliverValue(
             value,
             collectorFnPtr: collectorFnPtr,
             collectorEnvPtr: collectorEnvPtr,
-            continuation: continuation
+            continuation: continuation,
+            owningContext: context
         )
         if !delivered {
             if hasOnCompletion {
@@ -1074,7 +1076,7 @@ private func runtimeFlowCollectLazy(
                     return handlerException
                 }
             }
-            return 0
+            return context.failure
         }
     }
     if hasOnCompletion {
@@ -1095,6 +1097,7 @@ private func runtimeFlowCollectStreaming(
     let hasStreamLevelOps = ops.contains(where: { runtimeFlowIsStreamLevelOp($0.kind) })
     var takeCounters = runtimeFlowInitTakeCounters(ops)
     var lastValues: [Int: Int] = [:]
+    let context = RuntimeFlowCollectContext()
 
     if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
         return 0
@@ -1105,7 +1108,8 @@ private func runtimeFlowCollectStreaming(
             value,
             collectorFnPtr: collectorFnPtr,
             collectorEnvPtr: collectorEnvPtr,
-            continuation: continuation
+            continuation: continuation,
+            owningContext: context
         )
         return delivered && !runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters)
     }
@@ -1126,11 +1130,13 @@ private func runtimeFlowCollectStreaming(
                 switch result {
                 case .emit(let value):
                     if !deliverValue(value) {
-                        return 0
+                        return context.failure
                     }
                 case .filtered:
                     continue
-                case .thrown, .done:
+                case let .thrown(failure):
+                    return failure
+                case .done:
                     return 0
                 }
             }
@@ -1148,11 +1154,13 @@ private func runtimeFlowCollectStreaming(
             switch result {
             case .emit(let value):
                 if !deliverValue(value) {
-                    return 0
+                    return context.failure
                 }
             case .filtered:
                 continue
-            case .thrown, .done:
+            case let .thrown(failure):
+                return failure
+            case .done:
                 return 0
             }
         }
@@ -1184,10 +1192,12 @@ private func runtimeFlowCollectStreaming(
                 )
                 switch result {
                 case .emit(let value):
-                    if !deliverValue(value) { return 0 }
+                    if !deliverValue(value) { return context.failure }
                 case .filtered:
                     continue
-                case .thrown, .done:
+                case let .thrown(failure):
+                    return failure
+                case .done:
                     return 0
                 }
             }
@@ -1205,10 +1215,12 @@ private func runtimeFlowCollectStreaming(
                 lastValues: &lastValues
             ) {
             case .emit(let value):
-                if !deliverValue(value) { return 0 }
+                if !deliverValue(value) { return context.failure }
             case .filtered:
                 continue
-            case .thrown, .done:
+            case let .thrown(failure):
+                return failure
+            case .done:
                 return 0
             }
         }
@@ -1220,7 +1232,6 @@ private func runtimeFlowCollectStreaming(
     }
 
     if hasStreamLevelOps {
-        let context = RuntimeFlowCollectContext()
         runtimeFlowPushCollectContext(context)
 
         var outThrown = 0
@@ -1241,23 +1252,24 @@ private func runtimeFlowCollectStreaming(
                 switch result {
                 case .emit(let value):
                     if !deliverValue(value) {
-                        return 0
+                        return context.failure
                     }
                 case .filtered:
                     continue
-                case .thrown, .done:
+                case let .thrown(failure):
+                    return failure
+                case .done:
                     return 0
                 }
             }
         }
-        return 0
+        return outThrown
     }
 
     // If the op chain contains a transform op, use a specialised path that
     // correctly fans out the 1-to-many transform semantics.
     let hasTransformOp = ops.contains(where: { $0.kind == .transform })
 
-    let context = RuntimeFlowCollectContext()
     context.emitHandler = { rawValue in
         if hasTransformOp {
             // Locate the first transform op and split the chain.
@@ -1279,7 +1291,9 @@ private func runtimeFlowCollectStreaming(
             guard case .emit(let preValue) = preResult else {
                 switch preResult {
                 case .filtered: return rawValue
-                case .thrown(let e): return e  // propagate
+                case .thrown(let e):
+                    context.failure = e
+                    return runtimeFlowStopSentinel
                 case .done: return runtimeFlowStopSentinel
                 case .emit: break
                 }
@@ -1304,7 +1318,10 @@ private func runtimeFlowCollectStreaming(
             _ = transformFn(preValue, &thrown)
             runtimeFlowPopCollectContext()
 
-            if thrown != 0 { return thrown }  // propagate exception
+            if thrown != 0 {
+                context.failure = thrown
+                return runtimeFlowStopSentinel
+            }
 
             // Apply post-transform ops to each emitted value and deliver.
             var stop = false
@@ -1329,7 +1346,10 @@ private func runtimeFlowCollectStreaming(
                     }
                 case .filtered:
                     continue
-                case .thrown, .done:
+                case let .thrown(failure):
+                    context.failure = failure
+                    stop = true
+                case .done:
                     stop = true
                 }
             }
@@ -1358,7 +1378,10 @@ private func runtimeFlowCollectStreaming(
             return value
         case .filtered:
             return rawValue
-        case .thrown, .done:
+        case let .thrown(failure):
+            context.failure = failure
+            return runtimeFlowStopSentinel
+        case .done:
             return runtimeFlowStopSentinel
         }
     }
@@ -1369,7 +1392,7 @@ private func runtimeFlowCollectStreaming(
         runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
     }
     runtimeFlowPopCollectContext()
-    return context.failure != 0 ? context.failure : outThrown
+    return outThrown != 0 ? outThrown : context.failure
 }
 
 /// Deliver a single value to the collector. Returns true on success, false if
@@ -1499,7 +1522,8 @@ public func __kk_flow_stopped() -> Int {
 private let runtimeFlowStopSentinel: Int = __kk_flow_stopped()
 
 @_cdecl("kk_flow_emit")
-public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
+public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
         if context?.cancelled == true { return runtimeFlowStopSentinel }
@@ -1509,7 +1533,9 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
             context.emittedValues.append(unboxed)
             context.emittedEvents.append(RuntimeFlowEvent(value: unboxed, timestamp: timestamp))
             if let emitHandler = context.emitHandler {
-                return emitHandler(unboxed)
+                let result = emitHandler(unboxed)
+                outThrown?.pointee = context.failure
+                return result
             }
         }
         return value

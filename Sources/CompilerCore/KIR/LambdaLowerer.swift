@@ -97,6 +97,7 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_0",
             "kk_suspend_function_invoke",
             "kk_suspend_function_invoke_2",
+            "kk_suspend_function_invoke_3",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null",
@@ -604,16 +605,12 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
-        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
-        // without dropping the receiver. Keep the raw lambda instead: call sites
-        // that consume such callables adapt them through
-        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
-        guard functionType.receiver == nil else {
+        guard functionType.receiver == nil || functionType.isSuspend else {
             return nil
         }
+        let parameterTypes = functionType.receiver.map { [$0] + functionType.params } ?? functionType.params
         let createCallee: InternedString
-        switch functionType.params.count {
+        switch parameterTypes.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -636,7 +633,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = parameterTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
