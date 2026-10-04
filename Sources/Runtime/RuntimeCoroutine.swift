@@ -3669,15 +3669,18 @@ public func kk_test_scheduler_run_current(_ schedulerHandle: Int) -> Int {
 ///  - A suspend *literal* the call-site rewrite resolves routes to
 ///    `kk_test_run_blocking_with_cont` instead (launcher-continuation
 ///    convention; the scope lands in launcherArgs[0]).
-///  - A suspend function *value* (a block stored in a variable or
-///    forwarded from another call) crosses as the (entryPointRaw,
-///    closureRaw) pair suspend function values use at the ABI boundary.
-///    The suspend-value invoke thunk is `(env, receiver, outThrown)` — the
-///    same convention `kk_function_invoke` dispatches for boxed values —
-///    so `launch {}`/`cancel()`/`isActive` inside the body resolve against
-///    the real scope (the degraded "virtual time == real time" contract of
-///    KSP-1583). `timeoutRaw` is accepted for signature compatibility but
-///    not enforced (degraded phase-1 contract).
+///  - A suspend function *value* that does not resolve to a known suspend
+///    symbol (e.g. an opaque boxed `Function` object) crosses as the
+///    (entryPointRaw, closureRaw) pair suspend function values use at the
+///    ABI boundary. Its invoke thunk is `(env, receiver, outThrown)` —
+///    the same convention `kk_function_invoke` dispatches for boxed
+///    values — so `launch {}`/`cancel()`/`isActive` inside the body
+///    resolve against the real scope (the degraded "virtual time == real
+///    time" contract of KSP-1583). Blocks that DO resolve — literals and
+///    variable-held lambdas alike — route to `kk_test_run_blocking_with_cont`
+///    instead, which seeds the scope into the receiver launcher slot.
+///    `timeoutRaw` is accepted for signature compatibility but not
+///    enforced (degraded phase-1 contract).
 @_cdecl("kk_test_run_blocking")
 public func kk_test_run_blocking(
     _ contextRaw: Int,
@@ -3697,16 +3700,34 @@ public func kk_test_run_blocking(
 
     // Children launched inside the test body discover the test scope as
     // their parent (upstream runTest semantics), so install it as ambient
-    // for the duration of the blocking run.
+    // for the duration of the blocking run. An event loop is installed the
+    // same way: children queue on it (the thunk's nested blocking run
+    // reuses the current loop), and `waitForChildren`'s joins keep
+    // draining it until they complete.
     let previousScope = RuntimeCoroutineScope.current
     RuntimeCoroutineScope.current = scope
     defer { RuntimeCoroutineScope.current = previousScope }
+    let previousLoop = RuntimeEventLoop.current
+    let loop = previousLoop ?? RuntimeEventLoop()
+    RuntimeEventLoop.current = loop
+    defer { RuntimeEventLoop.current = previousLoop }
 
     var thrown = 0
     let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
     let result = invoke(closureRaw, scopeHandle, &thrown)
     if thrown != 0 {
         outThrown?.pointee = thrown
+        // runTest semantics: a body failure cancels the scope's children.
+        scope.cancel()
+        _ = scope.waitForChildren(releaseOriginalHandles: false)
+        return 0
+    }
+    // Children launched inside the body parent to the test scope — join
+    // them the way a blocking runBlocking scope would, and surface the
+    // first child failure to the runTest caller.
+    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+    if childThrown != 0 {
+        outThrown?.pointee = childThrown
         return 0
     }
     outThrown?.pointee = 0
@@ -3715,37 +3736,61 @@ public func kk_test_run_blocking(
 
 /// Literal-lambda counterpart to `kk_test_run_blocking`: the call-site
 /// rewrite built a launcher continuation holding the block's captures in
-/// slots 1...; the freshly minted test scope lands in launcherArgs[0] (the
-/// suspend-entry receiver slot, same as the channel handle in
-/// `__kk_produce_launch_with_cont`) so `this` inside the body binds to the
-/// real RuntimeCoroutineScope. The nested runBlocking drains the suspend
-/// entry loop on this thread, matching `runTest`'s blocking contract.
+/// launcherArgs; `scopeSlotRaw` names the suspend-entry receiver slot —
+/// 0 for launcher-marked (receiver-first) lambdas, `params.count - 1`
+/// for unmarked (captures-first) suspend values — and the freshly minted
+/// test scope lands there so `this` inside the body binds to the real
+/// RuntimeCoroutineScope. The nested runBlocking drains the suspend entry
+/// loop on this thread, matching `runTest`'s blocking contract.
 @_cdecl("kk_test_run_blocking_with_cont")
 public func kk_test_run_blocking_with_cont(
     _ contextRaw: Int,
     _ entryPointRaw: Int,
     _ continuation: Int,
+    _ scopeSlotRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
     guard let scope = runtimeCoroutineScope(from: scopeHandle),
-          let contState = runtimeContinuationState(from: continuation)
+          let contState = runtimeContinuationState(from: continuation),
+          scopeSlotRaw >= 0
     else {
         outThrown?.pointee = 0
         return 0
     }
-    contState.launcherArgs[0] = Int64(scopeHandle)
+    contState.launcherArgs[Int64(scopeSlotRaw)] = Int64(scopeHandle)
     contState.scope = scope
 
     let previousScope = RuntimeCoroutineScope.current
     RuntimeCoroutineScope.current = scope
     defer { RuntimeCoroutineScope.current = previousScope }
+    // Install the event loop the nested blocking run will reuse; it stays
+    // current after that run returns so `waitForChildren`'s joins can keep
+    // draining children that are still queued on it.
+    let previousLoop = RuntimeEventLoop.current
+    let loop = previousLoop ?? RuntimeEventLoop()
+    RuntimeEventLoop.current = loop
+    defer { RuntimeEventLoop.current = previousLoop }
 
-    return runtimeRunBlockingOnEventLoop(
+    let result = runtimeRunBlockingOnEventLoop(
         entryPointRaw: entryPointRaw,
         continuation: continuation,
         outThrown: outThrown
     )
+    // `contState.scope` being preset means the event-loop run treats the
+    // scope as borrowed and skips its own waitForChildren — so join the
+    // test scope's children here instead. runTest semantics: a body
+    // failure cancels the children; a child failure surfaces to the caller.
+    let bodyFailed = (outThrown?.pointee ?? 0) != 0
+    if bodyFailed {
+        scope.cancel()
+    }
+    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+    if !bodyFailed, childThrown != 0 {
+        outThrown?.pointee = childThrown
+        return 0
+    }
+    return result
 }
 
 /// KSP-1573: backing for the bundled `CoroutineScope.produce`/`actor`

@@ -1222,11 +1222,34 @@ extension CoroutineLoweringPass {
             ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
             : trailingCaptures
 
+        // The suspend thunk's launcherArgs mirror the lowered function's
+        // parameter layout. Launcher-marked literals lower receiver-first
+        // (`[receiver, cap0..capN]`), so the scope lands in slot 0 and
+        // captures in slots 1... Unmarked suspend values (a block held in a
+        // variable — `val body = { ... }; runTest(testBody = body)`) lower
+        // captures-first (`[cap0..capN, receiver]`), so the scope lands in
+        // the LAST slot and captures in slots 0..N-1. A variable-held
+        // value's env is not recoverable at the call site (KUU-1016), so
+        // unavailable capture slots are seeded 0 — the degraded "captures
+        // arrive null" behaviour documented for boxed suspend values.
+        let receiverFirst = rewrite.module.arena.receiverFirstLauncherLambdaSymbols
+            .contains(suspendSymbol)
+        let suspendParamCount = rewrite.module.arena.function(for: suspendSymbol)?.params.count
+            ?? (captures.count + 1)
+        let scopeSlot = receiverFirst ? 0 : suspendParamCount - 1
+        guard scopeSlot >= 0 else {
+            return nil
+        }
+
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
         let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let zeroExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(0),
+            type: rewrite.intType
         )
 
         var rewritten: [KIRInstruction] = [
@@ -1240,17 +1263,16 @@ extension CoroutineLoweringPass {
             ),
         ]
 
-        // Slot 0 is reserved for the test scope receiver.
-        for (index, argExpr) in captures.enumerated() {
+        func appendLauncherArgSet(_ slot: Int, _ value: KIRExprID) {
             let slotExpr = rewrite.module.arena.appendExpr(
-                .intLiteral(Int64(index + 1)),
+                .intLiteral(Int64(slot)),
                 type: rewrite.intType
             )
             rewritten.append(
                 .call(
                     symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argExpr],
+                    arguments: [continuationExpr, slotExpr, value],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -1258,14 +1280,31 @@ extension CoroutineLoweringPass {
             )
         }
 
+        if receiverFirst {
+            for (index, argExpr) in captures.enumerated() {
+                appendLauncherArgSet(index + 1, argExpr)
+            }
+        } else {
+            for index in 0..<scopeSlot {
+                appendLauncherArgSet(index, index < captures.count ? captures[index] : zeroExpr)
+            }
+        }
+        // Reserve the scope slot so launcherArgs is sized for it; the
+        // runtime overwrites it with the minted scope handle.
+        appendLauncherArgSet(scopeSlot, zeroExpr)
+
         let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let scopeSlotExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(scopeSlot)),
+            type: rewrite.intType
         )
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
                 symbol: nil,
                 callee: rewrite.ctx.interner.intern("kk_test_run_blocking_with_cont"),
-                arguments: [contextExpr, thunkRefExpr, continuationExpr],
+                arguments: [contextExpr, thunkRefExpr, continuationExpr, scopeSlotExpr],
                 result: call.result,
                 canThrow: call.canThrow,
                 thrownResult: call.thrownResult

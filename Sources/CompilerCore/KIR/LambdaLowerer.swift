@@ -437,6 +437,9 @@ final class LambdaLowerer {
         // lambdas retain the historical capture-first layout.
         let receiverFirstLauncherABI = sema.bindings.isCoroutineLauncherLambdaExpr(exprID)
             && needsExplicitReceiver
+        if receiverFirstLauncherABI {
+            driver.ctx.receiverFirstLauncherLambdaSymbols.insert(lambdaSymbol)
+        }
         let functionParameters = receiverFirstLauncherABI
             ? lambdaParameters + functionCaptureBindings.map(\.param)
             : functionCaptureBindings.map(\.param) + lambdaParameters

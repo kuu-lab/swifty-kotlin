@@ -964,10 +964,12 @@ extension CallLowerer {
         }
 
         // KSP-1583: `runTest` forwards `testBody` — a suspend
-        // `TestScope.() -> Unit` value, usually a boxed parameter rather
-        // than a literal — to the blocking-run bridge. Expand it to the
-        // (fnPtr, closureRaw) pair the `kk_test_run_blocking` ABI expects;
-        // the runtime thunk binds the minted scope handle as `this` itself.
+        // `TestScope.() -> Unit` value, usually a variable-held lambda
+        // rather than a literal — to the blocking-run bridge. Expand it to
+        // the (fnPtr, envRaw) pair suspend launcher thunks use at the ABI
+        // boundary; the runtime unpacks env into positional captures and
+        // binds the minted scope handle as `this` itself (the same
+        // convention `__kk_produce_launch` drives).
         // Literal blocks never reach this path — CoroutineLoweringPass
         // routes them through `kk_test_run_blocking_with_cont` instead.
         if externalLinkName == "kk_test_run_blocking", loweredArguments.count == 3 {
