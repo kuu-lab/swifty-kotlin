@@ -1678,9 +1678,15 @@ final class CallTypeChecker {
            let lambdaIndex = coroutineLauncherLambdaArgIndex,
            lambdaIndex < args.count
         {
-            let lambdaReturnType: TypeID = calleeName == knownNames.launch
-                ? sema.types.unitType
-                : expectedType ?? sema.types.anyType
+            let lambdaReturnType: TypeID
+            if calleeName == knownNames.launch {
+                lambdaReturnType = sema.types.unitType
+            } else if calleeName == knownNames.async {
+                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
+                    ?? sema.types.nullableAnyType
+            } else {
+                lambdaReturnType = expectedType ?? sema.types.anyType
+            }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
                 receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
                     ? nil : coroutineScopeType(sema: sema, interner: interner),

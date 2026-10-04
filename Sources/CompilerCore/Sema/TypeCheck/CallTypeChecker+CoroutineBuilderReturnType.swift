@@ -45,8 +45,8 @@ extension CallTypeChecker {
     }
 
     /// Recover erased builder results from the block's inferred return type.
-    /// Source-backed Deferred has a type argument; the synthetic fallback does
-    /// not, so also retain the out-of-band element binding for that fallback.
+    /// Keep generic Deferred's shape and retain the out-of-band element binding
+    /// for the parameterless synthetic fallback.
     func coroutineBuilderNarrowedReturnType(
         id: ExprID,
         launcherName: String,
@@ -70,23 +70,65 @@ extension CallTypeChecker {
             bodyReturnType = nil
         }
         guard let bodyReturnType else {
-            return fallback
+            return launcherName == "async"
+                ? wellKindedDeferredReturnType(fallback: fallback, elementType: nil, sema: sema)
+                : fallback
         }
         guard launcherName == "async" else {
             return launcherName == "withTimeoutOrNull"
                 ? sema.types.makeNullable(bodyReturnType) : bodyReturnType
         }
         sema.bindings.bindDeferredElementType(bodyReturnType, forExpr: id)
-        if case let .classType(deferredType) = sema.types.kind(of: fallback),
-           sema.types.nominalTypeParameterSymbols(for: deferredType.classSymbol).count == 1
-        {
-            return sema.types.make(.classType(ClassType(
-                classSymbol: deferredType.classSymbol,
-                args: [.invariant(bodyReturnType)],
-                nullability: deferredType.nullability
-            )))
+        return wellKindedDeferredReturnType(
+            fallback: fallback,
+            elementType: bodyReturnType,
+            sema: sema
+        )
+    }
+
+    func deferredExpectedElementType(
+        _ expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let expectedType,
+              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
+              sema.symbols.symbol(classType.classSymbol)?.fqName == [
+                  interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("Deferred"),
+              ],
+              let argument = classType.args.first
+        else {
+            return nil
         }
-        return fallback
+        switch argument {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return nil
+        }
+    }
+
+    /// Repair residual raw Deferred types and apply the inferred element type.
+    func wellKindedDeferredReturnType(
+        fallback: TypeID,
+        elementType: TypeID?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard case let .classType(classType) = sema.types.kind(of: fallback) else {
+            return fallback
+        }
+        let typeParameters = sema.types.nominalTypeParameterSymbols(for: classType.classSymbol)
+        guard !typeParameters.isEmpty,
+              elementType != nil || classType.args.count != typeParameters.count
+        else {
+            return fallback
+        }
+        let filledElement = elementType ?? sema.types.nullableAnyType
+        return sema.types.make(.classType(ClassType(
+            classSymbol: classType.classSymbol,
+            args: typeParameters.map { _ in .out(filledElement) },
+            nullability: classType.nullability
+        )))
     }
 
     /// Recover the element type when Deferred's fallback signature erases it.

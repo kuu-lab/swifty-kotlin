@@ -44,5 +44,9 @@ fun main() {
         println(task.await())
         val nullableTask: Deferred<Int?> = async(block = nullValue)
         println(nullableTask.await())
+        val literalTask: Deferred<Int> = async { 11 }
+        println(literalTask.await())
+        val nullableLiteralTask: Deferred<Int?> = async { null as Int? }
+        println(nullableLiteralTask.await())
     }
 }

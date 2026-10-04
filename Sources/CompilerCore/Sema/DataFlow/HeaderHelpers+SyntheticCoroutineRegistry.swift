@@ -445,12 +445,22 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // Source-backed `Deferred<out T>` (#7485 / KSP-1564) carries one
+        // class-level type parameter. Residual `async` registration often runs
+        // before that declaration is attached when CompilerCoreTests compile
+        // the bundled stdlib from source, so `isSourceBackedSymbol` is still
+        // false here. Always emit the generic shape: `await()` member matching
+        // requires `ClassType.args` to agree with the parameter list once
+        // source processing finishes. A raw `Deferred` (zero args) is what
+        // made `async { 7 }.await()` report KSWIFTK-SEMA-0002 in the harness
+        // even though the `async` call itself type-checked.
+        let deferredTypeParameterCount = types.nominalTypeParameterSymbols(for: deferredSymbol).count
+        let deferredTypeArgs: [TypeArg] = deferredTypeParameterCount > 0
+            ? Array(repeating: .out(types.nullableAnyType), count: deferredTypeParameterCount)
+            : [.out(types.nullableAnyType)]
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: symbols.isSourceBackedSymbol(deferredSymbol)
-                || !types.nominalTypeParameterSymbols(for: deferredSymbol).isEmpty
-                || bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("Deferred")])
-                ? [.out(types.nullableAnyType)] : [],
+            args: deferredTypeArgs,
             nullability: .nonNull
         )))
         // KSP-499 Stage 2: use each class's own type parameter as the receiver
@@ -1097,8 +1107,8 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticCoroutineMember(
-            ownerSymbol: continuationInterceptorSymbol,
-            ownerType: continuationInterceptorType,
+            ownerSymbol: dispatcherSymbol,
+            ownerType: dispatcherType,
             name: "interceptContinuation",
             externalLinkName: "kk_continuation_interceptor_intercept_continuation",
             returnType: continuationType,

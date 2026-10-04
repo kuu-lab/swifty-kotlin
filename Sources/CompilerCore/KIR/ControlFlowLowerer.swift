@@ -1717,7 +1717,7 @@ final class ControlFlowLowerer {
         let rethrowLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
 
-        let catchBindings = catchClauses.map { resolveCatchClauseBinding($0, sema: sema, interner: interner) }
+        let catchBindings = catchClauses.map { resolveCatchClauseBinding($0, ast: ast, sema: sema, interner: interner) }
         let catchCheckLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
         let catchMissLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
         let catchBodyLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
