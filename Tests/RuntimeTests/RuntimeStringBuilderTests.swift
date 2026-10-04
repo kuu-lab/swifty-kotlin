@@ -5,6 +5,39 @@ import Testing
 @Suite(.serialized)
 struct RuntimeStringBuilderTests {
     @Test
+    func testComparableUsesSeparateInterfaceSlotAndUTF16Ordering() {
+        let lhs = makeBuilder("ab")
+        let rhs = makeBuilder("az")
+        let comparableID = Int(runtimeStableNominalTypeID(fqName: "kotlin.Comparable"))
+        let method = kk_itable_lookup_dynamic(lhs, comparableID, 0)
+        #expect(method != 0)
+        let compare = unsafeBitCast(
+            method,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var thrown = 1
+        #expect(compare(lhs, rhs, &thrown) == -24)
+        #expect(thrown == 0)
+        #expect(__kk_comparable_compareTo(lhs, rhs) == -24)
+        #expect(kk_compare_any(lhs, rhs) == -24)
+        #expect(__kk_comparable_compareTo(makeBuilder("ab"), makeBuilder("abcd")) == -2)
+        #expect(__kk_comparable_compareTo(makeBuilder(""), makeBuilder("abc")) == -3)
+        #expect(__kk_comparable_compareTo(makeBuilder("\u{10000}"), makeBuilder("\u{E000}")) == -2048)
+        let highSurrogate = runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: [0xD800])))
+        let lowSurrogate = runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: [0xDC00])))
+        #expect(__kk_comparable_compareTo(highSurrogate, lowSurrogate) == -1024)
+        #expect(__kk_comparable_compareTo(lhs, lhs) == 0)
+        _ = __kk_string_builder_append_obj(lhs, makeRuntimeString("zz"))
+        #expect(__kk_comparable_compareTo(lhs, makeBuilder("ab")) == 2)
+        #expect(runtimeIsAssignable(
+            sourceTypeID: runtimeObjectTypeID(rawValue: lhs)!,
+            targetTypeID: Int64(comparableID)
+        ))
+        let charSequenceID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
+        #expect(kk_itable_lookup_dynamic(lhs, charSequenceID, 0) != method)
+    }
+
+    @Test
     func testBridgeCreatesAppendsAndRendersStringBuilder() {
         let builder = __kk_string_builder_new()
         let returned = __kk_string_builder_append_obj(builder, makeRuntimeString("hello"))

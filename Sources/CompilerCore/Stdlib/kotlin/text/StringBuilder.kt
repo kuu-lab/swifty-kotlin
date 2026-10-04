@@ -7,7 +7,7 @@ import kotlin.internal.KsSymbolName
  * handle. Public operations are implemented in Kotlin; only the small mutable
  * buffer bridge below crosses into the runtime.
  */
-public class StringBuilder : Appendable, CharSequence {
+public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder> {
     constructor()
     constructor(content: String)
     constructor(content: CharSequence)
@@ -65,8 +65,11 @@ public class StringBuilder : Appendable, CharSequence {
     fun append(value: Short): StringBuilder =
         __kk_string_builder_append_obj(value.toString())
 
-    fun append(value: CharArray): StringBuilder =
-        appendRange(value, 0, value.size)
+    // JVM's CharArray platform overload accepts nullable arguments, but throws on null.
+    fun append(value: CharArray?): StringBuilder {
+        if (value == null) throw NullPointerException()
+        return appendRange(value, 0, value.size)
+    }
 
     fun append(str: CharArray, offset: Int, len: Int): StringBuilder {
         if (offset < 0 || len < 0 || offset > str.size - len) {
@@ -428,6 +431,17 @@ public class StringBuilder : Appendable, CharSequence {
 
     override fun toString(): String =
         __kk_string_builder_toString()
+
+    override operator fun compareTo(other: StringBuilder): Int {
+        val limit = minOf(length, other.length)
+        var index = 0
+        while (index < limit) {
+            val difference = this[index].code - other[index].code
+            if (difference != 0) return difference
+            index++
+        }
+        return length - other.length
+    }
 
     private fun insertString(index: Int, value: String): StringBuilder {
         return __kk_string_builder_insert_obj(index, value)
