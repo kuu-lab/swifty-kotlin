@@ -1307,12 +1307,14 @@
     - `kotlin.collections.MutableMap.remove` — fun MutableMap.remove(): #B  -- `abstract fun remove(#A): #B?`
     - `kotlin.collections.MutableMap.values` — val MutableMap.values: MutableCollection  -- `abstract val values`
 
-- [ ] KSP-1077: kotlin.collections.MutableSet.MutableSet の未実装 stdlib API を実装する（7 件）
+- [~] KSP-1077: kotlin.collections.MutableSet.MutableSet の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.collections.MutableSet` / receiver `MutableSet`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableSet/MutableSet.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableSet_MutableSet_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableSet_MutableSet_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableSet_MutableSet_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - canonical .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableSet.kt`。既存7 APIを使用し、obsolete nested pathへ重複宣言しない。
+  - dispatch: custom receiverの `removeAll(Collection)` / `retainAll(Collection)` に安定したMutableSet slotsとsource fallbackを追加。既存box ABI・bootstrap residual overload・add/remove/clear slots・throwing channelは保持。
+  - default body契約: native MutableSetのbulk bridge defaultはJVMのabstract契約と異なる。overrideなしのdefaultを同じbridgeへ再登録せず、既存false/no-opを保持するnative-only backend回帰で固定。
+  - focused回帰: `MutableSetBulkDispatchContractTests`、`CodegenBackendMutableSetBulkDispatchTests`（custom/inherited/default source・artifact）、既存source migrationとbox Boolean回帰。全体ゲート未実行のため `[~]` を維持。
+  - golden: 既存canonical `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_MutableSet.kt` を使用。
+  - diff: `Scripts/diff_cases/ksp1077_custom_mutable_set_bulk.kt` でoverride markers・Boolean・変更結果・例外をkotlinc 2.3.10とO0/O2比較。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableSet.add` — fun MutableSet.add(): Boolean  -- `abstract fun add(#A): kotlin/Boolean`
