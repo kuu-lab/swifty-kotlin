@@ -4657,8 +4657,7 @@ public func kk_non_cancellable_instance() -> Int {
 // KSP-1568: `awaitCancellation()` parks on the never-completing
 // `runtimeNonCancellableJob`: `kk_job_join` registers a resumer that can
 // never fire, so the suspend point only unwinds when the awaiting coroutine
-// itself is cancelled — the same contract as upstream's
-// `NonCancellable.join()`.
+// itself is cancelled.
 @_cdecl("kk_await_cancellation")
 public func kk_await_cancellation(_ continuation: Int) -> Int {
     return kk_job_join(kk_non_cancellable_instance(), continuation)

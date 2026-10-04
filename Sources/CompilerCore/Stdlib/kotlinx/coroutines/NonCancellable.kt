@@ -18,13 +18,16 @@ import kotlin.coroutines.CoroutineContext
 // never-cancelled job (always active / never completed / never cancelled),
 // `cancel(...)` resolves to `kk_job_cancel` — which guards the shared
 // `runtimeNonCancellableJob` singleton so cancelling it is a no-op — and
-// `join()` resolves to `kk_job_join`, which suspends forever on the
-// never-completing job, matching upstream `join() = awaitCancellation()`.
+// `join()` resolves to `kk_job_join`, which suspends on the
+// never-completing job (upstream's `NonCancellable.join()` instead throws
+// `UnsupportedOperationException` immediately — the grafted `Job` member
+// can't override that, tracked in Linear).
 // `invokeOnCompletion`/`cancelAndJoin`/`cancelAndJoin(cause)` ride the `Job`
 // extensions in Job.kt the same way. Known limitation: the inherited
 // `Element.key` member virtual-dispatches on the raw handle, so reading
-// `NonCancellable.key` traps; use the `Key` extension property below
-// (context-key lookups still resolve statically).
+// `NonCancellable.key` traps (an explicit `NonCancellable.toString()` member
+// call hits the same family — string interpolation is fine); use the `Key`
+// extension property below (context-key lookups still resolve statically).
 internal object NonCancellableKey : CoroutineContext.Key<NonCancellable>
 
 public object NonCancellable : AbstractCoroutineContextElement(NonCancellableKey) {

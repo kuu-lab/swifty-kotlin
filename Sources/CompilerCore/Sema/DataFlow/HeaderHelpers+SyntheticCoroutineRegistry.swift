@@ -1362,7 +1362,7 @@ extension DataFlowSemaPhase {
         // KSP-1568: `awaitCancellation()` suspends for the coroutine's whole
         // lifetime. It rewrites to `kk_await_cancellation`, which parks the
         // continuation on the never-completing runtimeNonCancellableJob
-        // (upstream defines it as `NonCancellable.join()`); the suspend point
+        // (upstream parks it for the job's whole lifetime); the suspend point
         // unwinds only via cancellation of the awaiting coroutine.
         registerSyntheticCoroutineTopLevelFunction(
             named: "awaitCancellation",
