@@ -825,6 +825,15 @@ public extension RuntimeABISpec {
         ),
         // Channel (CORO-001)
         RuntimeABIFunctionSpec(
+            name: "__kk_channel_await_close",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_channel_create",
             parameters: [
                 RuntimeABIParameter(name: "capacity", type: .intptr),
@@ -931,6 +940,16 @@ public extension RuntimeABISpec {
             name: "__kk_channel_receive_catching",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_send_blocking",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine",
