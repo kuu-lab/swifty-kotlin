@@ -301,6 +301,22 @@ extension CoroutineLoweringPass {
             )
         }
 
+        // KSP-1583: `kk_test_run_blocking(context, timeout, block)` — the
+        // extern `kotlinx.coroutines.test.runTest` itself, so the trailing
+        // suspend literal reaches here from the user's call site. Same
+        // dual-shape handling as `__kk_produce_launch`: a resolvable suspend
+        // block rewrites into the launcher continuation convention (the
+        // runtime mints the TestScope and binds it at launcherArgs[0],
+        // captures in the remaining slots); a block held in a variable
+        // falls through to the boxed-value cdecl.
+        if call.callee == rewrite.ctx.interner.intern("kk_test_run_blocking") {
+            return rewriteTestScopeRunBlockingCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            )
+        }
+
         // `CoroutineScope.launch { }` is a receiver-bearing member call: the general
         // member-call emission path already prepended the receiver as arguments[0]
         // (see appendReceiverToMemberArguments), giving this a distinct callee name
@@ -1155,6 +1171,101 @@ extension CoroutineLoweringPass {
                 symbol: nil,
                 callee: rewrite.ctx.interner.intern("__kk_produce_launch_with_cont"),
                 arguments: [channelExpr, thunkRefExpr, continuationExpr],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult
+            )
+        )
+        return rewritten
+    }
+
+    /// KSP-1583: rewrite `kk_test_run_blocking(context, timeout, block)` —
+    /// the extern `kotlinx.coroutines.test.runTest` — into the launcher
+    /// continuation convention. The suspend block is the trailing argument;
+    /// the runtime mints the `TestScope` (a real RuntimeCoroutineScope over
+    /// the given context) and binds it at launcherArgs[0] in
+    /// `kk_test_run_blocking_with_cont`, so captures occupy slots 1...
+    /// When the block doesn't resolve to a suspend symbol (a block stored
+    /// in a variable or forwarded from another call), the raw call is left
+    /// in place for `kk_test_run_blocking` to invoke through the boxed
+    /// suspend-value convention (env-first thunk, mirroring
+    /// `kk_function_invoke`'s box dispatch).
+    func rewriteTestScopeRunBlockingCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        // `runTest(context, timeout, testBody)` — the block is always
+        // arguments[2]; flattened captures (when the emitter produces them)
+        // trail after it, same as `__kk_produce_launch`.
+        guard call.arguments.count >= 3 else {
+            return nil
+        }
+        let contextExpr = call.arguments[0]
+        let suspendArgExpr = call.arguments[2]
+        guard let suspendSymbol = symbolReference(
+                  for: suspendArgExpr,
+                  module: rewrite.module,
+                  propagatedSymbols: symbolByExprRaw
+              ),
+              let loweredTarget = rewrite.loweredBySymbol[suspendSymbol],
+              let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol]
+        else {
+            return nil
+        }
+
+        // Captures either arrive flattened as trailing call args or ride
+        // inside the suspend value's callable info — use whichever form the
+        // emitter produced.
+        let trailingCaptures = Array(call.arguments.dropFirst(3))
+        let captures: [KIRExprID] = trailingCaptures.isEmpty
+            ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
+            : trailingCaptures
+
+        let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+
+        var rewritten: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: rewrite.continuationFactory,
+                arguments: [loweredFunctionIDExpr],
+                result: continuationExpr,
+                canThrow: false,
+                thrownResult: nil
+            ),
+        ]
+
+        // Slot 0 is reserved for the test scope receiver.
+        for (index, argExpr) in captures.enumerated() {
+            let slotExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(Int64(index + 1)),
+                type: rewrite.intType
+            )
+            rewritten.append(
+                .call(
+                    symbol: nil,
+                    callee: rewrite.launcherArgSetCallee,
+                    arguments: [continuationExpr, slotExpr, argExpr],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        }
+
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
+        rewritten.append(
+            .call(
+                symbol: nil,
+                callee: rewrite.ctx.interner.intern("kk_test_run_blocking_with_cont"),
+                arguments: [contextExpr, thunkRefExpr, continuationExpr],
                 result: call.result,
                 canThrow: call.canThrow,
                 thrownResult: call.thrownResult

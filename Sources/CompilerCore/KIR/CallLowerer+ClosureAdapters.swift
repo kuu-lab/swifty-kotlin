@@ -963,6 +963,24 @@ extension CallLowerer {
             )
         }
 
+        // KSP-1583: `runTest` forwards `testBody` — a suspend
+        // `TestScope.() -> Unit` value, usually a boxed parameter rather
+        // than a literal — to the blocking-run bridge. Expand it to the
+        // (fnPtr, closureRaw) pair the `kk_test_run_blocking` ABI expects;
+        // the runtime thunk binds the minted scope handle as `this` itself.
+        // Literal blocks never reach this path — CoroutineLoweringPass
+        // routes them through `kk_test_run_blocking_with_cont` instead.
+        if externalLinkName == "kk_test_run_blocking", loweredArguments.count == 3 {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                loweredArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return [loweredArguments[0], loweredArguments[1], fnPtrExpr, envPtrExpr]
+        }
+
         let legacyNames: Set = ["__kk_sequence_generate"]
         if legacyNames.contains(externalLinkName), loweredArguments.count == 2 {
             var seedArgument = loweredArguments[0]

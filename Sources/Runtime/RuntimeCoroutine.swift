@@ -1580,6 +1580,22 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
 
+    /// Handle of the `kotlinx.coroutines.test.TestCoroutineScheduler` lazily
+    /// minted for this scope (KSP-1583); 0 while unrequested so plain scopes
+    /// pay nothing.
+    private var testSchedulerHandle = 0
+
+    /// The scope's lazily minted `TestCoroutineScheduler` handle, backing
+    /// `TestScope.testScheduler` when this scope masquerades as a TestScope.
+    func schedulerForTest() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if testSchedulerHandle == 0 {
+            testSchedulerHandle = runtimeRegisterObject(RuntimeTestScheduler())
+        }
+        return testSchedulerHandle
+    }
+
     // CORO-003: Task-local scope registry (replaces TLS).
     // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
     // the scope that is current for that execution context. This allows
@@ -3549,6 +3565,189 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
     }
     return Int(bitPattern: jobPtr)
 }
+
+// MARK: - KSP-1583: kotlinx.coroutines.test
+
+/// Minimal virtual-clock backing for `kotlinx.coroutines.test.TestCoroutineScheduler`.
+/// The scheduler is only a virtual `currentTime` counter (milliseconds); no
+/// task queue exists yet, so `advanceUntilIdle`/`runCurrent` are degraded
+/// no-ops — matching the KSP-1583 phase-1 contract that rounds virtual time
+/// to real time (the runTest event loop runs children in real time).
+final class RuntimeTestScheduler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _currentTimeMillis: Int64 = 0
+
+    init() {
+        RuntimeLiveHandles.register(self)
+    }
+
+    deinit {
+        RuntimeLiveHandles.unregister(self)
+    }
+
+    var currentTimeMillis: Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return _currentTimeMillis
+    }
+
+    func advanceTimeBy(_ millis: Int64) {
+        guard millis > 0 else { return }
+        lock.lock()
+        _currentTimeMillis += millis
+        lock.unlock()
+    }
+}
+
+/// Standalone `TestCoroutineScheduler()` construction (e.g. for the
+/// `StandardTestDispatcher(scheduler:)` factory's default).
+@_cdecl("kk_test_scheduler_new")
+public func kk_test_scheduler_new() -> Int {
+    return runtimeRegisterObject(RuntimeTestScheduler())
+}
+
+/// Lazily minted per-scope scheduler handle backing `TestScope.testScheduler`.
+@_cdecl("kk_test_scope_scheduler")
+public func kk_test_scope_scheduler(_ scopeHandle: Int) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_scope_scheduler received invalid scope handle")
+    }
+    return scope.schedulerForTest()
+}
+
+/// `TestScope.currentTime`: the scope's scheduler's virtual clock, lazily
+/// minting the scheduler on first read.
+@_cdecl("kk_test_scope_current_time")
+public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int64 {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        return 0
+    }
+    guard let scheduler = resolveLiveRuntimeHandle(scope.schedulerForTest(), as: RuntimeTestScheduler.self) else {
+        return 0
+    }
+    return scheduler.currentTimeMillis
+}
+
+@_cdecl("kk_test_scheduler_current_time")
+public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int64 {
+    guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
+        return 0
+    }
+    return scheduler.currentTimeMillis
+}
+
+/// `advanceTimeBy(delayTimeMillis)`: bumps the virtual clock. With no
+/// virtual-time task queue there is nothing to schedule, so the call is a
+/// pure counter advance.
+@_cdecl("kk_test_scheduler_advance_time_by")
+public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int64) -> Int {
+    guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
+        return 0
+    }
+    scheduler.advanceTimeBy(delayTimeMillis)
+    return 0
+}
+
+/// Degraded `advanceUntilIdle`: no scheduled task queue exists yet.
+@_cdecl("kk_test_scheduler_advance_until_idle")
+public func kk_test_scheduler_advance_until_idle(_ schedulerHandle: Int) -> Int {
+    _ = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)
+    return 0
+}
+
+/// Degraded `runCurrent`: no scheduled task queue exists yet.
+@_cdecl("kk_test_scheduler_run_current")
+public func kk_test_scheduler_run_current(_ schedulerHandle: Int) -> Int {
+    _ = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)
+    return 0
+}
+
+/// Backing for `kotlinx.coroutines.test.runTest` — mints a `TestScope` (a
+/// real RuntimeCoroutineScope over `context`) and invokes `testBody` with
+/// `this` bound to it. Two block shapes reach this boundary, mirroring
+/// `__kk_produce_launch`:
+///  - A suspend *literal* the call-site rewrite resolves routes to
+///    `kk_test_run_blocking_with_cont` instead (launcher-continuation
+///    convention; the scope lands in launcherArgs[0]).
+///  - A suspend function *value* (a block stored in a variable or
+///    forwarded from another call) crosses as the (entryPointRaw,
+///    closureRaw) pair suspend function values use at the ABI boundary.
+///    The suspend-value invoke thunk is `(env, receiver, outThrown)` — the
+///    same convention `kk_function_invoke` dispatches for boxed values —
+///    so `launch {}`/`cancel()`/`isActive` inside the body resolve against
+///    the real scope (the degraded "virtual time == real time" contract of
+///    KSP-1583). `timeoutRaw` is accepted for signature compatibility but
+///    not enforced (degraded phase-1 contract).
+@_cdecl("kk_test_run_blocking")
+public func kk_test_run_blocking(
+    _ contextRaw: Int,
+    _ timeoutRaw: Int,
+    _ entryPointRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard entryPointRaw != 0 else {
+        outThrown?.pointee = 0
+        return 0
+    }
+    let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
+    }
+
+    // Children launched inside the test body discover the test scope as
+    // their parent (upstream runTest semantics), so install it as ambient
+    // for the duration of the blocking run.
+    let previousScope = RuntimeCoroutineScope.current
+    RuntimeCoroutineScope.current = scope
+    defer { RuntimeCoroutineScope.current = previousScope }
+
+    var thrown = 0
+    let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
+    let result = invoke(closureRaw, scopeHandle, &thrown)
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    outThrown?.pointee = 0
+    return result
+}
+
+/// Literal-lambda counterpart to `kk_test_run_blocking`: the call-site
+/// rewrite built a launcher continuation holding the block's captures in
+/// slots 1...; the freshly minted test scope lands in launcherArgs[0] (the
+/// suspend-entry receiver slot, same as the channel handle in
+/// `__kk_produce_launch_with_cont`) so `this` inside the body binds to the
+/// real RuntimeCoroutineScope. The nested runBlocking drains the suspend
+/// entry loop on this thread, matching `runTest`'s blocking contract.
+@_cdecl("kk_test_run_blocking_with_cont")
+public func kk_test_run_blocking_with_cont(
+    _ contextRaw: Int,
+    _ entryPointRaw: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+    guard let scope = runtimeCoroutineScope(from: scopeHandle),
+          let contState = runtimeContinuationState(from: continuation)
+    else {
+        outThrown?.pointee = 0
+        return 0
+    }
+    contState.launcherArgs[0] = Int64(scopeHandle)
+    contState.scope = scope
+
+    let previousScope = RuntimeCoroutineScope.current
+    RuntimeCoroutineScope.current = scope
+    defer { RuntimeCoroutineScope.current = previousScope }
+
+    return runtimeRunBlockingOnEventLoop(
+        entryPointRaw: entryPointRaw,
+        continuation: continuation,
+        outThrown: outThrown
+    )
+}
+
 /// KSP-1573: backing for the bundled `CoroutineScope.produce`/`actor`
 /// builders — `__kk_produce_launch(channel, blockFnPtr, blockEnvRaw)`.
 ///
