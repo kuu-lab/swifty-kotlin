@@ -165,6 +165,7 @@ extension DataFlowSemaPhase {
                 typeSignature: metadataRecord.typeSignature,
                 typeParameterUpperBoundsSignatures: metadataRecord.typeParameterUpperBoundsSignatures,
                 callableTypeParameterSignatures: metadataRecord.callableTypeParameterSignatures,
+                inputOnlyTypeParameterIndices: metadataRecord.inputOnlyTypeParameterIndices,
                 defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
                 declaredFieldCount: metadataRecord.declaredFieldCount,
@@ -434,6 +435,15 @@ extension DataFlowSemaPhase {
             let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
             if deficit > 0 {
                 typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
+            }
+        }
+        for index in record.inputOnlyTypeParameterIndices where typeParameterSymbols.indices.contains(index) {
+            let parameter = typeParameterSymbols[index]
+            var annotations = symbols.annotations(for: parameter)
+            let annotation = MetadataAnnotationRecord(annotationFQName: "kotlin.internal.OnlyInputTypes")
+            if !annotations.contains(annotation) {
+                annotations.append(annotation)
+                symbols.setAnnotations(annotations, for: parameter)
             }
         }
         var typeParameterUpperBoundsList = Array(

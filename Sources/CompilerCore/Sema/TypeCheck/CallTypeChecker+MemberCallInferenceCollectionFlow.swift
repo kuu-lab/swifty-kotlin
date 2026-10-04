@@ -248,6 +248,14 @@ extension CallTypeChecker {
             activeCollectionHOFNames.remove("flatMapTo")
         }
         let calleeStr = interner.resolve(calleeName)
+        if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
+           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           })
+        {
+            return nil
+        }
         let isIterableIndexFamilyHOF = ["indexOf", "indexOfFirst", "indexOfLast"].contains(calleeStr)
         // KSP-983: a nominal Iterable receiver must use the exact bundled
         // Iterable max-family declarations. Let regular overload resolution

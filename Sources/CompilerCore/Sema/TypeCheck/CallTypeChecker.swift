@@ -2261,6 +2261,9 @@ final class CallTypeChecker {
             builderContext.isCoroutineBuilderLambdaScope = true
             if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
                 builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
+                if sema.bindings.isCoroutineLauncherLambdaExpr(args[launcherIndex].expr) {
+                    sema.bindings.bindCoroutineScopeLambdaReceiverType(args[launcherIndex].expr, type: coroutineScopeType)
+                }
             }
             lambdaContextOverrides[launcherIndex] = builderContext
         }
@@ -2898,7 +2901,9 @@ final class CallTypeChecker {
             }
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
-            // Mark the lambda only after overload resolution selects the bundled
+            // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
+            // the same convention for its suspend TestScope receiver. Mark the
+            // lambda only after overload resolution selects the bundled
             // declaration, so a same-named user function keeps the regular ABI.
             if isSourceBackedProducerFlowBuilder(chosen, ctx: ctx)
             {

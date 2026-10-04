@@ -37,4 +37,25 @@ public interface List<out E> : Collection<E> {
 
     @KsSymbolName("kk_list_iterator_at")
     public fun listIterator(index: Int): ListIterator<E>
+
+    public fun indexOf(element: @UnsafeVariance E): Int {
+        var index = 0
+        while (index < size) {
+            if (this[index] == element) return index
+            index += 1
+        }
+        return -1
+    }
+
+    public fun lastIndexOf(element: @UnsafeVariance E): Int {
+        var index = size - 1
+        while (index >= 0) {
+            if (this[index] == element) return index
+            index -= 1
+        }
+        return -1
+    }
+
+    @KsSymbolName("kk_list_subList")
+    public fun subList(fromIndex: Int, toIndex: Int): List<E>
 }

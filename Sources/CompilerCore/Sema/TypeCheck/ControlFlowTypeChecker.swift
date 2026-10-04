@@ -663,10 +663,8 @@ final class ControlFlowTypeChecker {
         for (index, clause) in catchClauses.enumerated() {
             var catchLocals = preTryLocals
             let catchParamType = resolveCatchClauseParameterType(
-                clause.paramTypeName,
-                sema: sema,
-                interner: interner,
-                diagnostics: ctx.semaCtx.diagnostics,
+                clause.paramType,
+                ctx: ctx,
                 range: clause.range
             )
             var catchParamSymbol = SymbolID.invalid
@@ -728,63 +726,83 @@ final class ControlFlowTypeChecker {
     }
 
     private func resolveCatchClauseParameterType(
-        _ typeName: InternedString?,
-        sema: SemaModule,
-        interner: StringInterner,
-        diagnostics: DiagnosticEngine,
+        _ paramType: TypeRefID?,
+        ctx: TypeInferenceContext,
         range: SourceRange?
     ) -> TypeID {
-        guard let typeName else {
+        let sema = ctx.sema
+        guard let paramType else {
             return sema.types.anyType
         }
-        if let builtin = driver.helpers.resolveBuiltinTypeName(typeName, types: sema.types, interner: interner) {
-            return builtin
+        // Route through the same type-reference resolution used by declarations
+        // and `is`/`as` expressions so that import priority (explicit > wildcard
+        // > default), aliases, and qualified names resolve identically here.
+        var resolved = driver.helpers.resolveTypeRef(
+            paramType,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner,
+            scope: ctx.scope,
+            diagnostics: nil,
+            inferenceContext: nil,
+            usageRange: range
+        )
+        if resolved != sema.types.errorType,
+           case let .named(path, _, _)? = ctx.ast.arena.typeRef(paramType),
+           path.count > 1,
+           !catchQualifiedCandidatesExist(path, ctx: ctx, sema: sema)
+        {
+            // resolveTypeRef falls back to last-segment short-name lookup even
+            // for qualified references, so `unknown.Error` could bind a same-named
+            // type in an unrelated package. Require a qualifier-consistent hit.
+            resolved = sema.types.errorType
         }
-        let typePath = interner.resolve(typeName).split(separator: ".").map { interner.intern(String($0)) }
-        let candidates = sema.symbols.lookupAll(fqName: typePath)
-            .filter { symbolID in
-                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                switch symbol.kind {
-                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                    return true
-                default:
-                    return false
-                }
-            }
-            .sorted { $0.rawValue < $1.rawValue }
-        let resolvedCandidates = if !candidates.isEmpty || typePath.count > 1 {
-            candidates
-        } else {
-            sema.symbols.lookupByShortName(typeName)
-                .filter { symbolID in
-                    guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                    switch symbol.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                        return true
-                    default:
-                        return false
-                    }
-                }
-                .sorted { $0.rawValue < $1.rawValue }
-        }
-        guard let symbol = resolvedCandidates.first else {
-            diagnostics.error(
+        if resolved == sema.types.errorType {
+            ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0085",
-                "Unresolved exception type '\(interner.resolve(typeName))' in catch clause.",
+                "Unresolved exception type '\(catchParamTypeDisplayName(paramType, ctx: ctx))' in catch clause.",
                 range: range
             )
-            return sema.types.errorType
         }
-        if let underlyingType = driver.helpers.expandTypeAlias(
-            symbol,
-            typeArgs: [],
-            sema: sema,
-            visited: [],
-            depth: 0,
-            diagnostics: diagnostics
-        ) {
-            return sema.types.makeNonNullable(underlyingType)
+        return resolved
+    }
+
+    private func catchQualifiedCandidatesExist(_ path: [InternedString], ctx: TypeInferenceContext, sema: SemaModule) -> Bool {
+        func isTypeLike(_ symbolID: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                return true
+            default:
+                return false
+            }
         }
-        return sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        if sema.symbols.lookupAll(fqName: path).contains(where: isTypeLike) {
+            return true
+        }
+        let scope = ctx.scope
+        var current = scope.lookup(path[0]).filter(isTypeLike)
+        for component in path.dropFirst() {
+            current = current.flatMap { ownerID -> [SymbolID] in
+                guard let owner = sema.symbols.symbol(ownerID) else { return [] }
+                return sema.symbols.lookupAll(fqName: owner.fqName + [component]).filter(isTypeLike)
+            }
+            if current.isEmpty {
+                break
+            }
+        }
+        return !current.isEmpty
+    }
+
+    private func catchParamTypeDisplayName(_ typeRef: TypeRefID, ctx: TypeInferenceContext) -> String {
+        guard let ref = ctx.ast.arena.typeRef(typeRef) else {
+            return "?"
+        }
+        switch ref {
+        case let .named(path, _, _):
+            return path.map { ctx.interner.resolve($0) }.joined(separator: ".")
+        default:
+            return "?"
+        }
     }
 }

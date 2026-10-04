@@ -138,8 +138,162 @@ func runtime_test_channel_pending_launch_send(
     return kk_coroutine_state_exit(continuation, status)
 }
 
+@_cdecl("runtime_test_channel_nested_await_close")
+func runtime_test_channel_nested_await_close(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let channel = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    _ = __kk_channel_await_close(channel, outThrown)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeChannelTests {
+    @Test func blockingSendReturnsBoxedResult() {
+        let channel = kk_channel_create(1)
+        let sent = __kk_channel_send_blocking(channel, 42)
+        #expect(__kk_channel_result_status(sent) == kChannelResultSuccess)
+        #expect(__kk_channel_result_value_or_null(sent) == 0)
+        var thrown = 0
+        #expect(__kk_channel_result_get_or_throw(sent, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(channelReceiveValue(channel) == 42)
+        _ = kk_channel_close(channel)
+        let rejected = __kk_channel_send_blocking(channel, 43)
+        #expect(__kk_channel_result_status(rejected) == kChannelResultClosed)
+        #expect(__kk_channel_result_value_or_null(rejected) == runtimeNullSentinelInt)
+        _ = __kk_channel_result_get_or_throw(rejected, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test func blockingSendWaitsForBufferSpace() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_send(channel, 41, 0) == kChannelResultSuccess)
+        let result = ThreadSafeInt()
+        let done = ChannelTestSignal("blocking send returns")
+        DispatchQueue.global().async {
+            result.set(__kk_channel_send_blocking(channel, 42))
+            done.fulfill()
+        }
+        #expect(waitForSuspendedWaiters(in: channel, senders: 1))
+        #expect(result.get() == 0)
+        #expect(channelReceiveValue(channel) == 41)
+        done.wait(timeout: 2)
+        #expect(__kk_channel_result_status(result.get()) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel) == 42)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test(arguments: [false, true])
+    func awaitClosePreservesNestedProducerContext(scopeOverride: Bool) {
+        let channel = kk_channel_create(0)
+        _ = kk_channel_close(channel)
+        let job = RuntimeJobHandle()
+        job.producerChannel = channel
+        let scope = RuntimeCoroutineScope()
+        let activeScope = scopeOverride ? RuntimeCoroutineScope(isSupervisor: true) : scope
+        let state = RuntimeContinuationState(functionID: 9401)
+        state.scope = scope
+        state.jobHandle = job
+        let previousKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousJob = RuntimeJobHandle.current
+        let key = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        RuntimeContinuationState.installState(state, forTask: key)
+        RuntimeCoroutineScope.installScope(activeScope, forTask: key)
+        RuntimeJobHandle.current = job
+        defer {
+            RuntimeContinuationState.removeCurrent(forTask: key)
+            RuntimeCoroutineScope.removeScope(forTask: key)
+            RuntimeCoroutineScopeTaskKey.installKey(previousKey)
+            RuntimeJobHandle.current = previousJob
+        }
+        let continuation = kk_coroutine_continuation_new(9402)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(channel))
+        var thrown = 0
+        _ = kk_kxmini_run_blocking_with_cont(
+            unsafeBitCast(runtime_test_channel_nested_await_close as ChannelPendingLaunchEntry, to: Int.self),
+            continuation,
+            &thrown
+        )
+        #expect((thrown != 0) == scopeOverride)
+        #expect(RuntimeContinuationState.current === state)
+        #expect(RuntimeCoroutineScope.current === activeScope)
+        #expect(RuntimeJobHandle.current === job)
+    }
+
+    @Test func awaitCloseWaitsWithoutConsumingBufferedValues() {
+        let handle = kk_channel_create(1)
+        let channel = runtimeChannelHandle(handle)
+        #expect(kk_channel_send(handle, 42, 0) == kChannelResultSuccess)
+        let job = RuntimeJobHandle()
+        job.producerChannel = handle
+        let done = ChannelTestSignal("awaitClose returns")
+        let thrown = ThreadSafeInt()
+        DispatchQueue.global().async {
+            RuntimeJobHandle.current = job
+            defer { RuntimeJobHandle.current = nil }
+            var exception = 0
+            _ = __kk_channel_await_close(handle, &exception)
+            thrown.set(exception)
+            done.fulfill()
+        }
+        let deadline = DispatchTime.now() + .seconds(2)
+        while !channel.hasAwaitCloseWaiter, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        #expect(channel.hasAwaitCloseWaiter)
+        #expect(kk_channel_close(handle) == 1)
+        done.wait(timeout: 2)
+        #expect(thrown.get() == 0)
+        #expect(channelReceivePair(handle).value == 42)
+        #expect(!channel.hasAwaitCloseWaiter)
+    }
+
+    @Test func awaitCloseCancellationWakesWaiter() {
+        let handle = kk_channel_create(0)
+        let channel = runtimeChannelHandle(handle)
+        let job = RuntimeJobHandle()
+        job.producerChannel = handle
+        let done = ChannelTestSignal("cancelled awaitClose returns")
+        let thrown = ThreadSafeInt()
+        DispatchQueue.global().async {
+            RuntimeJobHandle.current = job
+            defer { RuntimeJobHandle.current = nil }
+            var exception = 0
+            _ = __kk_channel_await_close(handle, &exception)
+            thrown.set(exception)
+            done.fulfill()
+        }
+        let deadline = DispatchTime.now() + .seconds(2)
+        while !channel.hasAwaitCloseWaiter, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        #expect(channel.hasAwaitCloseWaiter)
+        _ = job.cancel()
+        done.wait(timeout: 2)
+        #expect(kk_is_cancellation_exception(thrown.get()) == 1)
+        #expect(!channel.hasAwaitCloseWaiter)
+        _ = kk_channel_close(handle)
+    }
+
+    @Test func awaitCloseRejectsWrongContextAndRepeatedRegistration() {
+        let handle = kk_channel_create(0)
+        let job = RuntimeJobHandle()
+        let previous = RuntimeJobHandle.current
+        RuntimeJobHandle.current = job
+        defer { RuntimeJobHandle.current = previous }
+        var thrown = 0
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown != 0)
+        job.producerChannel = handle
+        _ = kk_channel_close(handle)
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown != 0)
+    }
+
     // MARK: - Rendezvous Channel (capacity == 0)
 
     @Test func rendezvousSendReceivePairing() {

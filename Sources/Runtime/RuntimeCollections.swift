@@ -332,6 +332,19 @@ public func kk_array_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: arrayListRuntimeTypeID)
 }
 
+@_cdecl("__kk_array_list_new_checked")
+public func kk_array_list_new_checked(
+    _ initialCapacity: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard initialCapacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(initialCapacity)"))
+        return 0
+    }
+    return kk_array_list_of(0, 0)
+}
+
 @_cdecl("__kk_array_list_init")
 public func kk_array_list_init(_ listRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
@@ -555,6 +568,14 @@ public func kk_list_subList(
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
         if let result = runtimeSourceMutableListSubList(
+            listRaw,
+            fromIndex: fromIndex,
+            toIndex: toIndex,
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        if let result = runtimeSourceListSubList(
             listRaw,
             fromIndex: fromIndex,
             toIndex: toIndex,

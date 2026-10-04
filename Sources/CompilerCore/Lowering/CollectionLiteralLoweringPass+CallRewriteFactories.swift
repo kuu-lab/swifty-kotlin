@@ -178,7 +178,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Rewrite ArrayList()/HashSet()/LinkedHashSet()/HashMap()/LinkedHashMap() constructors ---
-        // 0 args → empty collection; 1 int arg (capacity) → empty collection;
+        // 0 args → empty collection; 1 int arg (capacity) → checked empty ArrayList / empty collection;
         // 1 collection arg → copy.
         if isStdlibArrayListConstructor(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             if arguments.count == 1,
@@ -192,6 +192,18 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
                 if let result { state.listExprIDs.insert(result.rawValue) }
+                return true
+            }
+
+            if arguments.count == 1 {
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: ctx.interner.intern("__kk_array_list_new_checked"),
+                    arguments: arguments,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult
+                ))
                 return true
             }
 
