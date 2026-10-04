@@ -223,9 +223,22 @@ extension CallLowerer {
         guard !isSuperCall, let chosenCallee else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
-                return sema.bindings.exprTypes[receiverExpr]
+                return sema.bindings.exprTypes[receiverExpr] ?? arena.exprType(loweredReceiverID)
             }
             return arena.exprType(loweredReceiverID)
+        }()
+        // Range values are opaque RuntimeRangeBox handles without Kotlin
+        // vtables. The KIR receiver can lose its source type binding, so use
+        // both the best available type and the source range-expression facts
+        // before emitting a virtual call such as LongRange.iterator().
+        let isRuntimeRangeReceiver: Bool = {
+            guard let receiverExpr, let receiverTypeForDispatch else { return false }
+            return MemberRuntimeDispatch.rangeReceiverKind(
+                receiverExpr: receiverExpr,
+                receiverType: receiverTypeForDispatch,
+                sema: sema,
+                interner: interner
+            ) != nil
         }()
         let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
             receiverType: receiverTypeForDispatch,
@@ -254,7 +267,8 @@ extension CallLowerer {
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
             || usesIteratorRuntimeVirtualBridge
         else { return nil }
-        guard let dispatchKind = resolveVirtualDispatch(
+        guard !isRuntimeRangeReceiver,
+              let dispatchKind = resolveVirtualDispatch(
             callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
         ) else { return nil }
         var vcArguments = finalArguments
@@ -632,10 +646,36 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
+        // A source-backed rangeUntil result can retain its nominal
+        // OpenEndRange<Float/Double> type even if the element-type side channel
+        // is absent on the member receiver expression. Only use the nominal
+        // fallback for expressions tracked as runtime ranges: user-defined
+        // OpenEndRange implementations must keep their own member dispatch.
+        let nominalFloatingPointElementType: TypeID? = {
+            guard sema.bindings.isRangeExpr(receiverExpr)
+                || sema.bindings.identifierSymbol(for: receiverExpr).map({
+                    sema.bindings.isRangeSymbol($0)
+                }) == true,
+                case let .classType(classType) = sema.types.kind(
+                    of: sema.types.makeNonNullable(receiverType)
+                ),
+                let symbol = sema.symbols.symbol(classType.classSymbol),
+                symbol.fqName.map(interner.resolve) == ["kotlin", "ranges", "OpenEndRange"]
+            else {
+                return nil
+            }
+            switch classType.args.first {
+            case let .invariant(type), let .out(type), let .in(type):
+                return sema.types.makeNonNullable(type)
+            case .star, nil:
+                return nil
+            }
+        }()
         let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverExpr)
             ?? sema.bindings.identifierSymbol(for: receiverExpr).flatMap {
                 sema.bindings.floatingPointRangeElementType(forSymbol: $0)
             }
+            ?? nominalFloatingPointElementType
         if let floatingPointElementType,
            floatingPointElementType == sema.types.floatType || floatingPointElementType == sema.types.doubleType
         {
@@ -700,6 +740,49 @@ extension CallLowerer {
         case .star:
             return nil
         }
+        // Keep an explicitly selected cross-type extension on its Kotlin body.
+        // A nominal member can also have a receiverType in its normalized
+        // signature; exclude class/interface-owned functions before comparing
+        // the unsubstituted parameter type (for example OpenEndRange<T>.contains(T)).
+        // Same-type extensions are shadowed by the range member in Kotlin, so
+        // retain the normal runtime member path for those.
+        let chosenContainsIsExtension: Bool = if let chosenCallee,
+                                                  let signature = sema.symbols.functionSignature(for: chosenCallee),
+                                                  signature.receiverType != nil,
+                                                  let chosenSymbol = sema.symbols.symbol(chosenCallee)
+        {
+            if let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
+               let owner = sema.symbols.symbol(ownerID)
+            {
+                switch owner.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    // Header collection attaches visible top-level extensions to
+                    // their receiver nominal for member lookup. Their declaration
+                    // FQ name still belongs to the source package, unlike a real
+                    // nominal member whose FQ name is owner + member name.
+                    chosenSymbol.fqName != owner.fqName + [chosenSymbol.name]
+                default:
+                    true
+                }
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+        if memberName == "contains",
+           chosenContainsIsExtension,
+           let chosenCallee,
+           let signature = sema.symbols.functionSignature(for: chosenCallee),
+           let argumentType = signature.parameterTypes.first,
+           sema.types.makeNonNullable(argumentType) != sema.types.makeNonNullable(elementType),
+           Self.isSourceBackedLinkName(
+               sema.symbols.externalLinkName(for: chosenCallee)
+           )
+        {
+            return nil
+        }
+
         switch memberName {
         case "contains":
             if elementType == sema.types.ulongType {

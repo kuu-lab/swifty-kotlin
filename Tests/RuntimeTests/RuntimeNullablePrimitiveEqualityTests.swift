@@ -76,5 +76,56 @@ struct RuntimeNullablePrimitiveEqualityTests {
         #expect(kk_nullable_primitive_eq(boxedNegativeZero, negativeZeroBits, 0) == 1)
         #expect(kk_nullable_primitive_eq(sentinel, boxedNegativeZero, 1) == 0, "null must not equal a boxed -0.0")
     }
+
+    // The flag argument encodes the peer's nature beyond nullability: 2/3
+    // mark a provably non-null raw Double/Float word, 4/5 a Double?/Float?
+    // slot. Kotlin `==`/`!=` on floating point is IEEE-754 once nullness is
+    // resolved (`-0.0 == 0.0`, `NaN != NaN`) — not the boxed `equals`
+    // bit-pattern compare.
+
+    @Test
+    func doubleEqualityAgainstNonNullPeerIsIEEE() {
+        let negativeZeroBits = Int(bitPattern: UInt(Double(-0.0).bitPattern))
+        let positiveZeroBits = Int(bitPattern: UInt(Double(0.0).bitPattern))
+        let nanBits = Int(bitPattern: UInt(Double.nan.bitPattern))
+        let boxedNegativeZero = kk_box_double_nonnull(negativeZeroBits)
+        let boxedNan = kk_box_double_nonnull(nanBits)
+        #expect(kk_nullable_primitive_eq(boxedNegativeZero, positiveZeroBits, 2) == 1)
+        #expect(kk_nullable_primitive_ne(boxedNegativeZero, positiveZeroBits, 2) == 0)
+        #expect(kk_nullable_primitive_eq(boxedNan, nanBits, 2) == 0)
+        #expect(kk_nullable_primitive_ne(boxedNan, nanBits, 2) == 1)
+        #expect(kk_nullable_primitive_eq(sentinel, positiveZeroBits, 2) == 0)
+    }
+
+    @Test
+    func doubleEqualityAgainstNullablePeerIsIEEEAfterNullChecks() {
+        let negativeZeroBits = Int(bitPattern: UInt(Double(-0.0).bitPattern))
+        let positiveZeroBits = Int(bitPattern: UInt(Double(0.0).bitPattern))
+        let nanBits = Int(bitPattern: UInt(Double.nan.bitPattern))
+        let boxedNegativeZero = kk_box_double_nonnull(negativeZeroBits)
+        let boxedPositiveZero = kk_box_double_nonnull(positiveZeroBits)
+        let boxedNan = kk_box_double_nonnull(nanBits)
+        #expect(kk_nullable_primitive_eq(boxedNegativeZero, boxedPositiveZero, 4) == 1)
+        #expect(kk_nullable_primitive_ne(boxedNegativeZero, boxedPositiveZero, 4) == 0)
+        #expect(kk_nullable_primitive_eq(boxedNan, boxedNan, 4) == 0)
+        #expect(kk_nullable_primitive_ne(boxedNan, boxedNan, 4) == 1)
+        #expect(kk_nullable_primitive_eq(boxedNegativeZero, sentinel, 4) == 0)
+        #expect(kk_nullable_primitive_eq(sentinel, sentinel, 4) == 1)
+    }
+
+    @Test
+    func floatEqualityIsIEEE() {
+        let negativeZeroBits = Int(Float(-0.0).bitPattern)
+        let positiveZeroBits = Int(Float(0.0).bitPattern)
+        let nanBits = Int(Float.nan.bitPattern)
+        let boxedNegativeZero = kk_box_float(negativeZeroBits)
+        let boxedPositiveZero = kk_box_float(positiveZeroBits)
+        let boxedNan = kk_box_float(nanBits)
+        #expect(kk_nullable_primitive_eq(boxedNegativeZero, positiveZeroBits, 3) == 1)
+        #expect(kk_nullable_primitive_eq(boxedNegativeZero, boxedPositiveZero, 5) == 1)
+        #expect(kk_nullable_primitive_eq(boxedNan, nanBits, 3) == 0)
+        #expect(kk_nullable_primitive_eq(boxedNan, boxedNan, 5) == 0)
+        #expect(kk_nullable_primitive_eq(boxedNegativeZero, sentinel, 5) == 0)
+    }
 }
 #endif

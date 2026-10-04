@@ -7,12 +7,14 @@
 
 package kotlin.collections
 
-// KSP-697: keep the nominal interface source-backed. The iterator member and
-// compiler/runtime bridges remain residual registrations until their respective
-// collection migrations can remove them without changing dispatch metadata.
-// Keep the parameter name aligned with the residual shell so source collection
-// loading can reuse its type-parameter symbol without orphaning iterator calls.
-public interface Iterable<out E>
+import kotlin.internal.KsSymbolName
+
+// KSP-1061: the interface and its iterator member are source-backed. The
+// bridge supports built-in collection boxes and source-defined implementations.
+public interface Iterable<out E> {
+    @KsSymbolName("kk_iterable_iterator")
+    public operator fun iterator(): Iterator<E>
+}
 
 // KSP-937: Create a fresh iterator for every traversal. Keep the parameter
 // name distinct from the overridden iterator() member.

@@ -3437,6 +3437,17 @@ extension CallTypeChecker {
                     case "map", "mapNotNull":
                         let bodyType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr) {
                             sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType
+                        } else if case .callableRef = ast.arena.expr(args[0].expr),
+                                  case let .symbol(refTarget)? = sema.bindings.callableTarget(for: args[0].expr),
+                                  let refReturnType = sema.symbols.functionSignature(for: refTarget)?.returnType,
+                                  !sema.types.typeContainsAnyTypeParam(refReturnType)
+                        {
+                            // The callable reference is inferred against the
+                            // placeholder `(T) -> Any` expected type, which the
+                            // reference then adopts as its own type. Take the
+                            // result element type from the resolved target
+                            // instead, so `map(::mk)` yields `List<Top>`.
+                            refReturnType
                         } else if case let .functionType(fnType) = sema.types.kind(of: sema.bindings.exprType(for: args[0].expr) ?? sema.types.anyType) {
                             fnType.returnType
                         } else {

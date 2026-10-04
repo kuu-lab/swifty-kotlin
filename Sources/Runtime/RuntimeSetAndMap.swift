@@ -28,6 +28,27 @@ public func kk_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
+/// HashSet's capacity is a storage hint. Validate constructor arguments before
+/// allocating the same nominally tagged set used by the zero-argument form.
+@_cdecl("__kk_hash_set_new_checked")
+public func kk_hash_set_new_checked(
+    _ capacity: Int,
+    _ loadFactorBits: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    // The compiler's runtime ABI transports Float arguments as raw Int words.
+    let loadFactor = Float(bitPattern: UInt32(truncatingIfNeeded: loadFactorBits))
+    guard capacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(capacity)"))
+        return 0
+    }
+    guard loadFactor > 0, !loadFactor.isNaN else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Load: \(loadFactor)"))
+        return 0
+    }
+    return kk_hash_set_of(0, 0)
+}
+
 /// BUG-254: storage for the mutable set factories (`mutableSetOf`,
 /// `linkedSetOf`) and the `LinkedHashSet()` / `LinkedHashSet(capacity)`
 /// constructors. `__kk_set_of` stays on the read-only `Set` identity because it
@@ -173,6 +194,9 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     }
     if let set = runtimeSetBox(from: collRaw) {
         return set.isEmpty ? 1 : 0
+    }
+    if let sourceResult = runtimeSourceCollectionIsEmpty(collRaw) {
+        return sourceResult != 0 ? 1 : 0
     }
     if let sourceSize = runtimeSourceCollectionSize(collRaw) {
         return sourceSize == 0 ? 1 : 0

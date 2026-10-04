@@ -386,8 +386,8 @@ final class AtomicRefBox {
 
     /// CAS matching `runtimeAtomicRefValuesMatch` so value-type words that
     /// marshal differently across the erased-T boundary (bare primitive vs
-    /// fresh box, re-materialized string handle) still compare equal, while
-    /// real object references keep pointer identity. On success the caller's
+    /// fresh box) still compare equal, while strings and other object
+    /// references keep pointer identity. On success the caller's
     /// `expect` word is returned rather than the stored word: the Kotlin-level
     /// `compareAndSet` is `compareAndExchange(...) === expectedValue`, and
     /// `===` is raw word equality, so returning the stored word would report
@@ -425,7 +425,9 @@ public func kk_atomic_ref_create(_ initial: Int) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
-    return Int(bitPattern: ptr)
+    let raw = Int(bitPattern: ptr)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeStableNominalTypeID(fqName: "kotlin.concurrent.AtomicReference"))
+    return raw
 }
 
 @_cdecl("__kk_atomic_ref_load")
@@ -765,8 +767,8 @@ final class AtomicRefArrayBox {
         return kkrt_atomic_word_exchange(cell, newValue)
     }
 
-    /// Identity-based CAS, with string boxes compared structurally because aggregate
-    /// string lowering may materialize an equivalent RuntimeStringBox at ABI edges.
+    /// Identity-based CAS with decoded-payload matching for primitive boxes.
+    /// String bridges preserve canonical handles, so distinct strings never match.
     /// The CAS loop retries on the newly observed value so the swap still happens
     /// iff the cell held a matching value at the successful compare-exchange.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
@@ -817,9 +819,8 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
 /// Comparable form of one atomic-cell word. Words for the same logical value
 /// arrive through different marshal paths at the erased-T boundary — a bare
 /// primitive payload, a fresh primitive box (possibly under a tagged static
-/// handle), or a re-materialized string handle — so CAS for value types
-/// compares the decoded payload while real object references keep word
-/// identity.
+/// handle) — so CAS for primitive values compares the decoded payload while
+/// strings and other object references keep word identity.
 private enum AtomicRefWordValue {
     /// Unregistered word: a bare primitive payload or sentinel stored raw.
     case raw(Int)
@@ -832,7 +833,6 @@ private enum AtomicRefWordValue {
     case ulong(Int)
     case floatBits(UInt32)
     case doubleBits(UInt64)
-    case string(String)
     case unit
 
     /// The payload a bare primitive word would carry for this cell's element
@@ -851,7 +851,7 @@ private enum AtomicRefWordValue {
             return Int(bitPattern: UInt(bits))
         case .unit:
             return 0
-        case .raw, .object, .string:
+        case .raw, .object:
             return nil
         }
     }
@@ -867,8 +867,6 @@ private func runtimeAtomicRefWordValue(_ word: Int) -> AtomicRefWordValue {
     let base = runtimePrimitiveBoxBasePointer(from: word) ?? ptr
     let object = Unmanaged<AnyObject>.fromOpaque(base).takeUnretainedValue()
     switch object {
-    case let box as RuntimeStringBox:
-        return .string(box.value)
     case let box as RuntimeIntBox:
         return .int(value: box.value, enumClassID: box.enumClassID)
     case let box as RuntimeBoolBox:
@@ -897,8 +895,9 @@ private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
 
 /// Value-typed CAS match for `AtomicReference` / `AtomicArray<T>`: identical
 /// words match (object identity and equal raw payloads), boxes of the same
-/// primitive/String kind match by payload, and a bare stored word matches a
-/// box carrying the same payload. Distinct object handles never match.
+/// primitive kind match by payload, and a bare stored word matches a box
+/// carrying the same payload. Distinct string and other object handles never
+/// match; flat String bridges preserve their canonical box identity.
 private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
@@ -906,8 +905,6 @@ private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     let left = runtimeAtomicRefWordValue(lhs)
     let right = runtimeAtomicRefWordValue(rhs)
     switch (left, right) {
-    case let (.string(l), .string(r)):
-        return runtimeStringsEqual(l, r)
     case let (.bool(l), .bool(r)):
         return l == r
     case let (.char(l), .char(r)),

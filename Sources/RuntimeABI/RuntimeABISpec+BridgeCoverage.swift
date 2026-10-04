@@ -181,6 +181,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_ulong_to_int", section: "NumericConversion", params: ["value"],
             isThrowing: false),
+            bridgeSpec("kk_ulong_to_long", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
         ]
         + [
             "kk_op_dadd",
@@ -279,6 +281,8 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_platform_memoryModel", section: "System", params: ["platformRaw"],
             isThrowing: false),
             bridgeSpec("kk_native_identityHashCode", section: "Native", params: ["objectRaw"],
+            isThrowing: false),
+            bridgeSpec("__kk_immutable_blob_of", section: "Native", params: ["elements", "count"],
             isThrowing: false),
             bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: ["throwableRaw"],
             isThrowing: false),

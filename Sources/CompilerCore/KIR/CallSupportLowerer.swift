@@ -4,6 +4,13 @@ struct NormalizedCallResult {
     let defaultMask: Int64
 }
 
+/// A captured value forwarded by the `$default` stub of a local function.
+struct DefaultStubCapture {
+    let capturedSymbol: SymbolID
+    let param: KIRParameter
+    let isBoxedMutable: Bool
+}
+
 final class CallSupportLowerer {
     unowned let driver: KIRLoweringDriver
 
@@ -122,7 +129,8 @@ final class CallSupportLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind]
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        captures: [DefaultStubCapture] = []
     ) -> KIRDeclID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let paramCount = signature.parameterTypes.count
@@ -131,7 +139,10 @@ final class CallSupportLowerer {
         driver.ctx.resetScopeForFunction()
         driver.ctx.setCurrentFunctionSymbol(originalSymbol)
 
-        var params: [KIRParameter] = []
+        // A local function's lifted body takes its captured values as leading
+        // parameters; the stub mirrors them and forwards them to the original.
+        var params: [KIRParameter] = captures.map(\.param)
+        var captureArgExprs: [KIRExprID] = []
         if let receiverType = signature.receiverType {
             let receiverSym = syntheticReceiverParameterSymbol(functionSymbol: originalSymbol)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
@@ -187,6 +198,17 @@ final class CallSupportLowerer {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
 
+        for capture in captures {
+            let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
+            body.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
+            if capture.isBoxedMutable {
+                driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
+            }
+            captureArgExprs.append(captureExpr)
+        }
+
         let maskExpr = arena.appendExpr(.symbolRef(maskSymbol), type: intType)
         body.append(.constValue(result: maskExpr, value: .symbolRef(maskSymbol)))
 
@@ -224,8 +246,26 @@ final class CallSupportLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &body
                 )
+                // A function-typed parameter is consumed through kk_function_invoke,
+                // which needs a boxed function value. Call-site lambdas are wrapped
+                // by materializeSourceBackedFunctionValueArguments; do the same for
+                // a default lambda / callable reference so it isn't a raw fn pointer.
+                var defaultValueForCopy = defaultVal
+                if case let .functionType(defaultFunctionType) = sema.types.kind(
+                    of: sema.types.makeNonNullable(effectiveParamType)
+                ) {
+                    defaultValueForCopy = driver.callLowerer.materializeFunctionValueArgument(
+                        loweredArgID: defaultVal,
+                        argExprID: defaultExprID,
+                        functionType: defaultFunctionType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body
+                    )
+                }
                 let resolvedExpr = arena.appendTemporary(type: effectiveParamType)
-                body.append(.copy(from: defaultVal, to: resolvedExpr))
+                body.append(.copy(from: defaultValueForCopy, to: resolvedExpr))
                 body.append(.jump(afterLabel))
 
                 body.append(.label(skipLabel))
@@ -241,7 +281,7 @@ final class CallSupportLowerer {
         }
 
         let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
-        var callArgs: [KIRExprID] = []
+        var callArgs: [KIRExprID] = captureArgExprs
         if let receiverExprForCall {
             callArgs.append(receiverExprForCall)
         }
@@ -505,7 +545,7 @@ final class CallSupportLowerer {
             }
         }
 
-        if externalLinkName == "kk_array_of",
+        if (externalLinkName == "kk_array_of" || externalLinkName == "__kk_immutable_blob_of"),
            parameterCount == 1,
            isVararg.first == true
         {
@@ -603,6 +643,11 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    let primitiveArrayType = primitiveVarargArrayType(
+                        elementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
+                        interner: interner
+                    )
                     boxNonSpreadVarargArguments(
                         argIndices,
                         in: &boxedArguments,
@@ -617,8 +662,9 @@ final class CallSupportLowerer {
                         argIndices: argIndices,
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
-                        listifyResult: !preserveArrayVarargs,
-                        boxPrimitiveElements: !preserveArrayVarargs,
+                        listifyResult: !preserveArrayVarargs && primitiveArrayType == nil,
+                        boxPrimitiveElements: !preserveArrayVarargs && primitiveArrayType == nil,
+                        resultType: primitiveArrayType,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -640,9 +686,24 @@ final class CallSupportLowerer {
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
+                    resultType: primitiveVarargArrayType(
+                        elementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
+                        interner: interner
+                    ),
                     instructions: &instructions
                 )
-                normalized.append(emptyArray)
+                // Match the non-empty path: a vararg parameter is a List inside the
+                // callee unless the callee preserves raw array varargs.
+                normalized.append(preserveArrayVarargs
+                    ? emptyArray
+                    : emitArrayToList(
+                        emptyArray,
+                        arena: arena,
+                        interner: interner,
+                        anyType: sema.types.anyType,
+                        instructions: &instructions
+                    ))
                 continue
             }
             // Use semantic hasDefaultValues flag (callee context) instead of

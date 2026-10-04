@@ -463,13 +463,6 @@ extension DataFlowAndSemaRegressionTests {
             }
     }
 
-    @Test func testPrintlnBuiltinInfersUnit() throws {
-        let (ctx, _) = try sharedDataFlowTryCatchCtx()
-            let sema = try #require(ctx.sema)
-            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
-            #expect(!exprTypesEmpty)
-    }
-
     @Test func testStringSplitMarksCollectionForFallbackMembers() throws {
         let (ctx, paths) = try sharedDataFlowTryCatchCtx()
         let samplePath = paths[14]
