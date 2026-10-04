@@ -832,6 +832,15 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 | `collections/LinkedHashMap.kt`（KSP-703） | `LinkedHashMap<K, V>` が本来無関係な `MutableMap<K, V>` interface への typealias になっており、diff オラクル（`kotlinc-jvm`）・kotlin-native いずれの本家形とも一致しない。`HashMap()`/`LinkedHashMap()` はどちらも `CollectionLiteralLoweringPass`（`+LookupTables+Map.swift` の `mutableMapConstructorNames`）が名前で認識し runtime map box を直接構築するため、機能上は区別できず `is HashMap`/`is LinkedHashMap` が本来持つべき非対称性がない | diff オラクルの `kotlinc-jvm` では `HashMap`/`LinkedHashMap` は java.util の別クラスで `LinkedHashMap extends HashMap`（実測: `HashMap() is LinkedHashMap<*, *>` は false、`LinkedHashMap() is HashMap<*, *>` は true）。kotlin-native は逆に `HashMap` が `LinkedHashMap` への typealias（`actual typealias LinkedHashMap<K, V> = HashMap<K, V>`）で同一型になるが、diff オラクルには使われない | `LinkedHashSet` と同様に `LinkedHashMap` を concrete class へ昇格し、`class LinkedHashMap<K, V> : HashMap<K, V>` として JVM 参照形の一方向継承（`is HashMap` のみ真）を再現する構造変更。`linkedHashMapRuntimeTypeID` 新設・Sema/Lowering の construction 経路拡張を伴うため独立タスク化が必要 |
 | `kotlinx/cinterop/StableRef.kt`（KSP-1217） | `asStableRef()` を通常の型パラメータ版 `fun <T : Any> COpaquePointer.asStableRef(): StableRef<T>` として実装 | `inline fun <reified T : Any> CPointer<*>.asStableRef(): StableRef<T>` | 拡張関数の receiver 型に対する `inline`/`reified` の組み合わせの実績が無いため据え置き。`get()` の unchecked cast で機能的には等価。実績確認・CAP 起票され次第、本家形へ復元 |
 
+#### Scope factory integration boundary
+
+`CoroutineScope.coroutineContext` reads use bundled `__kkScopeContext`: opaque
+runtime builder handles read the ambient context, while source objects invoke
+their actual interface getter. `__kk_coroutine_scope_is_runtime` adds one internal
+ABI entry (MEMORY_REPRESENTATION: runtime handles and Kotlin objects have distinct
+layouts); it only queries the existing live-handle registry. Job factories bind
+raw jobs to source wrappers and public hierarchy queries preserve live wrapper
+identity without retaining a wrapper through its job.
 ### Coroutine nominal/master integration
 
 `__kk_dispatcher_immediate` bridges the memory representation of scheduler tags

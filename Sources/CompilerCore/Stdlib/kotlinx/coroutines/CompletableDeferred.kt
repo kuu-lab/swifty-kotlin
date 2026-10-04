@@ -8,7 +8,7 @@ public interface CompletableDeferred<T> : Deferred<T> {
 }
 
 internal class CompletableDeferredImpl<T>(parent: Job?) : CompletableDeferred<T> {
-    private val job: Job = __kkJobBindWrapper(this, Job(), parent)
+    private val job: Job = __kkJobBindWrapper(this, __kkJobNew(), parent)
 
     override val isActive: Boolean get() = job.isActive
     override val isCompleted: Boolean get() = job.isCompleted

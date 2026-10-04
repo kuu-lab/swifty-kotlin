@@ -24,8 +24,8 @@ public interface CompletableJob : Job {
     public fun completeExceptionally(exception: Throwable): Boolean
 }
 
-internal class CompletableJobImpl(parent: Job?) : CompletableJob {
-    private val job: Job = __kkJobBindWrapper(this, Job(), parent)
+internal class CompletableJobImpl(backingJob: Job, parent: Job?) : CompletableJob {
+    private val job: Job = __kkJobBindWrapper(this, backingJob, parent)
 
     override val isActive: Boolean get() = job.isActive
     override val isCompleted: Boolean get() = job.isCompleted
@@ -40,4 +40,4 @@ internal class CompletableJobImpl(parent: Job?) : CompletableJob {
         __kkJobCompleteExceptionally(job, exception)
 }
 
-public fun CompletableJob(parent: Job? = null): CompletableJob = CompletableJobImpl(parent)
+public fun CompletableJob(parent: Job? = null): CompletableJob = Job(parent)

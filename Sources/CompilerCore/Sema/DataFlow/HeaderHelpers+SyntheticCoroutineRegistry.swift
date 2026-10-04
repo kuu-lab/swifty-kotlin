@@ -620,19 +620,21 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // kotlinx.coroutines.currentCoroutineContext() is the suspend-function
-        // equivalent of the kotlin.coroutines.coroutineContext property above;
-        // both read the same ambient context, so they share a backing primitive.
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "currentCoroutineContext",
-            packageFQName: coroutinesPkg,
-            parameters: [],
-            returnType: kotlinCoroutineContextType,
-            externalLinkName: "kk_coroutine_current_context",
-            isSuspend: true,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("currentCoroutineContext"), arity: 0) {
+            // kotlinx.coroutines.currentCoroutineContext() is the suspend-function
+            // equivalent of the kotlin.coroutines.coroutineContext property above;
+            // both read the same ambient context, so they share a backing primitive.
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "currentCoroutineContext",
+                packageFQName: coroutinesPkg,
+                parameters: [],
+                returnType: kotlinCoroutineContextType,
+                externalLinkName: "kk_coroutine_current_context",
+                isSuspend: true,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         if !bundledIndex.contains(
             ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
             name: interner.intern("resume"),
@@ -1344,19 +1346,21 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([jobSymbol], for: deferredSymbol)
         }
 
-        // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
-        // CoroutineScope/Job) so `currentCoroutineContext().isActive` resolves.
-        // Mirrors `this[Job]?.isActive ?: true` -- a context with no Job element is
-        // considered active.
-        registerSyntheticObjectProperty(
-            ownerSymbol: coroutineContextSymbol,
-            ownerType: coroutineContextType,
-            name: "isActive",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_context_is_active",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("isActive"), arity: 0) {
+            // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
+            // CoroutineScope/Job) so `currentCoroutineContext().isActive` resolves.
+            // Mirrors `this[Job]?.isActive ?: true` -- a context with no Job element is
+            // considered active.
+            registerSyntheticObjectProperty(
+                ownerSymbol: coroutineContextSymbol,
+                ownerType: coroutineContextType,
+                name: "isActive",
+                propertyType: types.booleanType,
+                externalLinkName: "kk_context_is_active",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // `kotlinx.coroutines.NonCancellable`: a CoroutineContext.Element used with
         // `withContext(NonCancellable) { ... }` to run cleanup code that ignores the
@@ -1713,29 +1717,30 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // CoroutineContext.cancel() and CoroutineContext.cancel(cause)
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineContextSymbol,
-            ownerType: coroutineContextType,
-            name: "cancel",
-            externalLinkName: "kk_context_cancel_no_cause",
-            returnType: types.unitType,
-            parameters: [],
-            flags: [.synthetic],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineContextSymbol,
-            ownerType: coroutineContextType,
-            name: "cancel",
-            externalLinkName: "kk_context_cancel",
-            returnType: types.unitType,
-            parameters: [(name: "cause", type: types.makeNullable(rootCancellationType))],
-            flags: [.synthetic],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("cancel"), arity: 1) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineContextSymbol,
+                ownerType: coroutineContextType,
+                name: "cancel",
+                externalLinkName: "kk_context_cancel_no_cause",
+                returnType: types.unitType,
+                parameters: [],
+                flags: [.synthetic],
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineContextSymbol,
+                ownerType: coroutineContextType,
+                name: "cancel",
+                externalLinkName: "kk_context_cancel",
+                returnType: types.unitType,
+                parameters: [(name: "cause", type: types.makeNullable(rootCancellationType))],
+                flags: [.synthetic],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         let coroutineNameSymbol = ensureClassSymbol(
             named: "CoroutineName",
@@ -2112,16 +2117,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "complete",
-            externalLinkName: "kk_job_complete",
-            returnType: types.booleanType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("complete"), arity: 0) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "complete",
+                externalLinkName: "kk_job_complete",
+                returnType: types.booleanType,
+                parameters: [(name: "value", type: types.anyType)],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineMember(
             ownerSymbol: jobSymbol,
             ownerType: jobType,
@@ -2182,24 +2189,28 @@ extension DataFlowSemaPhase {
                 classSymbol: ensureInterfaceSymbol(named: "CompletableJob", in: coroutinesPkg, symbols: symbols, interner: interner),
                 args: [], nullability: .nonNull
             ))) : jobType
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "Job",
-            packageFQName: coroutinesPkg,
-            parameters: [],
-            returnType: completableJobType,
-            externalLinkName: "kk_job_new",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "SupervisorJob",
-            packageFQName: coroutinesPkg,
-            parameters: [],
-            returnType: completableJobType,
-            externalLinkName: "kk_supervisor_job_new",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("Job"), arity: 1) {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "Job",
+                packageFQName: coroutinesPkg,
+                parameters: [],
+                returnType: completableJobType,
+                externalLinkName: "kk_job_new",
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("SupervisorJob"), arity: 1) {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "SupervisorJob",
+                packageFQName: coroutinesPkg,
+                parameters: [],
+                returnType: completableJobType,
+                externalLinkName: "kk_supervisor_job_new",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // `kotlinx.coroutines.CoroutineScope`: an interface (real Kotlin declares
         // `val coroutineContext: CoroutineContext` as its only member) plus the
@@ -2216,15 +2227,17 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(coroutineScopeType, for: coroutineScopeSymbol)
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "CoroutineScope",
-            packageFQName: coroutinesPkg,
-            parameters: [(name: "context", type: coroutineContextType)],
-            returnType: coroutineScopeType,
-            externalLinkName: "kk_coroutine_scope_new_with_context",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("CoroutineScope"), arity: 1) {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "CoroutineScope",
+                packageFQName: coroutinesPkg,
+                parameters: [(name: "context", type: coroutineContextType)],
+                returnType: coroutineScopeType,
+                externalLinkName: "kk_coroutine_scope_new_with_context",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         // `CoroutineScope.launch { block }`: a receiver-bearing member call. The general
         // member-call emission path (appendReceiverToMemberArguments in
         // CallLowerer+MemberCallEmission.swift) already prepends the receiver as
@@ -2254,24 +2267,28 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineScopeSymbol,
-            ownerType: coroutineScopeType,
-            name: "cancel",
-            externalLinkName: "kk_coroutine_scope_cancel",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: coroutineScopeSymbol,
-            ownerType: coroutineScopeType,
-            name: "isActive",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_coroutine_scope_is_active",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("cancel"), arity: 1) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineScopeSymbol,
+                ownerType: coroutineScopeType,
+                name: "cancel",
+                externalLinkName: "kk_coroutine_scope_cancel",
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("isActive"), arity: 0) {
+            registerSyntheticObjectProperty(
+                ownerSymbol: coroutineScopeSymbol,
+                ownerType: coroutineScopeType,
+                name: "isActive",
+                propertyType: types.booleanType,
+                externalLinkName: "kk_coroutine_scope_is_active",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         if !symbols.isSourceBackedSymbol(deferredSymbol) {
             registerSyntheticCoroutineMember(
                 ownerSymbol: deferredSymbol,
@@ -2552,16 +2569,18 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
         // extension that composes acquire()/release(); no synthetic stub remains.
 
-        registerSyntheticCoroutineExtensionFunction(
-            named: "cancel",
-            packageFQName: kotlinCoroutinesCancellationPkg,
-            receiverType: kotlinCoroutineContextType,
-            externalLinkName: "kk_context_cancel",
-            returnType: types.unitType,
-            parameters: [(name: "cause", type: types.makeNullable(rootCancellationType))],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("cancel"), arity: 1) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "cancel",
+                packageFQName: kotlinCoroutinesCancellationPkg,
+                receiverType: kotlinCoroutineContextType,
+                externalLinkName: "kk_context_cancel",
+                returnType: types.unitType,
+                parameters: [(name: "cause", type: types.makeNullable(rootCancellationType))],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
     }
 
@@ -2819,7 +2838,7 @@ extension DataFlowSemaPhase {
         let propertyName = interner.intern(name)
         let propertyFQName = packageFQName + [propertyName]
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
+            symbols.symbol(symbolID)?.kind == .property && !symbols.hasExtensionPropertyReceiver(symbolID)
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
             symbols.setPropertyType(returnType, for: existing)

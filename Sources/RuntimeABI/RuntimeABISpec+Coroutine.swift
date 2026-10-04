@@ -1321,6 +1321,13 @@ public extension RuntimeABISpec {
         ),
         // CoroutineScope hierarchy / lifecycle (STDLIB-CORO-069)
         RuntimeABIFunctionSpec(
+            name: "__kk_coroutine_scope_is_runtime",
+            parameters: [RuntimeABIParameter(name: "handle", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_is_active",
             parameters: [
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),
