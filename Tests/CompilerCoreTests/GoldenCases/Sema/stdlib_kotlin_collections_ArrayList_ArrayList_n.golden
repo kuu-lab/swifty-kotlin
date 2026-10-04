@@ -38,14 +38,14 @@ expr e@14:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sem
 expr e@14:5#1 memberCall recv=e@14:5 callee=hashCode args=[] type=Int call=kotlin.collections.ArrayList.hashCode[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;gen=1] targs=[String?]
 expr e@15:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@15:18 string(a) type=String
-expr e@15:5#1 memberCall recv=e@15:5 callee=indexOf args=[_:e@15:18] type=Int call=kotlin.collections.indexOf[kind=fun;recv=kotlin.collections.List<T0>;params=T0;gen=1] targs=[String?]
+expr e@15:5#1 memberCall recv=e@15:5 callee=indexOf args=[_:e@15:18] type=Int call=kotlin.collections.ArrayList.indexOf[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=T0;gen=1] targs=[String?]
 expr e@16:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@16:5#1 memberCall recv=e@16:5 callee=isEmpty args=[] type=Boolean call=kotlin.collections.ArrayList.isEmpty[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;gen=1]
 expr e@17:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@17:5#1 memberCall recv=e@17:5 callee=iterator args=[] type=kotlin.collections.MutableIterator<String?> call=kotlin.collections.ArrayList.iterator[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;gen=1] targs=[String?]
 expr e@18:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@18:22 string(a) type=String
-expr e@18:5#1 memberCall recv=e@18:5 callee=lastIndexOf args=[_:e@18:22] type=Int call=kotlin.collections.lastIndexOf[kind=fun;recv=kotlin.collections.List<T0>;params=T0;gen=1] targs=[String?]
+expr e@18:5#1 memberCall recv=e@18:5 callee=lastIndexOf args=[_:e@18:22] type=Int call=kotlin.collections.ArrayList.lastIndexOf[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=T0;gen=1] targs=[String?]
 expr e@19:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@19:5#1 memberCall recv=e@19:5 callee=listIterator args=[] type=kotlin.collections.MutableListIterator<String?> call=kotlin.collections.ArrayList.listIterator[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;gen=1] targs=[String?]
 expr e@20:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
@@ -72,7 +72,7 @@ expr e@26:5#1 memberCall recv=e@26:5 callee=size args=[] type=Int ref=kotlin.col
 expr e@27:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@27:18 int(0) type=Int
 expr e@27:21 int(1) type=Int
-expr e@27:5#1 memberCall recv=e@27:5 callee=subList args=[_:e@27:18,_:e@27:21] type=kotlin.collections.MutableList<String?> call=kotlin.collections.ArrayList.subList[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int,Int;gen=1]
+expr e@27:5#1 memberCall recv=e@27:5 callee=subList args=[_:e@27:18,_:e@27:21] type=kotlin.collections.MutableList<String?> call=kotlin.collections.ArrayList.subList[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int,Int;gen=1] targs=[String?]
 expr e@28:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]
 expr e@28:5#1 memberCall recv=e@28:5 callee=toString args=[] type=String call=kotlin.collections.ArrayList.toString[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;gen=1] targs=[String?]
 expr e@29:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam]

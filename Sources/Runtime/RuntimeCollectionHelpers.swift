@@ -138,6 +138,7 @@ private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
 private let runtimeCollectionSizeGetterSlot = 4
 private let runtimeCollectionIsEmptyMethodSlot = 0
 private let runtimeListIteratorAtMethodSlot = 1
+private let runtimeListSubListMethodSlot = 2
 private let runtimeMutableListSubListMethodSlot = 0
 private let runtimeMutableListSetMethodSlot = 1
 // Map properties are ordered alphabetically after Map's two methods:
@@ -265,6 +266,26 @@ func runtimeSourceMutableListSubList(
         rawValue,
         Int(runtimeMutableListInterfaceTypeID),
         runtimeMutableListSubListMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, fromIndex, toIndex, outThrown)
+}
+
+@inline(__always)
+func runtimeSourceListSubList(
+    _ rawValue: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeListGetInterfaceTypeID),
+        runtimeListSubListMethodSlot
     )
     guard fnPtr != 0 else { return nil }
     let fn = unsafeBitCast(
