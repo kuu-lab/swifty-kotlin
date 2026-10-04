@@ -1248,7 +1248,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// terminal). Must be called with `lock` unlocked.
     func addCompletionHandler(onCancelling: Bool, handler: @escaping @Sendable (Int) -> Void) -> Int {
         lock.lock()
-        if state.isCompleted {
+        if state.isCompleted || (onCancelling && state.isCancelled) {
             let cause = completionCauseLocked()
             lock.unlock()
             handler(cause)

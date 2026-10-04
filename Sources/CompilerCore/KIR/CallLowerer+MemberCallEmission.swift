@@ -430,6 +430,24 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
+        if loweredCalleeText == "kk_coroutine_scope_launch",
+           !finalArguments.isEmpty,
+           let handleSymbol = sema.symbols.lookupAll(fqName: ["kotlinx", "coroutines", "__kkScopeHandle"].map { interner.intern($0) }).first(where: {
+               sema.symbols.symbol($0)?.kind == .function
+           }),
+           let handleInfo = sema.symbols.symbol(handleSymbol)
+        {
+            let scopeHandle = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: handleSymbol,
+                callee: handleInfo.name,
+                arguments: [finalArguments[0]],
+                result: scopeHandle,
+                canThrow: true,
+                thrownResult: nil
+            ))
+            finalArguments[0] = scopeHandle
+        }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
         // reference is finalArguments[1]; inject the lambda's captures after it so the

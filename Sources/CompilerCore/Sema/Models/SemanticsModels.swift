@@ -469,6 +469,7 @@ public final class SymbolTable {
     private var delegateProvideDelegateSymbols: [SymbolID: SymbolID] = [:]
     private var accessorOwnerProperties: [SymbolID: SymbolID] = [:]
     private var extensionPropertyReceiverTypes: [SymbolID: TypeID] = [:]
+    private var declaredExtensionProperties: Set<SymbolID> = []
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
@@ -614,7 +615,7 @@ public final class SymbolTable {
                 || canCoexistAsExpectActual(kind: kind, flags: flags, existingSymbols: existingSymbols)
                 || canCoexistAsSyntheticPropertyFamily(kind: kind, flags: flags, existingSymbols: existingSymbols)
             if shouldCoexist {
-                return appendNewSymbol(
+                let id = appendNewSymbol(
                     kind: kind,
                     name: name,
                     fqName: fqName,
@@ -622,10 +623,12 @@ public final class SymbolTable {
                     visibility: visibility,
                     flags: flags
                 )
+                if isExtensionProperty { declaredExtensionProperties.insert(id) }
+                return id
             }
             return existing[0]
         }
-        return appendNewSymbol(
+        let id = appendNewSymbol(
             kind: kind,
             name: name,
             fqName: fqName,
@@ -633,6 +636,8 @@ public final class SymbolTable {
             visibility: visibility,
             flags: flags
         )
+        if isExtensionProperty { declaredExtensionProperties.insert(id) }
+        return id
     }
 
     private func appendNewSymbol(
@@ -720,7 +725,7 @@ public final class SymbolTable {
                 // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
+                        || (existing.kind == .property && (existing.flags.contains(.synthetic) || hasExtensionPropertyReceiver(existing.id)))
                 }
             }
             return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
@@ -1150,6 +1155,10 @@ public final class SymbolTable {
 
     public func extensionPropertyReceiverType(for property: SymbolID) -> TypeID? {
         extensionPropertyReceiverTypes[property]
+    }
+
+    public func hasExtensionPropertyReceiver(_ property: SymbolID) -> Bool {
+        declaredExtensionProperties.contains(property) || extensionPropertyReceiverTypes[property] != nil
     }
 
     public func setExtensionPropertyGetterAccessor(_ accessor: SymbolID, for property: SymbolID) {
