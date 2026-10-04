@@ -2163,7 +2163,10 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
             // KSP-1361: Reusing the synthetic SequenceScope shell must still
             // leave the bundled Kotlin declaration source-backed.
-            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"] {
+            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"]
+            // KUU-936: the atomics-package AtomicNativePtr constructor and field
+            // are bundled source; the synthetic shell keeps only residual members.
+            || resolvedFQName == ["kotlin", "concurrent", "atomics", "AtomicNativePtr"] {
             return true
         }
         guard resolvedFQName.count == 3,
