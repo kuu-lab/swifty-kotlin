@@ -232,10 +232,10 @@ this to keep the baseline and optimized lanes separate:
 DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-In CI, the `-O2` diff lane is gated: on pull requests it runs only when
-backend-relevant paths change (see `detect-diff-trigger` in
-`.github/workflows/ci.yml`); the full corpus sweep at `-O2` runs every night
-via `.github/workflows/nightly-o2-diff.yml`.
+In CI, the diff corpus (at both `-O0` and `-O2`) runs only in the daily full
+verification, `.github/workflows/nightly-full.yml`; pull requests and the merge
+queue do not run it. Trigger that workflow with `workflow_dispatch` on a branch
+to run the corpus before merging.
 
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
@@ -257,7 +257,7 @@ warning and is treated as `DIFF_WORKERS`.
 
 `DIFF_WORKERS` parallelizes within one machine. To split the case
 set across several machines (CI shards the regression this way; the current
-shard count is the diff-regression matrix in `.github/workflows/ci.yml`),
+shard count is the diff-regression matrix in `.github/workflows/nightly-full.yml`),
 use interleaved sharding — case `i` runs only when `i % count == index`:
 
 ```bash
