@@ -467,7 +467,6 @@ extension CallLowerer {
         if functionType.isSuspend,
            !resolvedCallableInfo.hasClosureParam,
            sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
-               || (functionType.receiver == nil && !hasStringSignature)
         {
             return loweredArgID
         }
