@@ -270,6 +270,21 @@ public extension TypeSystem {
         }
     }
 
+    /// Rewrites references to type-parameter symbols in `arg` according to
+    /// `mapping` (old symbol -> replacement symbol), keeping each reference's
+    /// nullability. Used to reconcile the synthetic `T<n>` symbols that
+    /// library metadata spells with the symbols a nominal was registered with.
+    func substitutingTypeParameterSymbols(_ arg: TypeArg, mapping: [SymbolID: SymbolID]) -> TypeArg {
+        let orderedOldSymbols = mapping.keys.sorted { $0.rawValue < $1.rawValue }
+        let typeVarBySymbol = makeTypeVarBySymbol(orderedOldSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (oldSymbol, variable) in typeVarBySymbol {
+            guard let replacement = mapping[oldSymbol] else { continue }
+            substitution[variable] = make(.typeParam(TypeParamType(symbol: replacement, nullability: .nonNull)))
+        }
+        return substituteTypeArg(arg, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+    }
+
     private func substituteTypeArg(
         _ arg: TypeArg,
         substitution: [TypeVarID: TypeID],
