@@ -248,6 +248,14 @@ extension CallTypeChecker {
             activeCollectionHOFNames.remove("flatMapTo")
         }
         let calleeStr = interner.resolve(calleeName)
+        if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
+           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           })
+        {
+            return nil
+        }
         let isIterableIndexFamilyHOF = ["indexOf", "indexOfFirst", "indexOfLast"].contains(calleeStr)
         // KSP-983: a nominal Iterable receiver must use the exact bundled
         // Iterable max-family declarations. Let regular overload resolution
@@ -1548,37 +1556,6 @@ extension CallTypeChecker {
             let bound: Bool
             let resultType: TypeID
 
-            func bindMutableCollectionElementRemove() -> Bool {
-                guard args.count == 1, args[0].label == nil else { return false }
-                let argumentType = driver.inferExpr(
-                    args[0].expr,
-                    ctx: ctx,
-                    locals: &locals
-                )
-                guard sema.types.isSubtype(argumentType, elementType) else { return false }
-                let mutableCollectionRemoveFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("MutableCollection"),
-                    interner.intern("remove"),
-                ]
-                guard let chosenCallee = sema.symbols.lookupAll(fqName: mutableCollectionRemoveFQName)
-                    .first(where: { candidate in
-                        sema.symbols.symbol(candidate)?.kind == .function
-                            && sema.symbols.externalLinkName(for: candidate) == "__kk_mutable_collection_remove"
-                    })
-                else {
-                    return false
-                }
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: mutableSourceArguments,
-                    parameterMapping: [0: 0]
-                ))
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                return true
-            }
-
             switch calleeStr {
             case "asReversed" where args.isEmpty:
                 bound = bindBundledListSourceFunction(
@@ -1598,9 +1575,6 @@ extension CallTypeChecker {
                     requireMutableListReceiver: true
                 )
                 resultType = elementType
-            case "remove" where args.count == 1 && args[0].label == nil:
-                bound = bindMutableCollectionElementRemove()
-                resultType = sema.types.booleanType
             case "removeFirst" where args.isEmpty,
                  "removeLast" where args.isEmpty:
                 bound = bindBundledListSourceFunction(

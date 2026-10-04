@@ -21,15 +21,43 @@ package kotlin.ranges
 // themselves; interface-typed dispatch on generic ranges remains a residual
 // limitation.
 //
-// The four upstream `contains(element: T?)` extension overloads on iterable
-// ranges are not declared: the two `@DeprecatedSinceKotlin(hiddenSince="2.3")`
-// `T : Any` variants deliberately violate `ClosedRange<T : Comparable<T>>`
-// (`@Suppress("UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_*")`,
-// which this sema does not support), and the `T : Comparable<T>` variants use a
-// `where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T>` receiver that
-// cannot be satisfied — calls to `contains` on any `ClosedRange<T>`-typed
-// receiver always resolve to the `contains(value: T)` member anyway, so the
-// extensions would be unreachable declarations. (KUU-869)
+/** Returns false for null elements, otherwise delegates to the range member. */
+@SinceKotlin("2.3")
+@kotlin.internal.InlineOnly
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
+
+@Deprecated("The signature violates type safety guarantees")
+@DeprecatedSinceKotlin(hiddenSince = "2.3")
+@Suppress(
+    "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING",
+    "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR"
+)
+@SinceKotlin("1.3")
+@kotlin.internal.InlineOnly
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Any, R : ClosedRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
+
+/** Returns false for null elements, otherwise delegates to the range member. */
+@SinceKotlin("2.3")
+@kotlin.internal.InlineOnly
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Comparable<T>, R : OpenEndRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
+
+@Deprecated("The signature violates type safety guarantees")
+@DeprecatedSinceKotlin(hiddenSince = "2.3")
+@Suppress(
+    "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING",
+    "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR"
+)
+@SinceKotlin("1.9")
+@kotlin.internal.InlineOnly
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Any, R : OpenEndRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
 
 /**
  * Represents a range of [Comparable] values.
@@ -134,4 +162,3 @@ public fun <T : Comparable<T>> T.coerceIn(range: ClosedRange<T>): T {
     // intrinsic fallback for erased generic bodies.
     return this
 }
-

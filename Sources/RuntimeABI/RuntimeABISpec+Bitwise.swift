@@ -191,26 +191,26 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Bitwise"
         ),
-        // Int/Long flooring division and modulo operators
+        // Int/Long flooring division and modulo operators — throwing (PEC-NUM-0002)
         RuntimeABIFunctionSpec(
             name: "kk_op_floor_div",
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
+            section: "Bitwise"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_lfloor_div",
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
+            section: "Bitwise"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_mod",
@@ -227,6 +227,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Bitwise"
@@ -236,6 +237,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Bitwise"
