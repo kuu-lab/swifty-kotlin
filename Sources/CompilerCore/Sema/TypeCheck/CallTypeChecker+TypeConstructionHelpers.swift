@@ -453,12 +453,17 @@ extension CallTypeChecker {
     ) {
         applyContractCallsInPlaceEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let sema = ctx.sema
-        let state = ctx.dataFlow.applyContractImplications(
-            id, result: .normally, base: ctx.flowState, locals: locals,
-            ast: ctx.ast, sema: sema, interner: ctx.interner, scope: ctx.scope
-        )
-        driver.exprChecker.applyFlowStateToLocals(state, locals: &locals, sema: sema)
-        guard sema.symbols.contractImplicationEffects(for: chosen).isEmpty else { return }
+        let implications = sema.symbols.contractImplicationEffects(for: chosen)
+        if !implications.isEmpty {
+            if implications.contains(where: { $0.returnCondition == .normally }) {
+                let state = ctx.dataFlow.applyContractImplications(
+                    id, result: .normally, base: ctx.flowState, locals: locals,
+                    ast: ctx.ast, sema: sema, interner: ctx.interner, scope: ctx.scope
+                )
+                driver.exprChecker.applyFlowStateToLocals(state, locals: &locals, sema: sema)
+            }
+            return
+        }
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return
         }
