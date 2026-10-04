@@ -329,6 +329,15 @@ public func kk_mutable_set_removeAll(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let result = runtimeSourceInterfaceCall1(
+            setRaw, collectionRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 4,
+            context: "MutableSet.removeAll dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -353,6 +362,15 @@ public func kk_mutable_set_retainAll(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let result = runtimeSourceInterfaceCall1(
+            setRaw, collectionRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 5,
+            context: "MutableSet.retainAll dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
