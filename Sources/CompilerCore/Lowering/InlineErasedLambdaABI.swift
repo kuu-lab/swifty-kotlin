@@ -14,7 +14,7 @@ enum InlineErasedLambdaABI {
     static let erasedFunctionInvokeCallees: Set<String> = [
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3",
-        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
     ]
 
     /// Imported inline HOF bodies were ABI-lowered before they were serialized.

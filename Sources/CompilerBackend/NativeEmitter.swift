@@ -36,6 +36,7 @@ struct NativeEmitter {
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
         "kk_function_invoke_5",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
     ]
 
     /// Quick lookup for runtime ABI function specs by symbol name.
@@ -143,6 +144,10 @@ struct NativeEmitter {
         }
 
         let notNullCallee = interner.intern("kk_op_notnull")
+        let packedValueCallees: Set<InternedString> = [
+            interner.intern("kk_array_set"),
+            interner.intern("kk_coroutine_launcher_arg_set"),
+        ]
         let lambdaSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
             guard case let .function(function) = declaration,
                   interner.resolve(function.name).hasPrefix("kk_lambda_")
@@ -175,6 +180,11 @@ struct NativeEmitter {
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
+                    // Imported inline bodies pack captured lambdas into closure
+                    // fields or launcher slots before invoking them as function values.
+                    if packedValueCallees.contains(callee), arguments.count == 3 {
+                        collectSymbolRefs(reaching: arguments[2], lambdaOnly: true)
+                    }
                     guard let callbackPositions = callbackArgumentPositionsByCallee[callee] else {
                         continue
                     }
