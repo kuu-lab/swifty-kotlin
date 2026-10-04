@@ -24,7 +24,7 @@ extension InlineLoweringPass {
             return nil
         }
 
-        let parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
+        var parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
 
         let typeParamTokenValues = InlineReifiedTypeTokens.buildTypeParamTokenValues(
             inlineTarget: inlineTarget,
@@ -81,6 +81,12 @@ extension InlineLoweringPass {
         var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered = KIRLoweringEmitContext()
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
+        for param in inlineTarget.params {
+            guard let argument = parameterValues[param.symbol] else { continue }
+            parameterValues[param.symbol] = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
+                argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
+            )
+        }
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
@@ -396,6 +402,8 @@ extension InlineLoweringPass {
                         symbols: ctx.sema?.symbols,
                         interner: ctx.interner,
                         arena: module.arena,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         into: &lowered
                     )
                 }

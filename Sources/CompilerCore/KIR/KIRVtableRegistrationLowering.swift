@@ -855,6 +855,27 @@ func itableBridgeSymbolForMethod(
         }
         return true
     }
+    // Enum values are raw ordinals everywhere except behind an interface or
+    // `Any` slot, where they are `kk_enum_box_ordinal` boxes. An enum member
+    // (or `$enumEntryDispatch$` helper) expects the raw ordinal receiver --
+    // `F.f` re-boxes its receiver for an `Any`-typed callee, so a box pointer
+    // passed straight through would be boxed a second time. Itable dispatch
+    // always hands over the box, so the bridge unboxes it (`kk_unbox_int`
+    // passes a raw ordinal through unchanged) before forwarding.
+    let needsEnumReceiverUnboxing: Bool = {
+        guard let interfaceReceiver,
+              let implReceiver = implementationParamTypes.first,
+              implReceiver != interfaceReceiver,
+              case let .classType(receiverClass) = sema.types.kind(of: implReceiver),
+              sema.symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass
+        else {
+            return false
+        }
+        return true
+    }()
+    if needsEnumReceiverUnboxing {
+        needsBridge = true
+    }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
             if isStringAggregate(implType) != isStringAggregate(ifaceType)
@@ -913,6 +934,18 @@ func itableBridgeSymbolForMethod(
     }
     let unboxingTable = BoxingCalleeTable(interner: interner)
     var forwardedArgExprs = bridgeParamExprs
+    if needsEnumReceiverUnboxing, let implReceiver = implementationParamTypes.first {
+        let ordinal = arena.appendTemporary(type: implReceiver)
+        body.append(.call(
+            symbol: nil,
+            callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+            arguments: [bridgeParamExprs[0]],
+            result: ordinal,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        forwardedArgExprs[0] = ordinal
+    }
     for (index, implType) in implementationParamTypes.enumerated() {
         guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
               let unboxCallee = unboxingTable.unboxCallee(
