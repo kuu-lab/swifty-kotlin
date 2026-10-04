@@ -733,6 +733,8 @@ public func kk_string_from_flat(
     guard let data else {
         return 0
     }
+    // Identity is preserved when `kk_string_to_flat` registered the source
+    // box as the buffer's canonicalBox (generic AtomicReference<T> ABI).
     return runtimeFlatStringStorageRegistry.canonicalBoxRaw(
         for: data,
         length: length,
