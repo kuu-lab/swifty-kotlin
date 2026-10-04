@@ -18,6 +18,10 @@
 - `RealSource` / `RealSink`（`RawSource.buffered()` / `RawSink.buffered()` の内部実装）
 - `PeekSource`（`Source.peek()` の内部実装）
 - `Core.kt`（`buffered()` 拡張関数2つ、`discardingSink()`、`SystemLineSeparator`）
+- `Utf8.kt` / `internal/-Utf8.kt`（KUU-886 / KSP-1550）: pure Kotlin の UTF-8 codec、
+  `readString` / `writeString`（String と CharSequence）、`readCodePointValue` /
+  `writeCodePointValue`、`readLine` / `readLineStrict`、`Source.indexOf`。不正 UTF-8 は
+  U+FFFD、不正 UTF-16 サロゲートは `?` とする upstream 0.9.1 の消費規則に従う。
 
 ### Buffer のセグメントリング（KSP-1548）
 
@@ -106,7 +110,7 @@ RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を�
 - `Sink.asOutputStream()` の `close()` で `sink.close()` が投げる例外はランタイム側で
   握り潰される（upstream の OutputStream.close() は例外を伝播するが、
   `__kk_output_stream_close` に outThrown チャネルがない）
-- `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`, `readString`, `writeString`,
+- `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`,
   `readUByte`/`writeUShort`等の unsigned 変換, `readFloat`/`writeDouble`, `readDecimalLong`,
   `readHexadecimalUnsignedLong`, `writeToInternalBuffer` 等）
 - `Buffers.kt` の `Buffer.snapshot()`（`ByteString` が必要）
