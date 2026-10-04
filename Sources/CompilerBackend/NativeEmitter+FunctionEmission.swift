@@ -2463,7 +2463,9 @@ extension NativeEmitter {
                         argumentCount: argumentValues.count
                     )
                     : nil
-                let shouldAppendThrownChannel = usesThrownChannel || isInternalCall || sourceExternalCallSignature != nil
+                let shouldAppendThrownChannel = isInternalCall
+                    || (Self.runtimeABIFunctionByName[effectiveExternalName]?.isThrowing
+                        ?? (usesThrownChannel || sourceExternalCallSignature != nil))
 
                 if let effectiveSymbol,
                    let internalFunction = internalFunctions[effectiveSymbol]
@@ -2743,6 +2745,8 @@ extension NativeEmitter {
                         currentBlock = continueBlock
                         bindings.positionBuilder(builder, at: continueBlock)
                     }
+                } else if usesThrownChannel {
+                    storeResult(thrownResult, zeroValue)
                 }
 
             case let .virtualCall(symbol, callee, receiver, arguments, result, usesThrownChannel, thrownResult, dispatch):

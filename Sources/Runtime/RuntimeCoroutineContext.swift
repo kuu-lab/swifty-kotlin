@@ -713,6 +713,16 @@ func kk_with_context_impl(
     // would lose the parent scope — breaking structured concurrency.
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = parentScope
+        // KUU-964: propagate the caller's Job the same way — withContext(context)
+        // without a Job element keeps the ambient Job, so `coroutineContext.job`
+        // resolves inside the block (kotlinx's contract). A Job element the
+        // context itself carries (e.g. NonCancellable) was already installed by
+        // `kk_with_context_full` and must not be clobbered.
+        if contState.jobHandle == nil {
+            contState.jobHandle = contState.scope?.job
+                ?? RuntimeContinuationState.current?.jobHandle
+                ?? RuntimeJobHandle.current
+        }
     }
 
     // NOTE: When the target queue is DispatchQueue.main and we are already on

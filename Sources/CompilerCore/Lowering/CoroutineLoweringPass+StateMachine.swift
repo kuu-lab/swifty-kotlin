@@ -304,18 +304,8 @@ extension CoroutineLoweringPass {
                     if suspendCallInfo.callee == suspendCoroutineRuntimeCallee {
                         loweredSuspendArguments.append(continuationExpr)
                     }
-                    // The direct-call rewrite appends the continuation to
-                    // source-backed suspend calls before they reach this
-                    // state machine. Virtual calls bypass that rewrite, so
-                    // forward the current continuation here as their final
-                    // argument to the dispatched method body.
-                    if suspendCallInfo.isVirtual,
-                       !runtimeSuspendCallNames.contains(suspendCallInfo.callee),
-                       (suspendCallInfo.symbol.map { suspendFunctionSymbols.contains($0) } == true
-                           || suspendFunctionNames.contains(suspendCallInfo.callee))
-                    {
-                        loweredSuspendArguments.append(continuationExpr)
-                    }
+                    // Vtables and itables point to the original blocking wrappers,
+                    // not the lowered continuation-taking entries.
                     if suspendCallInfo.isVirtual,
                        case let .virtualCall(_, _, receiver, _, _, _, _, dispatch) = suspendCallInfo.originalInstruction
                     {
