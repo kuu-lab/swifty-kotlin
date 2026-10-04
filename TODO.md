@@ -1281,9 +1281,9 @@
     - `kotlin.collections.MutableList.set` — fun MutableList.set(Int, ): #A  -- `abstract fun set(kotlin/Int, #A): #A`
     - `kotlin.collections.MutableList.subList` — fun MutableList.subList(Int, Int): MutableList  -- `abstract fun subList(kotlin/Int, kotlin/Int): kotlin.collections/MutableList<#A>`
 
-- [ ] KSP-1074: kotlin.collections.MutableMap top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1074: kotlin.collections.MutableMap top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.MutableMap` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableMap/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableMap.kt`（既存 source owner の nested interface）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableMap_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableMap_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableMap_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -1508,7 +1508,7 @@
     - `kotlin.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
   - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicReference/AtomicReference.kt` に source-backed class 宣言へ移し、`compareAndExchange` / `getAndSet` / `toString` / `var value` の 4 件を class member として実装した。`compareAndExchange` は `__kk_atomic_ref_compareAndExchange` private external bridge に委譲し、`getAndSet` / `toString` / `value` は retained runtime-backed `exchange` / `load` / `store` member へ委譲する（member 経由の T marshal は全 T で正しく、function-generic extern 経由だと `Int?` 等の nullable value で格納済み `null` を誤デコードするため）。残りの合成 stub（`AtomicReference(T)` コンストラクタ、load/store/exchange 本体、`get`/`set`/`compareAndSet`/CAS-update 系 extension、`kotlin.concurrent.atomics` typealias、`kotlin.native.concurrent` 系）は継続利用のため保持。name-string 特例は無し。
 
-- [ ] KSP-1100: kotlin.concurrent.atomics top-level の未実装 stdlib API を実装する（13 件）
+- [x] KSP-1100: kotlin.concurrent.atomics top-level の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.concurrent.atomics` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1529,6 +1529,7 @@
     - `kotlin.concurrent.atomics.AtomicReference` — class kotlin.concurrent.atomics.AtomicReference  -- `final class <#A: kotlin/Any?> kotlin.concurrent.atomics/AtomicReference {`
     - `kotlin.concurrent.atomics.ExperimentalAtomicApi` — class kotlin.concurrent.atomics.ExperimentalAtomicApi  -- `open annotation class kotlin.concurrent.atomics/ExperimentalAtomicApi : kotlin/Annotation {`
     - `kotlin.concurrent.atomics.atomicArrayOfNulls` — fun atomicArrayOfNulls(Int): AtomicArray  -- `final inline fun <#A: reified kotlin/Any?> kotlin.concurrent.atomics/atomicArrayOfNulls(kotlin/Int): kotlin.concurrent.atomics/AtomicArray<#A?>`
+  - 完了根拠 (2026-09-27): `atomics/Stdlib.kt` に `AtomicBoolean` / `AtomicInt` / `AtomicLong` / `AtomicNativePtr` / `AtomicReference<T>` / `AtomicArray<T>` の source-backed class shell と `atomicArrayOfNulls(Int)`（`kk_atomic_ref_array_new` external）・`AtomicArray(Int, init)` inline factory を追加した。`AtomicIntArray` / `AtomicLongArray` の class + factory と `ExperimentalAtomicApi` は既存の source-backed 実装済みのため対象外。上流は `kotlin.concurrent.atomics.AtomicX` を `kotlin.concurrent` への alias ではなく独立 class として持つため、atomics 側 4 件の `registerAtomicTypeAlias` を削除し、`registerAtomicScalarFamily`（AtomicInt/AtomicLong は `kk_atomic_*_compareAndSet` リンク付き、AtomicBoolean は bundled `compareAndSet` 拡張）と `registerAtomicReferenceStubs` を atomics package に追加して member shell を維持した。`atomicArrayOfNulls` の合成 factory 登録（`registerAtomicArrayOfNullsFactory`）は bundled external に統合して削除。`atomics/AtomicBoolean/Stdlib.kt` の委譲 factory は `kk_atomic_bool_create` 直結の external に変更し、atomics 側 `AtomicBoolean.compareAndSet` / `AtomicReference.compareAndSet` を bundled 拡張として追加（`__kk_atomic_{bool,ref}_compareAndSet` がランタイムに無いため `compareAndExchange` ベース）。`concurrent.AtomicBoolean` 向けに key 移動で失われる `toString` を `kotlin/concurrent/AtomicMigration.kt` に追加して保持。name-string 特例は `atomicArrayOf` 用の既存 dispatch のみで削除対象なし。
 
 - [~] KSP-1101: kotlin.concurrent.atomics.AtomicArray の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics` / receiver `AtomicArray`
@@ -1935,7 +1936,7 @@
     - `kotlin.coroutines.intrinsics.createCoroutineUnintercepted` — fun SuspendFunction0.createCoroutineUnintercepted(Continuation): Continuation  -- `final fun <#A: kotlin/Any?> (kotlin.coroutines/SuspendFunction0<#A>).kotlin.coroutines.intrinsics/createCoroutineUnintercepted(kotlin.coroutines/Continuation<#A>): kotlin.coroutines/Continuation<kotlin/Unit>`
     - `kotlin.coroutines.intrinsics.startCoroutineUninterceptedOrReturn` — fun SuspendFunction0.startCoroutineUninterceptedOrReturn(Continuation): Any  -- `final inline fun <#A: kotlin/Any?> (kotlin.coroutines/SuspendFunction0<#A>).kotlin.coroutines.intrinsics/startCoroutineUninterceptedOrReturn(kotlin.coroutines/Continuation<#A>): kotlin/Any?`
 
-- [ ] KSP-1154: kotlin.coroutines.intrinsics.SuspendFunction1 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1154: kotlin.coroutines.intrinsics.SuspendFunction1 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.coroutines.intrinsics` / receiver `SuspendFunction1`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/intrinsics/SuspendFunction1.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2815,7 +2816,7 @@
     - `kotlin.ranges.UIntProgression.step` — val UIntProgression.step: Int  -- `final val step`
     - `kotlin.ranges.UIntProgression.toString` — fun UIntProgression.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-1314: kotlin.ranges.UIntRange top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1314: kotlin.ranges.UIntRange top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ranges.UIntRange` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/UIntRange/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2825,6 +2826,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.UIntRange.<init>` — constructor (UInt, UInt)  -- `constructor <init>(kotlin/UInt, kotlin/UInt)`
     - `kotlin.ranges.UIntRange.Companion` — object kotlin.ranges.UIntRange.Companion  -- `final object Companion {`
+  - 完了根拠: `UIntRange/Stdlib.kt` に `@KsSymbolName("__kk_uint_rangeTo")` ctor と `companion object` を bundled source で宣言し、synthetic ctor 登録を撤去。さらに `ULongRange`（KSP-1320）と同形の `endInclusive`/`isEmpty`/`equals`/`hashCode`/`toString` member override を宣言し、`equals`/`hashCode` が `UIntProgression` 継承実装へフォールバックしないよう固定（`UIntRange` と `UIntProgression` は hashCode の定義が異なるため本家準拠）。synthetic Companion nominal は source decl が adopt。`stdlib_kotlin_ranges_UIntRange_UIntRange_n` 等の golden は member-beats-extension の正規解決へ再生成。Sema Golden / kotlinc diff は対象ケースのみ実行、全量は未実行。
 
 - [x] KSP-1315: kotlin.ranges.UIntRange.UIntRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.UIntRange` / receiver `UIntRange`

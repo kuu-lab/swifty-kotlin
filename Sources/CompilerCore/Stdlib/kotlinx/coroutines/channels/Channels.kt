@@ -9,14 +9,14 @@ package kotlinx.coroutines.channels
 
 import kotlin.internal.KsSymbolName
 
-@KsSymbolName("kk_channel_send")
-internal external fun <E> __kkSendChannelBlocking(channel: SendChannel<E>, element: E, continuation: Int): Int
+@KsSymbolName("__kk_channel_send_blocking")
+internal external fun <E> __kkSendChannelBlocking(channel: SendChannel<E>, element: E): ChannelResult<Unit>
 
 public fun <E> SendChannel<E>.trySendBlocking(element: E): ChannelResult<Unit> =
-    ChannelResult<Unit>(__kkSendChannelBlocking(this, element, 0))
+    __kkSendChannelBlocking(this, element)
 
-@KsSymbolName("kk_channel_send")
-internal external fun <E> __kkChannelBlocking(channel: Channel<E>, element: E, continuation: Int): Int
+@KsSymbolName("__kk_channel_send_blocking")
+internal external fun <E> __kkChannelBlocking(channel: Channel<E>, element: E): ChannelResult<Unit>
 
 public fun <E> Channel<E>.trySendBlocking(element: E): ChannelResult<Unit> =
-    ChannelResult<Unit>(__kkChannelBlocking(this, element, 0))
+    __kkChannelBlocking(this, element)

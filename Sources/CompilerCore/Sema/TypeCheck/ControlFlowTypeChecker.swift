@@ -740,7 +740,8 @@ final class ControlFlowTypeChecker {
         if let builtin = driver.helpers.resolveBuiltinTypeName(typeName, types: sema.types, interner: interner) {
             return builtin
         }
-        let candidates = sema.symbols.lookupAll(fqName: [typeName])
+        let typePath = interner.resolve(typeName).split(separator: ".").map { interner.intern(String($0)) }
+        let candidates = sema.symbols.lookupAll(fqName: typePath)
             .filter { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID) else { return false }
                 switch symbol.kind {
@@ -751,7 +752,7 @@ final class ControlFlowTypeChecker {
                 }
             }
             .sorted { $0.rawValue < $1.rawValue }
-        let resolvedCandidates = if !candidates.isEmpty {
+        let resolvedCandidates = if !candidates.isEmpty || typePath.count > 1 {
             candidates
         } else {
             sema.symbols.lookupByShortName(typeName)
@@ -773,6 +774,16 @@ final class ControlFlowTypeChecker {
                 range: range
             )
             return sema.types.errorType
+        }
+        if let underlyingType = driver.helpers.expandTypeAlias(
+            symbol,
+            typeArgs: [],
+            sema: sema,
+            visited: [],
+            depth: 0,
+            diagnostics: diagnostics
+        ) {
+            return sema.types.makeNonNullable(underlyingType)
         }
         return sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
     }

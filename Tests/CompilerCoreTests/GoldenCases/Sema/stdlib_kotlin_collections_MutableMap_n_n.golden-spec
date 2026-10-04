@@ -1,0 +1,3 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.collections.MutableMap.MutableEntry[kind=iface;gen=2]

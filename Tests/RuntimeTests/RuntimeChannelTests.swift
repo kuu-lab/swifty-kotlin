@@ -150,6 +150,41 @@ func runtime_test_channel_nested_await_close(
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeChannelTests {
+    @Test func blockingSendReturnsBoxedResult() {
+        let channel = kk_channel_create(1)
+        let sent = __kk_channel_send_blocking(channel, 42)
+        #expect(__kk_channel_result_status(sent) == kChannelResultSuccess)
+        #expect(__kk_channel_result_value_or_null(sent) == 0)
+        var thrown = 0
+        #expect(__kk_channel_result_get_or_throw(sent, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(channelReceiveValue(channel) == 42)
+        _ = kk_channel_close(channel)
+        let rejected = __kk_channel_send_blocking(channel, 43)
+        #expect(__kk_channel_result_status(rejected) == kChannelResultClosed)
+        #expect(__kk_channel_result_value_or_null(rejected) == runtimeNullSentinelInt)
+        _ = __kk_channel_result_get_or_throw(rejected, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test func blockingSendWaitsForBufferSpace() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_send(channel, 41, 0) == kChannelResultSuccess)
+        let result = ThreadSafeInt()
+        let done = ChannelTestSignal("blocking send returns")
+        DispatchQueue.global().async {
+            result.set(__kk_channel_send_blocking(channel, 42))
+            done.fulfill()
+        }
+        #expect(waitForSuspendedWaiters(in: channel, senders: 1))
+        #expect(result.get() == 0)
+        #expect(channelReceiveValue(channel) == 41)
+        done.wait(timeout: 2)
+        #expect(__kk_channel_result_status(result.get()) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel) == 42)
+        _ = kk_channel_close(channel)
+    }
+
     @Test(arguments: [false, true])
     func awaitClosePreservesNestedProducerContext(scopeOverride: Bool) {
         let channel = kk_channel_create(0)

@@ -95,8 +95,9 @@ struct AtomicLongSourceMigrationTests {
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let constructorFQName = ["kotlin", "concurrent", "atomics", "AtomicLong"].map(interner.intern)
-        let underlyingFQName = ["kotlin", "concurrent", "AtomicLong"].map(interner.intern)
-        let underlyingSymbol = try #require(sema.symbols.lookup(fqName: underlyingFQName))
+        let underlyingSymbol = try #require(sema.symbols.lookupAll(fqName: constructorFQName).first { candidate in
+            sema.symbols.symbol(candidate)?.kind == .class
+        })
         let expectedReturn = sema.types.make(.classType(ClassType(
             classSymbol: underlyingSymbol,
             args: [],
@@ -119,7 +120,7 @@ struct AtomicLongSourceMigrationTests {
         #expect(factoryInfo.visibility == .public)
         #expect(!factoryInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(factory))
-        #expect(sema.symbols.externalLinkName(for: factory) == nil)
+        #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_long_create")
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
         #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicLong/Stdlib.kt")
 

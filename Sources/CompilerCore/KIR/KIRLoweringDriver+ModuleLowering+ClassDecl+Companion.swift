@@ -189,6 +189,7 @@ extension KIRLoweringDriver {
         body.append(.jumpIfEqual(lhs: flagLoadExpr, rhs: trueExpr, target: alreadyInitializedLabel))
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+        emitSingletonLateinitSentinels(companionDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(
             companionDecl,
             objectSymbol: companionSymbol,

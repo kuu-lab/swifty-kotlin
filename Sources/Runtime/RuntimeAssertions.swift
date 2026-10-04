@@ -857,7 +857,7 @@ func runtimeCauseToString(from raw: Int) -> String? {
         let exceptionFQName = runtimeJVMExceptionFQName(
             from: runtimeSourceThrowableQualifiedName(for: object.classID)
         )
-        guard let message = object.throwableMessage else {
+        guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
             return exceptionFQName
         }
         return "\(exceptionFQName): \(message)"
