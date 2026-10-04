@@ -426,24 +426,143 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
         ))
     }
 
-    // The interface->slot mapping above is enough for a method-shaped
-    // interface member (registered per-object like any other class via
-    // `appendObjectItableMethodRegistrations`, which this box never runs).
-    // A *property* member (`Named.label`) additionally needs its getter
-    // registered as the itable method pointer at the property's slot --
-    // `appendObjectItablePropertyGetterRegistrations` needs the full
-    // `SemaModule` (nominal layouts, member lookup), which not every caller
-    // of this boxing helper has threaded through yet; skip it there rather
-    // than widen every call site's signature.
+    // The interface->slot mapping above only tells dispatch *which* itable
+    // row an interface owns; each member still needs its implementation
+    // registered at its method slot. An ordinary class gets both from its
+    // `<init>` (`appendObjectItableMethodRegistrations`), which an enum box
+    // never runs, so register interface methods (`HasCode.describe()`) and
+    // property getters (`HasCode.code`) here. Both need the full
+    // `SemaModule` (nominal layouts, member lookup, bridge synthesis);
+    // every collection/vararg boundary that boxes enum elements
+    // (`listOf`, `arrayOf`, `vararg xs: HasCode`, ...) must pass it, or the
+    // boxed element panics with "method not found in vtable/itable" on the
+    // first interface call.
     if let sema {
+        let dispatchCache = cache ?? KIRNominalDispatchCache()
+        appendEnumBoxItableMethodRegistrations(
+            boxedValue: boxedValue,
+            classSymbol: classSymbol,
+            interfaceSupertypes: interfaceSupertypes.sorted(by: { $0.rawValue < $1.rawValue }),
+            objectLayout: objectLayout,
+            sema: sema,
+            cache: dispatchCache,
+            interner: interner,
+            arena: arena,
+            into: &instructions
+        )
         appendObjectItablePropertyGetterRegistrations(
             objectValue: boxedValue,
             nominalSymbol: classSymbol,
             sema: sema,
-            cache: cache ?? KIRNominalDispatchCache(),
+            cache: dispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions
         )
+    }
+}
+
+/// Registers each interface method implemented by an enum class into a boxed
+/// entry's itable, mirroring the method loop of
+/// `appendObjectItableMethodRegistrations` for a receiver that never runs a
+/// constructor. A member the enum class does not override registers the
+/// interface method itself, so an interface default body (`fun label() =
+/// "shape"`) is the dispatch target, as it is for ordinary classes.
+private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollection>(
+    boxedValue: KIRExprID,
+    classSymbol: SymbolID,
+    interfaceSupertypes: [SymbolID],
+    objectLayout: NominalLayout,
+    sema: SemaModule,
+    cache: KIRNominalDispatchCache,
+    interner: StringInterner,
+    arena: KIRArena,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    let intType = sema.types.intType
+    for interfaceSymbol in interfaceSupertypes {
+        guard let ifaceSlot = objectLayout.itableSlots[interfaceSymbol],
+              let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol)
+        else {
+            continue
+        }
+        let entries = kirItableMethodEntries(
+            for: interfaceSymbol,
+            interfaceLayout: interfaceLayout,
+            sema: sema,
+            interner: interner
+        )
+        var ifaceSlotExpr: KIRExprID?
+        for (methodSymbol, methodSlotInt) in entries {
+            let implementationSymbol = cache.itableImplementation(
+                for: methodSymbol,
+                in: classSymbol,
+                sema: sema,
+                interner: interner
+            )
+            // A class-level member overridden in some entry bodies
+            // (`A { override fun label() = "a!" }`) is reached through the
+            // enum's per-ordinal `$enumEntryDispatch$<member>` helper, the
+            // same target a statically typed `Sq.A.label()` call uses.
+            let entryDispatchSymbol = enumEntryDispatchHelper(
+                for: implementationSymbol,
+                enumClass: classSymbol,
+                sema: sema,
+                interner: interner
+            )
+            let bridgeSymbol = itableBridgeSymbolForMethod(
+                interfaceMethod: methodSymbol,
+                implementation: entryDispatchSymbol ?? implementationSymbol,
+                nominalSymbol: classSymbol,
+                implementationSignature: entryDispatchSymbol.flatMap {
+                    sema.symbols.functionSignature(for: $0)
+                },
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
+            let slotExpr: KIRExprID
+            if let ifaceSlotExpr {
+                slotExpr = ifaceSlotExpr
+            } else {
+                slotExpr = arena.appendExpr(.intLiteral(Int64(ifaceSlot)), type: intType)
+                instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(ifaceSlot))))
+                ifaceSlotExpr = slotExpr
+            }
+            let methodSlot = Int64(methodSlotInt)
+            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
+            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
+            let registerResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_object_register_itable_method"),
+                arguments: [boxedValue, slotExpr, methodSlotExpr, methodFnExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+}
+
+/// The `$enumEntryDispatch$<member>` helper Sema declares on `enumClass` when
+/// some entry body overrides `member`, or nil when every entry shares it.
+private func enumEntryDispatchHelper(
+    for member: SymbolID,
+    enumClass: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID? {
+    guard let memberInfo = sema.symbols.symbol(member),
+          let enumInfo = sema.symbols.symbol(enumClass)
+    else {
+        return nil
+    }
+    let helperName = NameMangler.enumEntryDispatchHelperName(for: memberInfo, interner: interner)
+    return sema.symbols.lookupAll(fqName: enumInfo.fqName + [helperName]).first { id in
+        sema.symbols.symbol(id)?.kind == .function
+            && !sema.symbols.enumEntryDispatchTargets(for: id).isEmpty
     }
 }
