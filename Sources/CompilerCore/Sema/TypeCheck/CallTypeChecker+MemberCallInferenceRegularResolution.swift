@@ -2566,6 +2566,7 @@ extension CallTypeChecker {
         // through this path, so their `callsInPlace` contracts must be applied
         // here too (not just for the unqualified-call path in CallTypeChecker.swift).
         applyContractEffects(
+            id: id,
             chosen: chosen,
             args: args,
             ctx: ctx,
@@ -3304,6 +3305,7 @@ extension CallTypeChecker {
 
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(
+            id: id,
             chosen: chosen,
             args: args,
             ctx: ctx,

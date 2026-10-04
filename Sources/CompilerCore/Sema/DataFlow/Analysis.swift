@@ -59,6 +59,11 @@ final class DataFlowAnalyzer {
             return ConditionBranch(trueState: base, falseState: base)
         }
         switch conditionExpr {
+        case .call, .memberCall:
+            return ConditionBranch(
+                trueState: applyContractImplications(conditionID, result: .returnsTrue, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
+                falseState: applyContractImplications(conditionID, result: .returnsFalse, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+            )
         case let .binary(op, lhsID, rhsID, _):
             return branchOnBinary(
                 op: op, lhsID: lhsID, rhsID: rhsID,
@@ -84,6 +89,41 @@ final class DataFlowAnalyzer {
         default:
             return ConditionBranch(trueState: base, falseState: base)
         }
+    }
+
+    func applyContractImplications(
+        _ callID: ExprID,
+        result: ContractReturnCondition,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner,
+        scope: Scope
+    ) -> DataFlowState {
+        guard let binding = sema.bindings.callBinding(for: callID),
+              let expr = ast.arena.expr(callID) else { return base }
+        let args: [CallArgument]
+        switch expr {
+        case let .call(_, _, arguments, _), let .memberCall(_, _, _, arguments, _): args = arguments
+        default: return base
+        }
+        var state = base
+        for effect in sema.symbols.contractImplicationEffects(for: binding.chosenCallee) {
+            guard effect.returnCondition == .normally || effect.returnCondition == result
+                || (effect.returnCondition == .returnsNotNull && (result == .returnsTrue || result == .returnsFalse)),
+                let argumentIndex = binding.parameterMapping.first(where: { $0.value == effect.parameterIndex })?.key,
+                args.indices.contains(argumentIndex) else { continue }
+            let argument = args[argumentIndex].expr
+            switch effect.argumentCondition {
+            case .nonNull:
+                state = narrowNonNull(argument, base: state, locals: locals, ast: ast, sema: sema, interner: interner)
+            case .booleanTrue, .booleanFalse:
+                let branch = branchOnCondition(argument, base: state, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+                state = effect.argumentCondition == .booleanTrue ? branch.trueState : branch.falseState
+            }
+        }
+        return state
     }
 
     /// Narrows a stable local expression to its non-null type after a contract
@@ -135,6 +175,36 @@ final class DataFlowAnalyzer {
     ) -> ConditionBranch {
         switch op {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            let testedCall: ExprID?
+            let trueResult: ContractReturnCondition
+            let falseResult: ContractReturnCondition
+            if isNullLiteral(rhsID, ast: ast, interner: interner) || isNullLiteral(lhsID, ast: ast, interner: interner) {
+                testedCall = isNullLiteral(rhsID, ast: ast, interner: interner) ? lhsID : rhsID
+                trueResult = .returnsNull
+                falseResult = .returnsNotNull
+            } else if let value = booleanLiteral(rhsID, ast: ast, interner: interner) {
+                testedCall = lhsID
+                trueResult = value ? .returnsTrue : .returnsFalse
+                falseResult = value ? .returnsFalse : .returnsTrue
+            } else if let value = booleanLiteral(lhsID, ast: ast, interner: interner) {
+                testedCall = rhsID
+                trueResult = value ? .returnsTrue : .returnsFalse
+                falseResult = value ? .returnsFalse : .returnsTrue
+            } else {
+                testedCall = nil
+                trueResult = .normally
+                falseResult = .normally
+            }
+            if let testedCall, sema.bindings.callBinding(for: testedCall) != nil {
+                let branch = ConditionBranch(
+                    trueState: applyContractImplications(testedCall, result: trueResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
+                    falseState: applyContractImplications(testedCall, result: falseResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+                )
+                if op == .notEqual || op == .notIdentityEqual {
+                    return ConditionBranch(trueState: branch.falseState, falseState: branch.trueState)
+                }
+                return branch
+            }
             // `x === null` / `x !== null` narrow nullability exactly like `==`/`!=`
             // (identity comparison against the null literal is not overridable).
             let nullResult = branchOnNullComparison(
@@ -175,6 +245,19 @@ final class DataFlowAnalyzer {
             return ConditionBranch(trueState: trueState, falseState: falseState)
         default:
             return ConditionBranch(trueState: base, falseState: base)
+        }
+    }
+
+    private func booleanLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool? {
+        switch ast.arena.expr(id) {
+        case let .boolLiteral(value, _): return value
+        case let .nameRef(name, _):
+            switch interner.resolve(name) {
+            case "true": return true
+            case "false": return false
+            default: return nil
+            }
+        default: return nil
         }
     }
 

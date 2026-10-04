@@ -129,8 +129,8 @@ extension CallTypeChecker {
             for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.semaCtx.diagnostics
         )
         driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
-        applyContractEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }

@@ -516,6 +516,9 @@ extension DataFlowSemaPhase {
                 for: ownerSymbol
             )
         }
+        for effect in record.contractImplicationEffects where effect.parameterIndex < valueParameterSymbols.count {
+            symbols.addContractImplicationEffect(effect, for: ownerSymbol)
+        }
         return FunctionSignature(
             receiverType: functionType.receiver,
             parameterTypes: functionType.params,
