@@ -362,24 +362,11 @@ extension CallLowerer {
             )
         }
 
-        // Suspend callables are lowered through coroutine launcher/invoke paths
-        // whose raw-thunk entry is `(args..., outThrown)`; boxing one of those
-        // thunks would prepend a closure parameter its entry point does not
-        // accept. A collection-HOF lambda's thunk is closure-first instead
-        // (`(closureRaw, args..., outThrown)`), so it must still cross the
-        // kk_function_create_N ABI: kk_suspend_function_invoke dispatches
-        // through kk_function_invoke, which supplies the closure argument only
-        // for boxed values.
-        if functionType.isSuspend, callableInfo?.hasClosureParam != true {
-            return loweredArgID
-        }
-
         guard var resolvedCallableInfo = callableInfo else {
             return loweredArgID
         }
 
-        if !functionType.isSuspend,
-           !resolvedCallableInfo.hasClosureParam,
+        if !resolvedCallableInfo.hasClosureParam,
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,
