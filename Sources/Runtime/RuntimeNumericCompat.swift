@@ -1173,7 +1173,8 @@ public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePoin
 
 @_cdecl("__kk_double_ulp")
 public func __kk_double_ulp(_ value: Int) -> Int {
-    kk_double_to_bits(kk_bits_to_double(value).ulp)
+    let raw = kk_bits_to_double(value)
+    return kk_double_to_bits(raw.isInfinite ? Double.infinity : raw.ulp)
 }
 
 @_cdecl("__kk_double_nextUp")
@@ -1188,7 +1189,8 @@ public func __kk_double_nextDown(_ value: Int) -> Int {
 
 @_cdecl("__kk_float_ulp")
 public func __kk_float_ulp(_ value: Int) -> Int {
-    kk_float_to_bits(kk_bits_to_float(value).ulp)
+    let raw = kk_bits_to_float(value)
+    return kk_float_to_bits(raw.isInfinite ? Float.infinity : raw.ulp)
 }
 
 @_cdecl("__kk_float_nextUp")
