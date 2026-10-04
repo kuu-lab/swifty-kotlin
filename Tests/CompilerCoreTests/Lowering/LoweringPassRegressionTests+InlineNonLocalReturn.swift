@@ -30,7 +30,7 @@ extension LoweringPassRegressionTests {
             function.body.contains { if case .nonLocalReturn = $0 { return true }; return false }
         }
         #expect(nonLocalLambdas.count == 2)
-        #expect(nonLocalLambdas.allSatisfy(\.isInlineOnly))
+        #expect(nonLocalLambdas.allSatisfy { $0.isInlineOnly })
         #expect(lambdas.filter { !$0.isInlineOnly }.count == 1)
         try LoweringPhase().run(ctx)
         for name in ["named", "extensionCall", "lambdaLocal"] {
@@ -42,6 +42,29 @@ extension LoweringPassRegressionTests {
         }
     }
 
+
+    @Test
+    func testFunctionNameReturnThroughFinallyDoesNotReadAnUndefinedResult() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        fun cleanup(value: Int) {}
+        fun uncaptured(): Int {
+            invokeBlock { try { return@uncaptured 17 } finally { cleanup(1) } }
+            return -1
+        }
+        fun captured(value: Int): Int {
+            invokeBlock { try { return@captured value } finally { cleanup(value) } }
+            return -1
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        try LoweringPhase().run(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try requireTestValue(ctx.kir, "expected KIR module")
+        let failures = KIRVerifier.verify(module: module, symbols: ctx.sema?.symbols, interner: ctx.interner)
+        #expect(failures.isEmpty)
+    }
 
     // MARK: - BUG-209: source lambda returns
 
