@@ -107,6 +107,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // Waiting-receiver queue: each suspended receiver is a `SuspendedReceiver`
     // reference.  Senders deposit a value before signaling the semaphore.
     private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
+    private var awaitCloseRegistered = false
+    private var awaitCloseSignal: DispatchSemaphore?
 
     // KSP-1573: `invokeOnClose` handlers, as (fnPtr, closureRaw) function-value
     // pairs.  They run exactly once, on the first successful `close()`, with a
@@ -359,6 +361,31 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return closed && buffer.isEmpty && senderQueue.isEmpty
     }
 
+    func registerAwaitClose(_ signal: DispatchSemaphore) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !awaitCloseRegistered else { return false }
+        awaitCloseRegistered = true
+        if closed {
+            signal.signal()
+        } else {
+            awaitCloseSignal = signal
+        }
+        return true
+    }
+
+    func removeAwaitCloseSignal() {
+        lock.lock()
+        awaitCloseSignal = nil
+        lock.unlock()
+    }
+
+    var hasAwaitCloseWaiter: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return awaitCloseSignal != nil
+    }
+
     /// Close the channel.  Remaining buffered values are still receivable.
     ///
     /// Returns `true` if this call actually closed the channel, `false` if it
@@ -373,9 +400,13 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         closed = true
         let pendingSenders = senderQueue.drain()
         let pendingReceivers = receiverQueue.drain()
+        let closeSignal = awaitCloseSignal
+        awaitCloseSignal = nil
         let pendingCloseHandlers = closeHandlers
         closeHandlers.removeAll()
         lock.unlock()
+
+        closeSignal?.signal()
 
         // Wake all suspended senders -- they will see `closed == true` and
         // return the closed sentinel.
@@ -689,6 +720,39 @@ public func kk_channel_close(_ handle: Int) -> Int {
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     return channel.close() ? 1 : 0
+}
+
+@_cdecl("__kk_channel_await_close")
+public func __kk_channel_await_close(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let job = RuntimeJobHandle.current, job.producerChannel == handle,
+          let pointer = UnsafeMutableRawPointer(bitPattern: handle)
+    else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(
+            message: "awaitClose() can only be invoked from the producer context"
+        )
+        return 0
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(pointer).takeUnretainedValue()
+    let signal = DispatchSemaphore(value: 0)
+    guard channel.registerAwaitClose(signal) else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Another close handler is already registered")
+        return 0
+    }
+    let handlerID = job.addCompletionHandler(onCancelling: true) { _ in signal.signal() }
+    defer {
+        job.removeCompletionHandler(id: handlerID)
+        channel.removeAwaitCloseSignal()
+    }
+    if job.cancellationSnapshot() { signal.signal() }
+    RuntimePendingLaunchQueue.flush()
+    runtimeWaitDrainingEventLoop(signal)
+    if job.cancellationSnapshot() {
+        outThrown?.pointee = runtimeAllocateCancellationException(
+            message: job.cancellationMessageSnapshot(), cause: job.cancellationCauseSnapshot()
+        )
+    }
+    return 0
 }
 
 /// Returns 1 when `status` indicates a closed or cancelled channel operation,

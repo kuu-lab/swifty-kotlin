@@ -1089,6 +1089,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
     weak var continuationState: RuntimeContinuationState?
+    var producerChannel: Int?
     private var childJobHandles: [Int] = []
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
     /// `CoroutineScope(context)` (see `kk_coroutine_scope_new_with_context`) tell a plain
@@ -2669,14 +2670,19 @@ public func kk_kxmini_run_blocking_with_cont(
     // coroutine (see kk_suspend_function_invoke_0), the body runs on a fresh
     // continuation. Seed it with the ambient scope so `launch`/`async` inside the
     // invoked block register with the enclosing structured-concurrency scope
-    // (e.g. a Kotlin-level `coroutineScope { }`) rather than detaching. Only the
-    // scope is inherited, not the caller job: inheriting the caller job would
-    // re-parent a supervisor scope's children to the root job and break failure
-    // isolation. A genuine top-level `runBlocking` has no ambient scope,
-    // so this is a no-op there.
+    // (e.g. a Kotlin-level `coroutineScope { }`) rather than detaching.
+    // A scope override owns its job context; a suspend-value invocation in the
+    // current scope shares the caller's job. A genuine top-level `runBlocking`
+    // has no ambient scope, so this is a no-op there.
     let contState = runtimeContinuationState(from: continuation)
     if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
+        if contState.jobHandle == nil,
+           RuntimeContinuationState.current == nil
+           || RuntimeContinuationState.current?.scope === contState.scope
+        {
+            contState.jobHandle = RuntimeJobHandle.current
+        }
     }
     if let contState {
         // A non-capturing flow emitter enters through the direct C callback and
@@ -2975,6 +2981,7 @@ func runtimeKxMiniProduceWithCont(
 ) -> Int {
     let channelHandle = kk_channel_create(channelCapacity)
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -2984,6 +2991,7 @@ func runtimeKxMiniProduceWithCont(
         job.continuationState = contState
         contState.jobHandle = job
         contState.launcherArgs[0] = Int64(channelHandle)
+        contState.eventLoop = RuntimeEventLoop.current
     }
 
     let callerScope = RuntimeCoroutineScope.current
@@ -3574,6 +3582,7 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
         return channelHandle
     }
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3604,7 +3613,7 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
             return
         }
         RuntimeCoroutineScope.current = callerScope
-        RuntimeJobHandle.current = nil
+        RuntimeJobHandle.current = job
         var thrown = 0
         let result = runtimeInvokeSuspendLauncherThunk(
             entryPointRaw: entryPointRaw,
@@ -3663,6 +3672,7 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
         return channelHandle
     }
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3677,6 +3687,7 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope
+    contState.eventLoop = RuntimeEventLoop.current
 
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
@@ -4431,9 +4442,15 @@ func runtimeRunBlockingOnEventLoop(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let previousLoop = RuntimeEventLoop.current
+    let previousTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let previousJob = RuntimeJobHandle.current
     let loop = previousLoop ?? RuntimeEventLoop()
     RuntimeEventLoop.current = loop
-    defer { RuntimeEventLoop.current = previousLoop }
+    defer {
+        RuntimeEventLoop.current = previousLoop
+        RuntimeCoroutineScopeTaskKey.installKey(previousTaskKey)
+        RuntimeJobHandle.current = previousJob
+    }
 
     let state = runtimeContinuationState(from: continuation)
     state?.eventLoop = loop
