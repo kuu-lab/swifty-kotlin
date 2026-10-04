@@ -35,5 +35,8 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
 
     public override fun toString(): String = "$first..$last"
 
-    public companion object {}
+    public companion object {
+        public val EMPTY: ULongRange
+            get() = ULongRange(1uL, 0uL)
+    }
 }
