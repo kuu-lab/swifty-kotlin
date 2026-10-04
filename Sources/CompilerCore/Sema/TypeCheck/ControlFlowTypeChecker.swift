@@ -774,6 +774,16 @@ final class ControlFlowTypeChecker {
             )
             return sema.types.errorType
         }
+        if let underlyingType = driver.helpers.expandTypeAlias(
+            symbol,
+            typeArgs: [],
+            sema: sema,
+            visited: [],
+            depth: 0,
+            diagnostics: diagnostics
+        ) {
+            return sema.types.makeNonNullable(underlyingType)
+        }
         return sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
     }
 }
