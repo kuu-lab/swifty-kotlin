@@ -1204,8 +1204,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticCoroutineMember(
-            ownerSymbol: continuationInterceptorSymbol,
-            ownerType: continuationInterceptorType,
+            ownerSymbol: dispatcherSymbol,
+            ownerType: dispatcherType,
             name: "interceptContinuation",
             externalLinkName: "kk_continuation_interceptor_intercept_continuation",
             returnType: continuationType,
