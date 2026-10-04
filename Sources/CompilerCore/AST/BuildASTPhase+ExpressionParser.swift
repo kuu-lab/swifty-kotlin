@@ -115,7 +115,13 @@ extension BuildASTPhase {
         }
 
         func parse() -> ExprID? {
-            parseAssignmentOrExpression()
+            let expression = parseAssignmentOrExpression()
+            if expression == nil, let first = tokens.first {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0001", "Expected expression.", range: first.range
+                )
+            }
+            return expression
         }
 
         private func parseAssignmentOrExpression() -> ExprID? {
