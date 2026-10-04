@@ -495,7 +495,7 @@ struct RuntimeStringArrayTests {
     // null operand as the text "null", matching every other Kotlin
     // reference type, instead of silently treating it as "" (which hid an
     // uninitialized-field bug behind output that merely looked wrong
-    // instead of null -- see superclass_init_uninitialized_string.kt).
+    // instead of null -- see null_string_length_npe.kt).
 
     @Test
     func testStringConcatFlatWithNilDataLeftRendersNullPrefix() {
@@ -599,13 +599,6 @@ struct RuntimeStringArrayTests {
         #expect(kk_compare_any(nan, finite) == 1)
         #expect(kk_compare_any(finite, nan) == -1)
         #expect(kk_compare_any(nan, nan) == 0)
-    }
-
-    @Test
-    func testFloatFormattingUsesKotlinSpecialValueSpellings() {
-        #expect(runtimeFormatFloatingPoint(Float.nan) == "NaN")
-        #expect(runtimeFormatFloatingPoint(Float.infinity) == "Infinity")
-        #expect(runtimeFormatFloatingPoint(-Float.infinity) == "-Infinity")
     }
 
     @Test

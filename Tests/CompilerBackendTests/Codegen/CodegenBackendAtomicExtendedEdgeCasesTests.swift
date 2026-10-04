@@ -10,6 +10,37 @@ import Testing
 struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
     @Test
+    func testCodegenAtomicNativePtrConstructorLinksAndStoresInitialValue() throws {
+        let source = """
+        @file:OptIn(
+            kotlin.concurrent.atomics.ExperimentalAtomicApi::class,
+            kotlinx.cinterop.ExperimentalForeignApi::class
+        )
+        import kotlin.concurrent.atomics.AtomicNativePtr
+        import kotlin.internal.KsSymbolName
+        import kotlinx.cinterop.COpaquePointer
+        import kotlinx.cinterop.NativePtr
+        import kotlinx.cinterop.StableRef
+
+        @KsSymbolName("kk_copaque_pointer_address")
+        private external fun pointerAddress(pointer: COpaquePointer?): NativePtr
+
+        fun main() {
+            val first = pointerAddress(null)
+            val reference = StableRef.create("second")
+            val second = pointerAddress(reference.asCPointer())
+            val atomic = AtomicNativePtr(first)
+            println(atomic.value == first)
+            atomic.value = second
+            println(atomic.value == second)
+            println(atomic.value != first)
+            reference.dispose()
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "AtomicNativePtrConstructorLink", expected: "true\ntrue\ntrue\n")
+    }
+
+    @Test
     func testCodegenAtomicIntCASSuccessReturnsTrueAndUpdatesValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -337,6 +368,43 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicRefCAE", expected: "true\ntrue\ntrue\ntrue\n")
+    }
+
+    @Test
+    func testCodegenAtomicReferenceStringCompareAndExchangeUsesLoadedReference() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.AtomicReference
+
+        fun main() {
+            val reference = AtomicReference("x")
+            reference.store("y")
+            val expected = reference.load()
+            println(expected === reference.load())
+            val old = reference.compareAndExchange(expected, "z")
+            println(old === expected)
+            println(reference.load())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "AtomicRefStringCAE", expected: "true\ntrue\nz\n")
+    }
+
+    @Test
+    func testCodegenLegacyAtomicReferenceStringCompareAndExchangeUsesLoadedReference() throws {
+        let source = """
+        import kotlin.concurrent.AtomicReference
+
+        fun main() {
+            val reference = AtomicReference("x")
+            reference.value = "y"
+            val expected = reference.value
+            println(expected === reference.value)
+            val old = reference.compareAndExchange(expected, "z")
+            println(old)
+            println(reference.value)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "LegacyAtomicRefStringCAE", expected: "true\ny\nz\n")
     }
 
     @Test
@@ -1387,4 +1455,3 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
 }
 #endif
-
