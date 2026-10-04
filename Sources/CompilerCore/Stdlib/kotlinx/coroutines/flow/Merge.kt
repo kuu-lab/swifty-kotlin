@@ -7,10 +7,6 @@
 
 package kotlinx.coroutines.flow
 
-public interface FlowCollector<in T> {
-    public suspend fun emit(value: T)
-}
-
 private class BufferedFlowCollector<T>(val values: MutableList<T>) : FlowCollector<T> {
     override suspend fun emit(value: T) {
         values.add(value)

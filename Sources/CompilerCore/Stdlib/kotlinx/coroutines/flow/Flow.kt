@@ -296,17 +296,3 @@ public suspend fun <T> Flow<T>.retryWhen(
         }
     }
 }
-
-// `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
-// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). This older
-// adapter drops that receiver, unlike `transformLatest`, which now exposes
-// FlowCollector. The action cannot emit fallback elements. The
-// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
-// `() -> Unit` parameter does not accept a plain zero-parameter lambda.
-public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
-    val items = this.toList()
-    if (items.isEmpty()) {
-        action()
-    }
-    return items.asFlow()
-}

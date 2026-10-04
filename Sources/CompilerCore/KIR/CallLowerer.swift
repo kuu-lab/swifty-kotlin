@@ -1590,6 +1590,7 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
+            "__kk_channel_result_get_or_throw",
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
@@ -1651,6 +1652,7 @@ final class CallLowerer {
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         [
+            "__kk_channel_result_get_or_throw",
             "kk_runtime_result_get_or_else",
             "kk_runtime_result_get_or_throw",
             "kk_runtime_result_map",

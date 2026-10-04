@@ -94,28 +94,8 @@ private final class RuntimeChannelProducer {
     }
 }
 
-private final class RuntimeFlowEmitter {
-    let fnPtr: Int
-    let templateState: RuntimeContinuationState?
-
-    init(fnPtr: Int, continuation: Int) {
-        self.fnPtr = fnPtr
-        templateState = runtimeContinuationState(from: continuation)
-        if templateState != nil, continuation != 0 {
-            _ = kk_coroutine_state_exit(continuation, 0)
-        }
-    }
-
-    func makeContinuation() -> Int {
-        guard let templateState else { return 0 }
-        let continuation = kk_coroutine_continuation_new(Int(templateState.functionID))
-        runtimeContinuationState(from: continuation)?.launcherArgs = templateState.launcherArgs
-        return continuation
-    }
-}
-
 private enum RuntimeFlowSource {
-    case emitter(RuntimeFlowEmitter)
+    case emitter(fnPtr: Int, templateState: RuntimeContinuationState?)
     case channelProducer(RuntimeChannelProducer)
     case fixed([RuntimeFlowEvent])
     case merge([Int])
@@ -155,6 +135,7 @@ final class RuntimeFlowCollectContext {
     var emittedValues: [Int] = []
     var emittedEvents: [RuntimeFlowEvent] = []
     var cancelled = false
+    var failure = 0
     // A collector may synchronously collect another flow and emit into its
     // enclosing builder. In that case `kk_flow_emit(0, ...)` must skip this
     // context and target the nearest enclosing emitter context, otherwise the
@@ -173,18 +154,17 @@ private final class RuntimeFlowHandle {
     let fixedValues: [Int]?
 
     var emitterFnPtr: Int {
-        if case let .emitter(emitter) = source {
-            return emitter.fnPtr
+        if case let .emitter(emitterFnPtr, _) = source {
+            return emitterFnPtr
         }
         return 0
     }
 
-    /// Each collection needs a fresh state machine with the builder's captures.
-    func makeEmitterContinuation() -> Int {
-        if case let .emitter(emitter) = source {
-            return emitter.makeContinuation()
+    var emitterTemplateState: RuntimeContinuationState? {
+        if case let .emitter(_, templateState) = source {
+            return templateState
         }
-        return 0
+        return nil
     }
 
     init(source: RuntimeFlowSource, opChain: [RuntimeFlowOp] = [], fixedValues: [Int]? = nil) {
@@ -205,11 +185,15 @@ private final class RuntimeFlowHandle {
             }
             self.init(source: .fixed(fixedEvents), opChain: opChain, fixedValues: fixedValues)
         } else {
+            let templateState = runtimeContinuationState(from: emitterContinuation)
             self.init(
-                source: .emitter(RuntimeFlowEmitter(fnPtr: emitterFnPtr, continuation: emitterContinuation)),
+                source: .emitter(fnPtr: emitterFnPtr, templateState: templateState),
                 opChain: opChain,
                 fixedValues: nil
             )
+            if templateState != nil {
+                _ = kk_coroutine_state_exit(emitterContinuation, 0)
+            }
         }
     }
 }
@@ -227,8 +211,9 @@ private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inou
         RuntimeCoroutineScopeTaskKey.installKey(callerTaskKey)
         RuntimeJobHandle.current = callerJob
     }
-    let continuation = flow.makeEmitterContinuation()
-    if continuation != 0 {
+    if let template = flow.emitterTemplateState {
+        let continuation = kk_coroutine_continuation_new(Int(template.functionID))
+        runtimeContinuationState(from: continuation)?.launcherArgs = template.launcherArgs
         if let context = runtimeFlowCurrentCollectContext() {
             runtimeContinuationState(from: continuation)?.flowCollectContext = context
         }
@@ -1392,7 +1377,7 @@ private func runtimeFlowCollectStreaming(
         runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
     }
     runtimeFlowPopCollectContext()
-    return outThrown
+    return context.failure != 0 ? context.failure : outThrown
 }
 
 /// Deliver a single value to the collector. Returns true on success, false if
@@ -1419,6 +1404,10 @@ private func runtimeFlowDeliverValue(
         )
         var thrown = 0
         _ = collector(collectorEnvPtr, value, &thrown)
+        if thrown != 0 {
+            currentContext?.failure = thrown
+            currentContext?.cancelled = true
+        }
         return thrown == 0
     } else {
         // Suspend collector ABI: (closureRaw, value, continuation, outThrown)
@@ -1432,6 +1421,8 @@ private func runtimeFlowDeliverValue(
             var thrown = 0
             let result = collector(collectorEnvPtr, value, cont, &thrown)
             if thrown != 0 {
+                currentContext?.failure = thrown
+                currentContext?.cancelled = true
                 _ = kk_coroutine_state_exit(cont, 0)
                 return false
             }
@@ -1519,6 +1510,7 @@ private let runtimeFlowStopSentinel: Int = __kk_flow_stopped()
 public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
+        if context?.cancelled == true { return runtimeFlowStopSentinel }
         if let context, !context.cancelled {
             let unboxed = runtimeFlowMaybeUnbox(value)
             let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
@@ -1539,10 +1531,8 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     let source: RuntimeFlowSource = switch flow.source {
     case let .channelProducer(producer):
         .channelProducer(producer)
-    case .emitter:
-        flow.source
-    case .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
-        .emitter(RuntimeFlowEmitter(fnPtr: flow.emitterFnPtr, continuation: 0))
+    case .emitter, .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
+        .emitter(fnPtr: flow.emitterFnPtr, templateState: flow.emitterTemplateState)
     }
     let derived = RuntimeFlowHandle(
         source: source,
@@ -1571,7 +1561,8 @@ public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag
 }
 
 @_cdecl("kk_flow_collect")
-public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int) -> Int {
+public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
     }
@@ -1583,6 +1574,7 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collecto
     let callerState = RuntimeContinuationState.current
     let failure = runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation)
     callerState?.thrownException = failure
+    outThrown?.pointee = failure
     return failure
 }
 
@@ -1595,8 +1587,8 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collecto
 // collected/observed values correct while the true concurrent-cancellation
 // semantics remain unimplemented.
 @_cdecl("__kk_flow_collectLatest")
-public func __kk_flow_collectLatest(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int) -> Int {
-    kk_flow_collect(flowHandle, collectorFnPtr, collectorEnvPtr, continuation)
+public func __kk_flow_collectLatest(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    kk_flow_collect(flowHandle, collectorFnPtr, collectorEnvPtr, continuation, outThrown)
 }
 
 @_cdecl("__kk_flow_retain")

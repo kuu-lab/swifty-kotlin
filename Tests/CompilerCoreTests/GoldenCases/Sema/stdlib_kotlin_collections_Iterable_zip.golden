@@ -24,7 +24,7 @@ expr e@6:34 name(nullable) type=kotlin.Array<String?> ref=__local_1.nullable[kin
 expr e@6:63 name(left) type=Int ref=s-0
 expr e@6:69 name(right) type=String? ref=s-1
 expr e@6:61 stringTemplate[expr(e@6:63),lit(:),expr(e@6:69)] type=String
-expr e@6:44 lambda params=[left,right] body=e@6:61 label=zip type=(Int, String?) -> Any
+expr e@6:44 lambda params=[left,right] body=e@6:61 label=zip type=(Int, String?) -> Any?
 expr e@6:23#1 memberCall recv=e@6:23 callee=zip args=[_:e@6:34,_:e@6:44] type=kotlin.collections.List<String> call=kotlin.collections.zip[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.collections.Iterable<T1>,fn{p=T0,T1;ret=T2};gen=3] targs=[Int,String?,String]
 expr e@6:5 localDecl transformed mutable=0 type=_ init=e@6:23#1 type=Unit ref=__local_3.transformed[kind=local]
 expr e@7:28 name(values) type=kotlin.collections.Iterable<Int> ref=__local_0.values[kind=local]
