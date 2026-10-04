@@ -233,6 +233,7 @@ extension CallLowerer {
             anyType: sema.types.anyType,
             types: sema.types,
             symbols: sema.symbols,
+            sema: sema,
             instructions: &instructions
         )
 
@@ -297,6 +298,8 @@ extension CallLowerer {
             symbols: sema.symbols,
             interner: interner,
             arena: arena,
+            sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             into: &instructions
         )
         return boxedResult

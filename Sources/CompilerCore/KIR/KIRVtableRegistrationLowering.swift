@@ -757,6 +757,25 @@ func itableBridgeSymbolForMethod(
         }
         return true
     }
+    // An enum member body treats `this` as the raw ordinal (direct calls pass
+    // it unboxed), but itable dispatch reaches it through an Any-erased enum
+    // box (`kk_enum_box_ordinal`), so the bridge must unbox the receiver
+    // first. `kk_unbox_int` passes an already-raw ordinal through unchanged.
+    let needsEnumReceiverUnboxing: Bool = {
+        guard interfaceReceiver != nil,
+              let implReceiver = implementationParamTypes.first,
+              case let .classType(receiverClass) = sema.types.kind(of: implReceiver),
+              receiverClass.nullability == .nonNull,
+              let receiverSym = sema.symbols.symbol(receiverClass.classSymbol),
+              receiverSym.kind == .enumClass
+        else {
+            return false
+        }
+        return true
+    }()
+    if needsEnumReceiverUnboxing {
+        needsBridge = true
+    }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
             if isStringAggregate(implType) != isStringAggregate(ifaceType)
@@ -815,6 +834,18 @@ func itableBridgeSymbolForMethod(
     }
     let unboxingTable = BoxingCalleeTable(interner: interner)
     var forwardedArgExprs = bridgeParamExprs
+    if needsEnumReceiverUnboxing, let implReceiver = implementationParamTypes.first {
+        let unboxedReceiver = arena.appendTemporary(type: implReceiver)
+        body.append(.call(
+            symbol: nil,
+            callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+            arguments: [bridgeParamExprs[0]],
+            result: unboxedReceiver,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        forwardedArgExprs[0] = unboxedReceiver
+    }
     for (index, implType) in implementationParamTypes.enumerated() {
         guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
               let unboxCallee = unboxingTable.unboxCallee(
