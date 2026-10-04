@@ -686,29 +686,24 @@ final class LambdaLowerer {
             callArguments.append(normalizedParamExpr)
         }
 
-        let lambdaCanThrow = adapterRequiresThrownChannel(lambdaSymbol: lambdaSymbol, arena: arena)
         let callResult = arena.appendTemporary(type: lambdaReturnType)
-        let thrownResult = lambdaCanThrow
-            ? arena.appendTemporary(type: sema.types.nullableAnyType
-            )
-            : nil
+        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+        body.append(.constValue(result: thrownResult, value: .null))
         body.append(.call(
             symbol: lambdaSymbol,
             callee: syntheticLambdaName(for: exprID, interner: interner),
             arguments: callArguments,
             result: callResult,
-            canThrow: lambdaCanThrow,
+            canThrow: true,
             thrownResult: thrownResult
         ))
-        if let thrownResult {
-            let continueLabel = driver.ctx.makeLoopLabel()
-            let rethrowLabel = driver.ctx.makeLoopLabel()
-            body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
-            body.append(.jump(continueLabel))
-            body.append(.label(rethrowLabel))
-            body.append(.rethrow(value: thrownResult))
-            body.append(.label(continueLabel))
-        }
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+        body.append(.jump(continueLabel))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrownResult))
+        body.append(.label(continueLabel))
         switch sema.types.kind(of: lambdaReturnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
@@ -778,25 +773,6 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
         return materializedExpr
-    }
-
-    private func adapterRequiresThrownChannel(lambdaSymbol: SymbolID, arena: KIRArena) -> Bool {
-        guard let function = arena.function(for: lambdaSymbol) else {
-            return false
-        }
-        for instruction in function.body {
-            switch instruction {
-            case let .call(_, _, _, _, canThrow, _, _, _), let .virtualCall(_, _, _, _, _, canThrow, _, _):
-                if canThrow {
-                    return true
-                }
-            case .rethrow:
-                return true
-            default:
-                continue
-            }
-        }
-        return false
     }
 
     private func lowerSamWrapperValue(

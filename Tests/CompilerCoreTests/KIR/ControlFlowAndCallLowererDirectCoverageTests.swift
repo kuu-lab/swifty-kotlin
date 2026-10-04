@@ -101,6 +101,25 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         #expect(!(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.intType, sema: fixture.sema)))
     }
 
+    /// `catch (e: Exception)` must keep its runtime type check: an `Error`
+    /// (e.g. `TODO()`'s NotImplementedError) is a Throwable but not an
+    /// Exception, so only `Throwable` may skip the check as a catch-all.
+    @Test func testOnlyThrowableIsCatchAllClassType() {
+        let fixture = makeKIRDirectLoweringFixture()
+        func classType(_ name: String) -> TypeID {
+            let symbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["kotlin", name])
+            return fixture.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        }
+        let lowerer = fixture.driver.controlFlowLowerer
+        let throwableType = classType("Throwable")
+        let exceptionType = classType("Exception")
+        let errorType = classType("Error")
+
+        #expect(lowerer.isCatchAllType(throwableType, sema: fixture.sema, interner: fixture.interner))
+        #expect(!lowerer.isCatchAllType(exceptionType, sema: fixture.sema, interner: fixture.interner))
+        #expect(!lowerer.isCatchAllType(errorType, sema: fixture.sema, interner: fixture.interner))
+    }
+
     @Test func testControlFlowLowererForwardersEmitInstructions() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()

@@ -1755,7 +1755,7 @@ extension CallTypeChecker {
             if args.count >= 2 {
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType, otherElementType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))
@@ -2995,7 +2995,7 @@ extension CallTypeChecker {
                 if args.count >= 2 {
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [collectionElementType, otherElementType],
-                        returnType: sema.types.anyType,
+                        returnType: sema.types.nullableAnyType,
                         isSuspend: false,
                         nullability: .nonNull
                     )))
@@ -3411,7 +3411,8 @@ extension CallTypeChecker {
                     case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find", "first", "last", "single", "singleOrNull": sema.types.booleanType
                     case "forEach", "onEach": sema.types.unitType
                     case "count": sema.types.booleanType
-                    case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
+                    case "map", "mapKeys", "mapValues", "associateBy", "associateWith",
+                         "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
                     default: sema.types.anyType
                     }
                     let lambdaParameterTypes: [TypeID] = switch calleeStr {
@@ -3677,7 +3678,7 @@ extension CallTypeChecker {
                             if args.count >= 2 {
                                 let valueLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                                     params: [collectionElementType],
-                                    returnType: sema.types.anyType
+                                    returnType: sema.types.nullableAnyType
                                 )))
                                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
@@ -4358,7 +4359,7 @@ extension CallTypeChecker {
             case "groupBy":
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: sema.types.anyType
+                    returnType: sema.types.nullableAnyType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -4372,7 +4373,7 @@ extension CallTypeChecker {
                 if args.count >= 2 {
                     let valueLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [collectionElementType],
-                        returnType: sema.types.anyType
+                        returnType: sema.types.nullableAnyType
                     )))
                     if let lambdaExpr = ast.arena.expr(args[1].expr), case .lambdaLiteral = lambdaExpr {
                         sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
@@ -4435,15 +4436,15 @@ extension CallTypeChecker {
                 {
                     destKeyType = switch destClassType.args[0] {
                     case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
+                    case .star: sema.types.nullableAnyType
                     }
                     destValueType = switch destClassType.args[1] {
                     case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
+                    case .star: sema.types.nullableAnyType
                     }
                 } else {
-                    destKeyType = sema.types.anyType
-                    destValueType = sema.types.anyType
+                    destKeyType = sema.types.nullableAnyType
+                    destValueType = sema.types.nullableAnyType
                 }
 
                 // First lambda return type: value for associateWithTo, key otherwise.
@@ -4518,9 +4519,7 @@ extension CallTypeChecker {
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: calleeStr == "sortedByDescending"
-                        ? sema.types.nullableAnyType
-                        : sema.types.anyType
+                    returnType: sema.types.nullableAnyType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -4774,7 +4773,7 @@ extension CallTypeChecker {
                 }
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: sema.types.anyType
+                    returnType: sema.types.nullableAnyType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
@@ -5101,7 +5100,7 @@ extension CallTypeChecker {
                 case "mapIndexedNotNull":
                     sema.types.nullableAnyType
                 default:
-                    sema.types.anyType
+                    sema.types.nullableAnyType
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [sema.types.intType, collectionElementType],

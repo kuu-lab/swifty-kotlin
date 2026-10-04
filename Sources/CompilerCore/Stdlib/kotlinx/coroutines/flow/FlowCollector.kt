@@ -18,3 +18,9 @@ internal class SendingCollector<T>(private val send: suspend (T) -> Unit) : Flow
 }
 
 internal class AbortFlowException(val owner: Any) : kotlinx.coroutines.CancellationException("Flow collection aborted")
+
+internal class AmbientFlowCollector : FlowCollector<Any?> {
+    override suspend fun emit(value: Any?) {
+        emitToCurrentFlow(value)
+    }
+}

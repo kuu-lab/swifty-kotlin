@@ -105,11 +105,36 @@ public fun <T> Flow<T>.withIndex(): Flow<kotlin.collections.IndexedValue<T>> {
     }
 }
 
-public suspend fun <T> Flow<T>.collectIndexed(action: suspend (index: Int, value: T) -> Unit) {
-    var index = 0
-    this.collect { value ->
-        if (index < 0) throw ArithmeticException("Index overflow has happened")
-        action(index, value)
-        index += 1
+public fun <T, R> Flow<T>.scan(initial: R, operation: suspend (R, T) -> R): Flow<R> =
+    runningFold(initial, operation)
+
+public fun <T, R> Flow<T>.runningFold(initial: R, operation: suspend (R, T) -> R): Flow<R> {
+    val source = this
+    return flow {
+        var accumulator = initial
+        emit(accumulator)
+        source.collect { value ->
+            accumulator = operation(accumulator, value)
+            emit(accumulator)
+        }
+    }
+}
+
+public fun <T> Flow<T>.runningReduce(operation: suspend (T, T) -> T): Flow<T> {
+    val source = this
+    return flow {
+        var found = false
+        var accumulator: Any? = null
+        source.collect { value ->
+            if (!found) {
+                accumulator = value
+                found = true
+            } else {
+                @Suppress("UNCHECKED_CAST")
+                accumulator = operation(accumulator as T, value)
+            }
+            @Suppress("UNCHECKED_CAST")
+            emit(accumulator as T)
+        }
     }
 }

@@ -134,5 +134,64 @@ struct ImportedInlineFunctionStoreTests {
             #expect(store.function(for: symbol, arena: arena) == nil)
         }
     }
+
+    /// When demanded inline bodies are resolved from indexed metadata, the store
+    /// must register a descriptor without pre-populating `functions[symbol]`,
+    /// ensuring Materializer still rewrites lambdas and non-local returns.
+    @Test func testDemandResolutionRegistersDescriptorWithoutPrepopulatingFunction() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        let inlineDir = libDir.appendingPathComponent("inline-kir")
+        try fm.createDirectory(at: inlineDir, withIntermediateDirectories: true)
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "DemandLazyInline",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin",
+          "inlineKIRDir": "inline-kir"
+        }
+        """
+        let metadata = """
+        symbols=1
+        function LazyBody fq=lib.foo schema=v1 arity=0 suspend=0 inline=1
+        """
+        let kirbin = """
+        version=2
+        params=0
+        suspend=false
+        body:
+        beginBlock
+        returnValue value=1
+        """
+
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try kirbin.write(to: inlineDir.appendingPathComponent("LazyBody.kirbin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "DemandLazyInlineApp",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let store = sema.importedInlineFunctions
+            let symbol = try #require(store.descriptors.keys.first)
+            let kirModule = try #require(ctx.kir)
+            sema.resolveDemandedImportedInlineBodies?(kirModule)
+
+            #expect(store.descriptors[symbol] != nil)
+            #expect(store.functions[symbol] == nil)
+        }
+    }
 }
 #endif

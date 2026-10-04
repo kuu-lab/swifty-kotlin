@@ -30,6 +30,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withTimeout"),
             ctx.interner.intern("withTimeoutOrNull"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
+            ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
@@ -96,6 +97,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let startCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("startCoroutineUninterceptedOrReturn")
         let createCoroutineUninterceptedNoReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_no_receiver")
         let startCoroutineUninterceptedOrReturnNoReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_no_receiver")
+        let createCoroutineUninterceptedWithReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_with_receiver")
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_with_receiver")
         let runtimeRunBlockingCallee = ctx.interner.intern("kk_kxmini_run_blocking")
         let runtimeLaunchCallee = ctx.interner.intern("kk_kxmini_launch")
         let runtimeAsyncCallee = ctx.interner.intern("kk_kxmini_async")
@@ -116,6 +119,7 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeSequenceBuilderYieldCallee,
             runtimeIteratorBuilderYieldCallee,
             suspendCoroutineUninterceptedOrReturnCallee,
+            ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
@@ -340,6 +344,8 @@ final class CoroutineLoweringPass: LoweringPass {
             startCoroutineUninterceptedOrReturnCallee: startCoroutineUninterceptedOrReturnCallee,
             createCoroutineUninterceptedNoReceiverCallee: createCoroutineUninterceptedNoReceiverCallee,
             startCoroutineUninterceptedOrReturnNoReceiverCallee: startCoroutineUninterceptedOrReturnNoReceiverCallee,
+            createCoroutineUninterceptedWithReceiverCallee: createCoroutineUninterceptedWithReceiverCallee,
+            startCoroutineUninterceptedOrReturnWithReceiverCallee: startCoroutineUninterceptedOrReturnWithReceiverCallee,
             runtimeCreateCoroutineUninterceptedCallee: runtimeCreateCoroutineUninterceptedCallee,
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,

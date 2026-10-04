@@ -2,7 +2,7 @@ symbol fq=__for_0.element[kind=local] kind=local vis=private flags=_ type=Int
 symbol fq=__local_0.iterator[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Iterator<Int>
 symbol fq=golden.sema.ProbeSet.contains.$0.element[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.ProbeSet.containsAll.$1.elements[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.ProbeSet.contains[kind=fun;recv=golden.sema.ProbeSet;params=Int] kind=function vis=public flags=overrideMember sig=recv=golden.sema.ProbeSet params=[Int] ret=Boolean
+symbol fq=golden.sema.ProbeSet.contains[kind=fun;recv=golden.sema.ProbeSet;params=Int] kind=function vis=public flags=operatorFunction|overrideMember sig=recv=golden.sema.ProbeSet params=[Int] ret=Boolean
 symbol fq=golden.sema.ProbeSet.values[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=golden.sema.ProbeSet[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.inspect.$2.collection[kind=vparam] kind=valueParameter vis=private flags=_

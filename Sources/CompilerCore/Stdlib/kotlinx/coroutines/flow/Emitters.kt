@@ -98,3 +98,17 @@ internal fun <T> Flow<T>.fuse(
     context: kotlin.coroutines.CoroutineContext = kotlin.coroutines.EmptyCoroutineContext,
     capacity: Int = -3
 ): Flow<T> = this
+
+public fun <T> Flow<T>.onEmpty(action: suspend FlowCollector<T>.() -> Unit): Flow<T> {
+    val source = this
+    return flow {
+        var empty = true
+        source.collect { value ->
+            empty = false
+            emit(value)
+        }
+        if (empty) {
+            action(AmbientFlowCollector())
+        }
+    }
+}

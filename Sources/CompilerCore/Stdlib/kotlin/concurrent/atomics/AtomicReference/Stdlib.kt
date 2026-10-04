@@ -4,18 +4,21 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
+
+import kotlin.internal.KsSymbolName
 
 /**
  * Creates an atomic reference to the given [value] through the canonical
  * atomics-package API.
  *
- * The nominal type remains the existing `kotlin.concurrent.atomics.AtomicReference`
- * typealias of `kotlin.concurrent.AtomicReference`; the call delegates to the
- * runtime-backed constructor (`kk_atomic_ref_create`) owned by the concurrent
- * atomic implementation.
+ * `AtomicReference` is now a real class in this package, so the factory binds
+ * directly to the runtime-backed allocation (`kk_atomic_ref_create`) instead of
+ * delegating through `kotlin.concurrent.AtomicReference`.
  */
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun <T> AtomicReference(value: T): kotlin.concurrent.AtomicReference<T> =
-    kotlin.concurrent.AtomicReference(value)
+@KsSymbolName("kk_atomic_ref_create")
+public external fun <T> AtomicReference(value: T): AtomicReference<T>

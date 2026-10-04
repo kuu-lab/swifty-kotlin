@@ -95,7 +95,7 @@ private final class RuntimeChannelProducer {
 }
 
 private enum RuntimeFlowSource {
-    case emitter(fnPtr: Int, template: RuntimeContinuationState?)
+    case emitter(fnPtr: Int, templateState: RuntimeContinuationState?)
     case channelProducer(RuntimeChannelProducer)
     case fixed([RuntimeFlowEvent])
     case merge([Int])
@@ -135,12 +135,12 @@ final class RuntimeFlowCollectContext {
     var emittedValues: [Int] = []
     var emittedEvents: [RuntimeFlowEvent] = []
     var cancelled = false
+    var failure = 0
     // A collector may synchronously collect another flow and emit into its
     // enclosing builder. In that case `kk_flow_emit(0, ...)` must skip this
     // context and target the nearest enclosing emitter context, otherwise the
     // collector is invoked recursively until the stack overflows.
     var invokingCollector = false
-    var failure: Int = 0
     var emitHandler: ((Int) -> Int)?
 }
 
@@ -160,9 +160,9 @@ private final class RuntimeFlowHandle {
         return 0
     }
 
-    var emitterTemplate: RuntimeContinuationState? {
-        if case let .emitter(_, template) = source {
-            return template
+    var emitterTemplateState: RuntimeContinuationState? {
+        if case let .emitter(_, templateState) = source {
+            return templateState
         }
         return nil
     }
@@ -185,13 +185,13 @@ private final class RuntimeFlowHandle {
             }
             self.init(source: .fixed(fixedEvents), opChain: opChain, fixedValues: fixedValues)
         } else {
-            let template = runtimeContinuationState(from: emitterContinuation)
+            let templateState = runtimeContinuationState(from: emitterContinuation)
             self.init(
-                source: .emitter(fnPtr: emitterFnPtr, template: template),
+                source: .emitter(fnPtr: emitterFnPtr, templateState: templateState),
                 opChain: opChain,
                 fixedValues: nil
             )
-            if template != nil {
+            if templateState != nil {
                 _ = kk_coroutine_state_exit(emitterContinuation, 0)
             }
         }
@@ -205,11 +205,11 @@ private final class RuntimeFlowHandle {
 /// invokes the thunk with that continuation so the emitter receives its
 /// captures. Non-capturing builders keep the direct `(outThrown)` ABI.
 private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inout Int) {
-    if let template = flow.emitterTemplate {
+    if let template = flow.emitterTemplateState {
         let continuation = kk_coroutine_continuation_new(Int(template.functionID))
-        if let state = runtimeContinuationState(from: continuation) {
-            state.launcherArgs = template.launcherArgs
-            state.flowCollectContext = runtimeFlowCurrentCollectContext()
+        runtimeContinuationState(from: continuation)?.launcherArgs = template.launcherArgs
+        if let context = runtimeFlowCurrentCollectContext() {
+            runtimeContinuationState(from: continuation)?.flowCollectContext = context
         }
         _ = runSuspendEntryLoopWithContinuation(
             entryPointRaw: flow.emitterFnPtr,
@@ -228,13 +228,11 @@ private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inou
 private func runtimeRegisterFlowHandle(_ flow: RuntimeFlowHandle) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(flow).toOpaque())
     let key = UInt(bitPattern: ptr)
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(key)
-        state.borrowedObjectPointers.insert(key)
-    }
-    runtimeStorage.withFlowLock { state in
-        state.flowHandles[key] = flow
-        state.flowRetainCounts[key] = 1
+    runtimeStorage.withFlowAndGCLocks { flowState, gcState in
+        flowState.flowHandles[key] = flow
+        flowState.flowRetainCounts[key] = 1
+        gcState.objectPointers.insert(key)
+        gcState.borrowedObjectPointers.insert(key)
     }
     return Int(bitPattern: ptr)
 }
@@ -1421,7 +1419,10 @@ private func runtimeFlowDeliverValue(
         )
         var thrown = 0
         _ = collector(collectorEnvPtr, value, &thrown)
-        if thrown != 0 { currentContext?.failure = thrown }
+        if thrown != 0 {
+            currentContext?.failure = thrown
+            currentContext?.cancelled = true
+        }
         return thrown == 0
     } else {
         // Suspend collector ABI: (closureRaw, value, continuation, outThrown)
@@ -1436,6 +1437,7 @@ private func runtimeFlowDeliverValue(
             let result = collector(collectorEnvPtr, value, cont, &thrown)
             if thrown != 0 {
                 currentContext?.failure = thrown
+                currentContext?.cancelled = true
                 _ = kk_coroutine_state_exit(cont, 0)
                 return false
             }
@@ -1524,6 +1526,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
     outThrown?.pointee = 0
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
+        if context?.cancelled == true { return runtimeFlowStopSentinel }
         if let context, !context.cancelled {
             let unboxed = runtimeFlowMaybeUnbox(value)
             let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
@@ -1547,7 +1550,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
     case let .channelProducer(producer):
         .channelProducer(producer)
     case .emitter, .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
-        .emitter(fnPtr: flow.emitterFnPtr, template: flow.emitterTemplate)
+        .emitter(fnPtr: flow.emitterFnPtr, templateState: flow.emitterTemplateState)
     }
     let derived = RuntimeFlowHandle(
         source: source,
@@ -1625,24 +1628,18 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_flow_release received invalid flow handle")
     }
     let key = UInt(bitPattern: ptr)
-    let shouldRemoveFromGC = runtimeStorage.withFlowLock { state -> Bool in
-        guard let count = state.flowRetainCounts[key] else {
-            return false
+    runtimeStorage.withFlowAndGCLocks { flowState, gcState in
+        guard let count = flowState.flowRetainCounts[key] else {
+            return
         }
         let nextCount = count - 1
         if nextCount <= 0 {
-            state.flowRetainCounts.removeValue(forKey: key)
-            state.flowHandles.removeValue(forKey: key)
-            return true
+            gcState.objectPointers.remove(key)
+            gcState.borrowedObjectPointers.remove(key)
+            flowState.flowRetainCounts.removeValue(forKey: key)
+            flowState.flowHandles.removeValue(forKey: key)
         } else {
-            state.flowRetainCounts[key] = nextCount
-            return false
-        }
-    }
-    if shouldRemoveFromGC {
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.remove(key)
-            state.borrowedObjectPointers.remove(key)
+            flowState.flowRetainCounts[key] = nextCount
         }
     }
     return 0

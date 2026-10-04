@@ -354,24 +354,29 @@ extension CallLowerer {
             )
         }
 
-        // Suspend callables are lowered through coroutine launcher/invoke paths
-        // whose raw-thunk entry is `(args..., outThrown)`; boxing one of those
-        // thunks would prepend a closure parameter its entry point does not
-        // accept. A collection-HOF lambda's thunk is closure-first instead
-        // (`(closureRaw, args..., outThrown)`), so it must still cross the
-        // kk_function_create_N ABI: kk_suspend_function_invoke dispatches
-        // through kk_function_invoke, which supplies the closure argument only
-        // for boxed values.
-        if functionType.isSuspend, callableInfo?.hasClosureParam != true {
-            return loweredArgID
-        }
-
         guard var resolvedCallableInfo = callableInfo else {
             return loweredArgID
         }
 
-        if !functionType.isSuspend,
+        let concreteCallableType = arena.exprType(loweredCallableID) ?? sema.bindings.exprTypes[argExprID]
+        let hasStringSignature: Bool
+        if let concreteCallableType,
+           case let .functionType(concreteType) = sema.types.kind(of: sema.types.makeNonNullable(concreteCallableType))
+        {
+            hasStringSignature = concreteType.params.contains(where: sema.types.isString)
+                || sema.types.isString(concreteType.returnType)
+        } else {
+            hasStringSignature = false
+        }
+        if functionType.isSuspend,
            !resolvedCallableInfo.hasClosureParam,
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+               || (functionType.receiver == nil && !hasStringSignature)
+        {
+            return loweredArgID
+        }
+        if (!resolvedCallableInfo.hasClosureParam
+            || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,
