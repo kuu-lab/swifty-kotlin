@@ -272,14 +272,7 @@ extension DataFlowSemaPhase {
             let offsetReifiedIndices: Set<Int> = classTPCount == 0
                 ? typeParamResult.reifiedIndices
                 : Set(typeParamResult.reifiedIndices.map { $0 + classTPCount })
-            // A companion's member extension has two receivers in Kotlin: the
-            // companion singleton (dispatch) and the declared extension type.
-            // The singleton needs no runtime argument, so represent the latter
-            // as the function's receiver for call resolution and lowering.
-            let isCompanionMember = symbols.parentSymbol(for: ownerSymbol).map { parent in
-                symbols.companionObjectSymbol(for: parent) == ownerSymbol
-            } ?? false
-            let extensionReceiverType = isCompanionMember ? resolveTypeRef(
+            let extensionReceiverType = resolveTypeRef(
                 funDecl.receiverType,
                 ast: ast,
                 symbols: symbols,
@@ -291,7 +284,7 @@ extension DataFlowSemaPhase {
                 imports: sourceImports,
                 diagnostics: diagnostics,
                 usageRange: funDecl.range
-            ) : nil
+            )
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: extensionReceiverType ?? ownerType,

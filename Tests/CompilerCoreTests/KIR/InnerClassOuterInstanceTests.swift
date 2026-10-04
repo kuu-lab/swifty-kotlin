@@ -143,5 +143,81 @@ struct InnerClassOuterInstanceTests {
             return arguments.dropFirst().contains(wrappedValue)
         }, "The constructor must receive the wrapped function value")
     }
+
+    /// BUG-inner-outer: `this@Outer` referenced from inside an object
+    /// literal's own member function, where `Outer` is reachable only
+    /// through *two* `inner class` `$outer` hops (the object literal sits
+    /// inside `Middle`, itself `inner` to `Outer`). This previously
+    /// regressed by misclassifying the qualified-`this` receiver as a
+    /// class-name (static/companion) receiver, which made `.tag` lower to
+    /// an unresolved bare call instead of a property read. See
+    /// `Scripts/diff_cases/inner_class_qualified_this_outer_chain.kt`
+    /// (verified against kotlinc: `hello/world`).
+    @Test func testQualifiedThisResolvesAncestorTwoOuterHopsFromObjectLiteral() throws {
+        let ctx = makeContextFromSource("""
+        class Outer(val tag: String) {
+            inner class Middle(val mtag: String) {
+                fun make(): String {
+                    val obj = object {
+                        fun show(): String {
+                            return this@Outer.tag + "/" + this@Middle.mtag
+                        }
+                    }
+                    return obj.show()
+                }
+            }
+        }
+        fun main() {
+            val o = Outer("hello")
+            val m = o.Middle("world")
+            val result = m.make()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "show", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(!callees.contains("tag"), "this@Outer.tag must not lower to an unresolved bare call, got: \(callees)")
+        #expect(!callees.contains("mtag"), "this@Middle.mtag must not lower to an unresolved bare call, got: \(callees)")
+    }
+
+    /// BUG-inner-outer: an object literal's member function reads an
+    /// immutable property declared on a class reachable only through *two*
+    /// `inner class` `$outer` hops. Capture analysis previously only
+    /// considered the immediate enclosing class, so `value` was never
+    /// captured and the read crashed or returned garbage. See
+    /// `Scripts/diff_cases/inner_class_object_literal_outer_property_capture.kt`
+    /// (verified against kotlinc: `42`).
+    @Test func testObjectLiteralCapturesPropertyTwoOuterHopsOut() throws {
+        let ctx = makeContextFromSource("""
+        class Outer(val value: Int) {
+            inner class Inner {
+                inner class Deep {
+                    fun make(): Int {
+                        val obj = object {
+                            fun compute(): Int {
+                                return value + 1
+                            }
+                        }
+                        return obj.compute()
+                    }
+                }
+            }
+        }
+        fun main() {
+            val o = Outer(41)
+            val i = o.Inner()
+            val d = i.Deep()
+            val result = d.make()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(!callees.contains("value"), "value must not lower to an unresolved bare call, got: \(callees)")
+    }
 }
 #endif

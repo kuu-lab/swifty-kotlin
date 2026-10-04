@@ -648,12 +648,30 @@ extension LambdaLowerer {
         // receiver symbol. Match by nominal type in that case so the captured
         // field is initialized instead of left zeroed.
         if sema.symbols.symbol(symbol)?.kind == .class,
-           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
-           let receiverType = arena.exprType(receiverExprID),
-           case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-           sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
-            return receiverExprID
+            if let receiverType = arena.exprType(receiverExprID),
+               case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+               sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
+            {
+                return receiverExprID
+            }
+            // BUG-inner-outer: `symbol` may name an ancestor class reachable
+            // only through further `$outer` hops (e.g. captured two lexical
+            // levels out, from inside an `inner class` nested inside another
+            // `inner class`) -- the active receiver's own class is then
+            // neither `symbol` nor a subtype of it, so walk the chain instead
+            // of leaving the captured field zeroed.
+            if let outerValue = resolveOuterChainValue(
+                from: receiverExprID,
+                to: symbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return outerValue
+            }
         }
         // KSP-CAP-001: object-literal member functions may capture an
         // immutable stored property of their enclosing class. The enclosing

@@ -785,9 +785,25 @@ extension ExprLowerer {
                 // written, so reading it here would yield garbage. Those dispatch to
                 // the getter accessor in the branch below, matching the explicit
                 // `this.size` path in CallLowerer+MemberPropertyReads.swift.
+                //
+                // KSP-CAP-001: a bare read of this kind resolved via plain scope
+                // lookup rather than `resolveImplicitReceiverMember` (see
+                // `inferNameRefExpr`), so it never set `implicitReceiverMemberNames`
+                // and skipped the STDLIB-004 branch above, which is the only other
+                // place that calls `implicitReceiverExprID(forProperty:)`. Without
+                // it here too, an object-literal member function reading an
+                // enclosing class's mutable property would use its own `this`
+                // (`activeImplicitReceiverExprID`) with the enclosing class's field
+                // offset -- the same wrong-receiver/offset mismatch PR #7186 fixed
+                // for inner classes, but for object literals' bare mutable-property
+                // reads. Mirror the write side (`.localAssign`'s field-offset branch
+                // below), which already walks the captured outer-receiver chain.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property || sym.kind == .field || sym.kind == .backingField,
-                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   ),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class || ownerKind == .interface,
@@ -848,7 +864,10 @@ extension ExprLowerer {
                 // resolves through the active receiver's instance layout.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property,
-                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   ),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class,
@@ -3292,14 +3311,18 @@ extension ExprLowerer {
                 let calleeSymbol: SymbolID? = chosenCallee.flatMap { callee in
                     sema.symbols.isSourceBackedSymbol(callee) ? callee : nil
                 }
-                instructions.append(.call(
+                driver.callLowerer.emitDestructuringComponentCall(
+                    candidate: chosenCallee,
                     symbol: calleeSymbol,
                     callee: calleeName,
-                    arguments: [rhsID],
+                    receiverExpr: initializer,
+                    receiverID: rhsID,
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {
@@ -3384,6 +3407,7 @@ extension ExprLowerer {
                     containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
+                    arena: arena,
                     interner: interner,
                     instructions: &instructions
                 )
@@ -3422,6 +3446,7 @@ extension ExprLowerer {
                 containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
+                arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
@@ -3442,6 +3467,7 @@ extension ExprLowerer {
         containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
+        arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
@@ -3455,6 +3481,11 @@ extension ExprLowerer {
            signature.receiverType != nil
         {
             let calleeName: InternedString
+            // Set when `calleeName` is a concrete runtime range bridge rather
+            // than the member itself; such callees must never be dispatched
+            // through a vtable/itable (mirrors the remap gate in
+            // `CallLowerer+MemberCallEmission`).
+            var remappedToRangeBridge = false
             if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
                !linkName.isEmpty
             {
@@ -3472,10 +3503,30 @@ extension ExprLowerer {
                 // Generic range interface members may lack a link name; use
                 // the concrete runtime bridge, as in the `r.contains(x)` path.
                 calleeName = rangeLink
+                remappedToRangeBridge = true
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
                 calleeName = sym.name
             } else {
                 calleeName = interner.intern("contains")
+            }
+            // An open member `contains` must dispatch on the container's
+            // runtime type, exactly like `container.contains(element)`.
+            if !remappedToRangeBridge,
+               let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                   chosenCallee: callBinding.chosenCallee,
+                   calleeName: calleeName,
+                   receiverExpr: containerExpr,
+                   loweredReceiverID: containerID,
+                   isSuperCall: false,
+                   finalArguments: [containerID, elementID],
+                   result: resultID,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner
+               )
+            {
+                instructions.append(virtualInstruction)
+                return
             }
             instructions.append(.call(
                 symbol: callBinding.chosenCallee,

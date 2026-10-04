@@ -97,14 +97,14 @@ extension CallTypeChecker {
                     case "map":
                         sema.types.make(.functionType(FunctionType(
                             params: [charType],
-                            returnType: sema.types.anyType,
+                            returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
                     case "mapIndexed":
                         sema.types.make(.functionType(FunctionType(
                             params: [intType, charType],
-                            returnType: sema.types.anyType,
+                            returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
@@ -118,7 +118,7 @@ extension CallTypeChecker {
                     case "zipWithNext":
                         sema.types.make(.functionType(FunctionType(
                             params: [charType, charType],
-                            returnType: sema.types.anyType,
+                            returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
@@ -280,7 +280,7 @@ extension CallTypeChecker {
                 case "thenBy", "thenByDescending":
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [comparatorElementType],
-                        returnType: sema.types.anyType,
+                        returnType: sema.types.nullableAnyType,
                         isSuspend: false,
                         nullability: .nonNull
                     )))

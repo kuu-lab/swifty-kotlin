@@ -4,12 +4,14 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// The canonical atomics type is currently an alias of the runtime-backed
-// kotlin.concurrent.AtomicBoolean shell. Keep the runtime entry points private and
+// The canonical atomics type is a distinct source-backed class whose payload
+// uses the same runtime atomic box. Keep the runtime entry points private and
 // expose the public API as source-backed receiver declarations.
 @KsSymbolName("__kk_atomic_bool_compareAndExchange")
 private external fun AtomicBoolean.__kkAtomicBoolCompareAndExchange(
@@ -33,6 +35,11 @@ public fun AtomicBoolean.compareAndExchange(expectedValue: Boolean, newValue: Bo
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
+public fun AtomicBoolean.compareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
+    compareAndExchange(expectedValue, newValue) == expectedValue
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
 public fun AtomicBoolean.exchange(newValue: Boolean): Boolean =
     __kkAtomicBoolExchange(newValue)
 
@@ -51,3 +58,35 @@ public fun AtomicBoolean.store(value: Boolean): Unit {
 @SinceKotlin("2.1")
 public fun AtomicBoolean.toString(): String =
     __kkAtomicBoolLoad().toString()
+
+// Compatibility update names retained from the former
+// kotlin.concurrent.AtomicBoolean typealias surface.
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicBoolean.fetchAndUpdate(transform: (Boolean) -> Boolean): Boolean {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndSet(old, newValue)) return old
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicBoolean.updateAndFetch(transform: (Boolean) -> Boolean): Boolean {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndSet(old, newValue)) return newValue
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicBoolean.getAndUpdate(transform: (Boolean) -> Boolean): Boolean =
+    fetchAndUpdate(transform)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicBoolean.updateAndGet(transform: (Boolean) -> Boolean): Boolean =
+    updateAndFetch(transform)

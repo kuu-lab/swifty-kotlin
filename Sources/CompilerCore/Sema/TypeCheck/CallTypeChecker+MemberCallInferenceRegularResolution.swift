@@ -270,7 +270,22 @@ extension CallTypeChecker {
         // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
         // from resolving when there is no companion with that name.
         let classNameReceiverNominalSymbol: SymbolID? = {
-            if let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
+            // BUG-inner-outer: a qualified `this@Label`/`super@Label` is by
+            // definition an instance receiver, never a type/class-name
+            // qualifier -- regardless of what symbol kind its
+            // `identifierSymbol` carries. An object literal stashes an
+            // ancestor `inner class`'s own class symbol there (see
+            // `ObjectLiteralInference.swift`'s `objectOuterReceiverTypes`
+            // fill) purely as a capture key for `CaptureAnalyzer`/
+            // `resolveOuterChainValue`, not as a class-name-receiver marker;
+            // without this guard `this@Outer.tag` misclassifies exactly like
+            // `Outer.tag` and only resolves companion members.
+            let receiverIsQualifiedThisOrSuper: Bool = switch ast.arena.expr(receiverID) {
+            case .thisRef, .superRef: true
+            default: false
+            }
+            if !receiverIsQualifiedThisOrSuper,
+               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
                let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
             {
                 switch receiverSymbol.kind {
@@ -892,6 +907,27 @@ extension CallTypeChecker {
                     companionCandidates.append(candidate)
                 }
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                // Precompiled library extensions are not inserted into
+                // file scopes, because their receiver is resolved during
+                // member-call inference. Recover those synthetic
+                // declarations by short name for class-name receivers.
+                let syntheticCompanionCandidates = {
+                    sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              symbol.flags.contains(.synthetic),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let recv = signature.receiverType
+                        else {
+                            return false
+                        }
+                        return self.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionTypeForExtensionLookup,
+                            declaredReceiver: recv,
+                            sema: sema
+                        )
+                    }
+                }
                 if companionCandidates.isEmpty {
                     // Fall back to Companion-scoped extension functions
                     // (e.g. `fun Duration.Companion.parse(value: String): Duration`)
@@ -910,27 +946,20 @@ extension CallTypeChecker {
                             sema: sema
                         )
                     }
+                    if !companionCandidates.isEmpty {
+                        // A scoped supertype-receiver extension (e.g.
+                        // `fun Base64.encode` resolved through companion
+                        // `Default`) satisfies this lookup, but the companion's
+                        // synthetic members (inherited `Base64.encode(ByteArray)`)
+                        // are still valid targets: keep them in the same set so
+                        // member calls are not shadowed by the extension.
+                        for candidate in syntheticCompanionCandidates() where !companionCandidates.contains(candidate) {
+                            companionCandidates.append(candidate)
+                        }
+                    }
                 }
                 if companionCandidates.isEmpty {
-                    // Precompiled library extensions are not inserted into
-                    // file scopes, because their receiver is resolved during
-                    // member-call inference. Recover those synthetic
-                    // declarations by short name for class-name receivers.
-                    companionCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                        guard let symbol = sema.symbols.symbol(candidate),
-                              symbol.kind == .function,
-                              symbol.flags.contains(.synthetic),
-                              let signature = sema.symbols.functionSignature(for: candidate),
-                              let recv = signature.receiverType
-                        else {
-                            return false
-                        }
-                        return extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: companionTypeForExtensionLookup,
-                            declaredReceiver: recv,
-                            sema: sema
-                        )
-                    }
+                    companionCandidates = syntheticCompanionCandidates()
                 }
                 if !companionCandidates.isEmpty {
                     companionReceiverType = companionTypeForExtensionLookup
@@ -1192,12 +1221,20 @@ extension CallTypeChecker {
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
                 let memberName = interner.resolve(calleeName)
-                guard memberName == "toString" || memberName == "replace" else {
+                // kotlinx.io.bytestring Base64 codec functions are bundled source
+                // extensions whose first parameter is ByteString, disjoint from
+                // every same-named kotlin.io.encoding.Base64 member's
+                // ByteArray/CharSequence source, so merging them is unambiguous.
+                guard memberName == "toString" || memberName == "replace"
+                    || memberName == "encode" || memberName == "decode"
+                    || memberName == "encodeToByteArray" || memberName == "encodeIntoByteArray"
+                    || memberName == "decodeIntoByteArray" || memberName == "encodeToAppendable"
+                else {
                     return []
                 }
                 if memberName == "toString" {
                     guard !args.isEmpty else { return [] }
-                } else {
+                } else if memberName == "replace" {
                     guard args.count == 2,
                           ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
                     else {
@@ -1222,7 +1259,7 @@ extension CallTypeChecker {
                     ) else {
                         return false
                     }
-                    if memberName == "toString" {
+                    if memberName != "replace" {
                         return true
                     }
 
@@ -1294,6 +1331,21 @@ extension CallTypeChecker {
                             return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
                         }
                         return true
+                    }
+                    if let dispatchReceiver = ctx.implicitReceiverType {
+                        let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
+                            named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner
+                        ).filter { candidate in
+                            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                                return false
+                            }
+                            return extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: nonNullReceiverForScope, declaredReceiver: receiver, sema: sema
+                            )
+                        }
+                        if !dispatchMembers.isEmpty {
+                            scopeCandidates = dispatchMembers
+                        }
                     }
                     // Primitive-array source members are top-level extensions in
                     // kotlin.collections. Default-import lookup may stop at a

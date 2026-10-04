@@ -184,8 +184,9 @@ struct ABIMismatchTests {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .intptr)
-            #expect(spec.parameters.map(\.type) == [.intptr, .intptr])
-            #expect(spec.parameters.map(\.name) == ["lhs", "rhs"])
+            #expect(spec.isThrowing)
+            #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .nullableIntptrPointer])
+            #expect(spec.parameters.map(\.name) == ["lhs", "rhs", "outThrown"])
         }
     }
 
@@ -258,7 +259,8 @@ struct ABIMismatchTests {
         for name in ["kk_op_floor_mod", "kk_op_lfloor_mod"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .intptr)
-            #expect(spec.parameters.map(\.type) == [.intptr, .intptr])
+            #expect(spec.isThrowing)
+            #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .nullableIntptrPointer])
         }
     }
 

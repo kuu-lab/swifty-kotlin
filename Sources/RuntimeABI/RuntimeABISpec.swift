@@ -120,6 +120,7 @@ public enum RuntimeABISpec {
         fileSystemExceptionFunctions,
         gcFunctions,
         i18nFunctions,
+        ioFileSystemFunctions,
         ioFunctions,
         kFunctionFunctions,
         kParameterFunctions,
