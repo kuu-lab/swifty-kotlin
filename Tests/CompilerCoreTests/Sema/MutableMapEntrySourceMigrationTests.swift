@@ -3,12 +3,10 @@
 import Testing
 import TestStdlibCache
 
-/// KSP-1076: MutableMap.MutableEntry.setValue is a bundled source extension
-/// backed by the existing mutable-map entry runtime bridge.
+/// MutableEntry's source member contract must dispatch to custom implementations
+/// as well as runtime-backed entries, including through imported stdlib metadata.
 @Suite
 struct MutableMapEntrySourceMigrationTests {
-    private let sourcePath = "__bundled_kotlin/collections/MutableMap/MutableEntry/MutableEntry.kt"
-
     @Test(arguments: [false, true])
     func mutableEntryInterfaceIsOwnedByBundledSource(useArtifact: Bool) throws {
         if useArtifact { TestStdlibCache.shared.prepare() }
@@ -75,17 +73,30 @@ struct MutableMapEntrySourceMigrationTests {
         #expect(ctx.diagnostics.hasError)
     }
 
-    @Test
-    func setValueResolvesToBundledSourceExtension() throws {
+    @Test(arguments: [false, true])
+    func setValueResolvesToBundledAbstractMemberAndDispatchesVirtually(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
         let ctx = makeContextFromSource(
             """
+            class CustomEntry(override val key: String, initial: Int) : MutableMap.MutableEntry<String, Int> {
+                override val value: Int get() = stored
+                private var stored: Int = initial
+                override fun setValue(newValue: Int): Int {
+                    val old = stored
+                    stored = newValue
+                    return old
+                }
+            }
+            fun custom(entry: MutableMap.MutableEntry<String, Int>): Int = entry.setValue(4)
             fun update(values: MutableMap<String, Int>): Int {
                 val entry = values.iterator().next()
                 return entry.setValue(42)
             }
-            """
+            """,
+            emit: useArtifact ? .executable : .kirDump,
+            allowDefaultStdlibLibrary: useArtifact
         )
-        try runSema(ctx)
+        try runToKIR(ctx)
 
         let diagnosticSummary = ctx.diagnostics.diagnostics.map { diagnostic -> String in
             guard let range = diagnostic.primaryRange else {
@@ -113,44 +124,26 @@ struct MutableMapEntrySourceMigrationTests {
         let mutableEntrySymbol = try #require(sema.symbols.lookup(fqName: mutableEntryFQName))
 
         let setValueName = interner.intern("setValue")
-        let extensionFQName = collections + [setValueName]
-        let sourceSymbols = sema.symbols.lookupAll(fqName: extensionFQName).filter { symbolID in
-            guard let symbol = sema.symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  !symbol.flags.contains(.synthetic),
-                  let fileID = sema.symbols.sourceFileID(for: symbolID)
-            else {
-                return false
-            }
-            return ctx.sourceManager.path(of: fileID) == sourcePath
+        let memberFQName = mutableEntryFQName + [setValueName]
+        let member = try #require(sema.symbols.lookup(fqName: memberFQName))
+        let memberInfo = try #require(sema.symbols.symbol(member))
+        #expect(sema.symbols.isSourceBackedSymbol(member))
+        #expect(!memberInfo.flags.contains(.synthetic))
+        #expect(memberInfo.flags.contains(.abstractType))
+        #expect(memberInfo.flags.contains(.importedLibrary) == useArtifact)
+        #expect(sema.symbols.parentSymbol(for: member) == mutableEntrySymbol)
+        if !useArtifact {
+            #expect(sema.symbols.externalLinkName(for: member) == nil)
+            let fileID = try #require(sema.symbols.sourceFileID(for: member))
+            #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/MutableMap.kt")
         }
-        #expect(sourceSymbols.count == 1, "Expected one bundled MutableEntry.setValue extension")
 
-        let extensionSymbol = try #require(sourceSymbols.first)
-        let extensionInfo = try #require(sema.symbols.symbol(extensionSymbol))
-        #expect(sema.symbols.isSourceBackedSymbol(extensionSymbol))
-        #expect(!extensionInfo.flags.contains(.synthetic))
-        #expect(extensionInfo.flags.contains(.inlineFunction))
-        #expect(sema.symbols.externalLinkName(for: extensionSymbol) == nil)
-
-        let signature = try #require(sema.symbols.functionSignature(for: extensionSymbol))
+        let signature = try #require(sema.symbols.functionSignature(for: member))
         #expect(signature.parameterTypes.count == 1)
         #expect(signature.typeParameterSymbols.count == 2)
-        #expect(signature.classTypeParameterCount == 0)
+        #expect(signature.classTypeParameterCount == 2)
         #expect(signature.parameterTypes.first == signature.returnType)
-        let receiverType = try #require(signature.receiverType)
-        guard case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) else {
-            Issue.record("MutableEntry.setValue must have a MutableMap.MutableEntry receiver")
-            return
-        }
-        #expect(receiverClass.classSymbol == mutableEntrySymbol)
-        #expect(receiverClass.args.count == 2)
-
-        let syntheticMemberFQName = mutableEntryFQName + [setValueName]
-        #expect(
-            sema.symbols.lookup(fqName: syntheticMemberFQName) == nil,
-            "Expected the residual synthetic MutableEntry.setValue member to be skipped"
-        )
+        #expect(sema.symbols.nominalLayout(for: mutableEntrySymbol)?.vtableSlots[member] == 0)
 
         let ast = try #require(ctx.ast)
         let callIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
@@ -165,12 +158,17 @@ struct MutableMapEntrySourceMigrationTests {
             }
             return exprID
         }
-        #expect(callIDs.count == 1, "Expected one user MutableEntry.setValue call")
-        let callID = try #require(callIDs.first)
-        let chosenCallee = try #require(sema.bindings.callBinding(for: callID)?.chosenCallee)
-        #expect(chosenCallee == extensionSymbol)
-        #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
-        #expect(sema.bindings.exprType(for: callID) == sema.types.intType)
+        #expect(callIDs.count == 2)
+        for callID in callIDs {
+            #expect(sema.bindings.callBinding(for: callID)?.chosenCallee == member)
+            #expect(sema.bindings.exprType(for: callID) == sema.types.intType)
+        }
+        let module = try #require(ctx.kir)
+        for name in ["custom", "update"] {
+            let body = try findKIRFunctionBody(named: name, in: module, interner: interner)
+            #expect(extractVirtualCallees(from: body, interner: interner).contains("setValue"))
+            #expect(!extractCallees(from: body, interner: interner).contains("__kk_mutable_map_entry_setValue"))
+        }
     }
 }
 #endif
