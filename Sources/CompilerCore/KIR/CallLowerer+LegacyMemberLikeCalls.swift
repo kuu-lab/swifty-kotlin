@@ -2453,7 +2453,8 @@ extension CallLowerer {
             instructions: &instructions,
             arguments: finalArguments,
             sourceArgExprs: args.map(\.expr),
-            sourceArgLabels: args.map(\.label)
+            sourceArgLabels: args.map(\.label),
+            callExprID: exprID
         )
         return result
     }

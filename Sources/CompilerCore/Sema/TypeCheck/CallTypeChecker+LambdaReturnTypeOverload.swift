@@ -181,6 +181,14 @@ extension CallTypeChecker {
                         )))
                     }()
                     contextualArgExpectedTypes[index] = contextualLambdaType
+                    if let contextualLambdaType, expectedTypeCandidates.count == 1,
+                       let candidate = expectedTypeCandidates.first,
+                       let signature = sema.symbols.functionSignature(for: candidate)
+                    {
+                        contextualArgExpectedTypes[index] = applyDispatchReceiverClassTypeArgs(
+                            to: contextualLambdaType, signature: signature, candidate: candidate, ctx: ctx
+                        )
+                    }
                     if declaresConcreteLambdaParameterTypes(
                         at: index,
                         argumentCount: args.count,
@@ -516,7 +524,7 @@ extension CallTypeChecker {
     /// candidate. Returns nil (leaving the literal as Int) when candidates
     /// disagree or none expect a wideable numeric type — the normal Int-literal
     /// path and existing overload resolution still handle those cases.
-    private func uniformNumericLiteralParameterType(
+    func uniformNumericLiteralParameterType(
         at index: Int,
         candidates: [SymbolID],
         sema: SemaModule
@@ -529,11 +537,23 @@ extension CallTypeChecker {
                 return nil
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
-                  primitive == .long || primitive == .uint || primitive == .ulong ||
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType)
+            else {
+                // A parameter of non-numeric type can never accept an integer
+                // literal -- it does not veto narrowing to a numeric overload
+                // (e.g. `onTimeout(30)` with `Long` and `Duration` overloads).
+                continue
+            }
+            // A plain `Int` candidate absorbs the literal as an exact match
+            // and must not be pre-empted by narrowing.
+            if primitive == .int {
+                return nil
+            }
+            guard primitive == .long || primitive == .uint || primitive == .ulong ||
                   primitive == .byte || primitive == .short
             else {
-                return nil
+                // Float/Double/other primitives cannot take an integer literal.
+                continue
             }
             if let result, result != nonNullParameterType {
                 return nil
@@ -547,7 +567,7 @@ extension CallTypeChecker {
     /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
     /// allows a constant UInt literal to narrow to UByte/UShort or widen to
     /// ULong when the expected parameter type requires it.
-    private func uniformUnsignedLiteralParameterType(
+    func uniformUnsignedLiteralParameterType(
         at index: Int,
         candidates: [SymbolID],
         sema: SemaModule
@@ -560,11 +580,17 @@ extension CallTypeChecker {
                 return nil
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
-                  primitive == .ubyte || primitive == .ushort ||
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType)
+            else {
+                continue
+            }
+            if primitive == .uint {
+                return nil
+            }
+            guard primitive == .ubyte || primitive == .ushort ||
                   primitive == .uint || primitive == .ulong
             else {
-                return nil
+                continue
             }
             if let result, result != nonNullParameterType {
                 return nil
@@ -925,6 +951,48 @@ extension CallTypeChecker {
         )
     }
 
+    private func applyDispatchReceiverClassTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        candidate: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        guard signature.classTypeParameterCount > 0,
+              let owner = sema.symbols.parentSymbol(for: candidate)
+        else { return parameterType }
+        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
+            + ctx.outerReceiverTypes.reversed().map(\.type)
+        for receiver in receivers {
+            guard let receiverClass = resolveClassType(receiver, sema: sema),
+                  let ownerArgs = sema.types.liftedNominalSupertypeArgs(
+                      from: receiverClass.classSymbol,
+                      childArgs: receiverClass.args,
+                      to: owner
+                  ),
+                  ownerArgs.count >= signature.classTypeParameterCount
+            else { continue }
+            let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var substitution: [TypeVarID: TypeID] = [:]
+            for (index, symbol) in signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .enumerated()
+            {
+                guard let variable = variables[symbol] else { continue }
+                switch ownerArgs[index] {
+                case let .invariant(type), let .in(type), let .out(type):
+                    substitution[variable] = type
+                case .star:
+                    break
+                }
+            }
+            return sema.types.substituteTypeParameters(
+                in: parameterType, substitution: substitution, typeVarBySymbol: variables
+            )
+        }
+        return parameterType
+    }
+
     /// Substitutes the class type parameters used in `signature.receiverType`
     /// with the concrete generic arguments of the call-site `receiverType`. This
     /// lets trailing-lambda expected types be computed with the receiver's
@@ -973,9 +1041,17 @@ extension CallTypeChecker {
             }
         } else if signature.classTypeParameterCount > 0,
                   callSiteClass.args.count >= signature.classTypeParameterCount {
-            let prefix = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
-            declaredClassArgs = prefix
-            concreteClassArgs = prefix
+            declaredClassArgs = signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).map {
+                .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+            }
+            if let owner = sema.symbols.parentSymbol(for: candidate),
+               let lifted = sema.types.liftedNominalSupertypeArgs(
+                   from: callSiteClass.classSymbol, childArgs: callSiteClass.args, to: owner
+               ) {
+                concreteClassArgs = lifted
+            } else {
+                concreteClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            }
         } else {
             return parameterType
         }
@@ -1747,4 +1823,3 @@ extension CallTypeChecker {
         )
     }
 }
-

@@ -176,16 +176,6 @@ struct RuntimeChannelTests {
         _ = kk_channel_close(channel)
     }
 
-    @Test func selectBuilderRestoresNestedRegistration() {
-        let previous = __kk_select_builder_exchange(10)
-        defer { _ = __kk_select_builder_exchange(previous) }
-        #expect(__kk_select_builder_current() == 10)
-        #expect(__kk_select_builder_exchange(20) == 10)
-        #expect(__kk_select_builder_exchange(10) == 20)
-        #expect(__kk_select_builder_exchange(runtimeNullSentinelInt) == 10)
-        #expect(__kk_select_builder_current() == runtimeNullSentinelInt)
-    }
-
     // MARK: - Rendezvous Channel (capacity == 0)
 
     @Test func rendezvousSendReceivePairing() {

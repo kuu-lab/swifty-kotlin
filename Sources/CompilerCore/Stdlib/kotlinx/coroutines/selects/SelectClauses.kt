@@ -1,8 +1,6 @@
 package kotlinx.coroutines.selects
 
 import kotlin.internal.KsSymbolName
-import kotlin.time.Duration
-import kotlin.time.TimeSource
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -60,38 +58,6 @@ public val ReceiveChannel<*>.onReceiveCatching: SelectClause1<ChannelResult<Any?
         }, { result })
     }
 
-public fun <E, R> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
-    var result = ChannelResult<Any?>(3)
-    currentSelectBuilder<R>().registerClause({
-        result = __kkSelectTryReceive(this)
-        result.isSuccess || result.isClosed
-    }) { block(result.getOrThrow() as E) }
-}
-
-public fun <E, R> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
-    var result = ChannelResult<Any?>(3)
-    currentSelectBuilder<R>().registerClause({
-        result = __kkSelectTryReceive(this)
-        result.isSuccess || result.isClosed
-    }) { block(result as ChannelResult<E>) }
-}
-
-public fun <E, R> Channel<E>.onSend(element: E, block: suspend (Channel<E>) -> R) {
-    currentSelectBuilder<R>().registerClause({
-        val status = __kkSelectTrySend(this, element)
-        if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
-        status == 0
-    }) { block(this) }
-}
-
-public fun <E, R> SendChannel<E>.onSend(element: E, block: suspend (SendChannel<E>) -> R) {
-    currentSelectBuilder<R>().registerClause({
-        val status = __kkSelectTrySend(this, element)
-        if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
-        status == 0
-    }) { block(this) }
-}
-
 public val Channel<*>.onSend: SelectClause2<Any?, Channel<*>>
     get() = SelectClause2Impl({ value ->
         val status = __kkSelectTrySend(this, value)
@@ -117,26 +83,5 @@ internal fun selectJobReady(job: Any): Boolean {
     return __kkSelectIsCompleted(job) != 0
 }
 
-public fun <R> Deferred.onAwait(block: suspend (Any) -> R) {
-    currentSelectBuilder<R>().registerClause({ selectJobReady(this) }) { block(await()) }
-}
-
-public fun <R> Job.onJoin(block: suspend () -> R) {
-    currentSelectBuilder<R>().registerClause({ selectJobReady(this) }, block)
-}
-
 public val Mutex.onLock: SelectClause2<Any?, Mutex>
     get() = SelectClause2Impl({ tryLock() }, { this })
-
-public fun <R> Mutex.onLock(owner: Any? = null, block: suspend (Mutex) -> R) {
-    currentSelectBuilder<R>().registerClause({ tryLock() }) { block(this) }
-}
-
-public fun <R> SelectBuilder<R>.onTimeout(timeMillis: Long, block: suspend () -> R) {
-    val mark = TimeSource.Monotonic.markNow()
-    registerClause({ timeMillis <= 0L || mark.elapsedNow().inWholeMilliseconds >= timeMillis }, block)
-}
-
-public fun <R> SelectBuilder<R>.onTimeout(timeout: Duration, block: suspend () -> R) {
-    onTimeout(timeout.inWholeMilliseconds, block)
-}

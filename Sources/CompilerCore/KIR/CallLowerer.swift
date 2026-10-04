@@ -1152,6 +1152,16 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
+            // Inside a member-extension body the active implicit receiver is
+            // the extension receiver, but an unqualified call to an enclosing
+            // member must dispatch on the `this@Owner` parameter instead.
+            if implicitReceiver == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let ownerName = sema.symbols.symbol(owner)?.name,
+               let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName)
+            {
+                implicitReceiver = qualifiedThis
+            }
             if implicitReceiver == nil {
                 implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
                 // A bare call inside an object literal can resolve to a member of
@@ -1209,9 +1219,25 @@ final class CallLowerer {
             // implementation of an interface method, is otherwise bypassed.
             // SequenceScope calls use runtime-owned builder receivers, so their
             // remapped ABI entry points must remain direct calls.
+            //
+            // Source-declared callees (no link name) always take this path.
+            // Imported `kk_fn_*` members only take it when the callee is
+            // abstract: kklib emits a no-op stub for abstract declarations, so
+            // a direct call silently does nothing (KUU-962: `registerClause`
+            // inside `SelectBuilder` member extensions). Non-abstract
+            // `kk_fn_*` members (`external` runtime bridges like
+            // `MutableCollection.remove`, and members with real bodies) are
+            // callable directly — virtual dispatch on them would also break
+            // receivers whose runtime box never registered the interface
+            // itable (`kk_itable_lookup_dynamic` → dispatch error).
+            let chosenLinkName = sema.symbols.externalLinkName(for: chosen)
+            let isUnlinkedSourceCallee = chosenLinkName?.isEmpty ?? true
+            let isAbstractLinkedCallee = CallLowerer.isSourceBackedLinkName(chosenLinkName)
+                && !isUnlinkedSourceCallee
+                && sema.symbols.symbol(chosen)?.flags.contains(.abstractType) == true
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
+               isUnlinkedSourceCallee || isAbstractLinkedCallee,
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,

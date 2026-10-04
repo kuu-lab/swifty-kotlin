@@ -324,6 +324,43 @@ extension CallTypeChecker {
     /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
     /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
     /// is not decided until inference (mirrors the `rangeUntil`/`genericReceiver` escape hatch there).
+    /// Member extensions declared on the lexical dispatch receiver
+    /// (e.g. a `SelectBuilder<R>` enclosing receiver) participate in calls
+    /// whose call-site receiver is the *extension* receiver: `clause { }`
+    /// inside `select { }` must find the builder's
+    /// `operator fun <Q> SelectClause1<Q>.invoke`. Collects the implicit
+    /// receiver's members first, then outer receivers innermost-out.
+    func collectDispatchReceiverMemberExtensionCandidates(
+        named calleeName: InternedString,
+        extensionReceiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
+            + ctx.outerReceiverTypes.reversed().map(\.type)
+        for receiver in receivers {
+            let candidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: receiver,
+                sema: sema,
+                interner: ctx.interner
+            ).filter { candidateID in
+                guard let symbol = ctx.cachedSymbol(candidateID),
+                      symbol.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: candidateID),
+                      let declaredReceiver = signature.receiverType
+                else { return false }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: extensionReceiverType,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            if !candidates.isEmpty { return candidates }
+        }
+        return []
+    }
+
     func extensionSyntheticFallbackReceiverMatches(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
