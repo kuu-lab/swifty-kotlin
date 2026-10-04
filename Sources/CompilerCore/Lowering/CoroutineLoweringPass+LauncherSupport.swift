@@ -734,7 +734,7 @@ extension CoroutineLoweringPass {
     /// The `CoroutineStart` entry name a start argument refers to, when it is a
     /// compile-time-known entry. The owner check keeps a same-named entry of
     /// some other enum from being read as a `CoroutineStart` one.
-    private func coroutineStartEntryName(
+    func coroutineStartEntryName(
         _ exprID: KIRExprID,
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
