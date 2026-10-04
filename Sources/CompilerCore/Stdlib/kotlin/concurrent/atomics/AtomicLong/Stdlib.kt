@@ -4,16 +4,20 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
+
+import kotlin.internal.KsSymbolName
 
 /**
  * Creates an atomic Long value through the canonical atomics-package API.
  *
- * The nominal type remains the existing `kotlin.concurrent.atomics.AtomicLong` typealias
- * until the receiver members are migrated by KSP-1117. The underlying constructor retains the
- * runtime-backed allocation owned by the concurrent atomic implementation.
+ * `AtomicLong` is now a real class in this package, so the factory binds
+ * directly to the runtime-backed allocation (`kk_atomic_long_create`) instead
+ * of delegating through `kotlin.concurrent.AtomicLong`.
  */
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicLong(value: Long): AtomicLong =
-    kotlin.concurrent.AtomicLong(value)
+@KsSymbolName("kk_atomic_long_create")
+public external fun AtomicLong(value: Long): AtomicLong

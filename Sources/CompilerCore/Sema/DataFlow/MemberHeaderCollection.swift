@@ -272,14 +272,7 @@ extension DataFlowSemaPhase {
             let offsetReifiedIndices: Set<Int> = classTPCount == 0
                 ? typeParamResult.reifiedIndices
                 : Set(typeParamResult.reifiedIndices.map { $0 + classTPCount })
-            // A companion's member extension has two receivers in Kotlin: the
-            // companion singleton (dispatch) and the declared extension type.
-            // The singleton needs no runtime argument, so represent the latter
-            // as the function's receiver for call resolution and lowering.
-            let isCompanionMember = symbols.parentSymbol(for: ownerSymbol).map { parent in
-                symbols.companionObjectSymbol(for: parent) == ownerSymbol
-            } ?? false
-            let extensionReceiverType = isCompanionMember ? resolveTypeRef(
+            let extensionReceiverType = resolveTypeRef(
                 funDecl.receiverType,
                 ast: ast,
                 symbols: symbols,
@@ -291,7 +284,7 @@ extension DataFlowSemaPhase {
                 imports: sourceImports,
                 diagnostics: diagnostics,
                 usageRange: funDecl.range
-            ) : nil
+            )
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: extensionReceiverType ?? ownerType,
@@ -791,6 +784,24 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 interner: interner
             )
+
+            // BUG-inner-outer: reserve the `$outer` field first, before any
+            // of this class's own type params/ctor/members get symbols, so
+            // it lands at the lowest SymbolID (and therefore the first own
+            // field slot LayoutSynthesis assigns) among Inner's children.
+            if nestedClass.isInner {
+                let outerFieldName = interner.intern("$outer")
+                let outerFieldSymbol = symbols.define(
+                    kind: .field,
+                    name: outerFieldName,
+                    fqName: nestedFQName + [outerFieldName],
+                    declSite: nestedClass.range,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(nestedSymbol, for: outerFieldSymbol)
+                symbols.setOuterInstanceFieldSymbol(outerFieldSymbol, for: nestedSymbol)
+            }
 
             if !nestedClass.typeParams.isEmpty {
                 types.setNominalTypeParameterVariances(

@@ -99,6 +99,8 @@ final class KIRLoweringContext {
     var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
     /// Caches raw-returning bridges used by runtime Any.toString dispatch.
     var anyToStringBridgeSymbolsByImplementation: [SymbolID: SymbolID] = [:]
+    /// Caches raw-returning bridges registered in the Throwable `message` vtable slot.
+    var throwableMessageBridgeSymbolsByGetter: [SymbolID: SymbolID] = [:]
     /// Per-nominal vtable/itable registration entries, computed once per type
     /// instead of once per construction site.
     let nominalDispatchCache = KIRNominalDispatchCache()
@@ -589,6 +591,7 @@ final class KIRLoweringContext {
         emittedObjectLiteralExprIDs.removeAll(keepingCapacity: true)
         itableBridgeSymbolsByKey.removeAll(keepingCapacity: true)
         anyToStringBridgeSymbolsByImplementation.removeAll(keepingCapacity: true)
+        throwableMessageBridgeSymbolsByGetter.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
         objectLazyInitBySymbol.removeAll(keepingCapacity: true)
     }

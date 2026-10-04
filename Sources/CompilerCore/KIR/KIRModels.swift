@@ -420,6 +420,7 @@ public final class KIRModule {
     public let arena: KIRArena
     public private(set) var executedLowerings: [String]
     public private(set) var stage: KIRStage
+    package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set

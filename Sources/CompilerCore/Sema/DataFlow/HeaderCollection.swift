@@ -2126,6 +2126,7 @@ extension DataFlowSemaPhase {
         let resolvedFQName = fqName.map(interner.resolve)
         if resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
+            || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
             // KSP-1259: reusing the synthetic Debugging object shell must still
