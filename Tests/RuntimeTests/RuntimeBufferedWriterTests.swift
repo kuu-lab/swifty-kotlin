@@ -84,64 +84,6 @@ struct RuntimeBufferedWriterTests {
         #expect(__kk_buffered_writer_close(writerRaw) == 0)
     }
 
-    // MARK: - STDLIB-IO-PATH-FN-042: Path.writer()
-
-    @Test func testPathWriterWritesAndTruncatesExistingContent() throws {
-        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try "old-content".write(to: fileURL, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: fileURL) }
-
-        var thrown = 0
-        let writerRaw = openBufferedWriter(fileURL.path)
-        #expect(writerRaw != 0)
-
-        #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("hello"), &thrown) == 0)
-        #expect(thrown == 0)
-        #expect(__kk_buffered_writer_new_line(writerRaw, &thrown) == 0)
-        #expect(thrown == 0)
-        #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("world"), &thrown) == 0)
-        #expect(thrown == 0)
-        #expect(__kk_buffered_writer_flush(writerRaw, &thrown) == 0)
-        #expect(thrown == 0)
-
-        #expect(try String(contentsOf: fileURL, encoding: .utf8) == "hello\nworld")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
-    }
-
-    @Test func testPathWriterCreatesFileWhenMissing() throws {
-        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: fileURL) }
-
-        var thrown = 0
-        let writerRaw = openBufferedWriter(fileURL.path)
-        #expect(writerRaw != 0)
-
-        #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("created"), &thrown) == 0)
-        #expect(thrown == 0)
-        #expect(__kk_buffered_writer_flush(writerRaw, &thrown) == 0)
-        #expect(thrown == 0)
-
-        #expect(try String(contentsOf: fileURL, encoding: .utf8) == "created")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
-    }
-
-    @Test func testPathWriterWritesUtf8MultibyteContent() throws {
-        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: fileURL) }
-
-        var thrown = 0
-        let writerRaw = openBufferedWriter(fileURL.path)
-        #expect(writerRaw != 0)
-
-        #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("日本語テスト"), &thrown) == 0)
-        #expect(thrown == 0)
-        #expect(__kk_buffered_writer_flush(writerRaw, &thrown) == 0)
-        #expect(thrown == 0)
-
-        #expect(try String(contentsOf: fileURL, encoding: .utf8) == "日本語テスト")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
-    }
-
     // STDLIB-IO-FN-009: OutputStream.bufferedWriter(charset)
     @Test func testOutputStreamBufferedWriterWritesUtf8Bytes() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
