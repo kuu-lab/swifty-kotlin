@@ -135,6 +135,50 @@ extension DataFlowSemaPhase {
         return LoadedKlibModule(module: module, ir: ir, symbolBySignature: symbolBySignature)
     }
 
+    /// Validates the manifest `depends` lists across the recognized `.klib`s
+    /// and returns them ordered so dependencies come first. `depends` names
+    /// producer `unique_name`s; the special `stdlib` entry resolves to the
+    /// bundled/precompiled standard library rather than another `.klib` on
+    /// the search path. Module-init order follows this ordering, so a
+    /// dependency's top-level initializers and singleton allocations run
+    /// before the dependent's.
+    func resolveKlibDependencies(
+        _ klibs: [KlibModule],
+        stdlibPresent: Bool,
+        diagnostics: DiagnosticEngine
+    ) -> [KlibModule] {
+        var byName: [String: KlibModule] = [:]
+        for klib in klibs where byName[klib.uniqueName] == nil {
+            byName[klib.uniqueName] = klib
+        }
+        var state: [String: Int] = [:] // 1 = on DFS stack, 2 = emitted
+        var ordered: [KlibModule] = []
+        func visit(_ klib: KlibModule) {
+            let name = klib.uniqueName
+            // Kotlin forbids circular library dependencies; a defensive cycle
+            // check stops recursion and keeps the first-seen order.
+            guard state[name] == nil else { return }
+            state[name] = 1
+            for dependency in klib.manifest.depends where !dependency.isEmpty {
+                if let dependencyModule = byName[dependency] {
+                    visit(dependencyModule)
+                } else if dependency != "stdlib" || !stdlibPresent {
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0030",
+                        "klib '\(name)' depends on '\(dependency)' which was not found on the library search path",
+                        range: nil
+                    )
+                }
+            }
+            state[name] = 2
+            ordered.append(klib)
+        }
+        for klib in klibs {
+            visit(klib)
+        }
+        return ordered
+    }
+
     private func linkKlibPropertyDecls(
         _ declarationIds: [Int32],
         fileIndex: Int,
