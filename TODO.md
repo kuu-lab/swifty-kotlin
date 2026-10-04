@@ -1242,9 +1242,10 @@
     - `kotlin.collections.Map.Entry.key` — val Entry.key: #A1  -- `abstract val key`
     - `kotlin.collections.Map.Entry.value` — val Entry.value: #B1  -- `abstract val value`
 
-- [ ] KSP-1069: kotlin.collections.MutableCollection.MutableCollection の未実装 stdlib API を実装する（7 件）
+- [~] KSP-1069: kotlin.collections.MutableCollection.MutableCollection の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.collections.MutableCollection` / receiver `MutableCollection`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableCollection/MutableCollection.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: canonical `Sources/CompilerCore/Stdlib/kotlin/collections/MutableCollection.kt`（iterator は MutableIterable.kt から継承。重複宣言不要）
+  - 実行確認: 独自 MutableCollection の add 以外が false/no-op になる不足を再現し、既存 box ABI を保持して source itable fallback と安定した mutation slot を追加。専用 Sema 契約、backend source/artifact 回帰、kotlinc 2.3.10 単独 diff（O0/O2）で override の呼出し・変更結果・Boolean を検証。全 Golden/全 diff の完了ゲートは未実行。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableCollection_MutableCollection_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableCollection_MutableCollection_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableCollection_MutableCollection_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
