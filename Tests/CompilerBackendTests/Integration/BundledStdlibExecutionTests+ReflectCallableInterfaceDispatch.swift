@@ -87,5 +87,45 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: false
         )
     }
+
+    /// Runtime-registered `KCallable.name` itable shims return the raw String
+    /// handle, but the itable call site expects the flat String aggregate.
+    /// x86-64 SysV happens to pass that result through a hidden first-argument
+    /// pointer the shim can detect; AArch64 returns it in x0-x3, so property
+    /// references read through `KProperty<*>`/`KCallable<*>` crashed there.
+    /// The same interface call site must still dispatch user implementations.
+    @Test
+    func testInterfaceTypedCallableNameMixesRuntimeReferencesAndUserImplementations() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KCallable
+            import kotlin.reflect.KMutableProperty
+            import kotlin.reflect.KProperty
+            import kotlin.reflect.KType
+
+            class Counter(var count: Int)
+
+            class NamedCallable(override val name: String) : KCallable<Int> {
+                override val returnType: KType
+                    get() = throw UnsupportedOperationException()
+            }
+
+            fun describe(callable: KCallable<*>): String = callable.name
+
+            fun main() {
+                val ref: KProperty<*> = Counter::count
+                println(ref.name)
+                val mutableRef: KMutableProperty<*> = Counter::count
+                println(mutableRef.name)
+                val nullableRef: KProperty<*>? = Counter(2)::count
+                println(nullableRef?.name)
+                val callables: List<KCallable<*>> = listOf(Counter::count, NamedCallable("user"))
+                println(callables.map { describe(it) })
+            }
+            """,
+            expectedOutput: "count\ncount\ncount\n[count, user]\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
 }
 #endif

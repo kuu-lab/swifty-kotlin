@@ -735,6 +735,16 @@ struct BundledDeclarationIndex: Sendable {
             }
             arity = signature.parameterTypes.count
             receiverType = signature.receiverType
+        case .constructor:
+            // Source-backed constructors must keep suppressing their synthetic
+            // counterparts when the index is rebuilt from imported stdlib
+            // symbols (e.g. `kotlin.concurrent.AtomicReference(value)`), since
+            // residual registration runs before the artifact's own keys merge.
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return nil
+            }
+            arity = signature.parameterTypes.count
+            receiverType = nil
         case .property, .field:
             arity = 0
             receiverType = symbols.extensionPropertyReceiverType(for: symbolID)
@@ -1001,8 +1011,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: classDecl.nestedClasses,
                 nestedObjects: classDecl.nestedObjects,
                 companionObject: classDecl.companionObject,
+                constructorArities: bundledConstructorArities(of: classDecl),
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
 
@@ -1014,8 +1026,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: interfaceDecl.nestedClasses,
                 nestedObjects: interfaceDecl.nestedObjects,
                 companionObject: interfaceDecl.companionObject,
+                constructorArities: [],
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
 
@@ -1027,8 +1041,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: objectDecl.nestedClasses,
                 nestedObjects: objectDecl.nestedObjects,
                 companionObject: nil,
+                constructorArities: [],
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
 
@@ -1037,16 +1053,36 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
+    private static func bundledConstructorArities(of classDecl: ClassDecl) -> [Int] {
+        var arities = classDecl.secondaryConstructors.map { $0.valueParams.count }
+        if classDecl.hasPrimaryConstructorSyntax {
+            arities.append(classDecl.primaryConstructorParams.count)
+        }
+        return arities
+    }
+
     private static func collectBundledNominalMembers(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
         nestedClasses: [DeclID],
         nestedObjects: [DeclID],
         companionObject: DeclID?,
+        constructorArities: [Int],
         ownerFQName: [InternedString],
         ast: ASTModule,
+        interner: StringInterner,
         keys: inout Set<BundledMemberKey>
     ) {
+        let constructorName = interner.intern("<init>")
+        for arity in constructorArities {
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: constructorName,
+                    arity: arity
+                )
+            )
+        }
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),
                   case let .funDecl(funDecl) = decl
@@ -1082,6 +1118,7 @@ struct BundledDeclarationIndex: Sendable {
                 declID: declID,
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         }
@@ -1091,6 +1128,7 @@ struct BundledDeclarationIndex: Sendable {
                 declID: companionObject,
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         }
@@ -1100,6 +1138,7 @@ struct BundledDeclarationIndex: Sendable {
         declID: DeclID,
         ownerFQName: [InternedString],
         ast: ASTModule,
+        interner: StringInterner,
         keys: inout Set<BundledMemberKey>
     ) {
         guard let decl = ast.arena.decl(declID) else {
@@ -1114,8 +1153,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: classDecl.nestedClasses,
                 nestedObjects: classDecl.nestedObjects,
                 companionObject: classDecl.companionObject,
+                constructorArities: bundledConstructorArities(of: classDecl),
                 ownerFQName: ownerFQName + [classDecl.name],
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         case let .interfaceDecl(interfaceDecl):
@@ -1125,8 +1166,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: interfaceDecl.nestedClasses,
                 nestedObjects: interfaceDecl.nestedObjects,
                 companionObject: interfaceDecl.companionObject,
+                constructorArities: [],
                 ownerFQName: ownerFQName + [interfaceDecl.name],
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         case let .objectDecl(objectDecl):
@@ -1136,8 +1179,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: objectDecl.nestedClasses,
                 nestedObjects: objectDecl.nestedObjects,
                 companionObject: nil,
+                constructorArities: [],
                 ownerFQName: ownerFQName + [objectDecl.name],
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         default:

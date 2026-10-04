@@ -183,7 +183,16 @@ extension DeclTypeChecker {
             ctx: sema
         )
         if let chosenCallee = resolved.chosenCallee {
-            sema.bindings.bindConstructorDelegationTarget(primaryCtorSymbol.id, target: chosenCallee)
+            sema.bindings.bindConstructorDelegationCall(
+                primaryCtorSymbol.id,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping
+                )
+            )
         }
     }
 
@@ -427,7 +436,16 @@ extension DeclTypeChecker {
                     sema.diagnostics.emit(diagnostic)
                 }
                 if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
-                    sema.bindings.bindConstructorDelegationTarget(currentCtorSymbolID, target: chosenCallee)
+                    sema.bindings.bindConstructorDelegationCall(
+                currentCtorSymbolID,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping
+                )
+            )
                 }
             }
         } else if ownerSymbol != nil {
