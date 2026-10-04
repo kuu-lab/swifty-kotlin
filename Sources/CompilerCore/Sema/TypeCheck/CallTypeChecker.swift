@@ -1622,35 +1622,6 @@ final class CallTypeChecker {
         // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
         // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
-        if let calleeName,
-           calleeName == knownNames.delay,
-           args.count == 1
-        {
-            let delayArgType = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: sema.types.longType
-            )
-            if delayArgType == sema.types.intType,
-               let argumentExpr = ast.arena.expr(args[0].expr),
-               case .intLiteral = argumentExpr
-            {
-                sema.bindings.bindExprType(args[0].expr, type: sema.types.longType)
-            } else {
-                driver.emitSubtypeConstraint(
-                    left: delayArgType,
-                    right: sema.types.longType,
-                    range: ast.arena.exprRange(args[0].expr) ?? range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-            }
-            sema.bindings.bindExprType(id, type: sema.types.unitType)
-            return sema.types.unitType
-        }
-
         let isCoroutineLauncher = calleeName == knownNames.runBlocking
             || calleeName == knownNames.launch
             || calleeName == knownNames.async
@@ -2773,12 +2744,19 @@ final class CallTypeChecker {
             ]
             let isCoroutineBuilderCandidate: (SymbolID) -> Bool = { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                return sema.symbols.externalLinkName(for: candidate) == "kk_coroutine_scope_async"
+                let externalLinkName = sema.symbols.externalLinkName(for: candidate)
+                return externalLinkName == "kk_coroutine_scope_async"
+                    || externalLinkName == "kk_with_timeout"
+                    || externalLinkName == "kk_with_timeout_or_null"
                     || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
             }
-            let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains(where: isCoroutineBuilderCandidate)
+            let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains { candidate in
+                isCoroutineBuilderCandidate(candidate)
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null"
+            }
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
             // class. Resolve it against that enclosing receiver's type rather
@@ -2876,6 +2854,17 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
+            }
+            if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
+               externalLinkName == "kk_with_timeout" || externalLinkName == "kk_with_timeout_or_null",
+               let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner)
+            {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+                        sema.bindings.bindCoroutineScopeLambdaReceiverType(argument.expr, type: coroutineScopeType)
+                    }
+                }
             }
             // Resolution may narrow a literal only after choosing a vararg
             // element type. Persist that type for KIR lowering and codegen.

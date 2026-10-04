@@ -66,6 +66,10 @@ struct CoroutineSyntheticStubTests {
                 val timed: Int = withTimeout(1000L, block = g)
                 val nullable: Int? = withTimeoutOrNull(1000L, block = g)
                 val nullableBlock: suspend CoroutineScope.() -> Int? = { null }
+                val nullableTimed: Int? = withTimeout(1000, block = nullableBlock)
+                val nullableOrNull: Int? = withTimeoutOrNull(1000, block = nullableBlock)
+                val timeoutScope: CoroutineScope = withTimeout(1000) { this }
+                val nullableTimeoutScope: CoroutineScope? = withTimeoutOrNull(1000) { this }
                 val nullableTask: Deferred<Int?> = async(block = nullableBlock)
                 val nullableValue: Int? = nullableTask.await()
                 val literalTask: Deferred<Int> = async { 11 }

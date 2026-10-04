@@ -1,4 +1,5 @@
 import kotlinx.coroutines.*
+import kotlin.time.Duration.Companion.seconds
 
 fun CoroutineScope.scopeValue(): Int = 9
 
@@ -48,5 +49,12 @@ fun main() {
         println(literalTask.await())
         val nullableLiteralTask: Deferred<Int?> = async { null as Int? }
         println(nullableLiteralTask.await())
+        println(withTimeout(1000, block = g))
+        println(withTimeout(1.seconds, block = g))
+        println(withTimeoutOrNull(1000, block = nullValue))
+        println(withTimeoutOrNull(1.seconds, block = nullValue))
+        println(withTimeout(1000, block = zero))
+        println(withTimeout(1000) { scopeValue() + bonus })
+        println(withTimeoutOrNull(1000) { scopeValue() + bonus })
     }
 }

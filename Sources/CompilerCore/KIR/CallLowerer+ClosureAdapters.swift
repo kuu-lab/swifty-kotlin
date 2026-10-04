@@ -15,11 +15,14 @@ extension CallLowerer {
     ) {
         guard let chosenCallee,
               let callee = sema.symbols.symbol(chosenCallee),
-              callee.flags.contains(.synthetic),
-              !callee.flags.contains(.importedLibrary),
               callee.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
               ["runBlocking", "launch", "async", "withContext", "withTimeout", "withTimeoutOrNull"]
                 .contains(interner.resolve(callee.name)),
+              (callee.flags.contains(.synthetic)
+                  && !callee.flags.contains(.importedLibrary))
+                || ["kk_with_timeout", "kk_with_timeout_or_null"].contains(
+                    sema.symbols.externalLinkName(for: chosenCallee)
+                ),
               let blockIndex = arguments.indices.first(where: { index in
                   guard let type = arena.exprType(arguments[index]),
                         case let .functionType(function) = sema.types.kind(of: type) else { return false }

@@ -651,7 +651,9 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.hasReceiver {
             loweredArity += 1
         }
-        loweredArity += declaration.functionTypedParameterCount
+        if !usesCoroutineBlockEntryPoint(declaration) {
+            loweredArity += declaration.functionTypedParameterCount
+        }
         // A `vararg` value parameter lowers to a (packed array pointer, count)
         // pair in the runtime ABI (see CallSupportLowerer's kk_array_of path),
         // so each vararg contributes one extra count parameter.
@@ -661,7 +663,9 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.isSuspend {
             loweredArity += 1
         }
-        if specs.contains(where: \.isThrowing) {
+        if specs.contains(where: {
+            $0.isThrowing && $0.parameterTypeStrings.last == RuntimeABICType.nullableIntptrPointer.rawValue
+        }) {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
@@ -686,7 +690,9 @@ struct RuntimeABIExternalLinkValidationTests {
             if normalizedKotlinType(declaration.returnType) == "String" {
                 flatCount += 3
             }
-            if specs.contains(where: \.isThrowing) {
+            if specs.contains(where: {
+                $0.isThrowing && $0.parameterTypeStrings.last == RuntimeABICType.nullableIntptrPointer.rawValue
+            }) {
                 flatCount += 1
             }
             candidates.insert(flatCount)
@@ -700,6 +706,13 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func flatABIParameterCount(for type: String?) -> Int {
         normalizedKotlinType(type) == "String" ? 4 : (type == nil ? 0 : 1)
+    }
+
+    private func usesCoroutineBlockEntryPoint(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
+        declaration.isSuspend
+            && ["kk_with_timeout", "kk_with_timeout_or_null"].contains(declaration.linkName)
+            && declaration.valueParameterTypes.count == 2
+            && isFunctionType(declaration.valueParameterTypes[1])
     }
 
     private func normalizedKotlinType(_ type: String?) -> String {
@@ -773,6 +786,12 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         for (index, parameterType) in declaration.valueParameterTypes.enumerated() {
+            // Timeout lowering stores captures in the continuation and passes
+            // only the block entry point, not a (function, closure) pair.
+            if index == 1, usesCoroutineBlockEntryPoint(declaration) {
+                types.append(RuntimeABICType.intptr.rawValue)
+                continue
+            }
             if index < declaration.valueParameterIsVararg.count,
                declaration.valueParameterIsVararg[index] {
                 // vararg -> (packed array pointer, element count)

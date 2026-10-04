@@ -236,7 +236,7 @@ extension InlineLoweringPass {
                     outputCount: lowered.instructions.count, arena: module.arena
                 ) else { return nil }
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let nestedLambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
