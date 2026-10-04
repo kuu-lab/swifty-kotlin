@@ -476,10 +476,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "collectorEnvPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_flow_collectLatest",
@@ -488,10 +489,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "collectorEnvPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_flow_retain",
@@ -872,6 +874,65 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false
+        ),
+        // ChannelResult-boxed send/receive bridges and box accessors
+        // (KSP-1572). `kk_channel_try_send` keeps its bare-status contract;
+        // the `__kk_` variants return a `RuntimeChannelResultBox` handle.
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_try_receive",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_try_send",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_receive_catching",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_result_status",
+            parameters: [
+                RuntimeABIParameter(name: "boxRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_result_value_or_null",
+            parameters: [
+                RuntimeABIParameter(name: "boxRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_channel_result_get_or_throw",
+            parameters: [
+                RuntimeABIParameter(name: "boxRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_identity",

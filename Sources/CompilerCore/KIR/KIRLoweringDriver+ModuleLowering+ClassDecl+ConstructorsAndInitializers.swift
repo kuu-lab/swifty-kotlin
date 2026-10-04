@@ -206,106 +206,19 @@ extension KIRLoweringDriver {
             resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
                 || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
-        let throwableFQName = [
-            shared.interner.intern("kotlin"),
-            shared.interner.intern("Throwable"),
-        ]
-        let isZeroArgumentThrowableFactory = sema.symbols.externalLinkName(for: superCtorSymbol)
-            == "__kk_throwable_new"
-            && sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes.isEmpty == true
         if !isSourceBackedTimeSource,
-           callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
-            || isZeroArgumentThrowableFactory
+           isRuntimeThrowableSuperConstructor(superCtorSymbol, sema: sema)
         {
-            // Runtime-backed Throwable construction returns its own native box,
-            // while a Kotlin subclass already owns the compiler-emitted object.
-            // Initialize that object through the message accessors instead of
-            // discarding it in favor of the factory result. Ordinary imported
-            // source-backed constructors are handled by the normal super call
-            // below; their non-empty link names are not runtime ABI factories.
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-            guard let throwableSymbol = sema.symbols.lookup(fqName: throwableFQName) else {
-                return
-            }
-            let nullableThrowableType = sema.types.make(.classType(ClassType(
-                classSymbol: throwableSymbol,
-                args: [],
-                nullability: .nullable
-            )))
-            let superclassType = sema.types.make(.classType(ClassType(
-                classSymbol: superclassSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let throwableType = sema.types.make(.classType(ClassType(
-                classSymbol: throwableSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            guard sema.types.isSubtype(superclassType, throwableType),
-                  let signature = sema.symbols.functionSignature(for: superCtorSymbol)
-            else {
-                return
-            }
-
-            func setterSymbol(named name: String) -> SymbolID? {
-                sema.symbols.lookupAll(
-                    fqName: throwableFQName.dropLast() + [shared.interner.intern(name)]
-                ).first(where: { candidate in
-                    sema.symbols.symbol(candidate)?.kind == .function
-                })
-            }
-
-            func emitSetter(_ symbol: SymbolID, argument: KIRExprID, fallbackName: String) {
-                let resultID = arena.appendTemporary(type: sema.types.unitType)
-                body.append(.call(
-                    symbol: symbol,
-                    callee: shared.interner.intern(
-                        sema.symbols.externalLinkName(for: symbol) ?? fallbackName
-                    ),
-                    arguments: [receiverID, argument],
-                    result: resultID,
-                    canThrow: false,
-                    thrownResult: nil,
-                    isSuperCall: false
-                ))
-            }
-
-            switch signature.parameterTypes.count {
-            case 0:
-                guard superArgs.isEmpty,
-                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage")
-                else {
-                    return
-                }
-                let messageID = arena.appendExpr(.null, type: nullableStringType)
-                body.append(.constValue(result: messageID, value: .null))
-                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
-            case 1:
-                guard signature.parameterTypes[0] == nullableStringType,
-                      superArgs.count == 1,
-                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage")
-                else {
-                    return
-                }
-                let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
-                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
-            case 2:
-                guard signature.parameterTypes[0] == nullableStringType,
-                      signature.parameterTypes[1] == nullableThrowableType,
-                      superArgs.count == 2,
-                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage"),
-                      let causeSetter = setterSymbol(named: "__kkThrowableSetCause")
-                else {
-                    return
-                }
-                let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
-                let causeID = lowerExpr(superArgs[1].expr, shared: shared, emit: &body)
-                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
-                emitSetter(causeSetter, argument: causeID, fallbackName: "__kkThrowableSetCause")
-            default:
-                return
-            }
+            emitRuntimeThrowableSuperInitialization(
+                superCtorSymbol: superCtorSymbol,
+                superclassSymbol: superclassSymbol,
+                receiver: receiverID,
+                loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
+                spreadFlags: superArgs.map(\.isSpread),
+                callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+                shared: shared,
+                body: &body
+            )
             return
         }
         // Synthetic nominal shells may expose a constructor for Sema
@@ -349,6 +262,124 @@ extension KIRLoweringDriver {
             shared: shared,
             body: &body
         )
+    }
+
+    /// True when a `super(...)` target is a runtime-backed Throwable
+    /// constructor (`@KsSymbolName("__kk_exception_new_message")` etc.). Such
+    /// a constructor returns its own native box instead of initializing the
+    /// compiler-allocated subclass object, so it cannot be called as `<init>`.
+    func isRuntimeThrowableSuperConstructor(_ superCtorSymbol: SymbolID, sema: SemaModule) -> Bool {
+        if callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema) {
+            return true
+        }
+        return sema.symbols.externalLinkName(for: superCtorSymbol) == "__kk_throwable_new"
+            && sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes.isEmpty == true
+    }
+
+    /// Initializes a Kotlin Throwable subclass whose `super(...)` target is a
+    /// runtime factory (see `isRuntimeThrowableSuperConstructor`). The factory
+    /// is called with the normalized arguments (named arguments reordered like
+    /// any call site), and the message / cause of the box it returns are copied
+    /// onto `receiver`. Copying instead of mapping parameters by hand keeps the
+    /// factory's own semantics, e.g. `Exception(cause)` deriving its message
+    /// from `cause.toString()`.
+    func emitRuntimeThrowableSuperInitialization(
+        superCtorSymbol: SymbolID,
+        superclassSymbol: SymbolID,
+        receiver: KIRExprID,
+        loweredArgs: [KIRExprID],
+        spreadFlags: [Bool],
+        callBinding: CallBinding?,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        let throwableFQName = [interner.intern("kotlin"), interner.intern("Throwable")]
+        guard let throwableSymbol = sema.symbols.lookup(fqName: throwableFQName) else {
+            return
+        }
+        let superclassType = sema.types.make(.classType(ClassType(
+            classSymbol: superclassSymbol, args: [], nullability: .nonNull
+        )))
+        let throwableType = sema.types.make(.classType(ClassType(
+            classSymbol: throwableSymbol, args: [], nullability: .nonNull
+        )))
+        guard sema.types.isSubtype(superclassType, throwableType) else {
+            return
+        }
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+        let nullableThrowableType = sema.types.makeNullable(throwableType)
+
+        func helperSymbol(named name: String) -> SymbolID? {
+            sema.symbols.lookupAll(
+                fqName: throwableFQName.dropLast() + [interner.intern(name)]
+            ).first(where: { sema.symbols.symbol($0)?.kind == .function })
+        }
+
+        func emitHelperCall(_ name: String, arguments: [KIRExprID], resultType: TypeID) -> KIRExprID? {
+            guard let symbol = helperSymbol(named: name) else {
+                return nil
+            }
+            let resultID = arena.appendTemporary(type: resultType)
+            body.append(.call(
+                symbol: symbol,
+                callee: interner.intern(sema.symbols.externalLinkName(for: symbol) ?? name),
+                arguments: arguments,
+                result: resultID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+            return resultID
+        }
+
+        guard callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema) else {
+            // `Throwable()`'s bare allocator: only the message slot needs a
+            // defined (null) value.
+            let messageID = arena.appendExpr(.null, type: nullableStringType)
+            body.append(.constValue(result: messageID, value: .null))
+            _ = emitHelperCall(
+                "__kkThrowableSetMessage", arguments: [receiver, messageID], resultType: sema.types.unitType
+            )
+            return
+        }
+
+        var factoryArgs = loweredArgs
+        if let callBinding, callBinding.chosenCallee == superCtorSymbol {
+            factoryArgs = callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgs,
+                callBinding: callBinding,
+                chosenCallee: superCtorSymbol,
+                spreadFlags: spreadFlags,
+                shared: shared,
+                emit: &body
+            ).arguments
+        }
+        let factoryResult = arena.appendTemporary(type: throwableType)
+        body.append(.call(
+            symbol: superCtorSymbol,
+            callee: interner.intern(sema.symbols.externalLinkName(for: superCtorSymbol) ?? "<init>"),
+            arguments: factoryArgs,
+            result: factoryResult,
+            canThrow: sema.symbols.functionSignature(for: superCtorSymbol)?.canThrow ?? false,
+            thrownResult: nil
+        ))
+        if let messageID = emitHelperCall(
+            "__kkThrowableMessage", arguments: [factoryResult], resultType: nullableStringType
+        ) {
+            _ = emitHelperCall(
+                "__kkThrowableSetMessage", arguments: [receiver, messageID], resultType: sema.types.unitType
+            )
+        }
+        if let causeID = emitHelperCall(
+            "__kkThrowableCause", arguments: [factoryResult], resultType: nullableThrowableType
+        ) {
+            _ = emitHelperCall(
+                "__kkThrowableSetCause", arguments: [receiver, causeID], resultType: sema.types.unitType
+            )
+        }
     }
 
     private func emitPrimaryConstructorPropertyInitializers(

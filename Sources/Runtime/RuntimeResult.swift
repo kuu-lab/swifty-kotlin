@@ -33,6 +33,11 @@ func runtimeResultFailure(_ exception: Int) -> Int {
     registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception), typeID: runtimeStableNominalTypeID(fqName: "kotlin.Result"))
 }
 
+/// Kotlin `Result.toString()`: `Success(value)` / `Failure(throwable)`.
+func runtimeResultToString(_ box: RuntimeResultBox, render: (Int) -> String) -> String {
+    box.isSuccess ? "Success(\(render(box.value)))" : "Failure(\(render(box.exception)))"
+}
+
 func runtimeResultIsSuccess(_ resultRaw: Int) -> Bool {
     guard let box = resultBoxFromRaw(resultRaw) else { return false }
     return box.isSuccess

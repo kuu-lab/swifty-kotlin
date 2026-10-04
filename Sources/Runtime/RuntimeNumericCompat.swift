@@ -1608,8 +1608,13 @@ public func kk_op_uge(_ lhs: Int, _ rhs: Int) -> Int {
 
 // MARK: - Int/Long arithmetic ops (flooring division and modulo)
 
-private func runtimeFloorDiv(_ lhs: Int, _ rhs: Int) -> Int {
-    if rhs == 0 { return 0 }
+// PEC-NUM-0002: `floorDiv`/`mod` by zero throw ArithmeticException("/ by zero")
+// like `/`/`%`; outThrown is set and 0 is returned when rhs == 0.
+private func runtimeFloorDiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
     if lhs == Int.min && rhs == -1 { return lhs }
     let quotient = lhs / rhs
     let remainder = lhs % rhs
@@ -1620,14 +1625,14 @@ private func runtimeFloorDiv(_ lhs: Int, _ rhs: Int) -> Int {
 }
 
 @_cdecl("kk_op_floor_div")
-public func kk_op_floor_div(_ lhs: Int, _ rhs: Int) -> Int {
-    runtimeFloorDiv(lhs, rhs)
+public func kk_op_floor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeFloorDiv(lhs, rhs, outThrown)
 }
 
 @_cdecl("kk_op_lfloor_div")
-public func kk_op_lfloor_div(_ lhs: Int, _ rhs: Int) -> Int {
+public func kk_op_lfloor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     // Long uses same Int representation on 64-bit platforms.
-    runtimeFloorDiv(lhs, rhs)
+    runtimeFloorDiv(lhs, rhs, outThrown)
 }
 
 // PEC-NUM-0002: integer division/remainder must throw ArithmeticException("/ by zero").
@@ -1680,8 +1685,11 @@ public func kk_op_urem(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer
     return Int(bitPattern: UInt(bitPattern: lhs) % UInt(bitPattern: rhs))
 }
 
-private func runtimeFloorMod(_ lhs: Int, _ rhs: Int) -> Int {
-    if rhs == 0 { return 0 }
+private func runtimeFloorMod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
     if lhs == Int.min && rhs == -1 { return 0 }
     let remainder = lhs % rhs
     if remainder != 0 && ((lhs < 0) != (rhs < 0)) {
@@ -1691,13 +1699,13 @@ private func runtimeFloorMod(_ lhs: Int, _ rhs: Int) -> Int {
 }
 
 @_cdecl("kk_op_floor_mod")
-public func kk_op_floor_mod(_ lhs: Int, _ rhs: Int) -> Int {
-    runtimeFloorMod(lhs, rhs)
+public func kk_op_floor_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeFloorMod(lhs, rhs, outThrown)
 }
 
 @_cdecl("kk_op_lfloor_mod")
-public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
-    runtimeFloorMod(lhs, rhs)
+public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeFloorMod(lhs, rhs, outThrown)
 }
 
 // MARK: - Char operations
