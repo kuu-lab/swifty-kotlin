@@ -107,6 +107,27 @@ closeFnPtr, closeClosureRaw) -> streamRaw` を追加した。呼び出し側は
 ケースは upstream の closed 意味論（Buffer-backed は close 後も書き込みが流れる、
 RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を検証する。
 
+## ByteString 連携（KSP-1556 / KUU-892）
+
+Segment ベースの Buffer と UnsafeBufferOperations（KSP-1547）を土台に、
+`ByteStrings.kt` の `Sink.write(ByteString, startIndex, endIndex)`、
+`Source.readByteString()` / `readByteString(byteCount)`、`Source.indexOf(ByteString, startIndex)`、
+`Buffer.indexOf(ByteString, startIndex)` と `Buffers.kt` の `Buffer.snapshot()` を追加した。
+snapshot は `UnsafeBufferOperations.forEachSegment` / `SegmentReadContext.withData` で
+各セグメントの有効範囲だけをコピーし、Buffer を消費しない。`Buffer.copy()` / 内部 `seek`
+は KSP-1547 の実装を利用する。upstream 0.9.1 の snapshot は引数なしのみ。
+
+`Sources.kt` の `readByteArray` 拡張はまだ未対応のため、ByteString 読み出しは同じ require / EOF
+検証の後で Buffer から新規 ByteArray にコピーし、`UnsafeByteStringOperations.wrapUnsafe` で包む。
+新規 Runtime ABI は追加していない。差分ケース `kotlinx_io_bytestring_io_*.kt` は、
+ByteArray メンバとの write オーバーロード共存、部分書き込み、読み出し、非消費 snapshot、
+copy の独立性、セグメント間の検索、buffered Source/Sink、境界・EOF 例外を検証する。
+
+検索は private helper に分離し、ネストした inline lambda の capture 置換不具合
+（[KUU-985](https://linear.app/kuu/issue/KUU-985/nested-inline-lambdas-retain-unbound-captures-after-expansion-non)）
+を避けている。同名メンバが適用できない場合は、import scope からアクセス可能な bundled
+拡張を再解決する。`@OnlyInputTypes` を持つ拡張はこの再解決の対象外としている。
+
 ## 未対応（次PR以降）
 
 - `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
@@ -118,9 +139,6 @@ RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を�
 - `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`,
   `readUByte`/`writeUShort`等の unsigned 変換, `readFloat`/`writeDouble`, `readDecimalLong`,
   `readHexadecimalUnsignedLong`, `writeToInternalBuffer` 等）
-- `Buffers.kt` の `Buffer.snapshot()`（`ByteString` が必要）
-- `kotlinx.io.bytestring`（`ByteString`, `ByteStringBuilder`, `Base64`, `Hex`,
-  `UnsafeByteStringOperations`）— ユーザ依頼の「ByteString」PR に相当
 - `kotlinx.io.files`（`FileSystem`, `Path`）
 
 ## 計測：`Scripts/ktor_build.sh`

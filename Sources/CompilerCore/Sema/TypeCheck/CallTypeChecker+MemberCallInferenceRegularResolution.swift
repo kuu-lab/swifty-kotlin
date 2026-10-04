@@ -2066,7 +2066,13 @@ extension CallTypeChecker {
                     let isUser = symbol.declSite.map {
                         driver.sourceManager?.origin(of: $0.start.file) == .user
                     } ?? false
-                    guard isUser || sema.symbols.isSourceBackedSymbol(candidate) else { return false }
+                    guard isUser || sema.symbols.isSourceBackedSymbol(candidate),
+                          ctx.visibilityChecker.isAccessible(
+                              symbol,
+                              fromFile: ctx.currentFileID,
+                              enclosingClass: ctx.enclosingClassSymbol
+                          )
+                    else { return false }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
