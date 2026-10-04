@@ -376,6 +376,34 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // KSP-1573: `Channel.Factory` companion anchor. The bundled
+        // RENDEZVOUS / UNLIMITED / CONFLATED / BUFFERED / OPTIONAL_CHANNEL
+        // constants in Stdlib/kotlinx/coroutines/channels/Channel.kt are
+        // extension properties on this companion, so `Channel.X` and
+        // `Channel.Factory.X` both resolve.
+        if symbols.companionObjectSymbol(for: channelSymbol) == nil {
+            let factoryName = interner.intern("Factory")
+            let factoryFQName = channelsPkg
+                + [interner.intern("Channel"), factoryName]
+            if let existing = symbols.lookupAll(fqName: factoryFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID) else { return false }
+                return symbol.kind == .object || symbol.kind == .class || symbol.kind == .interface
+            }) {
+                symbols.setParentSymbol(channelSymbol, for: existing)
+                symbols.setCompanionObjectSymbol(existing, for: channelSymbol)
+            } else {
+                let factorySymbol = symbols.define(
+                    kind: .object,
+                    name: factoryName,
+                    fqName: factoryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(channelSymbol, for: factorySymbol)
+                symbols.setCompanionObjectSymbol(factorySymbol, for: channelSymbol)
+            }
+        }
         // KSP-678: `ChannelIterator<T>` is the runtime handle returned by
         // `Channel<T>.iterator()`. Registered as a synthetic handle type (like
         // Channel itself) so the bundled Kotlin iterator/hasNext/next extension
@@ -957,12 +985,6 @@ extension DataFlowSemaPhase {
             args: [.invariant(createCoroutineTypeParameterType)],
             nullability: .nonNull
         )))
-        let createCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: createCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
         let createCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
             receiver: createCoroutineReceiverTypeParameterType,
             params: [],
@@ -1000,12 +1022,6 @@ extension DataFlowSemaPhase {
         let startCoroutineContinuationType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.invariant(startCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let startCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: startCoroutineTypeParameterType,
-            isSuspend: true,
             nullability: .nonNull
         )))
         let startCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
@@ -1157,17 +1173,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "startCoroutineUninterceptedOrReturn",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: startCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: startCoroutineContinuationType)],
-            returnType: types.nullableAnyType,
-            flags: [.synthetic, .inlineFunction],
-            typeParameterSymbols: [startCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
+        // The no-receiver overload is source-backed in SuspendFunction0.kt.
         registerSyntheticCoroutineExtensionFunction(
             named: "startCoroutineUninterceptedOrReturn",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -1182,16 +1188,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "createCoroutineUnintercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: createCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: createCoroutineCompletionType)],
-            returnType: continuationOfUnitType,
-            typeParameterSymbols: [createCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
+
+        // The no-receiver overload is source-backed in SuspendFunction0.kt.
         registerSyntheticCoroutineExtensionFunction(
             named: "createCoroutineUnintercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -1252,9 +1250,24 @@ extension DataFlowSemaPhase {
         )
         // STDLIB-CORO-075: `produce { ... }` returns a `Channel<T>` and runs the
         // block with a `Channel<T>` receiver so channel sends resolve correctly.
+        // KSP-1573: the bundled `CoroutineScope.produce` extension
+        // (Stdlib/kotlinx/coroutines/channels/Produce.kt) supersedes this
+        // stub; keep the synthetic only for configurations without that
+        // source. The bundled index keys extensions on the receiver's owner
+        // fqName, so the check keys off CoroutineScope.
+        let coroutineScopeMemberOwner = coroutinesPkg + [interner.intern("CoroutineScope")]
         let functionName = interner.intern("produce")
+        let hasSourceBackedProduce = bundledIndex.contains(
+            ownerFQName: coroutineScopeMemberOwner,
+            name: functionName,
+            arity: 1
+        ) || bundledIndex.contains(
+            ownerFQName: coroutineScopeMemberOwner,
+            name: functionName,
+            arity: 2
+        )
         let functionFQName = channelsPkg + [functionName]
-        if symbols.lookup(fqName: functionFQName) == nil {
+        if !hasSourceBackedProduce, symbols.lookup(fqName: functionFQName) == nil {
             let typeParamName = interner.intern("T")
             let typeParamSymbol = symbols.define(
                 kind: .typeParameter,

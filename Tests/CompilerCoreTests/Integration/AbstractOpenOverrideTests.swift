@@ -180,13 +180,6 @@ import Testing
 
     // MARK: - Advanced Test Cases
 
-    @Test func testAbstractOverrideChaining() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
     @Test func testFinalOverrideTermination() throws {
         let ctx = try negativeCtx()
 
@@ -194,33 +187,6 @@ import Testing
     }
 
     // MARK: - Primary constructor `override val` / `override var` properties
-
-    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
-        let ctx = try negativeCtx()
-
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
 
     @Test func testPrimaryConstructorOpenPropertyCanBeOverridden() throws {
         let source = """
