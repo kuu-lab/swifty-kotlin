@@ -40,7 +40,7 @@ struct ComparisonsNullsFirstComparatorFunctionTests {
         let sema = try #require(ctx.sema)
         let calls = ast.arena.exprs.indices.compactMap { index -> (ExprID, [CallArgument])? in
             let id = ExprID(rawValue: Int32(index))
-            guard isUserSourceExpr(id, ast: ast, ctx: ctx),
+            guard isUserSourceExpr(id, in: ctx),
                   case let .call(callee, _, args, _) = ast.arena.expr(id),
                   case let .nameRef(name, _) = ast.arena.expr(callee),
                   ["compareBy", "compareByDescending"].contains(ctx.interner.resolve(name))
