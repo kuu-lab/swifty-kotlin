@@ -21,7 +21,7 @@ fun main() {
     probe("user error") { throw MyError("u") }
     probe("state") { error("s") }
     probe("arith") { val zero = 0; println(1 / zero) }
-    probe("index") { println(listOf(1)[3]) }
+    probe("index") { println(listOf(1, 2, 3)[5]) }
 
     // Multi-clause: an Error skips the Exception clause and hits Error.
     try {

@@ -21,6 +21,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
+        "Sema/kotlinx_coroutines_completable.kt",
     ]
 
     private static let requiredArtifactTargetedCases: Set<String> = [
@@ -32,6 +33,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_HashSet_n_n.kt",
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
+        "Sema/kotlinx_coroutines_completable.kt",
     ]
 
     private static let requiredTargetContracts: Set<String> = [
@@ -50,6 +52,9 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlin.collections.Map.Entry.value[kind=prop]",
         "artifact|kotlin.collections.List[kind=iface;gen=1]",
         "artifact|kotlin.collections.MutableCollection[kind=iface;gen=1]",
+        "artifact|kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1]",
+        "artifact|kotlinx.coroutines.CompletableJob[kind=iface]",
+        "artifact|kotlinx.coroutines.Deferred[kind=iface;gen=1]",
         "source|kotlin.sequences.Sequence.shuffled[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]",
     ]
 
