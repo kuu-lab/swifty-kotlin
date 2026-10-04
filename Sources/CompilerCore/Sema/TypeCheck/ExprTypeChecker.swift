@@ -89,7 +89,21 @@ final class ExprTypeChecker {
             return stringType
 
         case let .nameRef(name, nameRange):
-            return inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            let nameType = inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            // `val f: Factory<Widget> = Widget`: a bare class name whose own type does not
+            // satisfy the expected type may still denote its companion object, which does.
+            if let expectedType,
+               !sema.types.isSubtype(nameType, expectedType),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   id, currentType: nameType, ast: ast, sema: sema
+               )
+            {
+                if sema.types.isSubtype(companionType, expectedType) {
+                    return companionType
+                }
+                sema.bindings.bindExprType(id, type: nameType)
+            }
+            return nameType
 
         case let .forExpr(loopVariable, iterableExpr, bodyExpr, label, range):
             return driver.controlFlowChecker.inferForExpr(id, loopVariable: loopVariable, iterableExpr: iterableExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)

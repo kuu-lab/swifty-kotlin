@@ -128,7 +128,12 @@ final class LocalDeclTypeChecker {
                     }
                 }
             } else if let initializerType {
-                localType = initializerType
+                // `val x = ClassName` holds the class's companion object.
+                localType = initializer.flatMap {
+                    driver.helpers.retypeClassNameAsCompanionValue(
+                        $0, currentType: initializerType, ast: ast, sema: sema
+                    )
+                } ?? initializerType
             } else {
                 localType = sema.types.errorType
             }
