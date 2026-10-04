@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 /// Termination contracts for the inline pass (RF-LOWER-INLINE-010): calls
@@ -68,30 +69,40 @@ struct InlineTerminationContractTests {
         }
     }
 
-    // MARK: - Bodyless-snapshot round boundary (4 rounds)
+    // MARK: - Bodyless-snapshot dependency scheduling
 
-    /// A bodyless delegation chain whose depth fits the bounded
-    /// re-expansion converges: no pending callers remain.
-    @Test
-    func testBodylessChainWithinRoundLimitConverges() throws {
+    /// Caller-first names exceed both the former four snapshot rounds and
+    /// the eight caller rescans. Each side effect must appear exactly once.
+    @Test(arguments: [(5, false), (80, false), (80, true)])
+    func testBodylessChainConverges(depth: Int, imported: Bool) throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let leaf = makeFunction("leaf", symbol: 100, interner: interner, types: types)
         var chain: [KIRFunction] = []
-        for i in 1 ... 5 {
-            let next = i == 5
+        for i in 1 ... depth {
+            let next = i == depth
                 ? (leaf.symbol, "leaf")
-                : (SymbolID(rawValue: Int32(i + 1)), String(format: "f%02d", i + 1))
+                : (SymbolID(rawValue: Int32(i + 1)), String(format: "f%03d", i + 1))
             chain.append(makeFunction(
-                String(format: "f%02d", i), symbol: Int32(i), interner: interner,
+                String(format: "f%03d", i), symbol: Int32(i), interner: interner,
                 types: types,
-                body: [call(to: next.0, callee: next.1, interner: interner)],
+                body: [
+                    call(to: nil, callee: "effect\(i)", interner: interner),
+                    call(to: next.0, callee: next.1, interner: interner),
+                    .returnUnit,
+                ],
                 isInline: true, isInlineOnly: true
             ))
         }
-        let module = makeModule(chain + [leaf])
+        let main = makeFunction(
+            "main", symbol: 1000, interner: interner, types: types,
+            body: [call(to: chain[0].symbol, callee: "f001", interner: interner)]
+        )
+        let module = makeModule((imported ? [] : chain) + [leaf, main])
         let index = InlineExpansionIndex(
-            module: module, importedInlineFunctions: ImportedInlineFunctionStore()
+            module: module, importedInlineFunctions: ImportedInlineFunctionStore(
+                functions: imported ? Dictionary(uniqueKeysWithValues: chain.map { ($0.symbol, $0) }) : [:]
+            )
         )
         let ctx = makeContext(diagnostics: DiagnosticEngine(), interner: interner)
 
@@ -100,13 +111,227 @@ struct InlineTerminationContractTests {
         )
 
         #expect(index.pendingBodylessCallers(interner: interner).isEmpty)
+        let expected = (1 ... depth).map { "effect\($0)" } + ["leaf"]
+        let first = try #require(index.inlineFunctionsBySymbol[chain[0].symbol])
+        #expect(callTargets(of: first, interner: interner).map(\.callee) == expected)
+        let caller = try #require(index.allFunctionsBySymbol[main.symbol])
+        #expect(callTargets(of: caller, interner: interner).map(\.callee) == expected)
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test(arguments: [false, true])
+    func testDiamondExpansionIsDeterministicAndDoesNotRepeatOriginals(reverse: Bool) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let marker = module.arena.appendExpr(.intLiteral(7), type: types.intType)
+        let shared = makeFunction(
+            "zShared", symbol: 4, interner: interner, types: types,
+            body: [.constValue(result: marker, value: .intLiteral(7)), .returnUnit],
+            isInline: true, isInlineOnly: true
+        )
+        let branches = ["bLeft", "cRight"].enumerated().map { offset, name in
+            makeFunction(
+                name, symbol: Int32(offset + 2), interner: interner, types: types,
+                body: [call(to: shared.symbol, callee: "zShared", interner: interner), .returnUnit],
+                isInline: true, isInlineOnly: true
+            )
+        }
+        let root = makeFunction(
+            "aRoot", symbol: 1, interner: interner, types: types,
+            body: branches.map { call(to: $0.symbol, callee: interner.resolve($0.name), interner: interner) },
+            isInline: true, isInlineOnly: true
+        )
+        let functions = [root] + branches + [shared]
+        for function in reverse ? functions.reversed() : functions {
+            _ = module.arena.appendDecl(.function(function))
+        }
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let ctx = makeContext(diagnostics: DiagnosticEngine(), interner: interner)
+
+        InlineLoweringPass().expandNestedBodylessInlineCalls(index: index, module: module, ctx: ctx, unitType: nil)
+
+        // One clone per branch, two in root: revisiting an original would
+        // allocate additional expressions even if the final body looked right.
+        #expect(module.arena.expressions.count == 5)
+        let body = try #require(index.inlineFunctionsBySymbol[root.symbol]).body
+        let results = body.compactMap { instruction -> Int32? in
+            guard case let .constValue(result, .intLiteral(7)) = instruction else { return nil }
+            return result.rawValue
+        }
+        #expect(results == [3, 4])
+        #expect(index.pendingBodylessCallers(interner: interner).isEmpty)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [false, true])
+    func testDeepDependenciesInsideLambdasArePreparedFirst(useTemporary: Bool) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let depth = 48
+        var functions: [KIRFunction] = []
+        for i in 1 ... depth {
+            let lambdaSymbol = SymbolID(rawValue: Int32(100 + i))
+            let lambdaRef = useTemporary
+                ? module.arena.appendTemporary(type: types.anyType)
+                : module.arena.appendExpr(.symbolRef(lambdaSymbol), type: types.anyType)
+            let prefix: [KIRInstruction] = useTemporary
+                ? [.constValue(result: lambdaRef, value: .symbolRef(lambdaSymbol))] : []
+            functions.append(makeFunction(
+                String(format: "f%03d", i), symbol: Int32(i), interner: interner, types: types,
+                body: prefix + [
+                    call(to: nil, callee: "kk_function_invoke", interner: interner, arguments: [lambdaRef]),
+                    .returnUnit,
+                ], isInline: true, isInlineOnly: true
+            ))
+            let next = i == depth ? "leaf" : String(format: "f%03d", i + 1)
+            functions.append(makeFunction(
+                "zLambda\(i)", symbol: lambdaSymbol.rawValue, interner: interner, types: types,
+                body: [
+                    call(to: nil, callee: "effect\(i)", interner: interner),
+                    call(to: i == depth ? nil : SymbolID(rawValue: Int32(i + 1)), callee: next, interner: interner),
+                    .returnUnit,
+                ]
+            ))
+        }
+        for function in functions {
+            _ = module.arena.appendDecl(.function(function))
+        }
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let ctx = makeContext(diagnostics: DiagnosticEngine(), interner: interner)
+
+        InlineLoweringPass().expandNestedBodylessInlineCalls(index: index, module: module, ctx: ctx, unitType: nil)
+
+        let first = try #require(index.inlineFunctionsBySymbol[SymbolID(rawValue: 1)])
+        #expect(callTargets(of: first, interner: interner).map(\.callee) == (1 ... depth).map { "effect\($0)" } + ["leaf"])
+        #expect(index.pendingBodylessCallers(interner: interner).isEmpty)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [false, true])
+    func testSnapshotPreparationPreservesNestedNonLocalReturn(returnsValue: Bool) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let blockSymbol = SymbolID(rawValue: 10)
+        let blockRef = module.arena.appendExpr(.symbolRef(blockSymbol), type: types.anyType)
+        let innerRef = module.arena.appendExpr(.symbolRef(SymbolID(rawValue: 3)), type: types.anyType)
+        let outerRef = module.arena.appendExpr(.symbolRef(SymbolID(rawValue: 4)), type: types.anyType)
+        let value = module.arena.appendExpr(.intLiteral(42), type: types.intType)
+        let invoke = makeFunction(
+            "invoke", symbol: 1, interner: interner, types: types,
+            body: [.constValue(result: blockRef, value: .symbolRef(blockSymbol)),
+                   call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [blockRef]), .returnUnit],
+            isInline: true, params: [KIRParameter(symbol: blockSymbol, type: types.anyType)]
+        )
+        let mandatory = makeFunction(
+            "mandatory", symbol: 2, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let inner = makeFunction(
+            "inner", symbol: 3, interner: interner, types: types,
+            body: [
+                .constValue(result: value, value: .intLiteral(42)),
+                call(to: mandatory.symbol, callee: "mandatory", interner: interner),
+                .nonLocalReturn(returnsValue ? value : nil),
+            ]
+        )
+        let outer = makeFunction(
+            "outer", symbol: 4, interner: interner, types: types,
+            body: [call(to: invoke.symbol, callee: "invoke", interner: interner, arguments: [innerRef]), .returnUnit]
+        )
+        let main = makeFunction(
+            "main", symbol: 5, interner: interner, types: types,
+            body: [call(to: invoke.symbol, callee: "invoke", interner: interner, arguments: [outerRef]),
+                   call(to: nil, callee: "after", interner: interner), .returnUnit]
+        )
+        for function in [invoke, mandatory, inner, outer, main] {
+            _ = module.arena.appendDecl(.function(function))
+        }
+        let ctx = makeContext(diagnostics: DiagnosticEngine(), interner: interner)
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let pass = InlineLoweringPass()
+
+        pass.expandNestedBodylessInlineCalls(index: index, module: module, ctx: ctx, unitType: nil)
+
+        let prepared = try #require(index.allFunctionsBySymbol[outer.symbol])
+        #expect(prepared.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+        try pass.run(module: module, ctx: ctx)
+        let lowered = try #require(module.arena.declarations.compactMap { decl -> KIRFunction? in
+            guard case let .function(function) = decl, function.symbol == main.symbol else { return nil }
+            return function
+        }.first)
+        let afterOffset = try #require(lowered.body.firstIndex {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return interner.resolve(callee) == "after"
+        })
+        #expect(lowered.body[..<afterOffset].contains {
+            if returnsValue, case .returnValue = $0 { return true }
+            if !returnsValue, case .returnUnit = $0 { return true }
+            return false
+        })
+        #expect(!lowered.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test
+    func testDeferredImportedChainIsDiscoveredWithoutParsingUnusedBodies() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ImportedInlineFunctionStore()
+        let depth = 80
+        let symbols = Dictionary(uniqueKeysWithValues: (1 ... depth).map { ("f\($0)", SymbolID(rawValue: Int32($0))) })
+        store.bindParseContext(
+            types: types, interner: interner, diagnostics: diagnostics,
+            externalLinkNameToSymbol: symbols, importedSymbolByFQName: [:]
+        )
+        for i in 1 ... depth {
+            let name = "f\(i)"
+            let next = i == depth ? "leaf" : "f\(i + 1)"
+            let path = directory.appendingPathComponent("\(name).kirbin")
+            let contents = """
+            version=2
+            nameB64=\(Data(name.utf8).base64EncodedString())
+            params=0
+            body:
+            call calleeB64=\(Data(next.utf8).base64EncodedString()) linkB64=\(Data(next.utf8).base64EncodedString()) args=[] canThrow=false
+            returnUnit
+            """
+            try contents.write(to: path, atomically: true, encoding: .utf8)
+            store.register(.init(path: path.path, signature: nil, name: interner.intern(name)), for: symbols[name]!)
+        }
+        let unused = SymbolID(rawValue: 900)
+        store.register(
+            .init(path: directory.appendingPathComponent("unused.kirbin").path, signature: nil, name: interner.intern("unused")),
+            for: unused
+        )
+        let main = makeFunction(
+            "main", symbol: 1000, interner: interner, types: types,
+            // Exercise the unique-name fallback as well as resolved imported edges.
+            body: [call(to: nil, callee: "f1", interner: interner)]
+        )
+        let module = makeModule([main])
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: store)
+        let ctx = makeContext(diagnostics: diagnostics, interner: interner)
+
+        InlineLoweringPass().expandNestedBodylessInlineCalls(index: index, module: module, ctx: ctx, unitType: nil)
+
+        #expect(store.functions.count == depth)
+        #expect(Set(store.descriptors.keys) == [unused])
+        #expect(store.failedSymbols.isEmpty)
+        let caller = try #require(index.allFunctionsBySymbol[main.symbol])
+        #expect(callTargets(of: caller, interner: interner).map(\.callee) == ["leaf"])
+        #expect(diagnostics.diagnostics.isEmpty)
+    }
+
     /// A bodyless mutual-recursion pair can never satisfy the pending set:
-    /// expanding one side lands on a self-call while the other keeps
-    /// pointing back into the cycle, so the pending set stays occupied for
-    /// all four rounds and residue remains in both snapshots.
+    /// one finite visit leaves mandatory residue rather than retrying the
+    /// cycle indefinitely.
     @Test
     func testMutuallyRecursiveBodylessCalleesStayPendingAndLeaveResidue() throws {
         let interner = StringInterner()
@@ -133,10 +358,7 @@ struct InlineTerminationContractTests {
             index: index, module: module, ctx: ctx, unitType: nil
         )
 
-        // Beyond the boundary: `odd`'s snapshot still calls into the cycle
-        // through `even`, so it never leaves the pending set, while both
-        // snapshots keep a bodyless call as residue.
-        #expect(index.pendingBodylessCallers(interner: interner) == [odd])
+        #expect(!index.pendingBodylessCallers(interner: interner).isEmpty)
         for symbol in [even, odd] {
             let body = try #require(index.allFunctionsBySymbol[symbol]?.body)
             #expect(body.contains { instruction in
@@ -282,6 +504,10 @@ struct InlineTerminationContractTests {
         )
         decls.append(main)
         decls.append(leaf)
+        decls.append(makeFunction(
+            "unusedBodyless", symbol: 600, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        ))
         let module = makeModule(decls)
         let diagnostics = DiagnosticEngine()
         let ctx = makeContext(diagnostics: diagnostics, interner: interner)

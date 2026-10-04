@@ -73,7 +73,8 @@ final class InlineLoweringPass: LoweringPass {
         inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
-        unitType: TypeID?
+        unitType: TypeID?,
+        preserveNonLocalReturns: Bool = false
     ) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool) {
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
@@ -266,8 +267,12 @@ final class InlineLoweringPass: LoweringPass {
 
                     switch expandedInstruction {
                     case let .nonLocalReturn(value):
-                        // Convert to a real return from the caller.
-                        if let value {
+                        // Snapshots may later be spliced into another caller.
+                        if preserveNonLocalReturns {
+                            loweredBody.append(.nonLocalReturn(value.map {
+                                InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+                            }))
+                        } else if let value {
                             loweredBody.append(.returnValue(InlineExprAliasing.resolveAlias(of: value, aliases: aliases)))
                         } else {
                             loweredBody.append(.returnUnit)
