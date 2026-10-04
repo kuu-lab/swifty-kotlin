@@ -1280,6 +1280,23 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // Range iterator handles (`(1..5).iterator()`) are likewise registered
+        // without object type metadata. They are typed `kotlin.collections.Iterator`
+        // only: the element-specialized XIterator classes can't be honored
+        // because `nextInt()`/`nextChar()` member calls on an XIterator receiver
+        // lower to vtable/itable dispatch that an unregistered box cannot
+        // answer, so claiming them here would turn `is IntIterator` into a
+        // reachable dispatch trap. `kotlin.collections.Iterator` answers the
+        // interface checks (`is Iterator`, `as Iterator`) like kotlinc while
+        // `is IntIterator`/`is MutableIterator` stay false.
+        if runtimeRangeIteratorBox(from: value) != nil {
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.collections.Iterator"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)

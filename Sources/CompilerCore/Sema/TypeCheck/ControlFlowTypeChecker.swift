@@ -737,7 +737,7 @@ final class ControlFlowTypeChecker {
         // Route through the same type-reference resolution used by declarations
         // and `is`/`as` expressions so that import priority (explicit > wildcard
         // > default), aliases, and qualified names resolve identically here.
-        let resolved = driver.helpers.resolveTypeRef(
+        var resolved = driver.helpers.resolveTypeRef(
             paramType,
             ast: ctx.ast,
             sema: sema,
@@ -747,6 +747,16 @@ final class ControlFlowTypeChecker {
             inferenceContext: nil,
             usageRange: range
         )
+        if resolved != sema.types.errorType,
+           case let .named(path, _, _)? = ctx.ast.arena.typeRef(paramType),
+           path.count > 1,
+           !catchQualifiedCandidatesExist(path, ctx: ctx, sema: sema)
+        {
+            // resolveTypeRef falls back to last-segment short-name lookup even
+            // for qualified references, so `unknown.Error` could bind a same-named
+            // type in an unrelated package. Require a qualifier-consistent hit.
+            resolved = sema.types.errorType
+        }
         if resolved == sema.types.errorType {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0085",
@@ -755,6 +765,33 @@ final class ControlFlowTypeChecker {
             )
         }
         return resolved
+    }
+
+    private func catchQualifiedCandidatesExist(_ path: [InternedString], ctx: TypeInferenceContext, sema: SemaModule) -> Bool {
+        func isTypeLike(_ symbolID: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                return true
+            default:
+                return false
+            }
+        }
+        if sema.symbols.lookupAll(fqName: path).contains(where: isTypeLike) {
+            return true
+        }
+        let scope = ctx.scope
+        var current = scope.lookup(path[0]).filter(isTypeLike)
+        for component in path.dropFirst() {
+            current = current.flatMap { ownerID -> [SymbolID] in
+                guard let owner = sema.symbols.symbol(ownerID) else { return [] }
+                return sema.symbols.lookupAll(fqName: owner.fqName + [component]).filter(isTypeLike)
+            }
+            if current.isEmpty {
+                break
+            }
+        }
+        return !current.isEmpty
     }
 
     private func catchParamTypeDisplayName(_ typeRef: TypeRefID, ctx: TypeInferenceContext) -> String {

@@ -681,11 +681,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        let continuationOfUnitType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.in(types.unitType)],
-            nullability: .nonNull
-        )))
         let invariantContinuationOfUnitType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.invariant(types.unitType)],
@@ -947,83 +942,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let createCoroutineReceiverTypeParameterName = interner.intern("R")
-        let createCoroutineReceiverTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: createCoroutineReceiverTypeParameterName,
-            fqName: kotlinCoroutinesIntrinsicsPkg + [interner.intern("createCoroutineUnintercepted"), interner.intern("$synthetic"), createCoroutineReceiverTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let createCoroutineReceiverTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: createCoroutineReceiverTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let createCoroutineTypeParameterName = interner.intern("T")
-        let createCoroutineTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: createCoroutineTypeParameterName,
-            fqName: kotlinCoroutinesIntrinsicsPkg + [interner.intern("createCoroutineUnintercepted"), interner.intern("$synthetic"), createCoroutineTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let createCoroutineTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: createCoroutineTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let createCoroutineCompletionType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.invariant(createCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let createCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
-            receiver: createCoroutineReceiverTypeParameterType,
-            params: [],
-            returnType: createCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
-        let startCoroutineName = interner.intern("startCoroutineUninterceptedOrReturn")
-        let startCoroutineReceiverTypeParameterName = interner.intern("R")
-        let startCoroutineReceiverTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: startCoroutineReceiverTypeParameterName,
-            fqName: kotlinCoroutinesIntrinsicsPkg + [startCoroutineName, interner.intern("$synthetic"), startCoroutineReceiverTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let startCoroutineReceiverTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: startCoroutineReceiverTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let startCoroutineTypeParameterName = interner.intern("T")
-        let startCoroutineTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: startCoroutineTypeParameterName,
-            fqName: kotlinCoroutinesIntrinsicsPkg + [startCoroutineName, interner.intern("$synthetic"), startCoroutineTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let startCoroutineTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: startCoroutineTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let startCoroutineContinuationType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.invariant(startCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let startCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
-            receiver: startCoroutineReceiverTypeParameterType,
-            params: [],
-            returnType: startCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
         let publicStartCoroutineName = interner.intern("startCoroutine")
         let publicStartCoroutineReceiverTypeParameterName = interner.intern("R")
         let publicStartCoroutineReceiverTypeParameterSymbol = symbols.define(
@@ -1166,36 +1084,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // The no-receiver overload is source-backed in SuspendFunction0.kt.
-        registerSyntheticCoroutineExtensionFunction(
-            named: "startCoroutineUninterceptedOrReturn",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: startCoroutineWithReceiverFunctionType,
-            parameters: [
-                (name: "receiver", type: startCoroutineReceiverTypeParameterType),
-                (name: "completion", type: startCoroutineContinuationType),
-            ],
-            returnType: types.nullableAnyType,
-            flags: [.synthetic, .inlineFunction],
-            typeParameterSymbols: [startCoroutineReceiverTypeParameterSymbol, startCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
 
-        // The no-receiver overload is source-backed in SuspendFunction0.kt.
-        registerSyntheticCoroutineExtensionFunction(
-            named: "createCoroutineUnintercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: createCoroutineWithReceiverFunctionType,
-            parameters: [
-                (name: "receiver", type: createCoroutineReceiverTypeParameterType),
-                (name: "completion", type: createCoroutineCompletionType),
-            ],
-            returnType: continuationOfUnitType,
-            typeParameterSymbols: [createCoroutineReceiverTypeParameterSymbol, createCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
         registerSyntheticCoroutineMember(
             ownerSymbol: continuationInterceptorSymbol,
             ownerType: continuationInterceptorType,
