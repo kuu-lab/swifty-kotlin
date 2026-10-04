@@ -300,6 +300,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// global pool. `nil` keeps the original global-pool behaviour, which is
     /// what dispatcher-bound bodies and direct runtime (test) calls get.
     var eventLoop: RuntimeEventLoop?
+    var builderContext: RuntimeCoroutineContext?
     private var uninterceptedEntryPointRaw: Int = 0
     private var uninterceptedCompletionContinuation: Int = 0
     private var hasStartedUninterceptedCoroutine = false
@@ -602,10 +603,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     func makeContinuationContext() -> RuntimeCoroutineContext {
         let jobRaw: Int = jobHandle.map { Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained($0).toOpaque())) } ?? 0
+        let inherited = scope?.context ?? RuntimeCoroutineContext()
+        let context = inherited.plus(builderContext ?? RuntimeCoroutineContext())
         return RuntimeCoroutineContext(
-            dispatcher: 0,
-            name: scope?.name,
-            exceptionHandler: nil,
+            dispatcher: context.dispatcher,
+            name: context.name ?? scope?.name,
+            exceptionHandler: context.exceptionHandler,
             jobHandleRaw: jobRaw
         )
     }
@@ -1576,6 +1579,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// Cancellation cause stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
+    let context: RuntimeCoroutineContext
     fileprivate var parent: RuntimeCoroutineScope?
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
@@ -1634,8 +1638,9 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         }
     }
 
-    init(isSupervisor: Bool = false) {
+    init(isSupervisor: Bool = false, context: RuntimeCoroutineContext = RuntimeCoroutineContext()) {
         self.isSupervisor = isSupervisor
+        self.context = context
         RuntimeLiveHandles.register(self)
     }
 
@@ -3447,8 +3452,98 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     if let job = runtimeJobHandle(from: ctx.jobHandleRaw) {
         isSupervisor = job.isSupervisorMarker
     }
-    let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor)
+    let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor, context: ctx)
     return runtimeRegisterObject(scope)
+}
+
+@_cdecl("kk_coroutine_scope_async_with_cont")
+public func kk_coroutine_scope_async_with_cont(
+    _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
+    _ entryPointRaw: Int, _ continuation: Int
+) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle),
+          let state = runtimeContinuationState(from: continuation)
+    else { runtimeStructuredPanic("CoroutineScope.async received an invalid scope or continuation") }
+    let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
+    state.scope = scope
+    state.builderContext = context
+    if context.dispatcher == 0 {
+        state.eventLoop = RuntimeEventLoop.current
+    }
+    return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
+        runtimeStartLaunchedBody(
+            entryPointRaw: entryPointRaw, continuation: continuation,
+            scope: scope, job: nil, onFinished: runtimeAsyncTaskCompletion(task)
+        )
+    }
+}
+
+@_cdecl("kk_coroutine_scope_async")
+public func kk_coroutine_scope_async(
+    _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
+    _ entryPointRaw: Int, _ closureRaw: Int
+) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        runtimeStructuredPanic("CoroutineScope.async received an invalid scope")
+    }
+    let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
+    let hasEnvironment = closureRaw != 0 || runtimeFunctionValueBox(from: entryPointRaw) != nil
+    let function = resolveFunctionValuePair(fnPtr: entryPointRaw, closureRaw: closureRaw)
+    return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
+        RuntimeCoroutineScope.current = scope
+        var thrown = 0
+        let result: Int
+        if hasEnvironment {
+            let invoke = unsafeBitCast(function.fnPtr, to: KKClosureThunkEntryPoint.self)
+            result = invoke(function.closureRaw, &thrown)
+        } else {
+            let invoke = unsafeBitCast(function.fnPtr, to: KKThunkEntryPoint.self)
+            result = invoke(&thrown)
+        }
+        runtimeAsyncTaskCompletion(task)(result, thrown)
+    }
+}
+
+private func runtimeScopeAsync(
+    scope: RuntimeCoroutineScope,
+    context: RuntimeCoroutineContext,
+    start: Int,
+    body: @escaping @Sendable (RuntimeAsyncTask) -> Void
+) -> Int {
+    let task = RuntimeAsyncTask()
+    let handle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
+    scope.registerChild(handle)
+    let work: @Sendable () -> Void = {
+        task.markStarted()
+        if start != 2, task.isCancelledSnapshot() { return }
+        let savedKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let savedJob = RuntimeJobHandle.current
+        let savedDispatcher = RuntimeDispatcher.current
+        let workKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        defer {
+            RuntimeCoroutineScope.removeScope(forTask: workKey)
+            RuntimeCoroutineScopeTaskKey.installKey(savedKey)
+            RuntimeJobHandle.current = savedJob
+            RuntimeDispatcher.current = savedDispatcher
+        }
+        if context.dispatcher != 0 {
+            RuntimeDispatcher.current = runtimeResolveDispatcher(from: context.dispatcher)
+        }
+        body(task)
+    }
+    let schedule: @Sendable () -> Void = {
+        if context.dispatcher != 0 {
+            runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
+        } else {
+            KxMiniRuntime.launch(work)
+        }
+    }
+    switch start {
+    case 1: task.installLazyStartBody(schedule)
+    case 3: work()
+    default: schedule()
+    }
+    return handle
 }
 
 /// Backing for `CoroutineScope.launch { block }`. Unlike `kk_kxmini_launch` (which
