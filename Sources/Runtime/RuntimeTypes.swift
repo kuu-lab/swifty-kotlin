@@ -415,6 +415,8 @@ final class RuntimeTripleBox {
 
 final class RuntimeIntBox {
     let value: Int
+    /// Kotlin type identity, independent of the shared payload/hash representation.
+    let primitiveTypeBase: Int64
 
     /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
     /// and UShort share this physical box with Int, but their hashCode() must
@@ -436,11 +438,19 @@ final class RuntimeIntBox {
     init(
         _ value: Int,
         anyFallbackTag: Int32 = 1,
+        primitiveTypeBase: Int64? = nil,
         enumEntryName: String? = nil,
         enumClassID: Int64? = nil
     ) {
         self.value = value
         self.anyFallbackTag = anyFallbackTag
+        let defaultPrimitiveTypeBase: Int64 = switch anyFallbackTag {
+        case 9: RuntimeTypeTokenEncoding.uintBase
+        case 10: RuntimeTypeTokenEncoding.ubyteBase
+        case 11: RuntimeTypeTokenEncoding.ushortBase
+        default: RuntimeTypeTokenEncoding.intBase
+        }
+        self.primitiveTypeBase = primitiveTypeBase ?? defaultPrimitiveTypeBase
         self.enumEntryName = enumEntryName
         self.enumClassID = enumClassID
     }
