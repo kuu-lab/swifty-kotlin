@@ -42,6 +42,25 @@ struct RuntimeABIExternalLinkValidationTests {
         )
     }
 
+    @Test func testTimeoutLauncherUsesPackedChildContinuationABI() throws {
+        let declarations = bundledKsSymbolNameDeclarations(in: """
+        @KsSymbolName("kk_with_timeout")
+        external suspend fun <T> withTimeout(timeMillis: Long, block: suspend () -> T): T
+        @KsSymbolName("kk_with_timeout_or_null")
+        external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend () -> T): T?
+        """, relativePath: "timeout.kt")
+        #expect(declarations.count == 2)
+        for declaration in declarations {
+            let specs = RuntimeABISpec.allFunctions.filter { $0.name == declaration.linkName }
+            #expect(specs.count == 1)
+            let spec = try #require(specs.first)
+            #expect(runtimeABIArityCandidates(for: declaration, specs: specs).contains(spec.parameters.count))
+            #expect(expectedRuntimeABIParameterTypeVariants(for: declaration) == [
+                Array(repeating: RuntimeABICType.intptr.rawValue, count: 3),
+            ])
+        }
+    }
+
     @Test func testKIRHardcodedRuntimeLinkNamesExistInRuntimeABI() throws {
         let runtimeABINames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let compilerCore = packageRoot().appendingPathComponent("Sources/CompilerCore")
@@ -658,10 +677,10 @@ struct RuntimeABIExternalLinkValidationTests {
         loweredArity += declaration.valueParameterIsVararg.filter { $0 }.count
         // Suspend functions carry the opaque continuation as the final ABI
         // argument after their source-level receiver and value parameters.
-        if declaration.isSuspend {
+        if declaration.isSuspend && !usesCoroutineLauncherABI(declaration) {
             loweredArity += 1
         }
-        if specs.contains(where: \.isThrowing) {
+        if specs.contains(where: { $0.isThrowing && $0.parameters.last?.type == .nullableIntptrPointer }) {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
@@ -700,6 +719,10 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func flatABIParameterCount(for type: String?) -> Int {
         normalizedKotlinType(type) == "String" ? 4 : (type == nil ? 0 : 1)
+    }
+
+    private func usesCoroutineLauncherABI(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
+        declaration.linkName == "kk_with_timeout" || declaration.linkName == "kk_with_timeout_or_null"
     }
 
     private func normalizedKotlinType(_ type: String?) -> String {
@@ -785,7 +808,9 @@ struct RuntimeABIExternalLinkValidationTests {
         // The coroutine lowering appends the continuation after all source
         // parameters. Throwing declarations may append their outThrown slot
         // after this continuation; that slot is stripped by the caller above.
-        if declaration.isSuspend {
+        // Timeout launchers replace the callable pair with an entry and packed
+        // child continuation; they do not append a caller continuation.
+        if declaration.isSuspend && !usesCoroutineLauncherABI(declaration) {
             types.append(RuntimeABICType.intptr.rawValue)
         }
         // KSP-717: a "_flat" bridge returning String reconstructs its result
