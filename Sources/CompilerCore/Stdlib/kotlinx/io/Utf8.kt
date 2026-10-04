@@ -2,7 +2,7 @@
  * Copyright 2017-2023 JetBrains s.r.o. and respective authors and developers.
  * Copyright (C) 2017 Square, Inc.
  * Licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
- * Derived from kotlinx-io core/common/src/Utf8.kt (tag 0.9.1), using the growable ByteArray Buffer.
+ * Derived from kotlinx-io core/common/src/Utf8.kt (tag 0.9.1).
  */
 package kotlinx.io
 
@@ -50,9 +50,15 @@ public fun Source.readString(byteCount: Long): String {
 }
 
 private fun Buffer.commonReadUtf8(byteCount: Long): String {
-    val result = this.data.commonToUtf8String(this.start, this.start + byteCount.toInt())
-    this.skip(byteCount)
-    return result
+    if (byteCount > Int.MAX_VALUE.toLong()) {
+        throw IllegalArgumentException("byteCount ($byteCount) exceeds Int.MAX_VALUE")
+    }
+    val bytes = ByteArray(byteCount.toInt())
+    var offset = 0
+    while (offset < bytes.size) {
+        offset += this.readAtMostTo(bytes, offset, bytes.size)
+    }
+    return bytes.commonToUtf8String()
 }
 
 public fun Source.readCodePointValue(): Int {
