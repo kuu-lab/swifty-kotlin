@@ -10,7 +10,7 @@ struct IterableAssociateSourceMigrationTests {
         ("Set<String>", "setOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
         ("MutableSet<String>", "mutableSetOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
         ("Iterable<String>", "listOf(\"a\", \"bb\").asIterable()", "kotlin.collections.Iterable"),
-        ("Collection<String>", "listOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
+        ("Collection<String>", "setOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
         ("Set<String>", "mapOf(\"a\" to 1, \"bb\" to 2).keys", "kotlin.collections.Iterable"),
         ("Array<out String>", "arrayOf(\"a\", \"bb\")", "kotlin.Array"),
         ("List<String>", "listOf(\"a\", \"bb\")", "kotlin.collections.List"),
