@@ -257,6 +257,34 @@ extension CoroutineLoweringPass {
         return package == "kotlinx.coroutines" || package == "kotlinx.coroutines.channels"
     }
 
+    /// Returns true when `symbol` is the suspend function of a lambda
+    /// literal Sema marked as a coroutine launcher block (the literal arg of
+    /// produce/actor/runBlocking-style builders) — the only lambdas lowered
+    /// with the receiver-first `(receiver, cap0..capN)` param layout
+    /// (LambdaLowerer's `receiverFirstLauncherABI` gate). The originating
+    /// lambda's ExprID is recovered from its `kk_lambda_<exprID>` name;
+    /// anything else (a stored suspend function value, a callable
+    /// reference, a named suspend function) is capture-first and must take
+    /// the boxed function-value path instead.
+    func isCoroutineLauncherMarkedBlock(
+        _ symbol: SymbolID,
+        using rewrite: SuspendRewriteContext
+    ) -> Bool {
+        guard let sema = rewrite.ctx.sema,
+              let function = rewrite.module.arena.function(for: symbol)
+        else {
+            return false
+        }
+        let name = rewrite.ctx.interner.resolve(function.name)
+        let prefix = "kk_lambda_"
+        guard name.hasPrefix(prefix),
+              let exprRaw = Int32(name.dropFirst(prefix.count))
+        else {
+            return false
+        }
+        return sema.bindings.isCoroutineLauncherLambdaExpr(ExprID(rawValue: exprRaw))
+    }
+
     /// STDLIB-CORO-001: Detect whether an expression has the synthetic
     /// `kotlinx.coroutines.CoroutineStart` enum type, used to disambiguate
     /// `launch(start = CoroutineStart.LAZY)` from `launch(Dispatchers.Default)`.
@@ -287,6 +315,11 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        if call.callee == rewrite.ctx.interner.intern("kk_coroutine_scope_async") {
+            return rewriteCoroutineScopeAsyncCall(
+                call: call, symbolByExprRaw: symbolByExprRaw, using: rewrite
+            )
+        }
         // KSP-1573: `__kk_produce_launch(channel, block)` is the runtime
         // bridge emitted inside the bundled produce/actor bodies (their
         // kirbin expansion materializes the call inline at every call site).
@@ -299,6 +332,22 @@ extension CoroutineLoweringPass {
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
                 functionValueInfoByExprRaw: functionValueInfoByExprRaw,
+                using: rewrite
+            )
+        }
+
+        // KSP-1583: `kk_test_run_blocking(context, timeout, block)` — the
+        // extern `kotlinx.coroutines.test.runTest` itself, so the trailing
+        // suspend literal reaches here from the user's call site. Same
+        // dual-shape handling as `__kk_produce_launch`: a resolvable suspend
+        // block rewrites into the launcher continuation convention (the
+        // runtime mints the TestScope and binds it at launcherArgs[0],
+        // captures in the remaining slots); a block held in a variable
+        // falls through to the boxed-value cdecl.
+        if call.callee == rewrite.ctx.interner.intern("kk_test_run_blocking") {
+            return rewriteTestScopeRunBlockingCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
                 using: rewrite
             )
         }
@@ -736,7 +785,7 @@ extension CoroutineLoweringPass {
     /// The `CoroutineStart` entry name a start argument refers to, when it is a
     /// compile-time-known entry. The owner check keeps a same-named entry of
     /// some other enum from being read as a `CoroutineStart` one.
-    private func coroutineStartEntryName(
+    func coroutineStartEntryName(
         _ exprID: KIRExprID,
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
@@ -1080,10 +1129,20 @@ extension CoroutineLoweringPass {
     /// capacity/overflow policy is honored), the suspend block as
     /// call.arguments[1]; the produced coroutine's receiver (`this`
     /// ProducerScope/ActorScope) is bound at launcherArgs[0] by the runtime
-    /// and captures occupy slots 1... When the block doesn't resolve to a
-    /// suspend symbol (e.g. a block stored in a variable), the raw call is
-    /// left in place for `__kk_produce_launch` to invoke under the boxed
+    /// and captures occupy slots 1...
+    ///
+    /// Only a block that was a lambda *literal* marked
+    /// coroutine-launcher gets that convention: it is the sole case where
+    /// LambdaLowerer emits the receiver-first `(receiver, cap0..capN)`
+    /// suspend-function layout. A suspend function *value* (a block stored
+    /// in a variable, a callable reference, a local suspend function)
+    /// keeps the ordinary `(cap0..capN, receiver)` layout even though it
+    /// still resolves to a suspend symbol here — launcherArgs[0]=channel
+    /// would land in its leading capture slot. Leave such calls in place
+    /// for `__kk_produce_launch` to invoke under the boxed (fnPtr, env)
     /// function-value convention.
+    /// Known closure-first suspend adapters also use a launcher continuation,
+    /// seeded with their environment before the channel receiver.
     func rewriteChannelProduceLaunchCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -1106,12 +1165,23 @@ extension CoroutineLoweringPass {
             return nil
         }
 
+        let callableInfo = rewrite.module.arena.callableValueInfo(for: suspendArgExpr)
+            ?? functionValueInfoByExprRaw[suspendArgExpr.rawValue]
+        guard isCoroutineLauncherMarkedBlock(suspendSymbol, using: rewrite)
+            || callableInfo?.hasClosureParam == true
+        else {
+            return rewriteProduceLaunchFunctionValueCall(
+                call: call,
+                channelExpr: channelExpr,
+                suspendArgExpr: suspendArgExpr,
+                using: rewrite
+            )
+        }
+
         // Captures either arrive flattened as trailing call args or ride
         // inside the suspend value's callable info — use whichever form the
         // emitter produced.
         let trailingCaptures = Array(call.arguments.dropFirst(2))
-        let callableInfo = rewrite.module.arena.callableValueInfo(for: suspendArgExpr)
-            ?? functionValueInfoByExprRaw[suspendArgExpr.rawValue]
         let captures: [KIRExprID] = trailingCaptures.isEmpty
             ? (callableInfo?.captureArguments ?? [])
             : trailingCaptures
@@ -1168,5 +1238,268 @@ extension CoroutineLoweringPass {
             )
         )
         return rewritten
+    }
+
+    /// KSP-1583: rewrite `kk_test_run_blocking(context, timeout, block)` —
+    /// the extern `kotlinx.coroutines.test.runTest` — into the launcher
+    /// continuation convention. The suspend block is the trailing argument;
+    /// the runtime mints the `TestScope` (a real RuntimeCoroutineScope over
+    /// the given context) and binds it at launcherArgs[0] in
+    /// `kk_test_run_blocking_with_cont`, so captures occupy slots 1...
+    /// When the block doesn't resolve to a suspend symbol (a block stored
+    /// in a variable or forwarded from another call), the raw call is left
+    /// in place for `kk_test_run_blocking` to invoke through the boxed
+    /// suspend-value convention (env-first thunk, mirroring
+    /// `kk_function_invoke`'s box dispatch).
+    func rewriteTestScopeRunBlockingCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        // `runTest(context, timeout, testBody)` — the block is always
+        // arguments[2]; flattened captures (when the emitter produces them)
+        // trail after it, same as `__kk_produce_launch`.
+        guard call.arguments.count >= 3 else {
+            return nil
+        }
+        let contextExpr = call.arguments[0]
+        let suspendArgExpr = call.arguments[2]
+        guard let suspendSymbol = symbolReference(
+                  for: suspendArgExpr,
+                  module: rewrite.module,
+                  propagatedSymbols: symbolByExprRaw
+              ),
+              let loweredTarget = rewrite.loweredBySymbol[suspendSymbol],
+              let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol]
+        else {
+            return nil
+        }
+
+        // Captures either arrive flattened as trailing call args or ride
+        // inside the suspend value's callable info — use whichever form the
+        // emitter produced.
+        let trailingCaptures = Array(call.arguments.dropFirst(3))
+        let captures: [KIRExprID] = trailingCaptures.isEmpty
+            ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
+            : trailingCaptures
+
+        // The suspend thunk's launcherArgs mirror the lowered function's
+        // parameter layout. Launcher-marked literals lower receiver-first
+        // (`[receiver, cap0..capN]`), so the scope lands in slot 0 and
+        // captures in slots 1... Unmarked suspend values (a block held in a
+        // variable — `val body = { ... }; runTest(testBody = body)`) lower
+        // captures-first (`[cap0..capN, receiver]`), so the scope lands in
+        // the LAST slot and captures in slots 0..N-1. A variable-held
+        // value's env is not recoverable at the call site (KUU-1016), so
+        // unavailable capture slots are seeded 0 — the degraded "captures
+        // arrive null" behaviour documented for boxed suspend values.
+        let receiverFirst = rewrite.module.arena.receiverFirstLauncherLambdaSymbols
+            .contains(suspendSymbol)
+        let suspendParamCount = rewrite.module.arena.function(for: suspendSymbol)?.params.count
+            ?? (captures.count + 1)
+        let scopeSlot = receiverFirst ? 0 : suspendParamCount - 1
+        guard scopeSlot >= 0 else {
+            return nil
+        }
+
+        let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let zeroExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(0),
+            type: rewrite.intType
+        )
+
+        var rewritten: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: rewrite.continuationFactory,
+                arguments: [loweredFunctionIDExpr],
+                result: continuationExpr,
+                canThrow: false,
+                thrownResult: nil
+            ),
+        ]
+
+        func appendLauncherArgSet(_ slot: Int, _ value: KIRExprID) {
+            let slotExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(Int64(slot)),
+                type: rewrite.intType
+            )
+            rewritten.append(
+                .call(
+                    symbol: nil,
+                    callee: rewrite.launcherArgSetCallee,
+                    arguments: [continuationExpr, slotExpr, value],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        }
+
+        if receiverFirst {
+            for (index, argExpr) in captures.enumerated() {
+                appendLauncherArgSet(index + 1, argExpr)
+            }
+        } else {
+            for index in 0..<scopeSlot {
+                appendLauncherArgSet(index, index < captures.count ? captures[index] : zeroExpr)
+            }
+        }
+        // Reserve the scope slot so launcherArgs is sized for it; the
+        // runtime overwrites it with the minted scope handle.
+        appendLauncherArgSet(scopeSlot, zeroExpr)
+
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let scopeSlotExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(scopeSlot)),
+            type: rewrite.intType
+        )
+        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
+        rewritten.append(
+            .call(
+                symbol: nil,
+                callee: rewrite.ctx.interner.intern("kk_test_run_blocking_with_cont"),
+                arguments: [contextExpr, thunkRefExpr, continuationExpr, scopeSlotExpr],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult
+            )
+        )
+        return rewritten
+    }
+
+    /// Rewrites `__kk_produce_launch(channel, blockValue)` — a produce/actor
+    /// block that arrived as a suspend function *value* — into the boxed
+    /// (fnPtr, env) convention `__kk_produce_launch` invokes at runtime:
+    /// `(cap0..capN, receiver, outThrown)` with captures first.
+    ///
+    /// The value's env slot is materialized here because the value itself
+    /// crosses `block` as a bare fnPtr: its captures live only in the
+    /// callable info registered for the argument expression. With callable
+    /// info, env packs the captures exactly like
+    /// `CallLowerer.splitCallableLambdaArgument` (0 → `0`, one → the raw
+    /// capture, several → a `kk_object_new(2+N, classID: 0)` box). Without
+    /// it the argument is an opaque (possibly boxed) value and the pair is
+    /// recovered at runtime via the `kk_function_value_*` accessors.
+    func rewriteProduceLaunchFunctionValueCall(
+        call: CallRewriteInput,
+        channelExpr: KIRExprID,
+        suspendArgExpr: KIRExprID,
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        let arena = rewrite.module.arena
+        let interner = rewrite.ctx.interner
+        var instructions: [KIRInstruction] = []
+
+        let entryExpr: KIRExprID
+        let envExpr: KIRExprID
+        if let callableInfo = arena.callableValueInfo(for: suspendArgExpr) {
+            entryExpr = suspendArgExpr
+            switch callableInfo.captureArguments.count {
+            case 0:
+                envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+                instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
+            case 1:
+                envExpr = callableInfo.captureArguments[0]
+            default:
+                envExpr = emitPackedCaptureEnvironment(
+                    callableInfo.captureArguments,
+                    using: rewrite,
+                    into: &instructions
+                )
+            }
+        } else {
+            let fnPtrExpr = arena.appendTemporary(type: rewrite.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [suspendArgExpr],
+                result: fnPtrExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            entryExpr = fnPtrExpr
+            let closureExpr = arena.appendTemporary(type: rewrite.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [suspendArgExpr],
+                result: closureExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            envExpr = closureExpr
+        }
+
+        instructions.append(
+            .call(
+                symbol: call.symbol,
+                callee: call.callee,
+                arguments: [channelExpr, entryExpr, envExpr],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult,
+                isSuperCall: call.isSuperCall
+            )
+        )
+        return instructions
+    }
+
+    /// Emits `kk_object_new(2+N, classID: 0)` with `captures` stored at
+    /// slots 2... — the packed-environment shape
+    /// `CallLowerer.splitCallableLambdaArgument` produces and
+    /// `__kk_produce_launch` expands.
+    private func emitPackedCaptureEnvironment(
+        _ captures: [KIRExprID],
+        using rewrite: SuspendRewriteContext,
+        into instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let arena = rewrite.module.arena
+        let interner = rewrite.ctx.interner
+        let slotCountExpr = arena.appendExpr(
+            .intLiteral(Int64(2 + captures.count)),
+            type: rewrite.intType
+        )
+        instructions.append(.constValue(
+            result: slotCountExpr,
+            value: .intLiteral(Int64(2 + captures.count))
+        ))
+        let classIDExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
+        let envExpr = arena.appendTemporary(type: rewrite.intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: envExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        for (index, captureExpr) in captures.enumerated() {
+            let offsetExpr = arena.appendExpr(
+                .intLiteral(Int64(index + 2)),
+                type: rewrite.intType
+            )
+            instructions.append(.constValue(
+                result: offsetExpr,
+                value: .intLiteral(Int64(index + 2))
+            ))
+            let storeResult = arena.appendTemporary(type: rewrite.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [envExpr, offsetExpr, captureExpr],
+                result: storeResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+        return envExpr
     }
 }

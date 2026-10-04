@@ -100,21 +100,19 @@ extension BuildASTPhase {
             // property and its body as a sibling block. It is not a property
             // accessor container in that case.
             let directTokens = collectDirectTokens(from: nodeID, in: arena)
-            if let accessorStart = inlineAccessorStartIndex(in: directTokens, bodyIsSiblingBlock: true) {
-                let headerTokens = Array(directTokens[accessorStart...])
-                if case .softKeyword(.get) = headerTokens[0].kind {
-                    getter = PropertyAccessorDecl(
-                        range: arena.node(nodeID).range,
-                        kind: .getter,
-                        parameterName: nil,
-                        body: accessorBody(
-                            statementID: nodeID, headerTokens: headerTokens,
-                            in: arena, interner: interner, astArena: astArena
-                        )
-                    )
-                }
+            var foundSiblingBlockAccessor = false
+            if inlineAccessorStartIndex(in: directTokens, bodyIsSiblingBlock: true) != nil {
+                // Several inline accessors may share the line, e.g.
+                // `var p: Int get() { ... } set(v) { ... }`: each accessor
+                // owns the header tokens and sibling blocks up to the next one.
+                let siblingResult = siblingBlockAccessors(
+                    from: nodeID, in: arena, interner: interner, astArena: astArena
+                )
+                getter = siblingResult.getter
+                setter = siblingResult.setter
+                foundSiblingBlockAccessor = getter != nil || setter != nil
             }
-            if getter == nil {
+            if !foundSiblingBlockAccessor {
                 for child in arena.children(of: accessorBlockID) {
                     processAccessorChild(
                         child,
@@ -198,7 +196,7 @@ extension BuildASTPhase {
         // Fallback: detect inline accessor syntax from flat tokens.
         // Handles `val x: T get() = expr` where get()/set() appear as flat
         // tokens of the property node without a wrapping block.
-        if getter != nil {
+        if getter != nil || setter != nil {
             return (getter, setter)
         }
         let allTokens = collectTokens(from: nodeID, in: arena)
@@ -416,20 +414,17 @@ extension BuildASTPhase {
                     if remaining[braceEnd].kind == .symbol(.rBrace) { depth -= 1 }
                     braceEnd += 1
                 }
-                let bodyTokens = Array(remaining[(afterParen + 1) ..< (braceEnd - 1)])
-                    .filter { $0.kind != .symbol(.semicolon) }
-                if !bodyTokens.isEmpty {
-                    let parser = ExpressionParser(
-                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena,
-                        diagnostics: diagnostics
-                    )
-                    if let exprID = parser.parse(),
-                       let range = astArena.exprRange(exprID)
-                    {
-                        body = .expr(exprID, range)
-                    } else {
-                        body = .unit
-                    }
+                // Parse the braces as a statement block: a single-expression
+                // parse would keep only the first of `{ a(); b = v }`'s
+                // statements and silently drop the rest.
+                let blockTokens = Array(remaining[afterParen ..< braceEnd])
+                if let blockExprID = ExpressionParser(
+                    tokens: ArraySlice(blockTokens), interner: interner, astArena: astArena,
+                    diagnostics: diagnostics
+                ).parseBlockExpression(),
+                    case let .blockExpr(statements, trailingExpr, blockRange)? = astArena.expr(blockExprID)
+                {
+                    body = .block(statements + (trailingExpr.map { [$0] } ?? []), blockRange)
                 } else {
                     body = .unit
                 }
@@ -570,9 +565,111 @@ extension BuildASTPhase {
         return nil
     }
 
+    /// Splits a property node's direct children into one segment per inline
+    /// accessor (`get(...)` / `set(...)` not preceded by `.`), pairing each
+    /// header with the sibling block(s) that follow it before the next one.
+    private func siblingBlockAccessors(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (getter: PropertyAccessorDecl?, setter: PropertyAccessorDecl?) {
+        enum Item {
+            case token(Token)
+            case block(NodeID)
+        }
+        var items: [Item] = []
+        for child in arena.children(of: nodeID) {
+            switch child {
+            case let .token(tokenID):
+                if let token = resolveToken(tokenID, in: arena) {
+                    items.append(.token(token))
+                }
+            case let .node(childID):
+                if arena.node(childID).kind == .block {
+                    items.append(.block(childID))
+                }
+            }
+        }
+
+        func isAccessorStart(_ index: Int) -> Bool {
+            guard case let .token(token) = items[index] else { return false }
+            switch token.kind {
+            case .softKeyword(.get), .softKeyword(.set): break
+            default: return false
+            }
+            guard index + 1 < items.count,
+                  case let .token(next) = items[index + 1],
+                  next.kind == .symbol(.lParen)
+            else {
+                return false
+            }
+            if index > 0, case let .token(previous) = items[index - 1] {
+                switch previous.kind {
+                case .symbol(.dot), .symbol(.questionDot): return false
+                default: break
+                }
+            }
+            return true
+        }
+
+        let starts = items.indices.filter(isAccessorStart)
+        var getter: PropertyAccessorDecl?
+        var setter: PropertyAccessorDecl?
+        for (position, start) in starts.enumerated() {
+            let end = position + 1 < starts.count ? starts[position + 1] : items.count
+            var headerTokens: [Token] = []
+            var firstBlock: NodeID?
+            for item in items[start ..< end] {
+                switch item {
+                case let .token(token):
+                    if token.kind != .symbol(.semicolon) { headerTokens.append(token) }
+                case let .block(blockID):
+                    if firstBlock == nil { firstBlock = blockID }
+                }
+            }
+            guard case let .softKeyword(keyword) = headerTokens[0].kind else { continue }
+            let kind: PropertyAccessorKind = keyword == .get ? .getter : .setter
+            let accessor = PropertyAccessorDecl(
+                range: arena.node(nodeID).range,
+                kind: kind,
+                parameterName: kind == .setter
+                    ? setterParameterName(from: headerTokens, interner: interner)
+                    : nil,
+                body: accessorBody(
+                    headerTokens: headerTokens, firstBlock: firstBlock,
+                    in: arena, interner: interner, astArena: astArena
+                )
+            )
+            switch kind {
+            case .getter: if getter == nil { getter = accessor }
+            case .setter: if setter == nil { setter = accessor }
+            }
+        }
+        return (getter, setter)
+    }
+
     func accessorBody(
         statementID: NodeID,
         headerTokens: [Token],
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> FunctionBody {
+        let firstBlock = arena.children(of: statementID).compactMap { child -> NodeID? in
+            guard case let .node(nodeID) = child,
+                  arena.node(nodeID).kind == .block else { return nil }
+            return nodeID
+        }.first
+        return accessorBody(
+            headerTokens: headerTokens, firstBlock: firstBlock,
+            in: arena, interner: interner, astArena: astArena
+        )
+    }
+
+    private func accessorBody(
+        headerTokens: [Token],
+        firstBlock: NodeID?,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
@@ -581,11 +678,7 @@ extension BuildASTPhase {
         // lambda, not a block-bodied getter. Parse it with the expression.
         if let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) {
             var exprTokens = Array(headerTokens[(assignIndex + 1)...])
-            if let trailingBlock = arena.children(of: statementID).compactMap({ child -> NodeID? in
-                guard case let .node(nodeID) = child,
-                      arena.node(nodeID).kind == .block else { return nil }
-                return nodeID
-            }).first {
+            if let trailingBlock = firstBlock {
                 exprTokens.append(contentsOf: collectTokens(from: trailingBlock, in: arena))
             }
             exprTokens.removeAll { $0.kind == .symbol(.semicolon) }
@@ -598,14 +691,7 @@ extension BuildASTPhase {
             return .unit
         }
 
-        if let nestedBlockID = arena.children(of: statementID).compactMap({ child -> NodeID? in
-            guard case let .node(nodeID) = child,
-                  arena.node(nodeID).kind == .block
-            else {
-                return nil
-            }
-            return nodeID
-        }).first {
+        if let nestedBlockID = firstBlock {
             let exprs = blockExpressions(
                 from: nestedBlockID,
                 in: arena,

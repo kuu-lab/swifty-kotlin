@@ -68,7 +68,25 @@ extension LocalDeclTypeChecker {
             )
         }
 
-        let resultType = compoundOpResultType(
+        // `a[i] += v` / `a[i]++` on an element type that defines its own
+        // operator (`plusAssign`, `plus`, `inc`, ...) must call it on the
+        // `get()` result instead of the builtin numeric/String arithmetic.
+        let elementOperator: IndexedCompoundAssignElementOperatorBinding?
+        switch resolveIndexedElementOperator(
+            id, op: op, receiverType: receiverType, elementType: elementType,
+            valueType: valueType, range: range, ctx: ctx
+        ) {
+        case .failed:
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        case .builtin:
+            elementOperator = nil
+        case let .resolved(binding):
+            elementOperator = binding
+            sema.bindings.bindIndexedCompoundAssignElementOperator(id, binding: binding)
+        }
+
+        let resultType = elementOperator?.resultType ?? compoundOpResultType(
             assignOp: op, elementType: elementType, valueType: valueType, sema: sema
         )
 
@@ -80,7 +98,12 @@ extension LocalDeclTypeChecker {
         // real resolvable members too, but must still go through the raw
         // array/boxing path — mirrored from inferIndexedAssignExpr's
         // `assignReceiverIsArrayLike` guard).
-        if operatorResolved, !isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner) {
+        // An in-place `plusAssign` mutates the element returned by `get()`
+        // and never writes it back, so the receiver needs no `set()`.
+        if operatorResolved,
+           elementOperator?.kind != .inPlace,
+           !isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner)
+        {
             let setOperatorBound = bindIndexedCompoundAssignSetOperator(
                 id, receiverType: receiverType, indexTypes: indexTypes, valueType: resultType,
                 elementType: elementType, range: range, ctx: ctx
@@ -99,18 +122,170 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        driver.emitSubtypeConstraint(
-            left: valueType, right: elementType,
-            range: ctx.ast.arena.exprRange(valueExpr) ?? range,
-            solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
-        )
-        driver.emitSubtypeConstraint(
-            left: resultType, right: elementType, range: range,
-            solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
-        )
+        // The resolved element operator already checked its own argument
+        // and result types; these constraints only describe the builtin path.
+        if elementOperator == nil {
+            driver.emitSubtypeConstraint(
+                left: valueType, right: elementType,
+                range: ctx.ast.arena.exprRange(valueExpr) ?? range,
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.emitSubtypeConstraint(
+                left: resultType, right: elementType, range: range,
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+            )
+        }
 
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
+    }
+
+    private enum IndexedElementOperatorResolution {
+        /// Primitive/String element, or no applicable operator: keep the
+        /// builtin `kk_op_*` / string-concat path.
+        case builtin
+        case resolved(IndexedCompoundAssignElementOperatorBinding)
+        /// A diagnostic has already been emitted.
+        case failed
+    }
+
+    /// Resolves the operator applied to the element of `a[i] op= v`, mirroring
+    /// `inferMemberCompoundAssignExpr`: `++`/`--` use `inc()`/`dec()`;
+    /// otherwise the in-place `plusAssign`-style operator wins, then the
+    /// binary `plus`-style operator, and both being applicable is ambiguous.
+    private func resolveIndexedElementOperator(
+        _ id: ExprID,
+        op: CompoundAssignOp,
+        receiverType: TypeID,
+        elementType: TypeID,
+        valueType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> IndexedElementOperatorResolution {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let nonNullElement = sema.types.makeNonNullable(elementType)
+        if elementType == sema.types.errorType || nonNullElement == sema.types.stringType {
+            return .builtin
+        }
+        if case .primitive = sema.types.kind(of: nonNullElement) {
+            return .builtin
+        }
+        let exprChecker = driver.exprChecker
+
+        if ctx.ast.arena.isIncrementDecrement(id) {
+            let name = interner.intern(op == .plusAssign ? "inc" : "dec")
+            guard let (call, returnType) = resolveElementOperatorCall(
+                names: [name], args: [], elementType: elementType, range: range, ctx: ctx
+            ) else {
+                return .builtin
+            }
+            guard sema.types.isSubtype(returnType, elementType) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0303",
+                    "Operator '\(interner.resolve(name))' result type must be assignable to the left-hand side.",
+                    range: range
+                )
+                return .failed
+            }
+            return .resolved(IndexedCompoundAssignElementOperatorBinding(
+                call: call, kind: .incrementDecrement, elementType: elementType, resultType: returnType
+            ))
+        }
+
+        let assignNames = exprChecker.operatorFunctionNames(for: op, interner: interner)
+        let binaryNames = exprChecker.operatorFunctionNames(
+            for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner
+        )
+        let args = [CallArg(type: valueType)]
+        let inPlace = resolveElementOperatorCall(
+            names: assignNames, args: args, elementType: elementType, range: range, ctx: ctx
+        )
+        let binary = resolveElementOperatorCall(
+            names: binaryNames, args: args, elementType: elementType, range: range, ctx: ctx
+        ).flatMap { call, returnType in
+            sema.types.isSubtype(returnType, elementType) ? (call, returnType) : nil
+        }
+
+        if let (call, returnType) = inPlace {
+            guard sema.types.isSubtype(returnType, sema.types.unitType) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0300",
+                    "Operator '\(interner.resolve(assignNames[0]))' used in compound assignment must return Unit.",
+                    range: range
+                )
+                return .failed
+            }
+            if binary != nil, receiverSupportsIndexedSet(receiverType, ctx: ctx) {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0302",
+                    "Assignment operator is ambiguous because both '\(interner.resolve(assignNames[0]))' and the corresponding binary operator are applicable.",
+                    range: range
+                )
+                return .failed
+            }
+            return .resolved(IndexedCompoundAssignElementOperatorBinding(
+                call: call, kind: .inPlace, elementType: elementType, resultType: returnType
+            ))
+        }
+        if let (call, returnType) = binary {
+            return .resolved(IndexedCompoundAssignElementOperatorBinding(
+                call: call, kind: .binary, elementType: elementType, resultType: returnType
+            ))
+        }
+        return .builtin
+    }
+
+    /// Resolves an operator member/extension on the element type without
+    /// touching `callBindings[id]`, which holds the `get()` binding.
+    private func resolveElementOperatorCall(
+        names: [InternedString],
+        args: [CallArg],
+        elementType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> (CallBinding, TypeID)? {
+        let sema = ctx.sema
+        let candidates = driver.exprChecker.collectOperatorCandidates(
+            names: names, receiverType: elementType, ctx: ctx
+        )
+        guard !candidates.isEmpty else { return nil }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: candidates,
+            call: CallExpr(range: range, calleeName: names[0], args: args),
+            expectedType: nil, implicitReceiverType: elementType, ctx: ctx.semaCtx
+        )
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return nil
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let returnType = sema.types.substituteTypeParameters(
+            in: signature.returnType,
+            substitution: resolved.substitutedTypeArguments,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        let call = CallBinding(
+            chosenCallee: chosen,
+            substitutedTypeArguments: resolved.substitutedTypeArguments
+                .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
+            parameterMapping: resolved.parameterMapping
+        )
+        return (call, returnType)
+    }
+
+    /// `a[i] += v` is only ambiguous between `plusAssign` and `plus` when the
+    /// `plus` form could actually be written back through `set()`.
+    private func receiverSupportsIndexedSet(_ receiverType: TypeID, ctx: TypeInferenceContext) -> Bool {
+        if isConcreteArrayLikeReceiverType(receiverType, sema: ctx.sema, interner: ctx.interner) {
+            return true
+        }
+        return !driver.helpers.collectMemberFunctionCandidates(
+            named: ctx.interner.intern("set"), receiverType: receiverType,
+            sema: ctx.sema, interner: ctx.interner
+        ).isEmpty
     }
 
     /// True when `receiverType` is the generic `Array<*>` class specifically (star

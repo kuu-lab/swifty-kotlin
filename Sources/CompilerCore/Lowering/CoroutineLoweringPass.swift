@@ -31,6 +31,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withTimeoutOrNull"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
+            ctx.interner.intern("kk_await_cancellation"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
@@ -96,6 +97,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let startCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("startCoroutineUninterceptedOrReturn")
         let createCoroutineUninterceptedNoReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_no_receiver")
         let startCoroutineUninterceptedOrReturnNoReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_no_receiver")
+        let createCoroutineUninterceptedWithReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_with_receiver")
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_with_receiver")
         let runtimeRunBlockingCallee = ctx.interner.intern("kk_kxmini_run_blocking")
         let runtimeLaunchCallee = ctx.interner.intern("kk_kxmini_launch")
         let runtimeAsyncCallee = ctx.interner.intern("kk_kxmini_async")
@@ -126,6 +129,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // KSP-1568: awaitCancellation() parks on the never-completing
+            // runtimeNonCancellableJob via kk_await_cancellation.
+            ctx.interner.intern("kk_await_cancellation"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
             // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
             // start the next recursive step without growing the native stack.
@@ -340,6 +346,8 @@ final class CoroutineLoweringPass: LoweringPass {
             startCoroutineUninterceptedOrReturnCallee: startCoroutineUninterceptedOrReturnCallee,
             createCoroutineUninterceptedNoReceiverCallee: createCoroutineUninterceptedNoReceiverCallee,
             startCoroutineUninterceptedOrReturnNoReceiverCallee: startCoroutineUninterceptedOrReturnNoReceiverCallee,
+            createCoroutineUninterceptedWithReceiverCallee: createCoroutineUninterceptedWithReceiverCallee,
+            startCoroutineUninterceptedOrReturnWithReceiverCallee: startCoroutineUninterceptedOrReturnWithReceiverCallee,
             runtimeCreateCoroutineUninterceptedCallee: runtimeCreateCoroutineUninterceptedCallee,
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,

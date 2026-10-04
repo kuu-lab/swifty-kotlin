@@ -832,6 +832,175 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    // MARK: - produce/actor Function-Value Block Tests
+
+    @Test(arguments: [false, true])
+    func testProduceLaunchFunctionValuePreservesCallableLayout(hasClosureParam: Bool) throws {
+        // Raw capture-first values use (fnPtr, env); known closure-first
+        // suspend adapters use a continuation with [env, receiver] slots.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+
+        let mainSymbol = SymbolID(rawValue: 830)
+        let suspendSymbol = SymbolID(rawValue: 831)
+        let suspendParamSymbol = SymbolID(rawValue: 832)
+
+        let channelExpr = arena.appendExpr(.intLiteral(7))
+        let captureExpr = arena.appendExpr(.intLiteral(42))
+        let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let produceResult = arena.appendExpr(.temporary(3))
+
+        let mainFn = KIRFunction(
+            symbol: mainSymbol,
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.nullableAnyType,
+            body: [
+                .constValue(result: channelExpr, value: .intLiteral(7)),
+                .constValue(result: captureExpr, value: .intLiteral(42)),
+                .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_produce_launch"),
+                    arguments: [channelExpr, suspendRefExpr],
+                    result: produceResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(produceResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        // A *named* suspend function — not a `kk_lambda_<exprID>` literal —
+        // so it is never coroutine-launcher marked.
+        let suspendFn = KIRFunction(
+            symbol: suspendSymbol,
+            name: interner.intern("named_suspend_block"),
+            params: [KIRParameter(symbol: suspendParamSymbol, type: types.intType)]
+                + (hasClosureParam ? [KIRParameter(symbol: SymbolID(rawValue: 833), type: types.intType)] : []),
+            returnType: types.make(.primitive(.int, .nonNull)),
+            body: [.returnValue(arena.appendExpr(.symbolRef(suspendParamSymbol)))],
+            isSuspend: true,
+            isInline: false
+        )
+
+        arena.callableValueInfoByExprID[suspendRefExpr] = KIRCallableValueInfo(
+            symbol: suspendSymbol,
+            callee: interner.intern("named_suspend_block"),
+            captureArguments: [captureExpr],
+            hasClosureParam: hasClosureParam
+        )
+
+        let mainID = arena.appendDecl(.function(mainFn))
+        _ = arena.appendDecl(.function(suspendFn))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let ctx = try runLowering(module: module, interner: interner, moduleName: "ProduceValueEnvTest")
+
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
+        let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  interner.resolve(callee) == (hasClosureParam ? "__kk_produce_launch_with_cont" : "__kk_produce_launch")
+            else { return nil }
+            return arguments
+        }
+        let launchArgs = try #require(launchCalls.first)
+        #expect(launchArgs.count == 3)
+        let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
+        if hasClosureParam {
+            let launcherSlots = loweredMain.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      interner.resolve(callee) == "kk_coroutine_launcher_arg_set"
+                else { return nil }
+                return arguments[2]
+            }
+            #expect(launcherSlots == [captureExpr, channelExpr])
+        } else {
+            #expect(launchArgs[2] == captureExpr)
+            #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        }
+        #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
+    @Test
+    func testProduceLaunchOpaqueFunctionValueUsesRuntimeAccessors() throws {
+        // Same call shape but with no callable info recorded for the value:
+        // (fnPtr, env) must be recovered at runtime through the
+        // `kk_function_value_*` accessors.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+
+        let mainSymbol = SymbolID(rawValue: 840)
+        let suspendSymbol = SymbolID(rawValue: 841)
+        let suspendParamSymbol = SymbolID(rawValue: 842)
+
+        let channelExpr = arena.appendExpr(.intLiteral(7))
+        let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let produceResult = arena.appendExpr(.temporary(3))
+
+        let mainFn = KIRFunction(
+            symbol: mainSymbol,
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.nullableAnyType,
+            body: [
+                .constValue(result: channelExpr, value: .intLiteral(7)),
+                .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_produce_launch"),
+                    arguments: [channelExpr, suspendRefExpr],
+                    result: produceResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(produceResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let suspendFn = KIRFunction(
+            symbol: suspendSymbol,
+            name: interner.intern("named_suspend_block"),
+            params: [KIRParameter(symbol: suspendParamSymbol, type: types.make(.primitive(.int, .nonNull)))],
+            returnType: types.make(.primitive(.int, .nonNull)),
+            body: [.returnValue(arena.appendExpr(.symbolRef(suspendParamSymbol)))],
+            isSuspend: true,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(mainFn))
+        _ = arena.appendDecl(.function(suspendFn))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let ctx = try runLowering(module: module, interner: interner, moduleName: "ProduceValueOpaqueTest")
+
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
+        let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
+        #expect(mainCallees.contains("kk_function_value_fn_ptr"))
+        #expect(mainCallees.contains("kk_function_value_closure_raw"))
+        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+
+        let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  interner.resolve(callee) == "__kk_produce_launch"
+            else { return nil }
+            return arguments
+        }
+        #expect(launchCalls.first?.count == 3)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     // MARK: - ABI Boxing/Unboxing Tests
 }
 #endif
