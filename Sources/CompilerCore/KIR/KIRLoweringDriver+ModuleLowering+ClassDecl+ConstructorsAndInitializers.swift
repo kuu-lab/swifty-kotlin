@@ -651,6 +651,14 @@ extension KIRLoweringDriver {
     ) {
         let sema = shared.sema
         let arena = shared.arena
+        // Enum entries are ordinal-backed: while the enum's lazy initializer
+        // constructs an entry, its stored properties go to per-entry globals.
+        if let slotSymbol = ctx.enumEntryStorageSlots[propSymbol] {
+            let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: valueType)
+            body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+            body.append(.copy(from: value, to: slotRef))
+            return
+        }
         if let receiverID = ctx.activeImplicitReceiverExprID(),
            let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),

@@ -125,7 +125,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty {
+        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty || !entry.memberProperties.isEmpty {
             let entryFQName = (ctx.sema.symbols.symbol(enumSymbol)?.fqName ?? []) + [entry.name]
             guard let entrySymbol = ctx.sema.symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
                 ctx.sema.symbols.symbol(symbolID)?.kind == .field
@@ -137,7 +137,7 @@ extension DeclTypeChecker {
                 ownerSymbol: entrySymbol,
                 ownerType: enumType,
                 memberFunctions: entry.memberFunctions,
-                memberProperties: [],
+                memberProperties: entry.memberProperties,
                 nestedClasses: [],
                 nestedObjects: [],
                 ctx: ctx
@@ -150,7 +150,7 @@ extension DeclTypeChecker {
             )
             typeCheckClassLikeMembers(
                 memberFunctions: entry.memberFunctions,
-                memberProperties: [],
+                memberProperties: entry.memberProperties,
                 nestedClasses: [],
                 nestedObjects: [],
                 ctx: entryCtx,
@@ -596,17 +596,25 @@ extension DeclTypeChecker {
         }
 
         let argCtx = ctx.copying(scope: ctx.scope, implicitReceiverType: nil)
+        let parameterNames = classDecl.primaryConstructorParams.map(\.name)
         for entry in classDecl.enumEntries {
-            for (index, arg) in entry.constructorArgs.enumerated() {
-                guard index < signature.parameterTypes.count else {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0250",
-                        "Enum entry '\(ctx.interner.resolve(entry.name))' has too many constructor arguments",
-                        range: entry.range
-                    )
-                    break
-                }
-                let paramType = signature.parameterTypes[index]
+            // Named entry arguments (`X(g = 1, r = 2)`) bind by label, exactly
+            // like an ordinary constructor call; checking them positionally
+            // validated each argument against the wrong parameter type.
+            let (argumentIndexByParameter, unmatched) = entry.constructorArgumentMapping(
+                parameterNames: parameterNames
+            )
+            if !unmatched.isEmpty {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0250",
+                    "Enum entry '\(ctx.interner.resolve(entry.name))' has too many constructor arguments",
+                    range: entry.range
+                )
+            }
+            for (paramIndex, argIndex) in argumentIndexByParameter.enumerated() {
+                guard let argIndex, paramIndex < signature.parameterTypes.count else { continue }
+                let arg = entry.constructorArgs[argIndex]
+                let paramType = signature.parameterTypes[paramIndex]
                 var locals: LocalBindings = [:]
                 let argType = driver.inferExpr(arg.expr, ctx: argCtx, locals: &locals, expectedType: paramType)
                 driver.emitSubtypeConstraint(

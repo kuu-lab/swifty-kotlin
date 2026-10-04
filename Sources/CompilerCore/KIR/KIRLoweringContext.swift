@@ -109,6 +109,18 @@ final class KIRLoweringContext {
     /// live in `SymbolTable` after metadata restoration instead.
     private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
+    /// Maps a source-backed enum class to the guarded function that
+    /// constructs its entries once (constructor arguments, body property
+    /// initializers, `init` blocks, entry-body properties). Entry references
+    /// lowered in this compilation get a call to it inserted before them.
+    private(set) var enumLazyInitByOwner: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+
+    /// While an enum entry is being constructed inside its class's lazy
+    /// initializer, maps each stored property symbol to the per-entry global
+    /// slot that receives its value; `emitFieldStore` writes there instead
+    /// of into instance-field storage the ordinal-backed value does not have.
+    var enumEntryStorageSlots: [SymbolID: SymbolID] = [:]
+
     // MARK: - Structured Scope Management
 
     struct ScopeSnapshot {
@@ -574,6 +586,10 @@ final class KIRLoweringContext {
         objectLazyInitBySymbol[objectSymbol]
     }
 
+    func registerEnumLazyInit(for enumSymbol: SymbolID, symbol: SymbolID, name: InternedString) {
+        enumLazyInitByOwner[enumSymbol] = (symbol, name)
+    }
+
     func resetModuleState() {
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
         callableValueInfoByExprID.removeAll(keepingCapacity: true)
@@ -584,5 +600,7 @@ final class KIRLoweringContext {
         anyToStringBridgeSymbolsByImplementation.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
         objectLazyInitBySymbol.removeAll(keepingCapacity: true)
+        enumLazyInitByOwner.removeAll(keepingCapacity: true)
+        enumEntryStorageSlots.removeAll(keepingCapacity: true)
     }
 }
