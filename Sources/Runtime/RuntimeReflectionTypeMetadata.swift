@@ -58,6 +58,14 @@ private func runtimeKCallableIsReceiver(_ value: Int) -> Bool {
 /// arg2 = outThrown), depending on which callee signature the emitter
 /// resolved for the synthetic accessor. The receiver is always a registered
 /// object or tagged callable ref, so identify which argument carries it.
+///
+/// The flat branch only matches x86-64 SysV, where LLVM demotes the
+/// `{ptr, i64, i64, i64}` return to a hidden first-argument pointer. AArch64
+/// returns that aggregate in x0-x3, which this shim cannot produce, so the
+/// compiler reads `KCallable.name` for runtime values through
+/// `__kk_kcallable_get_name` before falling back to interface dispatch
+/// (`emitRuntimeKCallableNameFastPath`), so interface property reads of
+/// runtime values never reach this shim.
 private let runtimeKCallableNameGetter: @convention(c) (
     Int,
     Int,
