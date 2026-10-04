@@ -2575,6 +2575,25 @@ struct StdlibArtifactRegressionTests {
             val f: String? = "asserted"
             assert(f != null)
             println(f.length)
+
+            // KUU-1091: `contract { returns() implies (value != null) }` on
+            // requireNotNull/checkNotNull must narrow the argument itself, not
+            // just the call's return value.
+            val g: String? = "notnull"
+            requireNotNull(g)
+            println(g.length)
+
+            val h: String? = "checked"
+            checkNotNull(h)
+            println(h.length)
+
+            val i: String? = "lazy2"
+            requireNotNull(i) { "i must not be null" }
+            println(i.length)
+
+            val j: String? = "lazy3"
+            checkNotNull(j) { "j must not be null" }
+            println(j.length)
         }
         """
 
@@ -2605,6 +2624,10 @@ struct StdlibArtifactRegressionTests {
                 4
                 12
                 8
+                7
+                7
+                5
+                5
 
                 """)
         }
