@@ -15,8 +15,8 @@ import kotlin.internal.KsSymbolName
 // instance is a RuntimeListBox, so members bind directly to the shared list
 // storage bridges instead of going through the AbstractMutableList defaults
 // (which read modCount as an object field — see TODO.md BUG-247). The
-// Kotlin/Native backing-array storage (`backing`, `length`, `isReadOnly`) is
-// a platform internal that KSwiftK does not model; capacity is runtime-managed,
+// Kotlin/Native backing-array storage is runtime-managed. Mutability checks
+// query the list box's read-only state before delegating mutation to its bridges,
 // so `ensureCapacity` / `trimToSize` are contract-only no-ops.
 @KsSymbolName("__kk_array_list_init")
 private external fun <E> __kkArrayListInit(list: ArrayList<E>)
@@ -26,6 +26,39 @@ private external fun <E> __kkArrayListSize(list: ArrayList<E>): Int
 
 @KsSymbolName("__kk_builder_list_freeze")
 private external fun <E> __kkArrayListBuild(list: ArrayList<E>): List<E>
+
+@KsSymbolName("__kk_array_list_is_read_only")
+private external fun <E> __kkArrayListIsReadOnly(list: ArrayList<E>): Boolean
+
+@KsSymbolName("__kk_mutable_list_set")
+private external fun <E> __kkArrayListSet(list: ArrayList<E>, index: Int, element: E): E
+
+@KsSymbolName("__kk_mutable_list_add")
+private external fun <E> __kkArrayListAdd(list: ArrayList<E>, element: E): Boolean
+
+@KsSymbolName("__kk_mutable_list_add_at")
+private external fun <E> __kkArrayListAddAt(list: ArrayList<E>, index: Int, element: E)
+
+@KsSymbolName("__kk_mutable_list_addAll")
+private external fun <E> __kkArrayListAddAll(list: ArrayList<E>, elements: Collection<E>): Boolean
+
+@KsSymbolName("__kk_mutable_list_addAll_at")
+private external fun <E> __kkArrayListAddAllAt(list: ArrayList<E>, index: Int, elements: Collection<E>): Boolean
+
+@KsSymbolName("__kk_mutable_list_clear")
+private external fun <E> __kkArrayListClear(list: ArrayList<E>)
+
+@KsSymbolName("__kk_mutable_list_removeAt")
+private external fun <E> __kkArrayListRemoveAt(list: ArrayList<E>, index: Int): E
+
+@KsSymbolName("__kk_mutable_list_remove")
+private external fun <E> __kkArrayListRemove(list: ArrayList<E>, element: E): Boolean
+
+@KsSymbolName("__kk_mutable_list_removeAll")
+private external fun <E> __kkArrayListRemoveAll(list: ArrayList<E>, elements: Collection<E>): Boolean
+
+@KsSymbolName("__kk_mutable_list_retainAll")
+private external fun <E> __kkArrayListRetainAll(list: ArrayList<E>, elements: Collection<E>): Boolean
 
 public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableList<E> {
     init {
@@ -37,7 +70,10 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     constructor(elements: Collection<E>)
 
     @PublishedApi
-    internal fun build(): List<E> = __kkArrayListBuild(this)
+    internal fun build(): List<E> {
+        checkIsMutable()
+        return __kkArrayListBuild(this)
+    }
 
     override val size: Int
         get() = __kkArrayListSize(this)
@@ -49,8 +85,10 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     override external operator fun get(index: Int): E
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_set")
-    override external operator fun set(index: Int, element: E): E
+    override operator fun set(index: Int, element: E): E {
+        checkIsMutable()
+        return __kkArrayListSet(this, index, element)
+    }
 
     @KsSymbolName("kk_op_contains")
     override external operator fun contains(element: E): Boolean
@@ -86,42 +124,59 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     override external fun listIterator(index: Int): MutableListIterator<E>
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_add")
-    override external fun add(element: E): Boolean
+    override fun add(element: E): Boolean {
+        checkIsMutable()
+        return __kkArrayListAdd(this, element)
+    }
 
-    @KsSymbolName("__kk_mutable_list_add_at")
-    override external fun add(index: Int, element: E)
+    override fun add(index: Int, element: E) {
+        checkIsMutable()
+        __kkArrayListAddAt(this, index, element)
+    }
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_addAll")
-    override external fun addAll(elements: Collection<E>): Boolean
+    override fun addAll(elements: Collection<E>): Boolean {
+        checkIsMutable()
+        return __kkArrayListAddAll(this, elements)
+    }
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_addAll_at")
-    override external fun addAll(index: Int, elements: Collection<E>): Boolean
+    override fun addAll(index: Int, elements: Collection<E>): Boolean {
+        checkIsMutable()
+        return __kkArrayListAddAllAt(this, index, elements)
+    }
 
     // AbstractMutableList's default clear() (removeRange -> listIterator) reads
     // the inherited modCount field, which is not addressable on ArrayList's
-    // runtime-backed storage (see TODO.md BUG-247). Bind directly to the
-    // runtime primitive instead, matching the other members above.
-    @KsSymbolName("__kk_mutable_list_clear")
-    override external fun clear()
+    // runtime-backed storage (see TODO.md BUG-247).
+    override fun clear() {
+        checkIsMutable()
+        __kkArrayListClear(this)
+    }
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_removeAt")
-    override external fun removeAt(index: Int): E
+    override fun removeAt(index: Int): E {
+        checkIsMutable()
+        return __kkArrayListRemoveAt(this, index)
+    }
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_remove")
-    override external fun remove(element: E): Boolean
+    override fun remove(element: E): Boolean {
+        checkIsMutable()
+        return __kkArrayListRemove(this, element)
+    }
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_removeAll")
-    override external fun removeAll(elements: Collection<E>): Boolean
+    override fun removeAll(elements: Collection<E>): Boolean {
+        checkIsMutable()
+        return __kkArrayListRemoveAll(this, elements)
+    }
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_retainAll")
-    override external fun retainAll(elements: Collection<E>): Boolean
+    override fun retainAll(elements: Collection<E>): Boolean {
+        checkIsMutable()
+        return __kkArrayListRetainAll(this, elements)
+    }
 
     @KsSymbolName("kk_list_subList")
     override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
@@ -132,6 +187,10 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     }
 
     public fun ensureCapacity(minCapacity: Int) {
+    }
+
+    private fun checkIsMutable() {
+        if (__kkArrayListIsReadOnly(this)) throw UnsupportedOperationException()
     }
 
     override fun equals(other: Any?): Boolean {

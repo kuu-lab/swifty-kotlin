@@ -357,6 +357,11 @@ public func kk_array_list_init(_ listRaw: Int) -> Int {
     return 0
 }
 
+@_cdecl("__kk_array_list_is_read_only")
+public func kk_array_list_is_read_only(_ listRaw: Int) -> Int {
+    kk_box_bool(runtimeListBox(from: listRaw)?.isReadOnly == true ? 1 : 0)
+}
+
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_list_add).
 @_cdecl("__kk_emptyList")
