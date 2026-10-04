@@ -57,12 +57,6 @@ extension DataFlowSemaPhase {
             return nil
         }
 
-        diagnostics.warning(
-            "KSWIFTK-LIB-0028",
-            "Kotlin library \(libName) (module '\(manifest.uniqueName)') recognized; "
-                + "declaration import is not yet implemented",
-            range: nil
-        )
         return KlibModule(
             path: path,
             uniqueName: manifest.uniqueName,

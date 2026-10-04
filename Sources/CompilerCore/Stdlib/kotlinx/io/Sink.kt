@@ -15,6 +15,21 @@ public interface Sink : RawSink {
     public val buffer: Buffer
 
     /**
+     * Writes all bytes from [source] to this sink.
+     *
+     * Upstream folds this call shape into `write(source: ByteArray, startIndex: Int = 0,
+     * endIndex: Int = source.size)`; interface-level default parameter values are not
+     * dispatched correctly on this compiler (see the note in Source.kt), so the
+     * default-taking forms are separate members.
+     */
+    public fun write(source: ByteArray)
+
+    /**
+     * Writes bytes from [source]'s subrange starting at [startIndex] to this sink.
+     */
+    public fun write(source: ByteArray, startIndex: Int)
+
+    /**
      * Writes bytes from [source]'s subrange starting at [startIndex] and ending at [endIndex] to
      * this sink.
      */
