@@ -285,7 +285,7 @@ extension LexerParserEdgeCaseTests {
             #expect(result.tokens.last?.kind == .eof)
 
             let diagnostic = try #require(result.diagnostics.diagnostics.first)
-            let range = try #require(diagnostic.range)
+            let range = try #require(diagnostic.primaryRange)
             #expect(range.start.offset == 0)
             #expect(range.end.offset == literal.utf8.count)
             #expect(result.tokens.first?.range == range)
