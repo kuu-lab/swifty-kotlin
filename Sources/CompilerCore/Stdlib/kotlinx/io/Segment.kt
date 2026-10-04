@@ -455,7 +455,7 @@ internal fun Segment.indexOfBytesInbound(bytes: ByteArray, startOffset: Int): In
         if (found) {
             return idx
         } else {
-            offset++
+            offset = idx + 1
         }
     }
     return -1
@@ -478,7 +478,7 @@ internal fun Segment.indexOfBytesOutbound(bytes: ByteArray, startOffset: Int): I
         // The pattern should start in this segment
         var seg = this
         var data = seg.dataAsByteArray(true)
-        var scanOffset = offset
+        var scanOffset = idx
 
         var found = true
         for (element in bytes) {
@@ -497,9 +497,9 @@ internal fun Segment.indexOfBytesOutbound(bytes: ByteArray, startOffset: Int): I
             scanOffset++
         }
         if (found) {
-            return offset
+            return idx
         }
-        offset++
+        offset = idx + 1
     }
     return -1
 }
