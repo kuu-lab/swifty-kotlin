@@ -257,6 +257,34 @@ public func kk_continuation_interceptor_intercept_continuation(
     return runtimeRegisterObject(interceptedObject)
 }
 
+func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")) else {
+        return nil
+    }
+    let isDispatcherObject = isRegisteredRuntimeObjectPointer(receiver)
+        && UnsafeMutableRawPointer(bitPattern: receiver).flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
+    guard isDispatcherTag(receiver) || isDispatcherObject else {
+        return nil
+    }
+    // ContinuationInterceptor declares intercept/release before its context overrides.
+    switch methodSlot {
+    case 0:
+        let intercept: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, continuation, outThrown in
+            outThrown?.pointee = 0
+            return kk_continuation_interceptor_intercept_continuation(receiver, continuation)
+        }
+        return unsafeBitCast(intercept, to: Int.self)
+    case 1:
+        let release: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
+            outThrown?.pointee = 0
+            return 0
+        }
+        return unsafeBitCast(release, to: Int.self)
+    default:
+        return nil
+    }
+}
+
 /// Return the raw handle for a known context element matching the supplied key.
 private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: RuntimeCoroutineContext) -> Int? {
     if keyRaw != 0,
