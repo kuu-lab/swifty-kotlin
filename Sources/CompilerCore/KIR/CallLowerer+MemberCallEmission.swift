@@ -351,6 +351,12 @@ extension CallLowerer {
         // either way), but silently dropping any captured values (`bonus`)
         // for one that does capture, since nothing ever threaded the actual
         // closure environment through.
+        adaptCoroutineLauncherBlock(
+            chosenCallee: chosenCallee,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions, arguments: &finalArguments
+        )
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -963,10 +969,10 @@ extension CallLowerer {
         "kk_range_last_predicate",
         "__kk_range_first_orThrow",
         "__kk_range_last_orThrow",
-        "kk_uint_range_first_orThrow",
-        "kk_uint_range_last_orThrow",
-        "kk_ulong_range_first_orThrow",
-        "kk_ulong_range_last_orThrow",
+        "__kk_uint_range_first_orThrow",
+        "__kk_uint_range_last_orThrow",
+        "__kk_ulong_range_first_orThrow",
+        "__kk_ulong_range_last_orThrow",
         "__kk_range_random",
         "__kk_range_random_random",
         "__kk_char_range_random",

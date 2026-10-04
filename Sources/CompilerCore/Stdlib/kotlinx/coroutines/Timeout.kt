@@ -23,24 +23,23 @@ import kotlin.time.Duration
 // Kotlin's integer-literal adaptation, which this compiler's constraint
 // solver does not perform.
 //
-// Passing `block` as a suspend-function *value* cannot supply an entry
-// point to the bridge and remains unsupported, matching the pre-migration
-// behaviour.
+// CoroutineLoweringPass adapts stored receiver-function values to the runtime
+// entry-point ABI while preserving their captures and continuation state.
 
 @KsSymbolName("kk_with_timeout")
-public external suspend fun <T> withTimeout(timeMillis: Long, block: suspend () -> T): T
+public external suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T
 
 @KsSymbolName("kk_with_timeout_or_null")
-public external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend () -> T): T?
+public external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend CoroutineScope.() -> T): T?
 
 @KsSymbolName("kk_with_timeout")
-public external suspend fun <T> withTimeout(timeMillis: Int, block: suspend () -> T): T
+public external suspend fun <T> withTimeout(timeMillis: Int, block: suspend CoroutineScope.() -> T): T
 
 @KsSymbolName("kk_with_timeout_or_null")
-public external suspend fun <T> withTimeoutOrNull(timeMillis: Int, block: suspend () -> T): T?
+public external suspend fun <T> withTimeoutOrNull(timeMillis: Int, block: suspend CoroutineScope.() -> T): T?
 
 @KsSymbolName("kk_with_timeout")
-public external suspend fun <T> withTimeout(duration: Duration, block: suspend () -> T): T
+public external suspend fun <T> withTimeout(duration: Duration, block: suspend CoroutineScope.() -> T): T
 
 @KsSymbolName("kk_with_timeout_or_null")
-public external suspend fun <T> withTimeoutOrNull(duration: Duration, block: suspend () -> T): T?
+public external suspend fun <T> withTimeoutOrNull(duration: Duration, block: suspend CoroutineScope.() -> T): T?

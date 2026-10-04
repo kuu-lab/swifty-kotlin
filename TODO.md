@@ -468,13 +468,14 @@
   - 前提: KSP-451, KSP-456, KSP-700（Comparable）
   - 完了: `IntRange.kt`/`LongRange.kt`/`CharRange.kt` を追加し、typed synthetic stub を削除。typed range の public `kk_*` cdecl は 0 件、残存 bridge は `__kk_*` に降格。`swift build`、関連 Sema/ABI テスト、`range_basic.kt`/`typed_range.kt` の kotlinc diff を確認済み（全体 suite / 全 diff は未実行）。
 
-- [ ] KSP-709: UnsignedRange (`UIntRange`/`ULongRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` を削除する
+- [x] KSP-709: UnsignedRange (`UIntRange`/`ULongRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticUnsignedRangeStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/` 新設 `UIntRange.kt`/`ULongRange.kt`
   - 削除/降格 kk_*: `kk_uint_range_*`, `kk_ulong_range_*` 等 public ブリッジ（`RuntimeRange*.swift`。着手時 rg）
   - 手順: T
   - diff: `range_basic.kt` 等既存 + unsigned range ケース追加
   - 前提: KSP-451, KSP-456, KSP-708
+  - 完了: class shell・ctor・Companion は KSP-1314〜1321 で `UIntRange/Stdlib.kt`/`ULongRange/Stdlib.kt` に source 化済みだったため、本チケットでは stub 削除と残余登録（`end`/`first`/`last`/`step`/`iterator`/`take`/`drop`）の source 側受け皿確認、両クラスへの `start` override 追加、dead 化した `HeaderHelpers+UIntRangeSourceMigration.swift` companion adoption helper の削除、public `kk_uint_range_*`(17)/`kk_ulong_range_*`(3) cdecl の `__kk_` 降格（Runtime + RuntimeABISpec + 全 emission 名 + `@KsSymbolName` + dispatch テスト）を実施。`end` alias（UIntRange のみ・Kotlin API 非存在）は除去。progression の `kk_*_progression_*` は KSP-714 スコープのため残置。
 
 - [ ] KSP-714: RangeProgression / RangeInterface / RangeUntil クラス群を Kotlin 化し stub 群を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeProgressionStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeInterfaceStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeUntilStubs.swift`
@@ -2074,7 +2075,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.waitForMultipleFutures` — fun Collection.waitForMultipleFutures(Int): Set  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Collection<kotlin.native.concurrent/Future<#A>>).kotlin.native.concurrent/waitForMultipleFutures(kotlin/Int): kotlin.collections/Set<kotlin.native.concurrent/Future<#A>>`
 
-- [ ] KSP-1219: kotlin.native.concurrent.DetachedObjectGraph の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1219: kotlin.native.concurrent.DetachedObjectGraph の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent` / receiver `DetachedObjectGraph`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2083,6 +2084,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.attach` — fun DetachedObjectGraph.attach(): #A  -- `final inline fun <#A: reified kotlin/Any?> (kotlin.native.concurrent/DetachedObjectGraph<#A>).kotlin.native.concurrent/attach(): #A`
+  - 完了根拠: `ObjectTransfer.kt` の `public inline fun <reified T> DetachedObjectGraph<T>.attach(): T`（#7291 で追加）を upstream の do-while CAS loop に揃えた。#7291 時点では `kotlin.concurrent.AtomicNativePtr` の receiver surface が KSP-1096 未着のため single-read shortcut（`attachObjectGraphInternal(stable.value) as T`）にしていたが、`value` / `compareAndSet` 着後は不要。synthetic `kotlin.native.internal.NativePtr` に `NULL` 定数が無いため null token は `__nativePointerAddress(null)` で生成する（`kk_cpointer_address` が invalid handle に 0 を返す既存セマンティクス、`DetachedObjectGraph(pointer: COpaquePointer?)` ctor と同じ producer）。public inline からの参照のため同関数を `@PublishedApi internal` に昇格。対象シンボル固有の `__kk_*` / `kk_*` Runtime 関数、Synthetic stub 登録、RuntimeABISpec エントリ、name-string 特例は削除対象なし（`__kk_native_concurrent_attach_object_graph` は `attachObjectGraphInternal` の実体として継続利用）。
+  - 完了確認（2026-10-04）: `swift build`、`CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`、対象 golden の単体 render diff（差分なし）、対象 diff ケース（`SKIP-DIFF (DEBT-DIFF-001)`）、detach→attach round-trip の kswiftc e2e probe（String / Int reified）、`bash Scripts/check_todo_ids.sh`、`bash Scripts/validate_runtime_abi_links.sh`、`git diff --check` を確認。全テスト・全 Golden・全 diff ケースは未実行（CI に委譲）。
 
 - [x] KSP-1220: kotlin.native.concurrent.AtomicInt top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.AtomicInt` / top-level

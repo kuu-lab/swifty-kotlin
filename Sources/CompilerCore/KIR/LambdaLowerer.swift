@@ -175,6 +175,7 @@ final class LambdaLowerer {
 
         // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
+            && sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] == nil
         let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
         // A receiver lambda always takes its own receiver parameter, even when the
         // enclosing implicit receiver has a compatible type: `"a".run { "b".apply { this } }`

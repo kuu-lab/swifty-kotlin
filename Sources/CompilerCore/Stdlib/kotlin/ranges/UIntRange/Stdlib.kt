@@ -18,7 +18,10 @@ public class UIntRange @KsSymbolName("__kk_uint_rangeTo") constructor(
     start: UInt,
     endInclusive: UInt,
 ) : UIntProgression(start, endInclusive, 1), ClosedRange<UInt>, OpenEndRange<UInt> {
+    // KSP-709: `start` joins the other OpenEndRange/ClosedRange overrides as a
+    // real member now that the synthetic unsigned range stub is gone.
     public override val start: UInt get() = first
+
     public override val endInclusive: UInt get() = last
 
     public override val endExclusive: UInt
@@ -39,5 +42,11 @@ public class UIntRange @KsSymbolName("__kk_uint_rangeTo") constructor(
 
     public override fun toString(): String = "$first..$last"
 
-    public companion object {}
+    public companion object {
+        // KSP-1316: Matches Kotlin's `UIntRange(UInt.MAX_VALUE, UInt.MIN_VALUE)` —
+        // any first > last is empty, but the payload must match because
+        // `first`/`last`/`toString` observe it.
+        public val EMPTY: UIntRange
+            get() = UIntRange(UInt.MAX_VALUE, UInt.MIN_VALUE)
+    }
 }

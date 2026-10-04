@@ -112,7 +112,7 @@ expr e@22:30#1 memberCall recv=e@22:30 callee=runningReduce args=[_:e@22:51] typ
 expr e@22:5 localDecl reduced mutable=0 type=Flow<Int> init=e@22:30#1 type=Unit ref=__local_15.reduced[kind=local]
 expr e@23:31 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam]
 expr e@23:53 int(1) type=Int
-expr e@23:48 call callee=e@23:48#1 args=[_:e@23:53] type=Unit
+expr e@23:48 call callee=e@23:48#1 args=[_:e@23:53] type=Unit call=kotlinx.coroutines.flow.FlowCollector.emit[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=T0;susp;gen=1] targs=[Int]
 expr e@23:46 lambda params=[] body=e@23:48 label=onEmpty type=suspend kotlinx.coroutines.flow.FlowCollector<Int>.() -> Unit
 expr e@23:31#1 memberCall recv=e@23:31 callee=onEmpty args=[_:e@23:46] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.onEmpty[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};gen=1] targs=[Int]
 expr e@23:5 localDecl fallback mutable=0 type=Flow<Int> init=e@23:31#1 type=Unit ref=__local_16.fallback[kind=local]

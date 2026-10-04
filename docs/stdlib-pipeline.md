@@ -366,7 +366,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
 | `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | ~~`java.net.URL`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-124, 2026-08-14)。公開 URL surface と URL runtime/ABI exports を除去し、Network の HTTP request builder handoff は保持。 |
-| `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
+| `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-709）。`UIntRange`/`ULongRange` class shells と `start` override は `Stdlib/kotlin/ranges/UIntRange/Stdlib.kt`/`ULongRange/Stdlib.kt`、残余メンバーは既存 bundled RangeHOF/RangeIterators/RangeMembership と progression クラスに集約。`kk_uint_range_*`/`kk_ulong_range_*` public ブリッジは `__kk_` に降格。 |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
 | `HeaderHelpers+SyntheticW3CDomStubs.swift` | 78 | (a) | Kotlin/JS DOM surface; cleanup candidate. |
 
