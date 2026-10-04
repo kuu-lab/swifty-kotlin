@@ -154,9 +154,11 @@ struct RuntimeChannelTests {
         let channel = kk_channel_create(1)
         let sent = __kk_channel_send_blocking(channel, 42)
         #expect(__kk_channel_result_status(sent) == kChannelResultSuccess)
-        #expect(__kk_channel_result_value_or_null(sent) == 0)
+        // Success carries upstream's `success(Unit)` holder, a real object.
+        #expect(__kk_channel_result_value_or_null(sent) != 0)
+        #expect(__kk_channel_result_value_or_null(sent) != runtimeNullSentinelInt)
         var thrown = 0
-        #expect(__kk_channel_result_get_or_throw(sent, &thrown) == 0)
+        #expect(__kk_channel_result_get_or_throw(sent, &thrown) != 0)
         #expect(thrown == 0)
         #expect(channelReceiveValue(channel) == 42)
         _ = kk_channel_close(channel)
@@ -1083,5 +1085,208 @@ struct RuntimeChannelTests {
         #expect(status == kChannelResultSuccess, "receive should complete after flushing the pending sender")
         #expect(value == 42)
         #expect(kk_job_join(job, 0) == kChannelResultSuccess)
+    }
+
+    // MARK: - Close cause / isEmpty / cancel (KSP-1571)
+
+    /// `__kk_channel_close_cause` retains the `Throwable` handle of the first
+    /// successful close so Kotlin-side `ChannelResult.exceptionOrNull()` can
+    /// surface it; a second close is a no-op and cannot overwrite the cause.
+    @Test func closeWithCauseRetainsFirstCause() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_close_cause(channel) == 0)
+
+        let firstCause = 0x7ABC
+        #expect(kk_channel_close_cause(channel, firstCause) == 1)
+        #expect(kk_channel_close_cause(channel) == firstCause)
+
+        // Already closed: the second close fails and the cause is preserved.
+        let secondCause = 0x1234
+        #expect(kk_channel_close_cause(channel, secondCause) == 0)
+        #expect(kk_channel_close_cause(channel) == firstCause)
+    }
+
+    /// A plain `kk_channel_close` leaves the retained cause at 0 (normal close).
+    @Test func closeWithoutCauseLeavesCauseEmpty() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_close(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == 0)
+    }
+
+    /// `kk_channel_is_empty` tracks receivable elements: true on an empty
+    /// channel, false while the buffer holds a value, true after the receive.
+    @Test func isEmptyTracksBufferOccupancy() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_is_empty(channel) == 1)
+
+        #expect(kk_channel_try_send(channel, 42) == kChannelResultSuccess)
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == 42)
+        #expect(kk_channel_is_empty(channel) == 1)
+    }
+
+    /// `close(cause)` retains the cause and keeps buffered elements
+    /// receivable: receivers drain the buffer before observing the sentinel,
+    /// matching upstream `SendChannel.close` semantics.
+    @Test func closeWithCauseRetainsCauseAndKeepsBuffer() {
+        let channel = kk_channel_create(3)
+        #expect(kk_channel_try_send(channel, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 20) == kChannelResultSuccess)
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        let cause = 0x5EED
+        #expect(kk_channel_close_cause(channel, cause) == 1)
+
+        #expect(kk_channel_is_closed_for_send(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == cause)
+
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == 10)
+    }
+
+    /// `cancel` (upstream `ReceiveChannel.cancel` → `cancelInternal`) closes
+    /// the channel, retains the cancellation cause, and DISCARDS the buffered
+    /// elements: the next receive observes a closed result immediately.
+    @Test func cancelDiscardsBufferAndRetainsCause() {
+        let channel = kk_channel_create(3)
+        #expect(kk_channel_try_send(channel, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 20) == kChannelResultSuccess)
+
+        let cause = 0x5EED
+        #expect(__kk_channel_cancel(channel, cause) == 1)
+
+        #expect(kk_channel_is_closed_for_send(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == cause)
+        // A closed channel is never `isEmpty` upstream (receive side is done).
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        // Buffered elements are gone: the receive reports closed at once.
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultClosed)
+
+        // tryReceive boxes the retained cancellation cause.
+        let box = __kk_channel_try_receive(channel)
+        #expect(__kk_channel_result_status(box) == kChannelResultClosed)
+        #expect(__kk_channel_result_cause(box) == cause)
+
+        // Cancel is idempotent like close.
+        #expect(__kk_channel_cancel(channel, 0xBEEF) == 0)
+        #expect(kk_channel_close_cause(channel) == cause)
+    }
+
+    /// `invokeOnClose` handlers observe the close cause (null when none):
+    /// both the queued-handler path on `close(cause)`/`cancel` and the
+    /// already-closed inline path receive the retained cause handle.
+    /// The handler ABI is `(closureRaw, cause, outThrown) -> Int`.
+    @Test func invokeOnCloseReceivesCloseCause() {
+        let observed = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+        observed.initialize(to: 0)
+        defer { observed.deallocate() }
+        let probe: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, causeArg, _ in
+            UnsafeMutablePointer<Int>(bitPattern: closureRaw)!.pointee = causeArg
+            return 0
+        }
+        let fnPtr = unsafeBitCast(probe, to: Int.self)
+        let closureRaw = Int(bitPattern: observed)
+
+        // Queued path: close(cause) delivers the retained cause.
+        let ch1 = kk_channel_create(1)
+        #expect(__kk_channel_invoke_on_close(ch1, fnPtr, closureRaw) == 1)
+        let cause = kk_box_unit(0)
+        #expect(kk_channel_close_cause(ch1, cause) == 1)
+        #expect(observed.pointee == cause)
+
+        // Already-closed path: registering after close invokes inline with
+        // the same retained cause and reports "not queued".
+        let ch2 = kk_channel_create(1)
+        _ = kk_channel_close_cause(ch2, cause)
+        #expect(__kk_channel_invoke_on_close(ch2, fnPtr, closureRaw) == 0)
+        #expect(observed.pointee == cause)
+
+        // Normal close delivers the Kotlin-null sentinel for the cause.
+        observed.pointee = 0
+        let ch3 = kk_channel_create(1)
+        _ = kk_channel_close(ch3)
+        #expect(__kk_channel_invoke_on_close(ch3, fnPtr, closureRaw) == 0)
+        #expect(observed.pointee == runtimeNullSentinelInt)
+    }
+
+    /// `trySend` on a closed channel reports a closed token so the Kotlin
+    /// `ChannelResult` wrapper can mark the result `isClosed`.
+    @Test func trySendOnClosedChannelReturnsClosedToken() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultClosed)
+    }
+
+    /// `trySend` on a full buffered channel fails without closing.
+    @Test func trySendOnFullChannelFailsWithoutClosing() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 2) == kChannelResultFailed)
+        #expect(kk_channel_is_closed_for_send(channel) == 0)
+    }
+
+    /// `__kk_channel_try_send` returns a `ChannelResult` box: success carries
+    /// the `success` status, a full buffer reports `failed`, and a closed
+    /// channel reports `closed` with the retained cause (or the materialised
+    /// `ClosedSendChannelException` when closed without one).
+    @Test func boxedTrySendEncodesChannelResultBox() {
+        let channel = kk_channel_create(1)
+
+        let successBox = __kk_channel_try_send(channel, 7)
+        #expect(__kk_channel_result_status(successBox) == kChannelResultSuccess)
+        #expect(__kk_channel_result_cause(successBox) == runtimeNullSentinelInt)
+
+        let failedBox = __kk_channel_try_send(channel, 9)
+        #expect(__kk_channel_result_status(failedBox) == kChannelResultFailed,
+                "full buffer reports the failed status")
+        #expect(__kk_channel_result_cause(failedBox) == runtimeNullSentinelInt)
+
+        let cause = kk_box_unit(0) // reuse a registered object pointer as a fake Throwable handle
+        _ = kk_channel_close_cause(channel, cause)
+        let closedBox = __kk_channel_try_send(channel, 11)
+        #expect(__kk_channel_result_status(closedBox) == kChannelResultClosed)
+        #expect(__kk_channel_result_cause(closedBox) == cause)
+        #expect(__kk_channel_result_value_or_null(closedBox) == runtimeNullSentinelInt)
+    }
+
+    /// A channel closed without a cause materialises upstream's
+    /// `ClosedSendChannelException` into the trySend result box so
+    /// `exceptionOrNull()`/`getOrThrow()` see `sendException` semantics.
+    @Test func boxedTrySendOnNormallyClosedChannelSubstitutesSendException() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        let box = __kk_channel_try_send(channel, 5)
+        #expect(__kk_channel_result_status(box) == kChannelResultClosed)
+        let cause = __kk_channel_result_cause(box)
+        #expect(cause != 0 && cause != runtimeNullSentinelInt)
+        let causePtr = UnsafeMutableRawPointer(bitPattern: cause)!
+        let throwable = tryCast(causePtr, to: RuntimeThrowableBox.self)
+        #expect(throwable?.exceptionFQName == "kotlinx.coroutines.channels.ClosedSendChannelException")
+        #expect(throwable?.message == "Channel was closed")
+    }
+
+    /// The `__kk_channel_result_create` companion maker round-trips status,
+    /// value, and cause through the box accessors.
+    @Test func channelResultCreateRoundTripsBox() {
+        let element = kk_box_unit(0)
+        let successBox = __kk_channel_result_create(kChannelResultSuccess, element, 0)
+        #expect(__kk_channel_result_status(successBox) == kChannelResultSuccess)
+        #expect(__kk_channel_result_value_or_null(successBox) == element)
+
+        let cause = kk_box_unit(0)
+        let closedBox = __kk_channel_result_create(kChannelResultClosed, 0, cause)
+        #expect(__kk_channel_result_status(closedBox) == kChannelResultClosed)
+        #expect(__kk_channel_result_cause(closedBox) == cause)
+
+        // A null cause (Kotlin `closed(null)`) arrives as the null sentinel and
+        // is normalised back to "no cause".
+        let nullClosedBox = __kk_channel_result_create(kChannelResultClosed, 0, runtimeNullSentinelInt)
+        #expect(__kk_channel_result_cause(nullClosedBox) == runtimeNullSentinelInt)
     }
 }

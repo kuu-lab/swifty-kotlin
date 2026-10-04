@@ -663,7 +663,7 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.isSuspend {
             loweredArity += 1
         }
-        if specs.contains(where: \.isThrowing) {
+        if specs.contains(where: { $0.isThrowing && $0.parameters.last?.type == .nullableIntptrPointer }) {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
@@ -688,7 +688,7 @@ struct RuntimeABIExternalLinkValidationTests {
             if normalizedKotlinType(declaration.returnType) == "String" {
                 flatCount += 3
             }
-            if specs.contains(where: \.isThrowing) {
+            if specs.contains(where: { $0.isThrowing && $0.parameters.last?.type == .nullableIntptrPointer }) {
                 flatCount += 1
             }
             candidates.insert(flatCount)
