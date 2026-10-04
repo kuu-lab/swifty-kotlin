@@ -1854,6 +1854,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if elem == runtimeNullSentinelInt {
         return "null"
     }
+    if let description = runtimeFunctionDescription(elem) {
+        return description
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: elem) else {
         return "\(elem)"
     }
@@ -1873,6 +1876,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if runtimeIsUnitBox(elem) {
         return "kotlin.Unit"
+    }
+    if let function = tryCast(ptr, to: RuntimeFunctionValueBox.self) {
+        return "kotlin.Function\(function.arity)@\(String(UInt(bitPattern: elem), radix: 16))"
     }
     if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
         return stringBox.value

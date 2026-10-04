@@ -5,6 +5,31 @@ import Testing
 @Suite
 struct CallableRefTypeIdentityTests {
 
+    @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndLambdaIdentity() throws {
+        let ctx = makeContextFromSource("""
+        fun top(): Int = 7
+        fun main() {
+            val f = { 1 }
+            val ref = ::top
+            val anon = fun() = 2
+            println(anon())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let descriptions = body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, args, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "__kk_function_set_description",
+                  case let .stringLiteral(text) = module.arena.expr(args[1])
+            else { return nil }
+            return ctx.interner.resolve(text)
+        }
+        #expect(descriptions.contains("fun top(): kotlin.Int"))
+        #expect(descriptions.filter { $0 == "kotlin.Function0" }.count == 2)
+    }
+
     @Test func testSemaBindsFunctionRefKindForCallableReference() throws {
         let source = """
         fun inc(x: Int): Int = x + 1

@@ -16,11 +16,7 @@ extension BuildASTPhase.ExpressionParser {
     ///     // desugars to (with a fresh, unspellable synthetic name):
     ///     { fun __AnonymousFunction_7_142(x: Int): Int { return x * 2 }; ::__AnonymousFunction_7_142 }
     ///
-    /// Only the block-body form is handled here. An expression-body
-    /// anonymous function (`fun(x) = x * 2`) and a receiver form
-    /// (`fun Int.(x) { ... }`) are not parsed by this method and fall
-    /// through to `parsePrimary`'s ordinary keyword handling — see
-    /// KUU-BUG-B-EXPR-BODY for the deferred follow-up.
+    /// Both block and expression bodies reuse local-function semantics.
     func parseAnonymousFunctionLiteral() -> ExprID? {
         guard let funToken = current(), case .keyword(.fun) = funToken.kind else {
             return nil
@@ -45,11 +41,22 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
-        guard matches(.symbol(.lBrace)) else {
+        let expressionBody: ExprID?
+        let headerEndIndex = index
+        if matches(.symbol(.assign)) {
+            _ = consume()
+            guard let body = parseExpression(minPrecedence: 0) else {
+                index = startIndex
+                return nil
+            }
+            expressionBody = body
+        } else if matches(.symbol(.lBrace)) {
+            skipBalancedBraceIfNeeded()
+            expressionBody = nil
+        } else {
             index = startIndex
             return nil
         }
-        skipBalancedBraceIfNeeded()
         let endIndex = index
 
         let syntheticName = interner.intern(
@@ -57,10 +64,10 @@ extension BuildASTPhase.ExpressionParser {
         )
         let nameToken = Token(kind: .identifier(syntheticName), range: funToken.range)
         var synthTokens: [Token] = [funToken, nameToken]
-        synthTokens.append(contentsOf: tokens[(startIndex + 1)..<endIndex])
+        synthTokens.append(contentsOf: tokens[(startIndex + 1)..<(expressionBody == nil ? endIndex : headerEndIndex)])
 
         let phase = BuildASTPhase(diagnostics: diagnostics)
-        guard let localFunExprID = phase.parseLocalFunDeclExpr(
+        guard var localFunExprID = phase.parseLocalFunDeclExpr(
             from: synthTokens, interner: interner, astArena: astArena
         ) else {
             index = startIndex
@@ -68,6 +75,15 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         let range = SourceRange(start: funToken.range.start, end: tokens[endIndex - 1].range.end)
+        if let expressionBody,
+           let bodyRange = astArena.exprRange(expressionBody),
+           case let .localFunDecl(name, params, returnType, _, isSuspend, _) = astArena.expr(localFunExprID)
+        {
+            localFunExprID = astArena.appendExpr(.localFunDecl(
+                name: name, valueParams: params, returnType: returnType,
+                body: .expr(expressionBody, bodyRange), isSuspend: isSuspend, range: range
+            ))
+        }
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))
         return astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
     }

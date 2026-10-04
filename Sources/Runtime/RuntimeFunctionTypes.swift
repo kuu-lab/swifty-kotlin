@@ -1,6 +1,23 @@
 
 // MARK: - ランタイム関数型操作
 
+@_cdecl("__kk_function_set_description")
+public func __kk_function_set_description(_ value: Int, _ descriptionRaw: Int, _ identity: Int) {
+    guard let description = extractString(from: UnsafeMutableRawPointer(bitPattern: descriptionRaw)) else {
+        return
+    }
+    let text = identity == 0 ? description : "\(description)@\(String(UInt(bitPattern: value), radix: 16))"
+    runtimeStorage.withDelegateLock { state in
+        state.functionDescriptionsByValue[value] = text
+    }
+}
+
+func runtimeFunctionDescription(_ value: Int) -> String? {
+    runtimeStorage.withDelegateLock { state in
+        state.functionDescriptionsByValue[value]
+    }
+}
+
 func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
