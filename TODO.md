@@ -969,11 +969,11 @@
 
 - [x] KSP-937: kotlin.collections.Iterable-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `Iterable`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/IterableAggregateHOF.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_Iterable.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_Iterable.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_Iterable.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterable.kt`（canonical owner、重複定義なし）
+  - bridge/stub 整理: factory は Kotlin source body のみ。interface の `iterator()` は built-in collection boxes / source-defined implementations 共通の `kk_iterable_iterator` ABI 境界を維持（KSP-1061）。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_Iterable.kt` / `.golden` が trailing lambda と `Iterable(iterator = { ... })` の解決を固定。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_Iterable.kt` が生成前の遅延、独立した iterator、反復走査、empty、named/positional 引数を kotlinc 2.3.10 と比較（O0/O2）。
+  - 完了ゲート: `IterableFactoryNamedArgumentTests` が source owner・公開引数名 `iterator`・crossinline・非 synthetic・重複 factory 不在を検証。`testIterableFactoryNamedArgumentIsLazyAndRepeatable` が source/artifact 両経路の実行を固定。focused Sema golden / 単一 diff O0/O2 / `bash Scripts/check_todo_ids.sh`。
   - 未実装シンボル一覧:
     - `kotlin.collections.Iterable` — interface kotlin.collections.Iterable  -- `abstract interface <#A: out kotlin/Any?> kotlin.collections/Iterable {`
     - `kotlin.collections.Iterable` — fun Iterable(Function0): Iterable  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/Iterable(crossinline kotlin/Function0<kotlin.collections/Iterator<#A>>): kotlin.collections/Iterable<#A>`
