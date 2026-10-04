@@ -662,6 +662,16 @@ extension ExprLowerer {
                     return delegateValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
+                    if let boundType,
+                       let storedType = arena.exprType(localValue),
+                       case let .primitive(storedPrimitive, .nullable) = sema.types.kind(of: storedType),
+                       case let .primitive(narrowedPrimitive, .nonNull) = sema.types.kind(of: boundType),
+                       storedPrimitive == narrowedPrimitive
+                    {
+                        let narrowed = arena.appendTemporary(type: boundType)
+                        instructions.append(.copy(from: localValue, to: narrowed))
+                        return narrowed
+                    }
                     return localValue
                 }
                 // A bare companion/object property reference can resolve

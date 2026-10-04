@@ -542,6 +542,17 @@ extension OverloadResolver {
         guard let implicitReceiverType else {
             return nil
         }
+        // Infer a receiver parameter from the receiver itself, not a LUB of its
+        // separate bounds. Dependent bound arguments are projected after solving.
+        if case let .typeParam(parameter) = typeSystem.kind(of: receiverType),
+           typeVarBySymbol[parameter.symbol] != nil
+        {
+            return decomposeSubtypeConstraint(
+                subtype: implicitReceiverType, supertype: receiverType,
+                typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                blameRange: range
+            )
+        }
         // Use decomposeSubtypeConstraint to properly extract type variables
         // from generic receiver types (e.g. Class<T>) so the solver can
         // infer type arguments from projected receivers (e.g. Class<out Any>).
@@ -1174,10 +1185,53 @@ extension OverloadResolver {
         if lhsOwnTypeParamCount != rhsOwnTypeParamCount {
             return lhsOwnTypeParamCount < rhsOwnTypeParamCount
         }
+        if hasMoreSpecificTypeParameterBounds(lhs.signature, than: rhs.signature, typeSystem: typeSystem) {
+            return true
+        }
         if lhs.usesVararg != rhs.usesVararg {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    private func hasMoreSpecificTypeParameterBounds(
+        _ lhs: FunctionSignature,
+        than rhs: FunctionSignature,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard !lhs.typeParameterSymbols.isEmpty,
+              lhs.typeParameterSymbols.count == rhs.typeParameterSymbols.count,
+              let symbols = typeSystem.symbolTable
+        else { return false }
+        let rhsVariables = typeSystem.makeTypeVarBySymbol(rhs.typeParameterSymbols)
+        var renaming: [TypeVarID: TypeID] = [:]
+        for (left, right) in zip(lhs.typeParameterSymbols, rhs.typeParameterSymbols) {
+            guard let variable = rhsVariables[right] else { return false }
+            renaming[variable] = typeSystem.make(.typeParam(TypeParamType(symbol: left, nullability: .nonNull)))
+        }
+        func renamed(_ type: TypeID) -> TypeID {
+            typeSystem.substituteTypeParameters(in: type, substitution: renaming, typeVarBySymbol: rhsVariables)
+        }
+        // Compare bounds only for alpha-equivalent declaration shapes; concrete
+        // instantiations alone lose the distinction between T : Any and Comparable<T>.
+        guard lhs.parameterTypes == rhs.parameterTypes.map(renamed),
+              lhs.receiverType == rhs.receiverType.map(renamed)
+        else { return false }
+        func bounds(_ signature: FunctionSignature, _ index: Int) -> [TypeID] {
+            let declared = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index] : []
+            let stored = symbols.typeParameterUpperBounds(for: signature.typeParameterSymbols[index])
+            let result = declared + stored.filter { !declared.contains($0) }
+            return result.isEmpty ? [typeSystem.nullableAnyType] : result
+        }
+        var strictlyMoreSpecific = false
+        for index in lhs.typeParameterSymbols.indices {
+            let left = typeSystem.glb(bounds(lhs, index))
+            let right = typeSystem.glb(bounds(rhs, index).map(renamed))
+            guard typeSystem.isSubtype(left, right) else { return false }
+            if !typeSystem.isSubtype(right, left) { strictlyMoreSpecific = true }
+        }
+        return strictlyMoreSpecific
     }
 
     /// Returns `true` if `signature` declares any receiver or parameter type

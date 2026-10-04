@@ -3,6 +3,15 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    func usesOnlyInputTypes(_ candidate: SymbolID, sema: SemaModule) -> Bool {
+        let annotatedSymbols = [candidate] + (sema.symbols.functionSignature(for: candidate)?.typeParameterSymbols ?? [])
+        return annotatedSymbols.contains { symbol in
+            sema.symbols.annotations(for: symbol).contains {
+                $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
+            }
+        }
+    }
+
     /// Names of stdlib collection members backed by bundled Kotlin sources.
     /// Shared by member-call resolution paths that compare the resolved callee
     /// text; interned-String comparisons live on `KnownCompilerNames`.
@@ -2133,12 +2142,7 @@ extension CallTypeChecker {
                     else { return false }
                     // OnlyInputTypes needs argument-only inference; do not widen
                     // collection element types just to make a failed member viable.
-                    let annotatedSymbols = [candidate] + signature.typeParameterSymbols
-                    guard !annotatedSymbols.contains(where: { symbol in
-                        sema.symbols.annotations(for: symbol).contains {
-                            $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
-                        }
-                    }) else { return false }
+                    guard !usesOnlyInputTypes(candidate, sema: sema) else { return false }
                     let isUser = symbol.declSite.map {
                         driver.sourceManager?.origin(of: $0.start.file) == .user
                     } ?? false

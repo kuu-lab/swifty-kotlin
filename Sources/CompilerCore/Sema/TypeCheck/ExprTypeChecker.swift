@@ -623,11 +623,21 @@ final class ExprTypeChecker {
 
         // Nullable range operands must resolve the nullable extension before the
         // primitive range fast paths erase their nullability.
-        if sema.types.nullability(of: elementType) == .nullable,
-           let sourceReceiver = driver.callChecker.sourceLevelRangeMemberLookupType(
-               receiverExpr: containerExpr, receiverType: containerType, sema: sema, interner: interner
-           )
-        {
+        let nullableRangeReceiver: TypeID? = {
+            guard sema.types.nullability(of: elementType) == .nullable else { return nil }
+            if let concrete = driver.callChecker.sourceLevelRangeMemberLookupType(
+                receiverExpr: containerExpr, receiverType: containerType, sema: sema, interner: interner
+            ) {
+                return concrete
+            }
+            for name in ["ClosedRange", "OpenEndRange"] {
+                guard let symbol = sema.symbols.lookup(fqName: ["kotlin", "ranges", name].map(interner.intern)) else { continue }
+                let rangeType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [.star], nullability: .nonNull)))
+                if sema.types.isSubtype(containerType, rangeType) { return containerType }
+            }
+            return nil
+        }()
+        if let sourceReceiver = nullableRangeReceiver {
             let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)])
             let members = driver.helpers.collectMemberFunctionCandidates(
                 named: containsName, receiverType: sourceReceiver, sema: sema, interner: interner
@@ -639,6 +649,8 @@ final class ExprTypeChecker {
             let extensions = ctx.filterByVisibility(ctx.cachedScopeLookup(containsName)).visible.filter {
                 sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true
                     && sema.symbols.functionSignature(for: $0)?.receiverType != nil
+                    && !isHiddenByDeprecatedAnnotation($0, symbols: sema.symbols)
+                    && !driver.callChecker.usesOnlyInputTypes($0, sema: sema)
             }
             let resolved = memberResult.chosenCallee != nil ? memberResult : ctx.resolver.resolveCall(
                 candidates: extensions, call: call, expectedType: nil,

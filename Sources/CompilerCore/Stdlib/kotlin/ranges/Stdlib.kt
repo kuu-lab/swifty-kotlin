@@ -24,9 +24,9 @@ package kotlin.ranges
 /** Returns false for null elements, otherwise delegates to the range member. */
 @SinceKotlin("2.3")
 @kotlin.internal.InlineOnly
-public inline operator fun <T, R> R.contains(element: T?): Boolean
-        where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T> =
-    element != null && contains(element)
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
 
 @Deprecated("The signature violates type safety guarantees")
 @DeprecatedSinceKotlin(hiddenSince = "2.3")
@@ -36,16 +36,16 @@ public inline operator fun <T, R> R.contains(element: T?): Boolean
 )
 @SinceKotlin("1.3")
 @kotlin.internal.InlineOnly
-public inline operator fun <T, R> R.contains(element: T?): Boolean
-        where T : Any, R : ClosedRange<T>, R : Iterable<T> =
-    element != null && contains(element)
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Any, R : ClosedRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
 
 /** Returns false for null elements, otherwise delegates to the range member. */
 @SinceKotlin("2.3")
 @kotlin.internal.InlineOnly
-public inline operator fun <T, R> R.contains(element: T?): Boolean
-        where T : Comparable<T>, R : OpenEndRange<T>, R : Iterable<T> =
-    element != null && contains(element)
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Comparable<T>, R : OpenEndRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
 
 @Deprecated("The signature violates type safety guarantees")
 @DeprecatedSinceKotlin(hiddenSince = "2.3")
@@ -55,9 +55,9 @@ public inline operator fun <T, R> R.contains(element: T?): Boolean
 )
 @SinceKotlin("1.9")
 @kotlin.internal.InlineOnly
-public inline operator fun <T, R> R.contains(element: T?): Boolean
-        where T : Any, R : OpenEndRange<T>, R : Iterable<T> =
-    element != null && contains(element)
+public inline operator fun <T, R> R.contains(element: T?): Boolean where T : Any, R : OpenEndRange<T>, R : Iterable<T> {
+    return element != null && contains(element)
+}
 
 /**
  * Represents a range of [Comparable] values.

@@ -1,3 +1,11 @@
+fun <T, R> closedContains(range: R, value: T?): Boolean where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T> {
+    return range.contains(value)
+}
+
+fun <T, R> openContains(range: R, value: T?): Boolean where T : Comparable<T>, R : OpenEndRange<T>, R : Iterable<T> {
+    return value in range
+}
+
 fun main() {
     val absent: Int? = null
     val inside: Int? = 3
@@ -30,4 +38,25 @@ fun main() {
     println(noULong in 1uL..5uL)
     println(3 in range)
     println(range.contains(7))
+    val ints: IntRange = 1..5
+    val longs: LongRange = 1L..5L
+    val chars: CharRange = 'a'..'e'
+    val uints: UIntRange = 1u..5u
+    val ulongs: ULongRange = 1uL..5uL
+    println(closedContains(ints, inside))
+    println(closedContains(ints, absent))
+    println(closedContains(longs, longValue))
+    println(openContains(longs, noLong))
+    println(closedContains(chars, charValue))
+    println(openContains(uints, unsignedValue))
+    println(openContains(ulongs, ulongValue))
+    println(closedContains(ulongs, noULong))
+    val allUnsigned: ULongRange = 1uL..18446744073709551615uL
+    val unsignedBoundary: ULong? = 9223372036854775808uL
+    println(closedContains(allUnsigned, unsignedBoundary))
+    println(allUnsigned.contains(unsignedBoundary))
+    val minimum: Long? = Long.MIN_VALUE
+    val minimumRange: LongRange = Long.MIN_VALUE..(Long.MIN_VALUE + 2L)
+    println(closedContains(minimumRange, minimum))
+    println(minimumRange.contains(minimum))
 }
