@@ -277,6 +277,7 @@ extension BuildASTPhase.ExpressionParser {
         let assignment = astArena.appendExpr(.memberAssign(
             receiver: receiverRef(), callee: callee, value: applyOperator(resultRef()), range: range
         ))
+        astArena.markIncrementDecrement(assignment, cachedValue: resultRef())
         return astArena.appendExpr(.blockExpr(
             statements: statements + [resultDecl, assignment],
             trailingExpr: resultRef(),
