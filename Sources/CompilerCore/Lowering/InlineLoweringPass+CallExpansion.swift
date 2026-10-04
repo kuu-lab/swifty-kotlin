@@ -25,7 +25,7 @@ extension InlineLoweringPass {
             return nil
         }
         let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
-        guard budget.enter(inlineTarget, arena: module.arena) else { return nil }
+        guard budget.enter(inlineTarget, arena: module.arena, isInline: true) else { return nil }
         defer { budget.leave() }
         guard budget.permitsAdditional(arguments.count, outputCount: 0, arena: module.arena) else { return nil }
 

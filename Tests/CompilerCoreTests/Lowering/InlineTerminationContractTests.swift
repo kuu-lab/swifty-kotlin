@@ -604,8 +604,8 @@ struct InlineTerminationContractTests {
         #expect(callTargets(of: expanded, interner: interner).map(\.callee) == ["a", "a"])
     }
 
-    @Test
-    func testCallerSuppliedLambdaCanNestTheSameInlineFunction() throws {
+    @Test(arguments: [false, true])
+    func testCallerSuppliedLambdaCanNestTheSameInlineFunction(imported: Bool) throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let module = makeModule([])
@@ -625,11 +625,16 @@ struct InlineTerminationContractTests {
         let inner = makeFunction("inner", symbol: 3, interner: interner, types: types, body: [
             .constValue(result: value, value: .intLiteral(42)), .nonLocalReturn(value),
         ])
-        for function in [once, outer, inner] { _ = module.arena.appendDecl(.function(function)) }
+        for function in (imported ? [outer, inner] : [once, outer, inner]) {
+            _ = module.arena.appendDecl(.function(function))
+        }
         let caller = makeFunction("caller", symbol: 4, interner: interner, types: types, body: [
             call(to: once.symbol, callee: "once", interner: interner, arguments: [outerExpr]), .returnUnit,
         ])
-        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let index = InlineExpansionIndex(
+            module: module,
+            importedInlineFunctions: ImportedInlineFunctionStore(functions: imported ? [once.symbol: once] : [:])
+        )
         let expanded = InlineLoweringPass().inlineTransform(
             function: caller, index: index, inlineFunctionsByName: index.inlineFunctionsByName,
             module: module, ctx: makeContext(diagnostics: DiagnosticEngine(), interner: interner), unitType: types.unitType

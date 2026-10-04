@@ -153,6 +153,7 @@ extension InlineLoweringPass {
         var body = function.body
         var locations = function.instructionLocations
         let budget = InlineExpansionBudget(arena: module.arena, limits: expansionLimits)
+        if function.isInline { budget.inlineSymbols.insert(function.symbol) }
         var pending: [Int: [SymbolID]] = [:]
         for (offset, instruction) in body.enumerated() {
             if case .call = instruction { pending[offset] = [function.symbol] }

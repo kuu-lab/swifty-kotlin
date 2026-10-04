@@ -12,6 +12,7 @@ final class InlineExpansionBudget {
     private(set) var work = 0
     private var nesting = 0
     var ancestry: [SymbolID] = []
+    var inlineSymbols: Set<SymbolID> = []
 
     init(arena: KIRArena, limits: Limits = Limits()) {
         self.limits = limits
@@ -26,13 +27,14 @@ final class InlineExpansionBudget {
         return true
     }
 
-    func enter(_ function: KIRFunction, arena: KIRArena) -> Bool {
+    func enter(_ function: KIRFunction, arena: KIRArena, isInline: Bool = false) -> Bool {
         guard consumeWork(ancestry.count, arena: arena),
               !ancestry.contains(function.symbol), nesting < limits.nesting,
               function.body.count <= limits.instructions,
               consumeWork(max(1, function.body.count), arena: arena)
         else { return false }
         ancestry.append(function.symbol)
+        if isInline { inlineSymbols.insert(function.symbol) }
         nesting += 1
         return true
     }

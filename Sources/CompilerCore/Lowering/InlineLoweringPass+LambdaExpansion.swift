@@ -99,7 +99,7 @@ extension InlineLoweringPass {
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
         // Caller-supplied lambdas may legitimately call their enclosing inline function.
-        let lambdaAncestry = budget.ancestry.filter { allFunctionsBySymbol[$0]?.isInline != true }
+        let lambdaAncestry = budget.ancestry.filter { !budget.inlineSymbols.contains($0) }
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
