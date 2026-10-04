@@ -2680,9 +2680,9 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // Narrow the async builder's Any contract using the element type tracked by
-        // `coroutineBuilderNarrowedReturnType` for the `async {}` call that
-        // produced this receiver.
+        // Narrow `CoroutineScope.async` / `Deferred.await()` using the element
+        // type tracked by `coroutineBuilderNarrowedReturnType` for the
+        // `async {}` call that produced this receiver.
         let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
                                           let block = args.first(where: { $0.label == interner.intern("block") }) ?? args.last
         {
