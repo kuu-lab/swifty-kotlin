@@ -290,8 +290,12 @@ extension DataFlowAndSemaRegressionTests {
             }
             #expect(clauses.count == 2)
             for (clause, packageName) in zip(clauses, ["first", "second"]) {
-                let typeName = try #require(clause.paramTypeName)
-                #expect(ctx.interner.resolve(typeName) == "\(packageName).Error")
+                let typeRef = try #require(clause.paramType)
+                guard let ref = ast.arena.typeRef(typeRef), case let .named(path, _, _) = ref else {
+                    Issue.record("Expected named catch parameter type")
+                    continue
+                }
+                #expect(path.map { ctx.interner.resolve($0) } == [packageName, "Error"])
                 let binding = try #require(sema.bindings.catchClauseBinding(for: clause.body))
                 guard case let .classType(type) = sema.types.kind(of: binding.parameterType) else {
                     Issue.record("Expected nominal catch parameter type")
