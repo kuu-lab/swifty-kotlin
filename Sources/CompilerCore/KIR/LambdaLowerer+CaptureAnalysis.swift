@@ -97,6 +97,11 @@ extension LambdaLowerer {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
         }
+        if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
+           seen.insert(symbol).inserted
+        {
+            referenced.append(symbol)
+        }
         guard let expr = ast.arena.expr(exprID) else {
             return
         }

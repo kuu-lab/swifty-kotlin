@@ -182,7 +182,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var loweredCallableID = loweredArgID
-        var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+        let callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if let originalCallableInfo = callableInfo,
            !originalCallableInfo.hasClosureParam,
            !adaptOnlyWhenCapturing || !originalCallableInfo.captureArguments.isEmpty,
@@ -210,18 +210,16 @@ extension CallLowerer {
                 hasClosureParam: adapted.hasClosureParam
             )
             loweredCallableID = adaptedExpr
-            callableInfo = adapted
         }
 
-        var finalArgs: [KIRExprID] = [loweredCallableID]
-        finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: callableInfo,
+        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+            loweredCallableID,
             sema: sema,
             arena: arena,
             interner: interner,
             instructions: &instructions
-        ))
-        return finalArgs
+        )
+        return [fnPtrExpr, envPtrExpr]
     }
 
     private func makeCollectionHOFSelectorArgument(
@@ -350,7 +348,8 @@ extension CallLowerer {
                 symbol: function.symbol,
                 callee: function.name,
                 captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
-                hasClosureParam: function.params.count >= functionType.params.count + 1
+                hasClosureParam: function.params.count >= functionType.params.count
+                    + (functionType.receiver == nil ? 0 : 1) + 1
             )
         }
 
@@ -367,13 +366,6 @@ extension CallLowerer {
                 || sema.types.isString(concreteType.returnType)
         } else {
             hasStringSignature = false
-        }
-        if functionType.isSuspend,
-           !resolvedCallableInfo.hasClosureParam,
-           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
-               || (functionType.receiver == nil && !hasStringSignature)
-        {
-            return loweredArgID
         }
         if (!resolvedCallableInfo.hasClosureParam
             || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),

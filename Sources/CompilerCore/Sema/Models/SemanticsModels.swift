@@ -1550,6 +1550,8 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Runtime trampolines require a raw suspend entry, not a nested boxed adapter.
+    public private(set) var rawSuspendEntryLambdaExprIDs: Set<ExprID> = []
     /// Tracks expressions whose expected type comes from a type annotation
     /// written in source (a property or local declaration's `: Type`), as
     /// opposed to an expected type the compiler synthesized while inferring a
@@ -2116,6 +2118,10 @@ public final class BindingTable {
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
     public func markCoroutineLauncherLambdaExpr(_ expr: ExprID) {
         coroutineLauncherLambdaExprIDs.insert(expr)
+    }
+
+    public func markRawSuspendEntryLambdaExpr(_ expr: ExprID) {
+        rawSuspendEntryLambdaExprIDs.insert(expr)
     }
 
     /// Whether the lambda literal is a KIR-level coroutine launcher's block

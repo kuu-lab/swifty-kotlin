@@ -65,12 +65,18 @@ func runtime_test_blocking_actor(_ continuation: Int, _ outThrown: UnsafeMutable
     }
     // This inner suspend-value invocation borrows the actor's scope. It must
     // return without joining that scope, which contains the actor itself.
+    let callerTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let callerState = RuntimeContinuationState.current
+    let callerJob = RuntimeJobHandle.current
     let inner = kk_coroutine_continuation_new(undispatchedBodyFunctionID)
     _ = kk_kxmini_run_blocking_with_cont(
         unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
         inner,
         outThrown
     )
+    #expect(RuntimeCoroutineScopeTaskKey.currentTaskKey == callerTaskKey)
+    #expect(RuntimeContinuationState.current === callerState)
+    #expect(RuntimeJobHandle.current === callerJob)
     eventLoopTestLog.record("actor finished")
     return kk_coroutine_state_exit(continuation, 0)
 }
@@ -311,6 +317,31 @@ struct RuntimeCoroutineEventLoopTests {
     }
 
     // MARK: - CoroutineStart.UNDISPATCHED
+
+    @Test func testLaunchedBodyRestoresAmbientScopeAndJob() {
+        let previousScope = RuntimeCoroutineScope.current
+        let previousJob = RuntimeJobHandle.current
+        let continuation = kk_coroutine_continuation_new(undispatchedBodyFunctionID)
+        let scope = RuntimeCoroutineScope()
+        let job = RuntimeJobHandle()
+        _ = job.cancel()
+        let completed = RuntimeCompletionFlag()
+
+        runtimeStartLaunchedBody(
+            entryPointRaw: unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
+            continuation: continuation,
+            scope: scope,
+            job: job
+        ) { result, thrown in
+            #expect(result == 7)
+            #expect(thrown == 0)
+            completed.set()
+        }
+
+        #expect(completed.isSet)
+        #expect(RuntimeCoroutineScope.current === previousScope)
+        #expect(RuntimeJobHandle.current === previousJob)
+    }
 
     @Test func testUndispatchedLaunchRunsBodyBeforeReturning() {
         let entryRaw = unsafeBitCast(

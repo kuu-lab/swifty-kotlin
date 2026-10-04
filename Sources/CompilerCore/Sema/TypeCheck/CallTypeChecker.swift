@@ -2884,6 +2884,13 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            if sema.symbols.externalLinkName(for: chosen) == "__kk_deep_recursive_function_new" {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markRawSuspendEntryLambdaExpr(argument.expr)
+                    }
+                }
+            }
             // Resolution may narrow a literal only after choosing a vararg
             // element type. Persist that type for KIR lowering and codegen.
             if let signature = sema.symbols.functionSignature(for: chosen) {

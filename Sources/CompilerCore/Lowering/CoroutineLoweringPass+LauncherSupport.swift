@@ -284,6 +284,7 @@ extension CoroutineLoweringPass {
     func rewriteLauncherCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         // KSP-1573: `__kk_produce_launch(channel, block)` is the runtime
@@ -297,6 +298,7 @@ extension CoroutineLoweringPass {
             return rewriteChannelProduceLaunchCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             )
         }
@@ -1005,7 +1007,7 @@ extension CoroutineLoweringPass {
                 arguments: [thunkRefExpr, continuationExpr],
                 result: call.result,
                 canThrow: call.canThrow || structuredBlockingRuntimes.contains(runtimeWithContCallee),
-                thrownResult: nil
+                thrownResult: call.thrownResult
             )
         )
         return rewritten
@@ -1085,6 +1087,7 @@ extension CoroutineLoweringPass {
     func rewriteChannelProduceLaunchCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.arguments.count >= 2 else {
@@ -1107,8 +1110,10 @@ extension CoroutineLoweringPass {
         // inside the suspend value's callable info — use whichever form the
         // emitter produced.
         let trailingCaptures = Array(call.arguments.dropFirst(2))
+        let callableInfo = rewrite.module.arena.callableValueInfo(for: suspendArgExpr)
+            ?? functionValueInfoByExprRaw[suspendArgExpr.rawValue]
         let captures: [KIRExprID] = trailingCaptures.isEmpty
-            ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
+            ? (callableInfo?.captureArguments ?? [])
             : trailingCaptures
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
@@ -1129,10 +1134,12 @@ extension CoroutineLoweringPass {
             ),
         ]
 
-        // Slot 0 is reserved for the produced channel receiver.
-        for (index, argExpr) in captures.enumerated() {
+        let launcherArguments = callableInfo?.hasClosureParam == true
+            ? captures + [channelExpr]
+            : [channelExpr] + captures
+        for (index, argExpr) in launcherArguments.enumerated() {
             let slotExpr = rewrite.module.arena.appendExpr(
-                .intLiteral(Int64(index + 1)),
+                .intLiteral(Int64(index)),
                 type: rewrite.intType
             )
             rewritten.append(
