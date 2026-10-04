@@ -59,6 +59,7 @@ extension CallTypeChecker {
                 // `shortArray.binarySearch(20)` narrow to Short/Byte.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
+                    argumentLabel: argument.label,
                     candidates: candidates,
                     sema: sema
                 )
@@ -71,6 +72,7 @@ extension CallTypeChecker {
                 // fits, which is needed by source-backed unsigned extensions.
                 let literalExpectedType = uniformUnsignedLiteralParameterType(
                     at: index,
+                    argumentLabel: argument.label,
                     candidates: candidates,
                     sema: sema
                 )
@@ -91,6 +93,7 @@ extension CallTypeChecker {
                 // `byteArrayOf(1, -1)` and `shortArrayOf(1, -1)` resolve.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
+                    argumentLabel: argument.label,
                     candidates: candidates,
                     sema: sema
                 )
@@ -130,18 +133,27 @@ extension CallTypeChecker {
                 switch argumentExpr {
                 case .intLiteral:
                     contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
-                        at: index, candidates: expectedTypeCandidates, sema: sema
+                        at: index,
+                        argumentLabel: argument.label,
+                        candidates: expectedTypeCandidates,
+                        sema: sema
                     )
                 case .uintLiteral:
                     contextualArgExpectedTypes[index] = uniformUnsignedLiteralParameterType(
-                        at: index, candidates: expectedTypeCandidates, sema: sema
+                        at: index,
+                        argumentLabel: argument.label,
+                        candidates: expectedTypeCandidates,
+                        sema: sema
                     )
                 case .unaryExpr(let op, let operandID, _):
                     if (op == .unaryPlus || op == .unaryMinus),
                        case .intLiteral = ast.arena.expr(operandID)
                     {
                         contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
-                            at: index, candidates: expectedTypeCandidates, sema: sema
+                            at: index,
+                            argumentLabel: argument.label,
+                            candidates: expectedTypeCandidates,
+                            sema: sema
                         )
                     }
                 case .callableRef:
@@ -534,13 +546,19 @@ extension CallTypeChecker {
     /// path and existing overload resolution still handle those cases.
     private func uniformNumericLiteralParameterType(
         at index: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
         sema: SemaModule
     ) -> TypeID? {
         var result: TypeID?
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+                  let parameterType = parameterTypeForArgument(
+                      at: index,
+                      argumentLabel: argumentLabel,
+                      in: signature,
+                      sema: sema
+                  )
             else {
                 return nil
             }
@@ -559,19 +577,44 @@ extension CallTypeChecker {
         return result
     }
 
+    private func parameterTypeForArgument(
+        at index: Int,
+        argumentLabel: InternedString?,
+        in signature: FunctionSignature,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let argumentLabel else {
+            return parameterTypeForArgument(at: index, in: signature)
+        }
+        for (parameterIndex, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
+            if sema.symbols.symbol(parameterSymbol)?.name == argumentLabel,
+               parameterIndex < signature.parameterTypes.count
+            {
+                return signature.parameterTypes[parameterIndex]
+            }
+        }
+        return nil
+    }
+
     /// Returns the single unsigned parameter type shared by all candidates for a
     /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
     /// allows a constant UInt literal to narrow to UByte/UShort or widen to
     /// ULong when the expected parameter type requires it.
     private func uniformUnsignedLiteralParameterType(
         at index: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
         sema: SemaModule
     ) -> TypeID? {
         var result: TypeID?
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+                  let parameterType = parameterTypeForArgument(
+                      at: index,
+                      argumentLabel: argumentLabel,
+                      in: signature,
+                      sema: sema
+                  )
             else {
                 return nil
             }
@@ -620,7 +663,12 @@ extension CallTypeChecker {
                 return false
             }
             for (otherIndex, inferredType) in inferredNonLambdaArgTypes {
-                guard let parameterType = parameterTypeForArgument(at: otherIndex, in: signature) else {
+                guard let parameterType = parameterTypeForArgument(
+                    at: otherIndex,
+                    argumentLabel: args[otherIndex].label,
+                    in: signature,
+                    sema: sema
+                ) else {
                     return false
                 }
                 if sema.types.isSubtype(inferredType, parameterType) {

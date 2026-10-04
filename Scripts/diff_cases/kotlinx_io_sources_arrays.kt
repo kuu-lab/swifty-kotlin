@@ -52,6 +52,12 @@ fun main() {
         println(out.joinToString())
         println(atMost.readByteArray().joinToString())
 
+        val namedEnd = arraySource(chunked)
+        val namedOut = ByteArray(3) { 9 }
+        println(namedEnd.readAtMostTo(namedOut, endIndex = 1))
+        println(namedOut.joinToString())
+        println(namedEnd.readByteArray().joinToString())
+
         val bounds = arraySource(chunked)
         try { bounds.readTo(ByteArray(2), -1, 2) } catch (e: IndexOutOfBoundsException) { println("negative-index") }
         try { bounds.readTo(ByteArray(2), 0, 3) } catch (e: IndexOutOfBoundsException) { println("large-index") }

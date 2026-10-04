@@ -6,6 +6,7 @@ fun sourceSurface(source: Source, buffer: Buffer, bytes: ByteArray, pattern: Byt
     source.readTo(bytes, 1, bytes.size)
     source.readAtMostTo(bytes)
     source.readAtMostTo(bytes, 1)
+    source.readAtMostTo(bytes, endIndex = 2)
     source.readAtMostTo(bytes, 0, bytes.size)
     source.readByteArray()
     source.readByteArray(2)

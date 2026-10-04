@@ -140,9 +140,11 @@ public fun Source.readTo(sink: ByteArray, startIndex: Int = 0, endIndex: Int = s
     }
 }
 
-public fun Source.readAtMostTo(sink: ByteArray): Int = this.readAtMostTo(sink, 0, sink.size)
-public fun Source.readAtMostTo(sink: ByteArray, startIndex: Int): Int =
-    this.readAtMostTo(sink, startIndex, sink.size)
+public fun Source.readAtMostTo(
+    sink: ByteArray,
+    startIndex: Int = 0,
+    endIndex: Int = sink.size
+): Int = this.readAtMostTo(sink, startIndex, endIndex)
 
 public fun Source.readUByte(): UByte = this.readByte().toUByte()
 public fun Source.readUShort(): UShort = this.readShort().toInt().toUShort()

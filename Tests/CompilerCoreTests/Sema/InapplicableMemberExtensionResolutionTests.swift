@@ -54,6 +54,20 @@ struct InapplicableMemberExtensionResolutionTests {
     }
 
     @Test
+    func mixedOverloadsMapReorderedNamedArgumentsBeforeContextualizingLiterals() throws {
+        let source = """
+        fun choose(a: Byte, b: String): String = "byte"
+        fun choose(a: String, b: Int): String = "int"
+        fun use(): String = choose(b = 1, a = "x")
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected named arguments to drive literal types: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func mixedOverloadsRejectOutOfRangeConstantsAndIntVariables() throws {
         let source = """
         class Reader
