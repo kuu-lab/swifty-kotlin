@@ -38,6 +38,42 @@ struct RuntimeHashCollectionTests {
     }
 
     @Test
+    func runtimeMapKeysViewIsLiveAndWritesThroughOnRemoval() throws {
+        let mapRaw = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [10]))
+        let map = try #require(runtimeMapBox(from: mapRaw))
+        let keysRaw = registerRuntimeObject(RuntimeSetBox(mapKeysOf: mapRaw))
+        let keys = try #require(runtimeSetBox(from: keysRaw))
+
+        #expect(keys.elements == [1])
+        _ = map.put(key: 2, value: 20)
+        #expect(keys.elements == [1, 2], "the keys view must reflect map mutations made after it was created")
+
+        #expect(keys.remove(rawValue: 1))
+        #expect(map.keys == [2], "removing through the keys view must remove the key from the map")
+        #expect(keys.elements == [2])
+    }
+
+    @Test
+    func runtimeMapValuesViewIsLiveAndWritesThroughOnRemoval() throws {
+        // Two entries share the value 10 so removal must be index-driven
+        // (kotlinc removes the first matching entry by iteration order),
+        // not a value-array diff that can't tell which key went.
+        let mapRaw = registerRuntimeObject(RuntimeMapBox(keys: [1, 2], values: [10, 10]))
+        let map = try #require(runtimeMapBox(from: mapRaw))
+        let valuesRaw = registerRuntimeObject(RuntimeListBox(mapValuesOf: mapRaw))
+        let values = try #require(runtimeListBox(from: valuesRaw))
+
+        #expect(values.isMapValuesView)
+        #expect(values.elements == [10, 10])
+        _ = map.put(key: 3, value: 30)
+        #expect(values.elements == [10, 10, 30], "the values view must reflect map mutations made after it was created")
+
+        #expect(values.removeMapBackedValue(at: 0))
+        #expect(map.keys == [2, 3], "removing through the values view must remove the matching key from the map")
+        #expect(values.elements == [10, 30])
+    }
+
+    @Test
     func runtimeMapDoesNotUseCanonicalEquivalenceForStringKeys() {
         let composed = registerRuntimeObject(RuntimeStringBox("é"))
         let decomposed = registerRuntimeObject(RuntimeStringBox("e\u{301}"))
