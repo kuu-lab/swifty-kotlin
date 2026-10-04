@@ -86,6 +86,40 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
         ], isThrowing: false),
+        // KSP-1571: same KSP-678 pattern — close-cause retention, isEmpty, and
+        // cancel are bridged from bundled Kotlin (Channel.kt /
+        // ChannelResult.kt) as plain Int-token residuals; they do not use the
+        // outThrown ABI lowering path.
+        abiParitySpec("kk_channel_is_empty", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_channel_close_cause", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_close_cause", parameters: [
+            p("handle", .intptr),
+            p("cause", .intptr),
+        ], isThrowing: false),
+        // KSP-1571: tagged-token ChannelResult bridges. `__kk_channel_try_send`
+        // packs the operation result into (payload << 2) | tag consumed by the
+        // bundled value-class ChannelResult; the `__kk_channel_result_*`
+        // helpers encode/decode token payloads on behalf of its members.
+        abiParitySpec("__kk_channel_try_send", parameters: [
+            p("handle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_result_value", parameters: [
+            p("token", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_result_cause", parameters: [
+            p("token", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_result_success", parameters: [
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_result_closed", parameters: [
+            p("cause", .intptr),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_send_suspending", parameters: [
             p("handle", .intptr),
             p("value", .intptr),

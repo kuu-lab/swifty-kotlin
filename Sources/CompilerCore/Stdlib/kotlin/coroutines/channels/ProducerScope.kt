@@ -12,31 +12,11 @@ import kotlinx.coroutines.CoroutineScope
 
 // KSP-1543: ProducerScope is the receiver exposed by channelFlow and
 // callbackFlow. The object is backed by the runtime channel created for each
-// collection; the member operations below keep the public Kotlin shape while
+// collection; the member operations keep the public Kotlin shape while
 // retaining the channel ABI at the boundary.
-
-@JvmInline
-public value class ChannelResult<out T> internal constructor(internal val token: Int) {
-    public val isSuccess: Boolean
-        get() = token == 0
-
-    public val isFailure: Boolean
-        get() = !isSuccess
-
-    public val isClosed: Boolean
-        get() = token == 1 || token == 2
-}
-
-public interface SendChannel<in E> {
-    @KsSymbolName("kk_channel_send")
-    public external suspend fun send(element: E): Unit
-
-    @KsSymbolName("kk_channel_try_send")
-    public external fun trySend(element: E): ChannelResult<Unit>
-
-    @KsSymbolName("kk_channel_close")
-    public external fun close(): Boolean
-}
+//
+// KSP-1571: `SendChannel` moved to Channel.kt and `ChannelResult` to
+// ChannelResult.kt to match the upstream file layout.
 
 // KSP-1573: `ProducerScope.channel` returns the very handle the scope is
 // backed by — the receiver handed to the launched block is the channel

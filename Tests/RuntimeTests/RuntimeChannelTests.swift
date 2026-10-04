@@ -930,4 +930,133 @@ struct RuntimeChannelTests {
         #expect(value == 42)
         #expect(kk_job_join(job, 0) == kChannelResultSuccess)
     }
+
+    // MARK: - Close cause / isEmpty / cancel (KSP-1571)
+
+    /// `__kk_channel_close_cause` retains the `Throwable` handle of the first
+    /// successful close so Kotlin-side `ChannelResult.exceptionOrNull()` can
+    /// surface it; a second close is a no-op and cannot overwrite the cause.
+    @Test func closeWithCauseRetainsFirstCause() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_close_cause(channel) == 0)
+
+        let firstCause = 0x7ABC
+        #expect(kk_channel_close_cause(channel, firstCause) == 1)
+        #expect(kk_channel_close_cause(channel) == firstCause)
+
+        // Already closed: the second close fails and the cause is preserved.
+        let secondCause = 0x1234
+        #expect(kk_channel_close_cause(channel, secondCause) == 0)
+        #expect(kk_channel_close_cause(channel) == firstCause)
+    }
+
+    /// A plain `kk_channel_close` leaves the retained cause at 0 (normal close).
+    @Test func closeWithoutCauseLeavesCauseEmpty() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_close(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == 0)
+    }
+
+    /// `kk_channel_is_empty` tracks receivable elements: true on an empty
+    /// channel, false while the buffer holds a value, true after the receive.
+    @Test func isEmptyTracksBufferOccupancy() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_is_empty(channel) == 1)
+
+        #expect(kk_channel_try_send(channel, 42) == kChannelResultSuccess)
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == 42)
+        #expect(kk_channel_is_empty(channel) == 1)
+    }
+
+    /// `cancel` is modelled as `close(cause)` (upstream `ReceiveChannel.cancel`
+    /// delegates to close-with-CancellationException): the channel closes and
+    /// the cause is retained, while buffered elements stay in place for
+    /// `isEmpty` accounting.
+    @Test func cancelStyleCloseRetainsCauseAndKeepsBuffer() {
+        let channel = kk_channel_create(3)
+        #expect(kk_channel_try_send(channel, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 20) == kChannelResultSuccess)
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        let cause = 0x5EED
+        #expect(kk_channel_close_cause(channel, cause) == 1)
+
+        #expect(kk_channel_is_closed_for_send(channel) == 1)
+        #expect(kk_channel_is_empty(channel) == 0)
+        #expect(kk_channel_close_cause(channel) == cause)
+
+        // Receivers drain the remaining buffer before observing the sentinel.
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == 10)
+    }
+
+    /// `trySend` on a closed channel reports a closed token so the Kotlin
+    /// `ChannelResult` wrapper can mark the result `isClosed`.
+    @Test func trySendOnClosedChannelReturnsClosedToken() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultClosed)
+    }
+
+    /// `trySend` on a full buffered channel fails without closing.
+    @Test func trySendOnFullChannelFailsWithoutClosing() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 2) == kChannelResultFailed)
+        #expect(kk_channel_is_closed_for_send(channel) == 0)
+    }
+
+    /// `__kk_channel_try_send` returns the tagged ChannelResult token:
+    /// success packs the shared Unit-box payload, closed packs the retained
+    /// cause pointer, and a full buffer reports the failed tag.
+    @Test func taggedTrySendEncodesChannelResultToken() {
+        let channel = kk_channel_create(1)
+
+        let successToken = kk_channel_try_send_tagged(channel, 7)
+        #expect(successToken & 3 == 0, "success tag is 0")
+        #expect(successToken != 0, "success carries the Unit-box payload")
+        let unitValue = kk_channel_result_value(successToken)
+        #expect(unitValue == kk_box_unit(0))
+        #expect(kk_channel_result_cause(successToken) == 0)
+
+        let failedToken = kk_channel_try_send_tagged(channel, 9)
+        #expect(failedToken == 2, "full buffer reports the failed tag")
+
+        let cause = kk_box_unit(0) + 0 // reuse a registered object pointer as a fake Throwable handle
+        _ = kk_channel_close_cause(channel, cause)
+        let closedToken = kk_channel_try_send_tagged(channel, 11)
+        #expect(closedToken & 3 == 1, "closed tag is 1")
+        #expect(kk_channel_result_cause(closedToken) == cause)
+        #expect(kk_channel_result_value(closedToken) == 0)
+    }
+
+    /// A channel closed without a cause reports the dedicated tag-3 token so
+    /// `ChannelResult` can materialise `ClosedSendChannelException` like
+    /// upstream's `sendException` substitution.
+    @Test func taggedTrySendOnNormallyClosedChannelReportsNoCauseTag() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        let token = kk_channel_try_send_tagged(channel, 5)
+        #expect(token == 3, "closed-without-cause tag is 3")
+        #expect(kk_channel_result_cause(token) == 0)
+    }
+
+    /// The `__kk_channel_result_success`/`closed` encoders round-trip their
+    /// payloads through the decoders.
+    @Test func channelResultEncodersRoundTrip() {
+        let element = kk_box_unit(0)
+        let successToken = kk_channel_result_success(element)
+        #expect(successToken & 3 == 0)
+        #expect(kk_channel_result_value(successToken) == element)
+
+        let cause = kk_box_unit(0)
+        let closedToken = kk_channel_result_closed(cause)
+        #expect(closedToken & 3 == 1)
+        #expect(kk_channel_result_cause(closedToken) == cause)
+    }
 }
