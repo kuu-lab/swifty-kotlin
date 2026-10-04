@@ -19,6 +19,16 @@ fun main() {
     out.write(67)
     println(buffer.readByte())
 
+    val bulkBuffer = Buffer()
+    val bulkOut = bulkBuffer.asOutputStream()
+    bulkOut.write(byteArrayOf(104, 105, 106, 0, 127, -128, -1))
+    bulkOut.write(byteArrayOf())
+    bulkOut.flush()
+    println(bulkBuffer.size)
+    while (bulkBuffer.size > 0) {
+        println(bulkBuffer.readByte().toInt())
+    }
+
     val rawBuffer = Buffer()
     val raw: RawSink = rawBuffer
     val buffered = raw.buffered()
@@ -28,6 +38,12 @@ fun main() {
     println(rawBuffer.readByte())
     try {
         bufferedOut.write(91)
+        println("no-throw")
+    } catch (e: IOException) {
+        println(e.message)
+    }
+    try {
+        bufferedOut.write(byteArrayOf(104, 105, 106))
         println("no-throw")
     } catch (e: IOException) {
         println(e.message)

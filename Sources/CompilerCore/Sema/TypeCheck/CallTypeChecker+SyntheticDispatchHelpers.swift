@@ -3,6 +3,13 @@
 ///
 /// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
+    /// Returns true when `exprID` is a lambda literal.
+    func isLambdaLiteralArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let argExpr = ast.arena.expr(exprID) else { return false }
+        if case .lambdaLiteral = argExpr { return true }
+        return false
+    }
+
     /// Returns true when `exprID` is a lambda literal or callable reference.
     func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let argExpr = ast.arena.expr(exprID) else { return false }

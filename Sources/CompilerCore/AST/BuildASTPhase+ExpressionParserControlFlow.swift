@@ -724,8 +724,17 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.colon)) {
                 _ = consume()
                 if case let .identifier(typeName) = current()?.kind {
-                    paramTypeName = typeName
+                    var typePath = [interner.resolve(typeName)]
                     _ = consume()
+                    while matches(.symbol(.dot)) {
+                        _ = consume()
+                        guard case let .identifier(component) = current()?.kind else {
+                            break
+                        }
+                        typePath.append(interner.resolve(component))
+                        _ = consume()
+                    }
+                    paramTypeName = interner.intern(typePath.joined(separator: "."))
                 }
             }
         }

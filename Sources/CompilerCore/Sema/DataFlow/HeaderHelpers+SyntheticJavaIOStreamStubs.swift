@@ -1010,6 +1010,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
+            let byteArrayType = types.make(.classType(ClassType(
+                classSymbol: byteArraySymbol, args: [], nullability: .nonNull
+            )))
+            registerFileMemberFunction(
+                named: "write",
+                externalLinkName: "__kk_output_stream_write_bytes",
+                ownerSymbol: outputStreamSymbol,
+                ownerType: outputStreamType,
+                parameters: [("buffer", byteArrayType)],
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         registerFileMemberFunction(
             named: "flush",
             externalLinkName: "__kk_output_stream_flush",

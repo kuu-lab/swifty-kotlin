@@ -410,7 +410,7 @@ final class CallTypeChecker {
            args.count <= 2,
            locals[calleeName] == nil,
            let lastArgumentExprID = args.last?.expr,
-           isLambdaOrCallableRefArg(lastArgumentExprID, ast: ast)
+           isLambdaLiteralArg(lastArgumentExprID, ast: ast)
         {
             // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
             // when it is visible; it composes channel + kk_coroutine_scope_launch
@@ -427,26 +427,23 @@ final class CallTypeChecker {
                 return boundProduceResult
             }
         }
+        // Function *values* (named `suspend ProducerScope<E>.() -> Unit`
+        // bindings, callable references, members) fall through to generic
+        // overload resolution: the send-scan element inference is only needed
+        // for literals, and a declared value already pins E for the solver.
+        // The same holds for `actor`, which is generic-only here.
         if let calleeName,
            calleeName == knownNames.produce,
            args.count == 1,
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           let argumentExprID = args.first?.expr,
+           isValidBuilderLambdaArgument(argumentExprID, ast: ast)
         {
-            let argumentExprID = args[0].expr
             // See the coroutineLauncherLambdaExprIDs doc comment: produce{}'s
             // captures are forwarded via CoroutineLoweringPass+LauncherSupport's
             // launcher-continuation rewrite (BUG-049), not the generic
             // escaping-callable-value (kk_function_create_N) ABI.
             sema.bindings.markCoroutineLauncherLambdaExpr(argumentExprID)
-            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
-                ctx.semaCtx.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
-                    "No viable overload found for call.",
-                    range: range
-                )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
-            }
 
             let channelType = produceBuilderChannelType(
                 lambdaExprID: argumentExprID,
@@ -3130,12 +3127,41 @@ final class CallTypeChecker {
             }
         }
 
-        if let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
-            calleeName: calleeName,
-            argumentCount: args.count,
-            sema: sema,
-            interner: interner
-        ) {
+        // KUU-963: `emit` is also an ordinary member name (e.g. a user-defined
+        // `Sink.emit`). The Flow builtin fallback must not shadow a real
+        // member on an in-scope implicit receiver — when any receiver in the
+        // implicit-receiver tower declares `emit`, defer to the member
+        // resolution below so the call binds to the real declaration.
+        let emitMemberExistsOnImplicitReceiver: Bool = {
+            guard let calleeName,
+                  calleeName == knownNames.emit
+            else {
+                return false
+            }
+            var receiverTypes: [TypeID] = []
+            if let implicitReceiverType = ctx.implicitReceiverType {
+                receiverTypes.append(implicitReceiverType)
+            }
+            for outerReceiver in ctx.outerReceiverTypes {
+                receiverTypes.append(outerReceiver.type)
+            }
+            return receiverTypes.contains { receiverType in
+                !driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: sema.types.makeNonNullable(receiverType),
+                    sema: sema,
+                    interner: interner
+                ).isEmpty
+            }
+        }()
+        if !emitMemberExistsOnImplicitReceiver,
+           let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
+               calleeName: calleeName,
+               argumentCount: args.count,
+               sema: sema,
+               interner: interner
+           )
+        {
             sema.bindings.bindExprType(id, type: builtinType)
             return builtinType
         }

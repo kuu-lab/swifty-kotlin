@@ -150,13 +150,21 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             },
             parseTypeReference: { typeTokens in
-                TypeRefParserCore.parseTypeRefPrefix(
-                    typeTokens[...],
+                guard let first = typeTokens.first else {
+                    return nil
+                }
+                let parser = BuildASTPhase.ExpressionParser(
+                    tokens: typeTokens,
                     interner: interner,
                     astArena: astArena,
-                    options: .declaration,
                     diagnostics: self.diagnostics
-                )?.ref
+                )
+                // A local `val`/`var` type annotation is a declaration type:
+                // the tokens are already bounded by `=`/newline, so function
+                // types (`(T) -> U`, `R.() -> U`, `suspend R.() -> U`) parse
+                // unambiguously — unlike is/as operands, which share the
+                // arrow token with `when` branches and stay non-functional.
+                return parser.parseTypeReference(first.range, allowFunctionType: true)
             },
             resolveDeclarationName: { token, interner in
                 guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
