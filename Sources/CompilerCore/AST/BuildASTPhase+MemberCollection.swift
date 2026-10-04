@@ -277,15 +277,26 @@ extension BuildASTPhase {
             return []
         }
         guard let introducerIndex = firstTopLevelKeywordIndex(in: tokens, matching: [declarationKeyword]),
-              introducerIndex + 1 < tokens.count,
-              let name = internedIdentifier(from: tokens[introducerIndex + 1], interner: interner),
-              name == declName
+              introducerIndex + 1 < tokens.count
         else {
             return []
         }
-        let nameIndex = introducerIndex + 1
-
-        var index = nameIndex + 1
+        // An unnamed `companion object : Supertype { ... }` has no identifier
+        // between `object` and the supertype colon, so the supertype list starts
+        // right after the introducer instead of after a name.
+        let isUnnamedObject = declarationKeyword == .object
+            && tokens[introducerIndex + 1].kind == .symbol(.colon)
+        var index: Int
+        if isUnnamedObject {
+            index = introducerIndex + 1
+        } else {
+            guard let name = internedIdentifier(from: tokens[introducerIndex + 1], interner: interner),
+                  name == declName
+            else {
+                return []
+            }
+            index = introducerIndex + 2
+        }
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
         // Primary constructors may use the explicit `constructor` keyword with an

@@ -337,21 +337,18 @@ extension KIRLoweringDriver {
             return
         }
 
-        var argIDs: [KIRExprID] = [receiverID]
-        for arg in superArgs {
-            argIDs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
-        }
-
+        let loweredSuperArgs = superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) }
         let resultID = arena.appendTemporary(type: sema.types.unitType)
-        body.append(.call(
-            symbol: superCtorSymbol,
-            callee: shared.interner.intern("<init>"),
-            arguments: argIDs,
+        emitDelegatedConstructorCall(
+            target: superCtorSymbol,
+            receiver: receiverID,
+            loweredArgs: loweredSuperArgs,
+            spreadFlags: superArgs.map(\.isSpread),
+            callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
             result: resultID,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
-        ))
+            shared: shared,
+            body: &body
+        )
     }
 
     private func emitPrimaryConstructorPropertyInitializers(
@@ -670,11 +667,18 @@ extension KIRLoweringDriver {
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let storedValue = normalizedValueForNullablePrimitiveSlot(
+                value,
+                slotType: valueType,
+                types: sema.types,
+                arena: arena,
+                into: &body
+            )
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
                 callee: shared.interner.intern("kk_array_set"),
-                arguments: [receiverID, offsetExpr, value],
+                arguments: [receiverID, offsetExpr, storedValue],
                 result: unusedResult,
                 canThrow: false,
                 thrownResult: nil,
