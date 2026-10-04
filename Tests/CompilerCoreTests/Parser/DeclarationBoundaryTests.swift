@@ -52,6 +52,17 @@ struct DeclarationBoundaryTests {
         #expect(!KotlinParser.endsWithPendingInfixOperator(complete))
     }
 
+    @Test(arguments: [
+        "fun f(s: String?) = s!!.length",
+        "val h = xs.scanReduce { acc, v -> acc + v }.size",
+        "xs.scanReduce { acc, v -> acc + v }.size",
+        "val complete = 1 or bytes.size",
+    ])
+    func qualifiedAndPostfixExpressionsDoNotEndWithPendingInfixOperator(expression: String) {
+        let tokens = lex(expression).tokens.dropLast()
+        #expect(!KotlinParser.endsWithPendingInfixOperator(tokens))
+    }
+
     @Test
     func completeInfixWithCallOperandDoesNotAbsorbReturn() {
         let source = """

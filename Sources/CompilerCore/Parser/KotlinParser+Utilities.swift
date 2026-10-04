@@ -366,6 +366,15 @@ extension KotlinParser {
         guard let last = tokens.last, case .identifier = last.kind else {
             return false
         }
+        // If the trailing identifier is preceded by `.`, `?.`, or `::`, it is a
+        // qualified member access / property / method, not an infix operator name.
+        let lastIndex = tokens.index(before: tokens.endIndex)
+        if lastIndex > tokens.startIndex {
+            let beforeLast = tokens[tokens.index(before: lastIndex)].kind
+            if beforeLast == .symbol(.dot) || beforeLast == .symbol(.questionDot) || beforeLast == .symbol(.doubleColon) {
+                return false
+            }
+        }
         var runLength = 0
         var index = tokens.endIndex
         while index > tokens.startIndex {
@@ -399,36 +408,62 @@ extension KotlinParser {
         in tokens: C, endingAt end: C.Index
     ) -> C.Index where C.Element == Token {
         var start = end
-        let kind = tokens[end].kind
-        if kind == .symbol(.rParen) || kind == .symbol(.rBracket) {
-            let open: TokenKind = kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
-            guard let openIndex = matchingOpenIndex(in: tokens, closingAt: end, open: open, close: kind) else {
+        var current = end
+
+        if tokens[current].kind == .symbol(.rParen) || tokens[current].kind == .symbol(.rBracket) {
+            let open: TokenKind = tokens[current].kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
+            guard let openIndex = matchingOpenIndex(in: tokens, closingAt: current, open: open, close: tokens[current].kind) else {
                 return end
             }
             start = openIndex
-            if openIndex > tokens.startIndex {
-                let target = tokens.index(before: openIndex)
-                if kind == .symbol(.rBracket) {
-                    return postfixOperandStart(in: tokens, endingAt: target)
-                }
-                switch tokens[target].kind {
-                case .identifier, .backtickedIdentifier:
-                    if !endsWithPendingInfixOperator(tokens[tokens.startIndex ... target]) {
-                        return postfixOperandStart(in: tokens, endingAt: target)
+            current = openIndex
+
+            if tokens[end].kind == .symbol(.rBracket), current > tokens.startIndex {
+                let target = tokens.index(before: current)
+                start = postfixOperandStart(in: tokens, endingAt: target)
+                current = start
+            } else if tokens[end].kind == .symbol(.rParen), current > tokens.startIndex {
+                let target = tokens.index(before: current)
+                let isPrecededByDot: Bool = {
+                    guard target > tokens.startIndex else { return false }
+                    let beforeTarget = tokens[tokens.index(before: target)].kind
+                    return beforeTarget == .symbol(.dot) || beforeTarget == .symbol(.questionDot)
+                }()
+                let isFollowedByDot: Bool = {
+                    let afterEnd = tokens.index(after: end)
+                    guard afterEnd < tokens.endIndex else { return false }
+                    let kind = tokens[afterEnd].kind
+                    return kind == .symbol(.dot) || kind == .symbol(.questionDot)
+                }()
+                if isPrecededByDot || isFollowedByDot {
+                    switch tokens[target].kind {
+                    case .identifier, .backtickedIdentifier:
+                        start = postfixOperandStart(in: tokens, endingAt: target)
+                        current = start
+                    default:
+                        break
                     }
-                default:
-                    break
                 }
             }
         }
-        if start > tokens.startIndex {
-            let separator = tokens.index(before: start)
-            if (tokens[separator].kind == .symbol(.dot) || tokens[separator].kind == .symbol(.questionDot)),
-               separator > tokens.startIndex
-            {
-                return postfixOperandStart(in: tokens, endingAt: tokens.index(before: separator))
+
+        while current > tokens.startIndex {
+            let prev = tokens.index(before: current)
+            switch tokens[prev].kind {
+            case .symbol(.bangBang):
+                current = prev
+                start = prev
+            case .symbol(.dot), .symbol(.questionDot):
+                guard prev > tokens.startIndex else { break }
+                let receiverEnd = tokens.index(before: prev)
+                let receiverStart = postfixOperandStart(in: tokens, endingAt: receiverEnd)
+                current = receiverStart
+                start = receiverStart
+            default:
+                return start
             }
         }
+
         return start
     }
 
