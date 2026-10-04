@@ -2816,7 +2816,7 @@
     - `kotlin.ranges.UIntProgression.step` — val UIntProgression.step: Int  -- `final val step`
     - `kotlin.ranges.UIntProgression.toString` — fun UIntProgression.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-1314: kotlin.ranges.UIntRange top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1314: kotlin.ranges.UIntRange top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ranges.UIntRange` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/UIntRange/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2826,6 +2826,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.UIntRange.<init>` — constructor (UInt, UInt)  -- `constructor <init>(kotlin/UInt, kotlin/UInt)`
     - `kotlin.ranges.UIntRange.Companion` — object kotlin.ranges.UIntRange.Companion  -- `final object Companion {`
+  - 完了根拠: `UIntRange/Stdlib.kt` に `@KsSymbolName("__kk_uint_rangeTo")` ctor と `companion object` を bundled source で宣言し、synthetic ctor 登録を撤去。さらに `ULongRange`（KSP-1320）と同形の `endInclusive`/`isEmpty`/`equals`/`hashCode`/`toString` member override を宣言し、`equals`/`hashCode` が `UIntProgression` 継承実装へフォールバックしないよう固定（`UIntRange` と `UIntProgression` は hashCode の定義が異なるため本家準拠）。synthetic Companion nominal は source decl が adopt。`stdlib_kotlin_ranges_UIntRange_UIntRange_n` 等の golden は member-beats-extension の正規解決へ再生成。Sema Golden / kotlinc diff は対象ケースのみ実行、全量は未実行。
 
 - [x] KSP-1315: kotlin.ranges.UIntRange.UIntRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.UIntRange` / receiver `UIntRange`
