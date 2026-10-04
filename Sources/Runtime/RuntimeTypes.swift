@@ -355,6 +355,7 @@ class RuntimeArrayBox {
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
+    var coroutineJobHandle: Int = 0
     var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
     var throwableMessage: String?

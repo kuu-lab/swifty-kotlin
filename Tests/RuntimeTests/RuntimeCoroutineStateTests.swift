@@ -600,8 +600,11 @@ struct RuntimeCoroutineStateTests {
         // Cancel the scope — should propagate to children
         #expect(kk_coroutine_scope_cancel(scopeHandle) == 0)
 
-        // Wait should complete (children are cancelled so they exit early)
-        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
+        // Wait should complete (children are cancelled so they exit early).
+        // KUU-964: a cancelled scope's wait returns its own JobCancellationException
+        // (kotlinx semantics) rather than a null sentinel.
+        let waitResult = kk_coroutine_scope_wait(scopeHandle)
+        #expect(kk_is_cancellation_exception(waitResult) == 1)
 
         let end = DispatchTime.now()
         let elapsedSeconds = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000

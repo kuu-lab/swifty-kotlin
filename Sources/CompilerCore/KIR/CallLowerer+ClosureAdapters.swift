@@ -357,7 +357,18 @@ extension CallLowerer {
             return loweredArgID
         }
 
-        if !resolvedCallableInfo.hasClosureParam,
+        let concreteCallableType = arena.exprType(loweredCallableID) ?? sema.bindings.exprTypes[argExprID]
+        let hasStringSignature: Bool
+        if let concreteCallableType,
+           case let .functionType(concreteType) = sema.types.kind(of: sema.types.makeNonNullable(concreteCallableType))
+        {
+            hasStringSignature = concreteType.params.contains(where: sema.types.isString)
+                || sema.types.isString(concreteType.returnType)
+        } else {
+            hasStringSignature = false
+        }
+        if (!resolvedCallableInfo.hasClosureParam
+            || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,

@@ -300,13 +300,13 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let jobSymbol = ensureClassSymbol(
+        let jobSymbol = ensureInterfaceSymbol(
             named: "Job",
             in: coroutinesPkg,
             symbols: symbols,
             interner: interner
         )
-        let deferredSymbol = ensureClassSymbol(
+        let deferredSymbol = ensureInterfaceSymbol(
             named: "Deferred",
             in: coroutinesPkg,
             symbols: symbols,
@@ -452,7 +452,7 @@ extension DataFlowSemaPhase {
         )))
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: [],
+            args: symbols.isSourceBackedSymbol(deferredSymbol) ? [.out(types.anyType)] : [],
             nullability: .nonNull
         )))
         let dispatchersType = types.make(.classType(ClassType(
@@ -723,7 +723,7 @@ extension DataFlowSemaPhase {
         }
 
         // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
-        // `collect` and `collectLatest` as synthetic source-visible members so
+        // `collect` as a synthetic source-visible member so
         // bundled operator bodies lower them to the retained kk_flow_* ABI
         // instead of emitting the parameter name as a native symbol.
         let flowElementType = types.make(.typeParam(TypeParamType(
@@ -741,17 +741,6 @@ extension DataFlowSemaPhase {
             ownerType: flowRawType,
             name: "collect",
             externalLinkName: "kk_flow_collect",
-            returnType: types.unitType,
-            parameters: [(name: "collector", type: flowCollectorType)],
-            isSuspend: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "collectLatest",
-            externalLinkName: "__kk_flow_collectLatest",
             returnType: types.unitType,
             parameters: [(name: "collector", type: flowCollectorType)],
             isSuspend: true,
@@ -2379,15 +2368,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: deferredSymbol,
-            ownerType: deferredType,
-            name: "await",
-            externalLinkName: "kk_kxmini_async_await",
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        if !symbols.isSourceBackedSymbol(deferredSymbol) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: deferredSymbol,
+                ownerType: deferredType,
+                name: "await",
+                externalLinkName: "kk_kxmini_async_await",
+                returnType: types.anyType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         // KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are bundled
         // Kotlin source (StateFlow.kt), so no synthetic constructor or member
         // stubs are registered here.

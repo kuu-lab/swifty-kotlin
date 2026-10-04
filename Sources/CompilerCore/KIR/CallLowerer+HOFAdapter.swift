@@ -57,7 +57,7 @@ extension CallLowerer {
 
         let valueParams: [KIRParameter] = allValueTypes.enumerated().map { index, type in
             let isErasedPrimitiveParam = erasedValueType(at: index) != nil
-                && (isNonNullPrimitiveType(type, sema: sema)
+                && (isNonNullValueRepresentationType(type, sema: sema)
                     || isNonNullEnumType(type, sema: sema))
             return KIRParameter(
                 symbol: SymbolID(rawValue: Int32(clamping: symbolIDOffsetBase - Int64(argExprID.rawValue) * 16 - Int64(index))),
@@ -129,7 +129,7 @@ extension CallLowerer {
         let adapterReturnType: TypeID = {
             guard let erasedReturnType = erasedFunctionType?.returnType,
                   isErasedRepresentationType(erasedReturnType, sema: sema),
-                  isNonNullPrimitiveType(functionType.returnType, sema: sema)
+                  isNonNullValueRepresentationType(functionType.returnType, sema: sema)
             else {
                 return functionType.returnType
             }
@@ -138,12 +138,13 @@ extension CallLowerer {
 
         let callResult = arena.appendTemporary(type: functionType.returnType
         )
+        let canThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
         body.append(.call(
             symbol: callableInfo.symbol,
             callee: callableInfo.callee,
             arguments: callArguments,
             result: callResult,
-            canThrow: false,
+            canThrow: canThrow,
             thrownResult: nil
         ))
 
@@ -197,13 +198,14 @@ extension CallLowerer {
         return nonNull == sema.types.anyType
     }
 
-    private func isNonNullPrimitiveType(_ type: TypeID, sema: SemaModule) -> Bool {
+    private func isNonNullValueRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
         let kind = resolveValueClassKind(
             sema.types.kind(of: type),
             types: sema.types,
             symbols: sema.symbols
         )
         if case .primitive(_, .nonNull) = kind { return true }
+        if case .stringStruct(.nonNull) = kind { return true }
         return false
     }
 
