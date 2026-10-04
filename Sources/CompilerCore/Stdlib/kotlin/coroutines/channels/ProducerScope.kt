@@ -46,7 +46,7 @@ public interface SendChannel<in E> {
 @KsSymbolName("__kk_identity")
 private external fun <E> __kkProducerScopeChannel(scope: ProducerScope<E>): SendChannel<E>
 
-public class ProducerScope<out E> : CoroutineScope, SendChannel<E> {
+public class ProducerScope<in E> : CoroutineScope, SendChannel<E> {
     /** A reference to the channel this coroutine sends elements to. */
     public val channel: SendChannel<E>
         get() = __kkProducerScopeChannel(this)

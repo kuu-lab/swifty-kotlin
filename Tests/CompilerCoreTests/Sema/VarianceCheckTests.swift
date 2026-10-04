@@ -35,6 +35,31 @@ struct VarianceCheckTests {
         }
     }
 
+    @Test
+    func producerScopeContravarianceComposesWithChannelGetter() throws {
+        let source = """
+        import kotlinx.coroutines.channels.ProducerScope
+        import kotlinx.coroutines.channels.SendChannel
+
+        interface ProducingTask<in E> {
+            val scope: ProducerScope<E>
+        }
+
+        fun narrowProducer(scope: ProducerScope<Any>): ProducerScope<String> = scope
+        fun channelFrom(scope: ProducerScope<String>): SendChannel<String> = scope.channel
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let producerScope = try #require(sema.symbols.allSymbols().first {
+                $0.fqName.map(ctx.interner.resolve).joined(separator: ".") == "kotlinx.coroutines.channels.ProducerScope"
+            })
+            #expect(sema.types.nominalTypeParameterVariances(for: producerScope.id) == [.in])
+        }
+    }
+
     @Test(arguments: [
         ("in", "val value: Sink<T>", 0),
         ("out", "val value: Source<T>", 0),
