@@ -4,6 +4,8 @@ class Writer(val value: Int) {
     fun read(): Int = value
 }
 
+fun Writer.label(): Int = value + 100
+
 fun main() {
     val outer = with("s") { with(1) { ::tag } }
     println(outer())
@@ -15,4 +17,6 @@ fun main() {
     println(nearest())
     val member = with(Writer(42)) { with("s") { ::read } }
     println(member())
+    val nominalExtension = with(Writer(7)) { with("s") { ::label } }
+    println(nominalExtension())
 }

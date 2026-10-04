@@ -340,6 +340,16 @@ struct CallableReferenceExtensionReceiverTests {
         #expect(ctx.diagnostics.hasError, "Member extensions must remain unreferenceable")
     }
 
+    @Test func testBareCallableRefRejectsNominalExtension() throws {
+        let ctx = makeContextFromSource("""
+        class Receiver
+        fun Receiver.tag(): String = "extension"
+        fun main() { println(::tag) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Attaching an extension to its receiver must not make it a member")
+    }
+
     @Test func testCallableReferenceDoesNotBindDslHiddenReceiver() throws {
         let ctx = makeContextFromSource("""
         @DslMarker annotation class Marker

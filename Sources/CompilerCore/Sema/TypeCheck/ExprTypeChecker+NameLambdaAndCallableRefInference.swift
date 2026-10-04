@@ -1708,10 +1708,11 @@ extension ExprTypeChecker {
                 // receiver are bound `() -> R` candidates as well — kotlinc
                 // resolves `with("42") { ::toInt }` to `() -> Int`.
                 let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
-                    let ownerKind = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0)?.kind }
+                    let owner = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0) }
                     guard let symbol = ctx.cachedSymbol(symbolID),
                           symbol.kind == .function,
-                          ownerKind == nil || ownerKind == .package,
+                          owner == nil || owner?.kind == .package
+                              || Array(symbol.fqName.dropLast()) != owner?.fqName,
                           let signature = sema.symbols.functionSignature(for: symbolID),
                           let declaredReceiver = signature.receiverType,
                           driver.helpers.declaresExtensionReceiver(
