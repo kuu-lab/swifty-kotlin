@@ -20,6 +20,7 @@ fun main() {
         val buffer = Buffer()
         buffer.write(bytes)
         val source: Source = if (chunked) SearchChunks(bytes).buffered() else buffer
+        try { source.request(-1L) } catch (e: IllegalArgumentException) { println(e.message) }
         println(source.startsWith(1))
         println(source.startsWith(2))
         println(source.indexOf(2))

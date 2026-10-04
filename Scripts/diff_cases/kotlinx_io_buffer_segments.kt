@@ -19,6 +19,9 @@ fun main() {
     println(buffer.get(8192L))
     println(buffer.get(19999L))
     println(buffer.indexOf(17, 8190L, 8300L))
+    // A miss scans through the last segment; the queue has no successor there.
+    println(buffer.indexOf((-1).toByte(), 0L, buffer.size))
+    println(buffer.indexOf((-1).toByte(), buffer.size, buffer.size))
     val array = ByteArray(10000)
     println(buffer.readAtMostTo(array, 0, array.size))
     println(buffer.size)

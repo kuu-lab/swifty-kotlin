@@ -2,13 +2,10 @@
  * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  *
- * Derived from kotlinx-io core/common/src/Sources.kt and the Source/Buffer extensions in
- * ByteStrings.kt (tag 0.9.1). The growable-array Buffer uses indexed scans rather than
- * Segment/unsafe operations. Explicit get(Long) avoids the compiler's Buffer subscript fallback.
+ * Derived from kotlinx-io core/common/src/Sources.kt (tag 0.9.1).
+ * Explicit get(Long) avoids the compiler's Buffer subscript fallback.
  */
 package kotlinx.io
-
-import kotlinx.io.bytestring.ByteString
 
 public fun Source.readShortLe(): Short = this.readShort().reverseBytes()
 public fun Source.readIntLe(): Int = this.readInt().reverseBytes()
@@ -158,34 +155,3 @@ public fun Source.readDouble(): Double = Double.fromBits(this.readLong())
 public fun Source.readFloatLe(): Float = Float.fromBits(this.readIntLe())
 public fun Source.readDoubleLe(): Double = Double.fromBits(this.readLongLe())
 public fun Source.startsWith(byte: Byte): Boolean = this.request(1L) && this.buffer.get(0L) == byte
-
-public fun Source.readByteString(): ByteString = ByteString.wrap(this.readByteArray())
-public fun Source.readByteString(byteCount: Int): ByteString = ByteString.wrap(this.readByteArray(byteCount))
-
-public fun Source.indexOf(byteString: ByteString, startIndex: Long = 0L): Long {
-    val start = if (startIndex < 0L) 0L else startIndex
-    if (byteString.size == 0) {
-        this.request(start)
-        return if (start < this.buffer.size) start else this.buffer.size
-    }
-    var offset = start
-    while (this.request(offset + byteString.size.toLong())) {
-        val index = this.buffer.indexOf(byteString, offset)
-        if (index >= 0L) return index
-        offset = this.buffer.size - byteString.size.toLong() + 1L
-    }
-    return -1L
-}
-
-public fun Buffer.indexOf(byteString: ByteString, startIndex: Long = 0L): Long {
-    var offset = if (startIndex < 0L) 0L else if (startIndex > this.size) this.size else startIndex
-    if (byteString.size == 0) return offset
-    val limit = this.size - byteString.size.toLong()
-    while (offset <= limit) {
-        var index = 0
-        while (index < byteString.size && this.get(offset + index.toLong()) == byteString[index]) index += 1
-        if (index == byteString.size) return offset
-        offset += 1L
-    }
-    return -1L
-}

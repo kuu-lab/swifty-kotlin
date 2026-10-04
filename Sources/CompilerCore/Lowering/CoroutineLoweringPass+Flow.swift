@@ -388,7 +388,7 @@ extension CoroutineLoweringPass {
             }
             for instruction in function.body {
                 for symbol in referencedFunctionSymbols(in: instruction, symbolByExprRaw: symbolByExprRaw)
-                where module.arena.function(for: symbol) != nil
+                where functionNameBySymbol[symbol] != nil
                     && flowScopeFunctionSymbols.insert(symbol).inserted {
                     if let name = functionNameBySymbol[symbol] {
                         flowScopeFunctionNames.insert(name)

@@ -87,17 +87,6 @@ extension DataFlowSemaPhase {
             companionSymbol = reusableSymbol
             symbols.removeFlags(.synthetic, for: companionSymbol)
             symbols.setDeclSite(companionObject.range, for: companionSymbol)
-        } else if let reusableSymbol = reusableSyntheticUIntRangeSourceCompanionSymbol(
-            fqName: companionFQName,
-            sourceFileID: sourceFileID,
-            ownerSymbol: ownerSymbol,
-            ctx: ctx,
-            symbols: symbols,
-            interner: interner
-        ) {
-            companionSymbol = reusableSymbol
-            symbols.removeFlags(.synthetic, for: companionSymbol)
-            symbols.setDeclSite(companionObject.range, for: companionSymbol)
         } else {
             companionSymbol = symbols.define(
                 kind: .object,

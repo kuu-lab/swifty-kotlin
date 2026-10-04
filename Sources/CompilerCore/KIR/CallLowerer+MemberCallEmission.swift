@@ -237,6 +237,22 @@ extension CallLowerer {
                 instructions.append(.constValue(result: zero, value: .intLiteral(0)))
                 finalArguments[parameterIndex + 1] = zero
             }
+            if let handleSymbol = sema.symbols.lookupAll(fqName: ["kotlinx", "coroutines", "__kkScopeHandle"].map { interner.intern($0) }).first(where: {
+                   sema.symbols.symbol($0)?.kind == .function
+               }),
+               let handleInfo = sema.symbols.symbol(handleSymbol)
+            {
+                let scopeHandle = arena.appendTemporary(type: sema.types.anyType)
+                instructions.append(.call(
+                    symbol: handleSymbol,
+                    callee: handleInfo.name,
+                    arguments: [finalArguments[0]],
+                    result: scopeHandle,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                finalArguments[0] = scopeHandle
+            }
             // Keep captures visible to suspend liveness before launcher rewriting.
             finalArguments.append(contentsOf: driver.ctx.callableValueInfo(for: finalArguments[3])?.captureArguments ?? [])
             instructions.append(.call(
@@ -335,6 +351,12 @@ extension CallLowerer {
         // either way), but silently dropping any captured values (`bonus`)
         // for one that does capture, since nothing ever threaded the actual
         // closure environment through.
+        adaptCoroutineLauncherBlock(
+            chosenCallee: chosenCallee,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions, arguments: &finalArguments
+        )
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -464,6 +486,24 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
+        }
+        if (loweredCalleeText == "kk_coroutine_scope_launch" || loweredCalleeText == "kk_coroutine_scope_async"),
+           !finalArguments.isEmpty,
+           let handleSymbol = sema.symbols.lookupAll(fqName: ["kotlinx", "coroutines", "__kkScopeHandle"].map { interner.intern($0) }).first(where: {
+               sema.symbols.symbol($0)?.kind == .function
+           }),
+           let handleInfo = sema.symbols.symbol(handleSymbol)
+        {
+            let scopeHandle = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: handleSymbol,
+                callee: handleInfo.name,
+                arguments: [finalArguments[0]],
+                result: scopeHandle,
+                canThrow: true,
+                thrownResult: nil
+            ))
+            finalArguments[0] = scopeHandle
         }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
@@ -929,10 +969,10 @@ extension CallLowerer {
         "kk_range_last_predicate",
         "__kk_range_first_orThrow",
         "__kk_range_last_orThrow",
-        "kk_uint_range_first_orThrow",
-        "kk_uint_range_last_orThrow",
-        "kk_ulong_range_first_orThrow",
-        "kk_ulong_range_last_orThrow",
+        "__kk_uint_range_first_orThrow",
+        "__kk_uint_range_last_orThrow",
+        "__kk_ulong_range_first_orThrow",
+        "__kk_ulong_range_last_orThrow",
         "__kk_range_random",
         "__kk_range_random_random",
         "__kk_char_range_random",

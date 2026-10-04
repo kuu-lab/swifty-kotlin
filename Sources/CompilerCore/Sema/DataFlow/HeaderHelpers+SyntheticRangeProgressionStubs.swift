@@ -203,14 +203,9 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticUIntRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-709: no UIntRange registration — the bundled
+        // `ranges/UIntRange/Stdlib.kt` declaration owns the class shell,
+        // its Companion, and the residual member surface in Kotlin source.
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
@@ -222,16 +217,10 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticULongRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-709: no ULongRange registration — the bundled
+        // `ranges/ULongRange/Stdlib.kt` declaration owns the class shell
+        // and its Companion in Kotlin source.
         registerSyntheticClosedRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
             types: types,
@@ -556,8 +545,8 @@ extension DataFlowSemaPhase {
         // externalLinkNames registered below — resolution always lands on the
         // shared `__kk_range_*` bridge or the bundled `isEmpty`/`toList`
         // before this registration's link name is read (`step` is the one
-        // exception: it stays on the live, kept `kk_uint_range_step` /
-        // `kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
+        // exception: it stays on the live, kept `__kk_uint_range_step` /
+        // `__kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
         // `.step` — the progression box stores the step at runtime and there
         // is no Kotlin-side field to read it from). Aligning the dead names
         // to the safe generic bridge so they don't dangle on symbols this
@@ -576,8 +565,8 @@ extension DataFlowSemaPhase {
         }
         let stepRuntime: String
         switch name {
-        case "UIntProgression": stepRuntime = "kk_uint_range_step"
-        case "ULongProgression": stepRuntime = "kk_ulong_range_step"
+        case "UIntProgression": stepRuntime = "__kk_uint_range_step"
+        case "ULongProgression": stepRuntime = "__kk_ulong_range_step"
         case "LongProgression": stepRuntime = "__kk_long_range_step"
         default: stepRuntime = "kk_range_step"
         }
@@ -835,99 +824,25 @@ extension DataFlowSemaPhase {
     }
 
     private func registerSyntheticClosedRangeStub(
-        rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let className = interner.intern("ClosedRange")
-        let classFQName = rangesFQName + [className]
-        let classSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: classFQName) {
-            classSymbol = existing
-        } else {
-            let created = symbols.define(
-                kind: .interface,
-                name: className,
-                fqName: classFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rangesPackageSymbol, for: created)
-            classSymbol = created
+        let classFQName = rangesFQName + [interner.intern("ClosedRange")]
+        guard let classSymbol = symbols.lookup(fqName: classFQName) else { return }
+        if !BundledSyntheticStubRegistration.bundledIndex.contains(owner: classFQName, name: interner.intern("contains"), arity: 1) {
+            for (name, link) in [
+                ("start", "__kk_range_first"),
+                ("endInclusive", "__kk_range_last"),
+                ("contains", "__kk_range_contains"),
+                ("isEmpty", "__kk_range_isEmpty"),
+            ] {
+                if let member = symbols.lookup(fqName: classFQName + [interner.intern(name)]) {
+                    symbols.setExternalLinkName(link, for: member)
+                }
+            }
         }
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = classFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: classSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: classSymbol)
-
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let rangeType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerProgressionProperty(
-            named: "start",
-            ownerSymbol: classSymbol,
-            propertyType: typeParamType,
-            externalLinkName: "__kk_range_first",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "endInclusive",
-            ownerSymbol: classSymbol,
-            propertyType: typeParamType,
-            externalLinkName: "__kk_range_last",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [typeParamType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_op_contains",
-            flags: [.synthetic, .operatorFunction],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "__kk_range_isEmpty",
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerClosedRangeImplementation(
             named: "IntRange",
@@ -995,22 +910,6 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol,
             supertype: iterableInterfaceSymbol,
             typeArgs: [.out(elementType)],
-            symbols: symbols,
-            types: types
-        )
-    }
-
-    func registerOpenEndRangeConformance(
-        classSymbol: SymbolID,
-        elementType: TypeID,
-        openEndRangeSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) {
-        appendNominalSupertype(
-            classSymbol: classSymbol,
-            supertype: openEndRangeSymbol,
-            typeArgs: [.invariant(elementType)],
             symbols: symbols,
             types: types
         )
@@ -1111,7 +1010,11 @@ extension DataFlowSemaPhase {
             interner.intern("ranges"),
             interner.intern("ClosedRange"),
         ]
-        guard symbols.lookup(fqName: closedRangeFQName) != nil else {
+        guard symbols.lookup(fqName: closedRangeFQName) != nil,
+              !BundledSyntheticStubRegistration.bundledIndex.contains(
+                  owner: closedRangeFQName, name: interner.intern("contains"), arity: 1
+              )
+        else {
             return
         }
         let typeParamFQName = closedRangeFQName + [interner.intern("T")]

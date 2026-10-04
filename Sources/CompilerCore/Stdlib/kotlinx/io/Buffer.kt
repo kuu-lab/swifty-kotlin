@@ -1,198 +1,265 @@
 /*
  * Copyright 2017-2024 JetBrains s.r.o. and respective authors and developers.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
- * Copyright (C) 2018 Square, Inc. Licensed under the Apache License, Version 2.0.
+ * Copyright (C) 2019 Square, Inc. Licensed under the Apache License, Version 2.0.
  *
- * Derived from kotlinx-io core/common/src/Buffer.kt and Segment.kt (tag 0.9.1).
- * Segments form a doubly-linked ring. Copies share byte storage, while whole-segment
- * transfers move ownership. Pooling and the public unsafe segment API are not exposed here.
+ * Derived from kotlinx-io core/common/src/Buffer.kt (tag 0.9.1). Stores bytes as a doubly-linked
+ * list of `Segment`s exactly like upstream. `@JvmSynthetic` annotations are dropped (this compiler
+ * has a single non-JVM target). The bounds helpers live in `-Util.kt`.
  */
 package kotlinx.io
 
-internal const val SEGMENT_SIZE_HINT: Int = 8192
-
-internal class BufferSegment(
-    val data: ByteArray = ByteArray(SEGMENT_SIZE_HINT),
-    var pos: Int = 0,
-    var limit: Int = 0,
-    var shared: Boolean = false,
-    val owner: Boolean = true
-) {
-    var next: BufferSegment? = null
-    var prev: BufferSegment? = null
-
-    fun sharedCopy(): BufferSegment {
-        shared = true
-        return BufferSegment(data, pos, limit, true, false)
-    }
-
-    fun writeTo(sink: BufferSegment, byteCount: Int) {
-        if (sink.limit + byteCount > SEGMENT_SIZE_HINT) {
-            var i = 0
-            val count = sink.limit - sink.pos
-            while (i < count) {
-                sink.data[i] = sink.data[sink.pos + i]
-                i += 1
-            }
-            sink.limit = count
-            sink.pos = 0
-        }
-        var i = 0
-        while (i < byteCount) {
-            sink.data[sink.limit + i] = data[pos + i]
-            i += 1
-        }
-        sink.limit += byteCount
-        pos += byteCount
-    }
-}
-
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind.EXACTLY_ONCE
+import kotlin.contracts.contract
+import kotlinx.io.unsafe.UnsafeBufferOperations
 /**
- * An in-memory byte queue implementing both [Source] and [Sink].
+ * A collection of bytes in memory.
  *
- * Data is stored in fixed-size segments, so the total size is not limited by a single
- * array's capacity. [close], [flush], [emit] and [hintEmit] do not affect its state.
+ * The buffer can be viewed as an unbound queue whose size grows with the data being written
+ * and shrinks with data being consumed. Internally, the buffer consists of data segments,
+ * and the buffer's capacity grows and shrinks in units of data segments instead of individual bytes.
+ *
+ * The buffer was designed to reduce memory allocations when possible. Instead of copying bytes
+ * from one place in memory to another, this class just changes ownership of the underlying data segments.
+ *
+ * To reduce allocations and speed up the buffer's extension, it may use data segments pooling.
+ *
+ * [Buffer] implements both [Source] and [Sink] and could be used as a source or a sink,
+ * but unlike regular sinks and sources its [close], [flush], [emit], [hintEmit]
+ * does not affect buffer's state and [exhausted] only indicates that a buffer is empty.
+ *
+ * ### Thread-safety guarantees
+ *
+ * [Buffer] does not provide any thread-safety guarantees.
+ * If a [Buffer] needs to be accessed from multiple threads, an additional synchronization is required.
+ * Failure to do so will result in possible data corruption, loss, and runtime errors.
  */
 public class Buffer : Source, Sink {
-    internal var head: BufferSegment? = null
-    private var sizeMut: Long = 0L
+    @PublishedApi
+    internal var head: Segment? = null
 
+    @PublishedApi
+    internal var tail: Segment? = null
+
+    /**
+     * The number of bytes accessible for read from this buffer.
+     */
     public val size: Long
         get() = sizeMut
 
-    override val buffer: Buffer
-        get() = this
+    @PublishedApi
+    internal var sizeMut: Long = 0L
 
-    private fun pushSegment(segment: BufferSegment) {
-        val first = head
-        if (first == null) {
-            segment.next = segment
-            segment.prev = segment
-            head = segment
-        } else {
-            val tail = first.prev!!
-            tail.next = segment
-            segment.prev = tail
-            segment.next = first
-            first.prev = segment
-        }
-    }
-
-    private fun popHead(): BufferSegment {
-        val segment = head!!
-        val next = segment.next!!
-        if (next === segment) {
-            head = null
-        } else {
-            val tail = segment.prev!!
-            tail.next = next
-            next.prev = tail
-            head = next
-        }
-        segment.next = null
-        segment.prev = null
-        return segment
-    }
-
-    private fun writableSegment(minimumCapacity: Int): BufferSegment {
-        val first = head
-        if (first != null) {
-            val tail = first.prev!!
-            if (tail.owner && tail.limit + minimumCapacity <= SEGMENT_SIZE_HINT) {
-                return tail
-            }
-        }
-        val segment = BufferSegment()
-        pushSegment(segment)
-        return segment
-    }
-
-    internal fun completeSegmentByteCount(): Long {
-        val first = head ?: return 0L
-        val tail = first.prev!!
-        if (tail.owner && tail.limit < SEGMENT_SIZE_HINT) {
-            return size - (tail.limit - tail.pos).toLong()
-        }
-        return size
-    }
+    /**
+     * Returns the buffer itself.
+     */
+    @InternalIoApi
+    override val buffer: Buffer get() = this
 
     override fun exhausted(): Boolean = size == 0L
 
     override fun require(byteCount: Long) {
-        if (byteCount < 0L) {
-            throw IllegalArgumentException("byteCount: $byteCount")
-        }
+        checkByteCount(byteCount)
         if (size < byteCount) {
             throw EOFException("Buffer doesn't contain required number of bytes (size: $size, required: $byteCount)")
         }
     }
 
     override fun request(byteCount: Long): Boolean {
-        if (byteCount < 0L) {
-            throw IllegalArgumentException("byteCount: $byteCount < 0")
-        }
+        if (byteCount < 0L) throw IllegalArgumentException("byteCount: $byteCount < 0")
         return size >= byteCount
     }
 
     override fun readByte(): Byte {
-        require(1L)
-        val segment = head!!
-        val value = segment.data[segment.pos]
-        segment.pos += 1
-        sizeMut -= 1L
-        if (segment.pos == segment.limit) {
-            popHead()
+        val segment = head ?: throwEof(1)
+        val segmentSize = segment.size
+        if (segmentSize == 0) {
+            recycleHead()
+            return readByte()
         }
-        return value
+        val v = segment.readByte()
+        sizeMut -= 1L
+        if (segmentSize == 1) {
+            recycleHead()
+        }
+        return v
     }
 
     override fun readShort(): Short {
-        require(2L)
-        return ((readByte().toInt() and 0xff shl 8) or (readByte().toInt() and 0xff)).toShort()
+        val segment = head ?: throwEof(2)
+        val segmentSize = segment.size
+        if (segmentSize < 2) {
+            // If the short is split across multiple segments, delegate to readByte().
+            require(2)
+            if (segmentSize == 0) {
+                recycleHead()
+                return readShort()
+            }
+            return (readByte() and 0xff shl 8 or (readByte() and 0xff)).toShort()
+        }
+        val v = segment.readShort()
+        sizeMut -= 2L
+        if (segmentSize == 2) {
+            recycleHead()
+        }
+        return v
     }
 
     override fun readInt(): Int {
-        require(4L)
-        return (readShort().toInt() shl 16) or (readShort().toInt() and 0xffff)
+        val segment = head ?: throwEof(4)
+        val segmentSize = segment.size
+        if (segmentSize < 4) {
+            // If the short is split across multiple segments, delegate to readShort().
+            require(4)
+            if (segmentSize == 0) {
+                recycleHead()
+                return readInt()
+            }
+            return (readShort().toInt() shl 16 or (readShort().toInt() and 0xffff))
+        }
+        val v = segment.readInt()
+        sizeMut -= 4L
+        if (segmentSize == 4) {
+            recycleHead()
+        }
+        return v
     }
 
     override fun readLong(): Long {
-        require(8L)
-        return (readInt().toLong() shl 32) or (readInt().toLong() and 0xffffffffL)
+        val segment = head ?: throwEof(8)
+        val segmentSize = segment.size
+        if (segmentSize < 8) {
+            // If the short is split across multiple segments, delegate to readInt().
+            require(8)
+            if (segmentSize == 0) {
+                recycleHead()
+                return readLong()
+            }
+            return (readInt().toLong() shl 32 or (readInt().toLong() and 0xffffffffL))
+        }
+        val v = segment.readLong()
+        sizeMut -= 8L
+        if (segmentSize == 8) {
+            recycleHead()
+        }
+        return v
     }
 
-    override fun skip(byteCount: Long) {
-        checkByteCount(byteCount)
-        var remaining = byteCount
-        while (remaining > 0L) {
-            val segment = head ?: throw EOFException("Buffer exhausted before skipping $byteCount bytes.")
-            val count = minOf(remaining, segment.limit - segment.pos).toInt()
-            segment.pos += count
-            sizeMut -= count.toLong()
-            remaining -= count.toLong()
-            if (segment.pos == segment.limit) {
-                popHead()
-            }
+    private fun throwEof(byteCount: Long): Nothing {
+        throw EOFException("Buffer doesn't contain required number of bytes (size: $size, required: $byteCount)")
+    }
+
+    /**
+     * This method does not affect the buffer's content as there is no upstream to write data to.
+     */
+    @InternalIoApi
+    override fun hintEmit(): Unit = Unit
+
+    /**
+     * This method does not affect the buffer's content as there is no upstream to write data to.
+     */
+    override fun emit(): Unit = Unit
+
+    /**
+     * This method does not affect the buffer's content as there is no upstream to write data to.
+     */
+    override fun flush(): Unit = Unit
+
+    /**
+     * Copies bytes from this buffer's subrange starting at [startIndex] and ending at [endIndex], to [out] buffer.
+     * This method does not consume data from the buffer.
+     *
+     * @param out the destination buffer to copy data into.
+     * @param startIndex the index (inclusive) of the first byte of data in this buffer to copy,
+     * 0 by default.
+     * @param endIndex the index (exclusive) of the last byte of data in this buffer to copy, `buffer.size` by default.
+     *
+     * @throws IndexOutOfBoundsException when [startIndex] or [endIndex] is out of this buffer bounds
+     * (`[0..buffer.size)`).
+     * @throws IllegalArgumentException when `startIndex > endIndex`.
+     *
+     * @sample kotlinx.io.samples.KotlinxIoCoreCommonSamples.bufferCopy
+     */
+    public fun copyTo(
+        out: Buffer,
+        startIndex: Long = 0L,
+        endIndex: Long = size
+    ) {
+        checkBounds(size, startIndex, endIndex)
+        if (startIndex == endIndex) return
+
+        var currentOffset = startIndex
+        var remainingByteCount = endIndex - startIndex
+
+        out.sizeMut += remainingByteCount
+
+        // Skip segments that we aren't copying from.
+        var s = head
+        while (currentOffset >= s!!.limit - s.pos) {
+            currentOffset -= (s.limit - s.pos).toLong()
+            s = s.next
+        }
+
+        // Copy one segment at a time.
+        while (remainingByteCount > 0L) {
+            val copy = s!!.sharedCopy()
+            copy.pos += currentOffset.toInt()
+            copy.limit = minOf(copy.pos + remainingByteCount.toInt(), copy.limit)
+            out.pushSegment(copy)
+            remainingByteCount -= (copy.limit - copy.pos).toLong()
+            currentOffset = 0L
+            s = s.next
         }
     }
 
-    public fun clear() {
-        skip(size)
+    /**
+     * Returns the number of bytes in segments that are fully filled and are no longer writable.
+     *
+     * This is the number of bytes that can be flushed immediately to an underlying sink without harming throughput.
+     */
+    internal fun completeSegmentByteCount(): Long {
+        var result = size
+        if (result == 0L) return 0L
+
+        // Omit the tail if it's still writable.
+        val tail = tail!!
+        if (tail.limit < Segment.SIZE && tail.owner) {
+            result -= (tail.limit - tail.pos).toLong()
+        }
+
+        return result
     }
 
+    /**
+     * Returns the byte at [position].
+     *
+     * Use of this method may expose significant performance penalties and it's not recommended to use it
+     * for sequential access to a range of bytes within the buffer.
+     *
+     * @throws IndexOutOfBoundsException when [position] is negative or greater or equal to [Buffer.size].
+     *
+     * @sample kotlinx.io.samples.KotlinxIoCoreCommonSamples.bufferGetByte
+     */
     public operator fun get(position: Long): Byte {
-        if (position < 0L || position >= size) {
+        if (position < 0 || position >= size) {
             throw IndexOutOfBoundsException("position ($position) is not within the range [0..size($size))")
         }
-        var segment = head!!
-        var offset = position
-        while (offset >= (segment.limit - segment.pos).toLong()) {
-            offset -= (segment.limit - segment.pos).toLong()
-            segment = segment.next!!
+        if (position == 0L) {
+            return head!!.getUnchecked(0)
         }
-        return segment.data[segment.pos + offset.toInt()]
+        seek(position) { s, offset ->
+            return s!!.getUnchecked((position - offset).toInt())
+        }
     }
 
+    /**
+     * Discards all bytes in this buffer.
+     *
+     * Call to this method is equivalent to [skip] with `byteCount = size`.
+     *
+     * @sample kotlinx.io.samples.KotlinxIoCoreCommonSamples.bufferClear
+     */
     public fun indexOf(byte: Byte, startIndex: Long = 0L, endIndex: Long = size): Long {
         val endOffset = if (endIndex > size) size else endIndex
         checkBounds(size, startIndex, endOffset)
@@ -208,97 +275,111 @@ public class Buffer : Source, Sink {
             val limit = minOf(endOffset - segmentOffset, segment.limit - segment.pos).toInt()
             var offset = (index - segmentOffset).toInt()
             while (offset < limit) {
-                if (segment.data[segment.pos + offset] == byte) return segmentOffset + offset.toLong()
+                if (segment.getUnchecked(offset) == byte) return segmentOffset + offset.toLong()
                 offset += 1
             }
             segmentOffset += (segment.limit - segment.pos).toLong()
             index = segmentOffset
-            segment = segment.next!!
+            if (index < endOffset) {
+                segment = segment.next!!
+            }
         }
         return -1L
     }
 
-    public fun copyTo(out: Buffer, startIndex: Long = 0L, endIndex: Long = size) {
-        checkBounds(size, startIndex, endIndex)
-        var remaining = endIndex - startIndex
-        if (remaining == 0L) return
-        var segment = head!!
-        var offset = startIndex
-        while (offset >= (segment.limit - segment.pos).toLong()) {
-            offset -= (segment.limit - segment.pos).toLong()
-            segment = segment.next!!
-        }
-        while (remaining > 0L) {
-            val copy = segment.sharedCopy()
-            copy.pos += offset.toInt()
-            val count = minOf(remaining, copy.limit - copy.pos).toInt()
-            copy.limit = copy.pos + count
-            out.pushSegment(copy)
-            out.sizeMut += count.toLong()
-            remaining -= count.toLong()
-            offset = 0L
-            segment = segment.next!!
-        }
-    }
+    public fun clear(): Unit = skip(size)
 
-    public fun copy(): Buffer {
-        val result = Buffer()
-        copyTo(result, 0L, size)
-        return result
+    /**
+     * Discards [byteCount] bytes from the head of this buffer.
+     *
+     * @throws IllegalArgumentException when [byteCount] is negative.
+     */
+    override fun skip(byteCount: Long) {
+        checkByteCount(byteCount)
+        var remainingByteCount = byteCount
+        while (remainingByteCount > 0) {
+            val head = head ?: throw EOFException("Buffer exhausted before skipping $byteCount bytes.")
+
+            val toSkip = minOf(remainingByteCount, head.limit - head.pos).toInt()
+            sizeMut -= toSkip.toLong()
+            remainingByteCount -= toSkip.toLong()
+            head.pos += toSkip
+
+            if (head.pos == head.limit) {
+                recycleHead()
+            }
+        }
     }
 
     override fun readAtMostTo(sink: ByteArray, startIndex: Int, endIndex: Int): Int {
         checkBounds(sink.size, startIndex, endIndex)
-        val segment = head ?: return -1
-        val available = segment.limit - segment.pos
-        val requested = endIndex - startIndex
-        val count = if (requested < available) requested else available
-        var i = 0
-        while (i < count) {
-            sink[startIndex + i] = segment.data[segment.pos + i]
-            i += 1
+
+        val s = this.head ?: return -1
+        val toCopy = minOf(endIndex - startIndex, s.size)
+        s.readTo(sink, startIndex, startIndex + toCopy)
+        sizeMut -= toCopy.toLong()
+
+        if (s.isEmpty()) {
+            recycleHead()
         }
-        segment.pos += count
-        sizeMut -= count.toLong()
-        if (segment.pos == segment.limit) {
-            popHead()
-        }
-        return count
+
+        return toCopy
     }
 
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
         checkByteCount(byteCount)
         if (size == 0L) return -1L
-        val count = if (byteCount < size) byteCount else size
-        sink.write(this, count)
-        return count
+        val bytesWritten = if (byteCount > size) size else byteCount
+        sink.write(this, bytesWritten)
+        return bytesWritten
     }
 
     override fun readTo(sink: RawSink, byteCount: Long) {
         checkByteCount(byteCount)
         if (size < byteCount) {
-            sink.write(this, size)
+            sink.write(this, size) // Exhaust ourselves.
             throw EOFException("Buffer exhausted before writing $byteCount bytes. Only $size bytes were written.")
         }
         sink.write(this, byteCount)
     }
 
     override fun transferTo(sink: RawSink): Long {
-        val count = size
-        if (count > 0L) sink.write(this, count)
-        return count
-    }
-
-    override fun transferFrom(source: RawSource): Long {
-        var total = 0L
-        while (true) {
-            val read = source.readAtMostTo(this, SEGMENT_SIZE_HINT.toLong())
-            if (read == -1L) return total
-            total += read
+        val byteCount = size
+        if (byteCount > 0L) {
+            sink.write(this, byteCount)
         }
+        return byteCount
     }
 
     override fun peek(): Source = PeekSource(this).buffered()
+
+    /**
+     * Returns a tail segment that we can write at least `minimumCapacity`
+     * bytes to, creating it if necessary.
+     */
+    @PublishedApi
+    internal fun writableSegment(minimumCapacity: Int): Segment {
+        if (minimumCapacity < 1 || minimumCapacity > Segment.SIZE) {
+            throw IllegalArgumentException(
+                "unexpected capacity ($minimumCapacity), should be in range [1, ${Segment.SIZE}]"
+            )
+        }
+
+        if (tail == null) {
+            val result = SegmentPool.take() // Acquire a first segment.
+            head = result
+            tail = result
+            return result
+        }
+
+        val t = tail!!
+        if (t.limit + minimumCapacity > Segment.SIZE || !t.owner) {
+            val newTail = t.push(SegmentPool.take()) // Append a new empty segment to fill up.
+            tail = newTail
+            return newTail
+        }
+        return t
+    }
 
     override fun write(source: ByteArray) {
         write(source, 0, source.size)
@@ -310,142 +391,312 @@ public class Buffer : Source, Sink {
 
     override fun write(source: ByteArray, startIndex: Int, endIndex: Int) {
         checkBounds(source.size, startIndex, endIndex)
-        var offset = startIndex
-        while (offset < endIndex) {
+        var currentOffset = startIndex
+        while (currentOffset < endIndex) {
             val tail = writableSegment(1)
-            val available = SEGMENT_SIZE_HINT - tail.limit
-            val remaining = endIndex - offset
-            val count = if (remaining < available) remaining else available
-            var i = 0
-            while (i < count) {
-                tail.data[tail.limit + i] = source[offset + i]
-                i += 1
-            }
-            tail.limit += count
-            offset += count
+            val toCopy = minOf(endIndex - currentOffset, tail.remainingCapacity)
+            tail.write(source, currentOffset, currentOffset + toCopy)
+            currentOffset += toCopy
         }
-        sizeMut += (endIndex - startIndex).toLong()
+        sizeMut += endIndex - startIndex
     }
 
     override fun write(source: RawSource, byteCount: Long) {
         checkByteCount(byteCount)
-        var remaining = byteCount
-        while (remaining > 0L) {
-            val read = source.readAtMostTo(this, remaining)
+        var remainingByteCount = byteCount
+        while (remainingByteCount > 0L) {
+            val read = source.readAtMostTo(this, remainingByteCount)
             if (read == -1L) {
-                throw EOFException("Source exhausted before reading $byteCount bytes. Only ${byteCount - remaining} were read.")
+                throw EOFException(
+                    "Source exhausted before reading $byteCount bytes. " +
+                            "Only ${byteCount - remainingByteCount} were read."
+                )
             }
-            remaining -= read
+            remainingByteCount -= read
         }
     }
 
     override fun write(source: Buffer, byteCount: Long) {
-        if (source === this) throw IllegalArgumentException("source == this")
-        checkOffsetAndCount(source.size, 0L, byteCount)
-        var remaining = byteCount
-        while (remaining > 0L) {
-            val segment = source.head!!
-            val available = segment.limit - segment.pos
-            val first = head
-            val tail = first?.prev
-            if (remaining < available.toLong()) {
-                val count = remaining.toInt()
+        // Move bytes from the head of the source buffer to the tail of this buffer
+        // while balancing two conflicting goals: don't waste CPU and don't waste
+        // memory.
+        //
+        //
+        // Don't waste CPU (ie. don't copy data around).
+        //
+        // Copying large amounts of data is expensive. Instead, we prefer to
+        // reassign entire segments from one buffer to the other.
+        //
+        //
+        // Don't waste memory.
+        //
+        // As an invariant, adjacent pairs of segments in a buffer should be at
+        // least 50% full, except for the head segment and the tail segment.
+        //
+        // The head segment cannot maintain the invariant because the application is
+        // consuming bytes from this segment, decreasing its level.
+        //
+        // The tail segment cannot maintain the invariant because the application is
+        // producing bytes, which may require new nearly-empty tail segments to be
+        // appended.
+        //
+        //
+        // Moving segments between buffers
+        //
+        // When writing one buffer to another, we prefer to reassign entire segments
+        // over copying bytes. Suppose we have a buffer with these segment levels
+        // [91%, 61%]. If we append a buffer with a single [72%] segment, that yields
+        // [91%, 61%, 72%]. No bytes are copied.
+        //
+        // Or suppose we have a buffer with these segment levels: [100%, 2%], and we
+        // want to append it to a buffer with these segment levels [99%, 3%]. This
+        // operation will yield the following segments: [100%, 2%, 99%, 3%]. That
+        // is, we do not spend time copying bytes around to achieve more efficient
+        // memory use like [100%, 100%, 4%].
+        //
+        // When combining buffers, we will compact adjacent buffers when their
+        // combined level doesn't exceed 100%. For example, when we start with
+        // [100%, 40%] and append [30%, 80%], the result is [100%, 70%, 80%].
+        //
+        //
+        // Splitting segments
+        //
+        // Occasionally we write only part of a source buffer to a sink buffer. For
+        // example, given a sink [51%, 91%], we may want to write the first 30% of
+        // a source [92%, 82%] to it. To simplify, we first transform the source to
+        // an equivalent buffer [30%, 62%, 82%] and then move the head segment,
+        // yielding sink [51%, 91%, 30%] and source [62%, 82%].
+
+        if (source === this) {
+            throw IllegalArgumentException("source == this")
+        }
+        checkOffsetAndCount(source.sizeMut, 0, byteCount)
+
+        var remainingByteCount = byteCount
+
+        while (remainingByteCount > 0L) {
+            // Is a prefix of the source's head segment all that we need to move?
+            if (remainingByteCount < source.head!!.size) {
+                val tail = tail
                 if (tail != null && tail.owner &&
-                    count <= SEGMENT_SIZE_HINT - tail.limit + (if (tail.shared) 0 else tail.pos)) {
-                    segment.writeTo(tail, count)
+                    remainingByteCount + tail.limit - (if (tail.shared) 0 else tail.pos) <= Segment.SIZE
+                ) {
+                    // Our existing segments are sufficient. Move bytes from source's head to our tail.
+                    source.head!!.writeTo(tail, remainingByteCount.toInt())
+                    source.sizeMut -= remainingByteCount
+                    sizeMut += remainingByteCount
+                    return
                 } else {
-                    val prefix: BufferSegment
-                    if (count >= 1024) {
-                        prefix = segment.sharedCopy()
-                        prefix.limit = prefix.pos + count
-                    } else {
-                        prefix = BufferSegment()
-                        var i = 0
-                        while (i < count) {
-                            prefix.data[i] = segment.data[segment.pos + i]
-                            i += 1
-                        }
-                        prefix.limit = count
-                    }
-                    segment.pos += count
-                    pushSegment(prefix)
+                    // We're going to need another segment. Split the source's head
+                    // segment in two, then move the first of those two to this buffer.
+                    source.head = source.head!!.split(remainingByteCount.toInt())
                 }
-                source.sizeMut -= remaining
-                sizeMut += remaining
-                return
             }
-            val moved = source.popHead()
-            if (tail != null && tail.owner &&
-                available <= SEGMENT_SIZE_HINT - tail.limit + (if (tail.shared) 0 else tail.pos)) {
-                moved.writeTo(tail, available)
-            } else {
-                pushSegment(moved)
+
+            // Remove the source's head segment and append it to our tail.
+            val segmentToMove = source.head!!
+            val movedByteCount = segmentToMove.size.toLong()
+            source.head = segmentToMove.pop()
+            if (source.head == null) {
+                source.tail = null
             }
-            source.sizeMut -= available.toLong()
-            sizeMut += available.toLong()
-            remaining -= available.toLong()
+            pushSegment(segmentToMove, true)
+            source.sizeMut -= movedByteCount
+            sizeMut += movedByteCount
+            remainingByteCount -= movedByteCount
         }
     }
 
+    override fun transferFrom(source: RawSource): Long {
+        var totalBytesRead = 0L
+        while (true) {
+            val readCount = source.readAtMostTo(this, Segment.SIZE.toLong())
+            if (readCount == -1L) break
+            totalBytesRead += readCount
+        }
+        return totalBytesRead
+    }
+
     override fun writeByte(byte: Byte) {
-        val tail = writableSegment(1)
-        tail.data[tail.limit] = byte
-        tail.limit += 1
+        writableSegment(1).writeByte(byte)
         sizeMut += 1L
     }
 
     override fun writeShort(short: Short) {
-        val tail = writableSegment(2)
-        val value = short.toInt()
-        tail.data[tail.limit] = (value ushr 8 and 0xff).toByte()
-        tail.data[tail.limit + 1] = (value and 0xff).toByte()
-        tail.limit += 2
+        writableSegment(2).writeShort(short)
         sizeMut += 2L
     }
 
     override fun writeInt(int: Int) {
-        val tail = writableSegment(4)
-        var shift = 24
-        var i = 0
-        while (i < 4) {
-            tail.data[tail.limit + i] = (int ushr shift and 0xff).toByte()
-            shift -= 8
-            i += 1
-        }
-        tail.limit += 4
+        writableSegment(4).writeInt(int)
         sizeMut += 4L
     }
 
     override fun writeLong(long: Long) {
-        val tail = writableSegment(8)
-        var shift = 56
-        var i = 0
-        while (i < 8) {
-            tail.data[tail.limit + i] = (long ushr shift and 0xffL).toByte()
-            shift -= 8
-            i += 1
-        }
-        tail.limit += 8
+        writableSegment(8).writeLong(long)
         sizeMut += 8L
     }
 
-    override fun hintEmit() {}
-    override fun emit() {}
-    override fun flush() {}
-    override fun close() {}
+    /**
+     * Returns a deep copy of this buffer.
+     */
+    public fun copy(): Buffer {
+        val result = Buffer()
+        if (size == 0L) return result
 
+        val head = this.head!!
+        val headCopy = head.sharedCopy()
+
+        result.head = headCopy
+        result.tail = headCopy
+
+        var s = head.next
+        while (s != null) {
+            result.tail = result.tail!!.push(s.sharedCopy())
+            s = s.next
+        }
+
+        result.sizeMut = size
+        return result
+    }
+
+    /**
+     * This method does not affect the buffer.
+     */
+    override fun close(): Unit = Unit
+
+    /**
+     * Returns a human-readable string that describes the contents of this buffer. For buffers containing
+     * few bytes, this is a string like `Buffer(size=4 hex=0000ffff)`. However, if the buffer is too large,
+     * a string will contain its size and only a prefix of data, like `Buffer(size=1024 hex=01234…)`.
+     * Thus, the string could not be used to compare buffers or verify buffer's content.
+     *
+     * @sample kotlinx.io.samples.KotlinxIoCoreCommonSamples.bufferToString
+     */
+    @OptIn(UnsafeIoApi::class)
     override fun toString(): String {
         if (size == 0L) return "Buffer(size=0)"
-        val length = if (size < 64L) size.toInt() else 64
-        val builder = StringBuilder()
-        var i = 0
-        while (i < length) {
-            val byte = get(i.toLong()).toInt() and 0xff
-            builder.append(HEX_DIGIT_CHARS[(byte shr 4) and 0xf])
-            builder.append(HEX_DIGIT_CHARS[byte and 0xf])
-            i += 1
+
+        val maxPrintableBytes = 64
+        val len = minOf(maxPrintableBytes, size).toInt()
+
+        val builder = StringBuilder(len * 2 + if (size > maxPrintableBytes) 1 else 0)
+        var bytesWritten = 0
+        UnsafeBufferOperations.forEachSegment(this) { ctx, segment ->
+            var idx = 0
+            while (bytesWritten < len && idx < segment.size) {
+                val b = ctx.getUnchecked(segment, idx++)
+                bytesWritten++
+                builder
+                    .append(HEX_DIGIT_CHARS[(b shr 4) and 0xf])
+                    .append(HEX_DIGIT_CHARS[b and 0xf])
+            }
         }
-        if (size > 64L) builder.append('…')
+
+        if (size > maxPrintableBytes) {
+            builder.append('…')
+        }
+
         return "Buffer(size=$size hex=$builder)"
+    }
+
+    /**
+     * Unlinks and recycles this buffer's head.
+     *
+     * If head had a successor, it'll become a new head.
+     * Otherwise, both [head] and [tail] will be set to null.
+     *
+     * It's up to a caller to ensure that the head exists.
+     */
+    internal fun recycleHead() {
+        val oldHead = head!!
+        val nextHead = oldHead.next
+        head = nextHead
+        if (nextHead == null) {
+            tail = null
+        } else {
+            nextHead.prev = null
+        }
+        oldHead.next = null
+        SegmentPool.recycle(oldHead)
+    }
+
+    /**
+     * Unlinks and recycles this buffer's tail segment.
+     *
+     * If tail had a predecessor, it'll become a new tail.
+     * Otherwise, both [head] and [tail] will be set to null.
+     *
+     * It's up to a caller to ensure that the tail exists.
+     */
+    @PublishedApi
+    internal fun recycleTail() {
+        val oldTail = tail!!
+        val newTail = oldTail.prev
+        tail = newTail
+        if (newTail == null) {
+            head = null
+        } else {
+            newTail.next = null
+        }
+        oldTail.prev = null
+        SegmentPool.recycle(oldTail)
+    }
+
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun pushSegment(newTail: Segment, tryCompact: Boolean = false) {
+        if (head == null) {
+            head = newTail
+            tail = newTail
+        } else if (tryCompact) {
+            tail = tail!!.push(newTail).compact()
+            if (tail!!.prev == null) {
+                head = tail
+            }
+        } else {
+            tail = tail!!.push(newTail)
+        }
+    }
+}
+
+/**
+ * Invoke `lambda` with the segment and offset at `fromIndex`. Searches from the front or the back
+ * depending on what's closer to `fromIndex`.
+ */
+@PublishedApi
+@OptIn(ExperimentalContracts::class)
+internal inline fun <T> Buffer.seek(
+    fromIndex: Long,
+    lambda: (Segment?, Long) -> T
+): T {
+    contract {
+        callsInPlace(lambda, EXACTLY_ONCE)
+    }
+
+    if (this.head == null) {
+        return lambda(null, -1L)
+    }
+
+    if (size - fromIndex < fromIndex) {
+        var s = tail
+        // We're scanning in the back half of this buffer. Find the segment starting at the back.
+        var offset = size
+        while (s != null && offset > fromIndex) {
+            offset -= (s.limit - s.pos).toLong()
+            if (offset <= fromIndex) break
+            s = s.prev
+        }
+        return lambda(s, offset)
+    } else {
+        var s = this.head
+        // We're scanning in the front half of this buffer. Find the segment starting at the front.
+        var offset = 0L
+        while (s != null) {
+            val nextOffset = offset + (s.limit - s.pos)
+            if (nextOffset > fromIndex) break
+            s = s.next
+            offset = nextOffset
+        }
+        return lambda(s, offset)
     }
 }
