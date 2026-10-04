@@ -331,7 +331,7 @@ struct ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let linkedSetCall = try #require(firstExprID(in: ast) { _, expr in
+            let linkedSetCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
