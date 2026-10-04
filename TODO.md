@@ -1260,12 +1260,12 @@
 
 - [~] KSP-1072: kotlin.collections.MutableList.MutableList の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.collections.MutableList` / receiver `MutableList`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableList/MutableList.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableList.kt`（既存 canonical owner）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableList_MutableList_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableList_MutableList_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableList_MutableList_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 実装状況（2026-09-28）: 13 件のうち 12 件は KSP-1503 / KSP-700 / KSP-705 で source-backed。残る `MutableList.remove(E)` を既存 source owner に追加し、MutableList 専用の demoted runtime bridge を維持。KUU-677 の MutableCollection owner 移行とは別。Sema で全 13 件の owner と新規 remove の source-backed 性を確認する回帰、既存 Sema golden の binding 更新、および単独 diff ケースを追加。Swift toolchain のない環境のため実行テスト・共通ゲートは CI 待ち。
+  - 実装状況（2026-10-04）: `remove(E)` の親 owner 固定を廃止し、通常の member/override 選択へ移行。既存 box ABI を保持し、MutableList の indexed/bulk mutation と no-arg `listIterator()` の source receiver dispatch を補完。全 13 API の slot/source contract、source/artifact の custom `AbstractMutableList` 実行、indexed remove extension、predicate overload、ArrayList source throwing override（テスト内モデル、build guard 本体は別責務）を focused 回帰で検証。全 Golden / 全 diff / 全 Swift test の共通完了ゲートは未実行のため `[~]` を維持。
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableList.add` — fun MutableList.add(): Boolean  -- `abstract fun add(#A): kotlin/Boolean`
     - `kotlin.collections.MutableList.add` — fun MutableList.add(Int, ): Unit  -- `abstract fun add(kotlin/Int, #A)`
